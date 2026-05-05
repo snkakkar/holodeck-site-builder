@@ -96,6 +96,23 @@
       user-select: none;
     }
 
+    /* ── Keyframe animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(22px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.88) translateY(16px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    @keyframes dotPulse {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+
     .slide {
       position: absolute;
       top: 52px; left: 0; right: 0; bottom: 0;
@@ -104,13 +121,97 @@
       justify-content: center;
       align-items: center;
       opacity: 0;
-      transition: opacity .5s ease;
+      transform: translateY(18px);
+      transition: opacity .45s ease, transform .45s ease;
       pointer-events: none;
     }
 
     .slide.active {
       opacity: 1;
+      transform: translateY(0);
       pointer-events: auto;
+    }
+
+    .slide.exit {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+
+    /* ── Slide 1 child animations ── */
+    .slide.active .s1-eyebrow {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.1s;
+    }
+    .slide.active .s1-headline {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.25s;
+    }
+    .slide.active .s1-sub {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.45s;
+    }
+
+    /* ── Slide 2 child animations ── */
+    .slide.active .s2-eyebrow {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.1s;
+    }
+    .slide.active .s2-headline {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.2s;
+    }
+    .slide.active .s2-sub {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.35s;
+    }
+    .slide.active .s2-presenter-row {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.55s;
+    }
+
+    /* ── Slide 3 child animations ── */
+    .slide.active .s3-eyebrow {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.05s;
+    }
+    .slide.active .s3-headline {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.15s;
+    }
+    .slide.active .s3-part:nth-child(1) {
+      animation: popIn .4s cubic-bezier(0.34,1.56,0.64,1) both;
+      animation-delay: 0.2s;
+    }
+    .slide.active .s3-part:nth-child(2) {
+      animation: popIn .4s cubic-bezier(0.34,1.56,0.64,1) both;
+      animation-delay: 0.35s;
+    }
+    .slide.active .s3-part:nth-child(3) {
+      animation: popIn .4s cubic-bezier(0.34,1.56,0.64,1) both;
+      animation-delay: 0.5s;
+    }
+    .slide.active .s3-ga {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.7s;
+    }
+
+    /* ── Vignette slide child animations ── */
+    .slide.active .v-eyebrow {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.1s;
+    }
+    .slide.active .v-headline {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.25s;
+    }
+    .slide.active .v-sub {
+      animation: fadeUp .5s ease both;
+      animation-delay: 0.45s;
+    }
+
+    /* ── Progress dot pulse ── */
+    .pdot.pulse {
+      animation: dotPulse .35s ease both;
     }
 
     /* ─── SLIDE 1: Cinematic opener — bright, bold ─── */
@@ -555,9 +656,9 @@
 
     const s3Parts = document.getElementById("s3-parts");
     const tagMap = [
-      ["Instagram", "Website", "SMS", "AI Agent", "Email"],
-      ["Data Cloud", "360° profile", "Real-time"],
-      ["Agentforce", "Clicks not code", "GA today"],
+      ["Onsite", "Email", "SMS", "In-App", "Anonymous → Known"],
+      ["Agentforce", "Commerce Cloud", "Clicks not code", "GA today"],
+      ["Commerce Cloud", "AI Search", "Personalized Results"],
     ];
 
     story.demoStructure.forEach((part, i) => {
@@ -600,11 +701,24 @@
     }
 
     function goTo(n) {
-      document.getElementById("slide-" + current).classList.remove("active");
+      const next = Math.max(1, Math.min(totalSlides, n));
+      if (next === current) return;
+
+      const prevSlide = document.getElementById("slide-" + current);
+      prevSlide.classList.remove("active");
+      prevSlide.classList.add("exit");
+      setTimeout(() => { prevSlide.classList.remove("exit"); }, 460);
+
       dotsEl.children[current - 1].classList.remove("active");
-      current = Math.max(1, Math.min(totalSlides, n));
+      current = next;
       document.getElementById("slide-" + current).classList.add("active");
-      dotsEl.children[current - 1].classList.add("active");
+
+      const activeDot = dotsEl.children[current - 1];
+      activeDot.classList.remove("pulse");
+      // Force reflow to restart animation
+      void activeDot.offsetWidth;
+      activeDot.classList.add("active", "pulse");
+      setTimeout(() => activeDot.classList.remove("pulse"), 360);
 
       const thumb = document.getElementById("thumb-preview");
       const thumbTitle = document.getElementById("thumb-title");
@@ -627,7 +741,16 @@
       if (e.key === "ArrowLeft") goTo(current - 1);
     });
 
-    goTo(1);
+    // Init: slide-1 already has .active in HTML; just set up thumb/cta state
+    (function initUI() {
+      const thumb = document.getElementById("thumb-preview");
+      const thumbTitle = document.getElementById("thumb-title");
+      if (thumbTitles[current - 1]) {
+        thumb.classList.add("visible");
+        thumbTitle.innerHTML = thumbTitles[current - 1];
+      }
+      document.getElementById("click-cta").style.display = "flex";
+    })();
   </script>
 </body>
 </html>

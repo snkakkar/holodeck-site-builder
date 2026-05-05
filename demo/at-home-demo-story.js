@@ -2,6 +2,11 @@
  * At Home + Salesforce CX Vision Demo — Shared Story Config
  * Update presenterName / presenterTitle before each presentation.
  * TODO: Replace XX% placeholder BVS benchmark values with real numbers.
+ *
+ * CORE PRODUCT FOCUS:
+ *   1. Marketing Cloud Personalization — onsite, in-app, email, SMS
+ *   2. Agentforce Shopper Agent — conversational commerce on Commerce Cloud
+ *   3. Cimulate — contextual AI search (acquired by Salesforce)
  */
 const AT_HOME_DEMO_STORY = {
   customerName: "At Home",
@@ -35,55 +40,55 @@ const AT_HOME_DEMO_STORY = {
       {
         id: "umbrella",
         name: "Market Patio Umbrella",
-        tag: "AI-RECOMMENDED",
-        detail: "Weather-resistant · all-season",
+        tag: "AI SEARCH MATCH",
+        detail: "Contextual search · weather-resistant",
         emoji: "⛱️",
       },
       {
         id: "lights",
         name: "Outdoor String Lights",
         tag: "COMPLETE THE LOOK",
-        detail: "Added by AI Design Assistant",
+        detail: "Added by Agentforce Shopper Agent",
         emoji: "✨",
       },
     ],
   },
 
-  // 5-step journey (used by demo map and vignette)
+  // 5-step journey — centered on MCP and Agentforce
   steps: [
     {
       id: 1,
       title: "Anticipate",
-      badge: "Anonymous Personalization",
-      headline: "Know Rachel before she knows you.",
-      eyebrow: "DISCOVER INTENT",
-      description: "Rachel sees a personalized 4th of July patio promotion on Instagram.",
-      detail: "Data Cloud identifies Rachel as a high-propensity outdoor furniture buyer based on her browsing history — and serves the right ad at the right moment.",
-      technologies: ["Data Cloud", "Marketing Cloud"],
+      badge: "MCP Audience Segmentation",
+      headline: "Know Rachel before she arrives.",
+      eyebrow: "MARKETING CLOUD PERSONALIZATION",
+      description: "Rachel sees a personalized 4th of July patio promotion on Instagram, powered by MCP audience segments.",
+      detail: "Marketing Cloud Personalization identifies Rachel as a high-propensity outdoor furniture buyer and serves a targeted promotion — the right message, at the right moment, before she ever visits the site.",
+      technologies: ["Marketing Cloud Personalization", "Email", "SMS"],
       emoji: "📸",
       colorClass: "step-anticipate",
     },
     {
       id: 2,
       title: "Engage",
-      badge: "Real-Time Commerce Personalization",
+      badge: "Onsite Personalization",
       headline: "The site knows her before she logs in.",
-      eyebrow: "PERSONALIZE THE EXPERIENCE",
-      description: "The At Home website adapts to Rachel's outdoor entertaining intent — even as an anonymous visitor.",
-      detail: "B2C Commerce surfaces a personalized 4th of July hero banner and tailored patio recommendations. Rachel browses, finds the Catalina Outdoor Set, and saves it to her cart.",
-      technologies: ["B2C Commerce", "MCP Recommendations", "Data Cloud"],
+      eyebrow: "MARKETING CLOUD PERSONALIZATION",
+      description: "The At Home website adapts in real time to Rachel's outdoor entertaining intent — anonymous or known.",
+      detail: "Marketing Cloud Personalization serves a personalized 4th of July hero banner, tailored patio recommendations, and AI-powered contextual search results the moment Rachel lands on the Commerce Cloud storefront.",
+      technologies: ["Marketing Cloud Personalization", "Commerce Cloud"],
       emoji: "🛍️",
       colorClass: "step-engage",
     },
     {
       id: 3,
       title: "Guide",
-      badge: "Conversational Shopping Guidance",
+      badge: "Agentforce Shopper Agent",
       headline: "The right message. Then the right agent.",
-      eyebrow: "RE-ENGAGE & ASSIST",
-      description: "A price-drop SMS brings Rachel back. The AI Design Assistant helps her choose the perfect outdoor setup.",
-      detail: "Marketing Cloud fires a proactive SMS when the Catalina Set price drops. Rachel chats with Agentforce — asks about weather resistance, gets full product answers, and the agent builds her cart.",
-      technologies: ["Marketing Cloud", "Agentforce", "MCP", "SMS"],
+      eyebrow: "MCP MULTI-CHANNEL + AGENTFORCE",
+      description: "A price-drop SMS brings Rachel back. The Agentforce Shopper Agent helps her build the perfect outdoor setup.",
+      detail: "Marketing Cloud Personalization fires a proactive SMS when the Catalina Set price drops. Rachel opens the chat, meets the Agentforce Shopper Agent — asks about weather resistance, gets full product answers, and the agent builds her cart.",
+      technologies: ["Marketing Cloud Personalization", "SMS", "Agentforce Shopper Agent"],
       emoji: "🤖",
       colorClass: "step-guide",
     },
@@ -92,22 +97,22 @@ const AT_HOME_DEMO_STORY = {
       title: "Convert",
       badge: "Higher Conversion & AOV",
       headline: "One conversation. Full cart. Checkout.",
-      eyebrow: "DRIVE THE PURCHASE",
-      description: "The agent adds the patio set, umbrella, and string lights to cart. Rachel checks out.",
-      detail: "The agent bundles the perfect outdoor set in one interaction. Rachel proceeds to checkout — or an exit-intent offer saves the sale with 10% off in 5 minutes.",
-      technologies: ["Agentforce", "B2C Commerce"],
+      eyebrow: "AGENTFORCE + COMMERCE CLOUD",
+      description: "The Agentforce Shopper Agent bundles the patio set, umbrella, and string lights. Rachel checks out.",
+      detail: "In a single agentic conversation on the Commerce Cloud storefront, the Shopper Agent builds Rachel's complete outdoor setup and guides her to checkout — or an exit-intent offer saves the sale with 10% off.",
+      technologies: ["Agentforce Shopper Agent", "Commerce Cloud"],
       emoji: "✅",
       colorClass: "step-convert",
     },
     {
       id: 5,
       title: "Delight",
-      badge: "Lifecycle Engagement",
+      badge: "Lifecycle Personalization",
       headline: "The journey doesn't end at checkout.",
-      eyebrow: "BUILD LOYALTY",
+      eyebrow: "MARKETING CLOUD PERSONALIZATION",
       description: "Rachel receives 'Top 5 Tips for Hosting the Ultimate 4th of July BBQ' — proactive, helpful, personal.",
-      detail: "A follow-up email delivers hosting content tied to her purchase context. Agentforce isn't just reactive — it nurtures the customer relationship and drives lifetime value.",
-      technologies: ["Marketing Cloud", "Email Automation"],
+      detail: "Marketing Cloud Personalization delivers a post-purchase email tied to her purchase context — outdoor entertaining content, complementary products, and care tips. Every interaction makes the next one smarter.",
+      technologies: ["Marketing Cloud Personalization", "Email Automation"],
       emoji: "🌟",
       colorClass: "step-delight",
     },
@@ -116,67 +121,67 @@ const AT_HOME_DEMO_STORY = {
   // Vignette / section intro slides
   vignetteSections: [
     {
-      eyebrow: "PERSISTENT PERSONALIZATION",
+      eyebrow: "MARKETING CLOUD PERSONALIZATION",
       title: "Anticipate & Engage",
-      subtitle: "From anonymous interest to personalized commerce — before Rachel even identifies herself.",
+      subtitle: "From anonymous interest to personalized onsite experience — before Rachel even identifies herself.",
     },
     {
-      eyebrow: "AGENTIC ASSISTANCE",
+      eyebrow: "AGENTFORCE SHOPPER AGENT",
       title: "Guide & Convert",
-      subtitle: "The right message at the right time, followed by the right agent to close the sale.",
+      subtitle: "The right re-engagement message, then the right AI agent to build the cart and close the sale.",
     },
     {
-      eyebrow: "LIFECYCLE ENGAGEMENT",
+      eyebrow: "MARKETING CLOUD PERSONALIZATION",
       title: "Delight",
-      subtitle: "The relationship extends well beyond the transaction.",
+      subtitle: "Post-purchase personalization that builds loyalty and drives the next visit.",
     },
   ],
 
   platform: {
     title: "Salesforce Platform",
-    subtitle: "AGENTFORCE TRUST LAYER · ALL CAPABILITIES GA · USED BY CUSTOMERS TODAY",
+    subtitle: "MARKETING CLOUD PERSONALIZATION · AGENTFORCE · COMMERCE CLOUD",
     capabilities: [
-      "Data Cloud",
-      "Agentforce",
-      "B2C Commerce",
-      "Marketing Cloud",
-      "MCP & AI Recommendations",
+      "Marketing Cloud Personalization",
+      "Agentforce Shopper Agent",
+      "Commerce Cloud",
       "SMS & Email Automation",
-      "Personalization",
+      "Onsite Personalization",
+      "AI-Powered Search",
+      "Post-Purchase Nurture",
     ],
   },
 
   technologies: [
-    { label: "Data Cloud",                description: "Unified customer profile from every signal and source — anonymous to known." },
-    { label: "Agentforce",               description: "AI agents that act across channels, grounded in product data and customer context." },
-    { label: "B2C Commerce",             description: "Personalized commerce experience — from anonymous browse to checkout." },
-    { label: "Marketing Cloud",          description: "Right message, right channel, right moment — SMS, email, and beyond." },
-    { label: "MCP & AI Recommendations", description: "Contextual product and content recommendations powered by AI." },
-    { label: "SMS & Email Automation",   description: "Proactive re-engagement and post-purchase nurture at scale." },
-    { label: "Personalization",          description: "Anonymous to known — always relevant, never generic." },
+    { label: "Marketing Cloud Personalization", description: "Real-time onsite, in-app, email, and SMS personalization — anonymous to known, always relevant." },
+    { label: "Agentforce Shopper Agent",        description: "Conversational AI agent on the Commerce Cloud storefront — answers questions, builds carts, drives conversion." },
+    { label: "Commerce Cloud",                  description: "Personalized storefront with AI-powered contextual search built in — from browse to checkout." },
+    { label: "SMS & Email Automation",          description: "Proactive re-engagement and post-purchase nurture — price-drop alerts, hosting tips, lifecycle moments." },
+    { label: "Onsite Personalization",          description: "Dynamic banners, product carousels, and recommendations that adapt in real time to shopper intent." },
+    { label: "AI-Powered Search",               description: "Contextual search built into Commerce Cloud — surfaces the right product for every shopper intent." },
+    { label: "Post-Purchase Nurture",           description: "Context-aware content and product recommendations that extend the relationship beyond the transaction." },
   ],
 
   demoStructure: [
     {
       part: 1,
       icon: "01",
-      title: "AI-Driven Customer Journey",
-      description: "Follow Rachel from personalized Instagram ad through the AI Design Assistant to checkout and post-purchase nurture.",
-      tags: ["Instagram", "Website", "SMS", "AI Agent", "Email"],
+      title: "Marketing Cloud Personalization",
+      description: "See how MCP personalizes every touchpoint — Instagram ad, onsite hero, price-drop SMS, and post-purchase email — all from one platform.",
+      tags: ["Onsite", "Email", "SMS", "In-App", "Anonymous → Known"],
     },
     {
       part: 2,
       icon: "02",
-      title: "Connected Data Foundation",
-      description: "See how Data Cloud unifies every signal — browsing, ad click, cart save, SMS, agent chat — into one living customer profile.",
-      tags: ["Data Cloud", "360° customer view", "Real-time activation"],
+      title: "Agentforce Shopper Agent",
+      description: "Meet the At Home Shopper Agent — a conversational AI built on Agentforce that answers product questions, recommends bundles, and builds carts.",
+      tags: ["Agentforce", "Commerce Cloud", "Clicks not code", "GA today"],
     },
     {
       part: 3,
       icon: "03",
-      title: "Agent Creation with Clicks, Not Code",
-      description: "See how the At Home AI Design Assistant was built on Agentforce — grounded in product data, deployed without engineering.",
-      tags: ["Agentforce", "Clicks not code", "No new infrastructure"],
+      title: "Commerce Cloud + AI Search",
+      description: "See how AI-powered contextual search — built into Commerce Cloud — surfaces exactly the right products based on Rachel's intent, not just her keywords.",
+      tags: ["Commerce Cloud", "AI Search", "Personalized Results"],
     },
   ],
 
@@ -192,7 +197,7 @@ const AT_HOME_DEMO_STORY = {
   liveLinks: {
     atHomeWebsite: null,    // TODO: add live At Home demo site URL
     instagramWrapper: null, // TODO: add Instagram wrapper app URL
-    agentDemo: null,        // TODO: add Agentforce AI Design Assistant URL
+    agentDemo: null,        // TODO: add Agentforce Shopper Agent URL
   },
 
   openItems: [
@@ -201,8 +206,8 @@ const AT_HOME_DEMO_STORY = {
     "Add product images for Rachel's wishlist (Catalina Set, Umbrella, String Lights)",
     "Add Rachel persona lifestyle photo to Meet Rachel slide",
     "Confirm live demo URLs and add to liveLinks",
-    "Confirm whether Exit Intent checkout banner is a Shopper Agent (per script note)",
-    "CapGemini architecture alignment with At Home Stores LLC team",
+    "Confirm Cimulate demo availability and integration point",
+    "Confirm Agentforce Shopper Agent demo URL on Commerce Cloud storefront",
   ],
 };
 

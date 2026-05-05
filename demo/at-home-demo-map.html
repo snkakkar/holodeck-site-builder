@@ -230,7 +230,7 @@
       bottom: calc(100% + 14px);
       left: 50%;
       transform: translateX(-50%) translateY(6px);
-      width: 236px;
+      width: 220px;
       background: #0d1b2e;
       border: 1px solid rgba(255,255,255,.12);
       border-radius: 14px;
@@ -241,6 +241,17 @@
       transition: opacity .22s ease, transform .22s ease;
       z-index: 30;
       box-shadow: 0 12px 40px rgba(0,0,0,.3);
+    }
+
+    /* Prevent edge steps clipping off screen */
+    .step:last-child .tooltip {
+      left: auto;
+      right: -8px;
+      transform: translateY(6px);
+    }
+    .step:first-child .tooltip {
+      left: -8px;
+      transform: translateY(6px);
     }
 
     .tooltip .tt {
@@ -279,6 +290,10 @@
       opacity: 1;
       transform: translateX(-50%) translateY(0);
       pointer-events: auto;
+    }
+    .step:last-child .circle-wrap:hover .tooltip,
+    .step:first-child .circle-wrap:hover .tooltip {
+      transform: translateY(0);
     }
 
     /* Step copy */

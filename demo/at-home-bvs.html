@@ -61,6 +61,32 @@
     .site-nav-links a:hover { color: #0d1b2e; border-color: rgba(13,27,46,.28); background: rgba(13,27,46,.04); }
     .site-nav-links a.active { color: #b22234; border-color: rgba(178,34,52,.35); background: rgba(178,34,52,.05); }
 
+    /* ── Shared keyframes ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(22px); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.88) translateY(14px); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes orbitSpin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes orbitSpinReverse {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(-360deg); }
+    }
+    @keyframes nodeFloat {
+      0%,100% { transform: translateY(0); }
+      50%     { transform: translateY(-5px); }
+    }
+    @keyframes ctaPulse {
+      0%,100% { box-shadow: 0 6px 28px rgba(178,34,52,.35); }
+      50%     { box-shadow: 0 6px 36px rgba(178,34,52,.55); }
+    }
+
     /* ── Slide engine ── */
     .slides-wrap {
       width: 100vw;
@@ -79,13 +105,21 @@
       justify-content: center;
       align-items: center;
       opacity: 0;
-      transition: opacity .5s ease;
+      transform: translateY(18px);
+      transition: opacity .45s ease, transform .45s ease;
       pointer-events: none;
     }
 
     .slide.active {
       opacity: 1;
+      transform: translateY(0);
       pointer-events: auto;
+    }
+
+    .slide.exit {
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity .3s ease, transform .3s ease;
     }
 
     /* ─── SLIDE 1: Section title ─── */
@@ -534,6 +568,166 @@
       box-shadow: 0 10px 36px rgba(178,34,52,.5);
     }
 
+    /* ── Slide 1 child animations ── */
+    #slide-1.active .s1-eyebrow {
+      animation: fadeUp .5s ease both;
+      animation-delay: .1s;
+    }
+    #slide-1.active .s1-headline {
+      animation: fadeUp .5s ease both;
+      animation-delay: .25s;
+    }
+    #slide-1.active .s1-sub {
+      animation: fadeUp .5s ease both;
+      animation-delay: .45s;
+    }
+
+    /* ── Slide 2 child animations ── */
+    #slide-2.active .orbit-outer {
+      animation: orbitSpin 28s linear infinite;
+    }
+    #slide-2.active .orbit-inner {
+      animation: orbitSpinReverse 20s linear infinite;
+    }
+    #slide-2.active .orbit-center {
+      animation: fadeUp .5s ease both;
+      animation-delay: .15s;
+    }
+    /* orbit-wrap children: 1=outer ring, 2=inner ring, 3=center, 4-9=nodes */
+    #slide-2.active .orbit-node:nth-child(4) {
+      animation: popIn .45s ease both;
+      animation-delay: .2s;
+    }
+    #slide-2.active .orbit-node:nth-child(5) {
+      animation: popIn .45s ease both;
+      animation-delay: .3s;
+    }
+    #slide-2.active .orbit-node:nth-child(6) {
+      animation: popIn .45s ease both;
+      animation-delay: .4s;
+    }
+    #slide-2.active .orbit-node:nth-child(7) {
+      animation: popIn .45s ease both;
+      animation-delay: .5s;
+    }
+    #slide-2.active .orbit-node:nth-child(8) {
+      animation: popIn .45s ease both;
+      animation-delay: .6s;
+    }
+    #slide-2.active .orbit-node:nth-child(9) {
+      animation: popIn .45s ease both;
+      animation-delay: .7s;
+    }
+    #slide-2.active .oc-eyebrow {
+      animation: fadeUp .5s ease both;
+      animation-delay: .2s;
+    }
+    #slide-2.active .oc-headline {
+      animation: fadeUp .5s ease both;
+      animation-delay: .35s;
+    }
+    #slide-2.active .oc-body {
+      animation: fadeUp .5s ease both;
+      animation-delay: .5s;
+    }
+    #slide-2.active .oc-stats > div:nth-child(1) {
+      animation: fadeUp .5s ease both;
+      animation-delay: .65s;
+    }
+    #slide-2.active .oc-stats > div:nth-child(2) {
+      animation: fadeUp .5s ease both;
+      animation-delay: .75s;
+    }
+    #slide-2.active .oc-stats > div:nth-child(3) {
+      animation: fadeUp .5s ease both;
+      animation-delay: .85s;
+    }
+
+    /* ── Slide 3 child animations ── */
+    #slide-3.active .s3-eyebrow {
+      animation: fadeUp .5s ease both;
+      animation-delay: .1s;
+    }
+    #slide-3.active .s3-headline {
+      animation: fadeUp .5s ease both;
+      animation-delay: .2s;
+    }
+    #slide-3.active .s3-cap:nth-child(1) {
+      animation: popIn .45s ease both;
+      animation-delay: .25s;
+    }
+    #slide-3.active .s3-cap:nth-child(2) {
+      animation: popIn .45s ease both;
+      animation-delay: .35s;
+    }
+    #slide-3.active .s3-cap:nth-child(3) {
+      animation: popIn .45s ease both;
+      animation-delay: .45s;
+    }
+    #slide-3.active .s3-cap:nth-child(4) {
+      animation: popIn .45s ease both;
+      animation-delay: .55s;
+    }
+    #slide-3.active .s3-cap:nth-child(5) {
+      animation: popIn .45s ease both;
+      animation-delay: .65s;
+    }
+    #slide-3.active .s3-cap:nth-child(6) {
+      animation: popIn .45s ease both;
+      animation-delay: .75s;
+    }
+    #slide-3.active .s3-cap:nth-child(7) {
+      animation: popIn .45s ease both;
+      animation-delay: .85s;
+    }
+
+    /* ── Slide 4 child animations ── */
+    #slide-4.active .s4-eyebrow {
+      animation: fadeUp .5s ease both;
+      animation-delay: .1s;
+    }
+    #slide-4.active .s4-headline {
+      animation: fadeUp .5s ease both;
+      animation-delay: .2s;
+    }
+    #slide-4.active .s4-todo {
+      animation: fadeUp .5s ease both;
+      animation-delay: .35s;
+    }
+    #slide-4.active .s4-metric:nth-child(1) {
+      animation: popIn .45s ease both;
+      animation-delay: .4s;
+    }
+    #slide-4.active .s4-metric:nth-child(2) {
+      animation: popIn .45s ease both;
+      animation-delay: .52s;
+    }
+    #slide-4.active .s4-metric:nth-child(3) {
+      animation: popIn .45s ease both;
+      animation-delay: .64s;
+    }
+    #slide-4.active .s4-metric:nth-child(4) {
+      animation: popIn .45s ease both;
+      animation-delay: .76s;
+    }
+    #slide-4.active .s4-metric:nth-child(5) {
+      animation: popIn .45s ease both;
+      animation-delay: .88s;
+    }
+
+    /* ── Slide 5 child animations ── */
+    #slide-5.active .s5-eyebrow {
+      animation: fadeUp .5s ease both;
+      animation-delay: .1s;
+    }
+    #slide-5.active .s5-headline {
+      animation: fadeUp .5s ease both;
+      animation-delay: .3s;
+    }
+    #slide-5.active .s5-cta {
+      animation: fadeUp .5s .55s ease both, ctaPulse 2.5s ease-in-out 1.2s infinite;
+    }
+
     /* ── Progress dots ── */
     .progress-dots {
       position: fixed;
@@ -604,24 +798,24 @@
         <div class="orbit-ring orbit-inner"></div>
         <div class="orbit-center">
           🏠
-          <span class="orbit-label">DATA CLOUD</span>
+          <span class="orbit-label">AT HOME</span>
         </div>
         <div class="orbit-node n-instagram"><span class="n-icon">📸</span> Instagram Ad</div>
-        <div class="orbit-node n-website"><span class="n-icon">🖥️</span> Commerce Site</div>
-        <div class="orbit-node n-sms"><span class="n-icon">💬</span> SMS Signal</div>
-        <div class="orbit-node n-agent"><span class="n-icon">🤖</span> AI Agent Chat</div>
-        <div class="orbit-node n-commerce"><span class="n-icon">🛒</span> Cart &amp; Purchase</div>
-        <div class="orbit-node n-email"><span class="n-icon">📧</span> Email Nurture</div>
+        <div class="orbit-node n-website"><span class="n-icon">🔍</span> AI-Powered Search</div>
+        <div class="orbit-node n-sms"><span class="n-icon">💬</span> Price-Drop SMS</div>
+        <div class="orbit-node n-agent"><span class="n-icon">🤖</span> Shopper Agent</div>
+        <div class="orbit-node n-commerce"><span class="n-icon">🛒</span> Commerce Cloud</div>
+        <div class="orbit-node n-email"><span class="n-icon">📧</span> Post-Purchase Email</div>
       </div>
 
       <div class="orbit-copy">
-        <p class="oc-eyebrow">Unified Customer Intelligence</p>
-        <h2 class="oc-headline">Every interaction<br/>builds a <span class="accent">smarter profile.</span></h2>
-        <p class="oc-body">Data Cloud unifies every signal — ad click, browsing behavior, cart save, SMS click, agent conversation, purchase, email engagement — into one living customer profile that powers every next action.</p>
+        <p class="oc-eyebrow">One Connected Platform</p>
+        <h2 class="oc-headline">Personalized at every<br/><span class="accent">touchpoint.</span></h2>
+        <p class="oc-body">Marketing Cloud Personalization powers every channel — onsite banners, price-drop SMS, post-purchase email. Commerce Cloud's AI-powered search surfaces the right product. Agentforce closes the sale. All connected, all on Salesforce.</p>
         <div class="oc-stats">
-          <div><div class="oc-stat-val">360°</div><div class="oc-stat-label">Customer View</div></div>
-          <div><div class="oc-stat-val">Real-time</div><div class="oc-stat-label">Data Activation</div></div>
-          <div><div class="oc-stat-val">AI-Driven</div><div class="oc-stat-label">Decisioning</div></div>
+          <div><div class="oc-stat-val">MCP</div><div class="oc-stat-label">Personalization</div></div>
+          <div><div class="oc-stat-val">Commerce</div><div class="oc-stat-label">AI Search</div></div>
+          <div><div class="oc-stat-val">Agentforce</div><div class="oc-stat-label">Shopper Agent</div></div>
         </div>
       </div>
     </div>
@@ -629,7 +823,7 @@
     <!-- Slide 3: Capabilities -->
     <div class="slide" id="slide-3">
       <p class="s3-eyebrow">Key Capabilities Shown Today</p>
-      <h2 class="s3-headline">Learning from <span class="accent">every signal, every shopper.</span></h2>
+      <h2 class="s3-headline">Personalize. Search. <span class="accent">Convert.</span></h2>
       <div class="s3-caps" id="s3-caps"></div>
     </div>
 
@@ -691,12 +885,20 @@
     }
 
     function goTo(n) {
-      document.getElementById("slide-" + current).classList.remove("active");
+      const next = Math.max(1, Math.min(totalSlides, n));
+      if (next === current) return;
+
+      const leavingSlide = document.getElementById("slide-" + current);
+      leavingSlide.classList.add("exit");
       dotsEl.children[current - 1].classList.remove("active");
-      current = Math.max(1, Math.min(totalSlides, n));
-      document.getElementById("slide-" + current).classList.add("active");
-      dotsEl.children[current - 1].classList.add("active");
-      document.getElementById("click-cta").style.display = current === totalSlides ? "none" : "flex";
+
+      setTimeout(() => {
+        leavingSlide.classList.remove("active", "exit");
+        current = next;
+        document.getElementById("slide-" + current).classList.add("active");
+        dotsEl.children[current - 1].classList.add("active");
+        document.getElementById("click-cta").style.display = current === totalSlides ? "none" : "flex";
+      }, 300);
     }
 
     document.getElementById("slides-wrap").addEventListener("click", () => {
