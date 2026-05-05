@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>At Home + Salesforce | Meet Rachel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="./at-home-demo-story.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      font-family: "Inter", -apple-system, sans-serif;
+    }
+
+    /* ── Shared nav bar ── */
+    .site-nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(13,27,46,.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      z-index: 200;
+    }
+
+    .site-nav-brand {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      color: #0d1b2e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .site-nav-brand .sf-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #b22234;
+    }
+
+    .site-nav-brand .sf-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .12em;
+      color: #8a9baf;
+      text-transform: uppercase;
+    }
+
+    .site-nav-links { display: flex; gap: 6px; }
+
+    .site-nav-links a {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #5a6a7a;
+      text-decoration: none;
+      padding: 5px 14px;
+      border: 1.5px solid rgba(13,27,46,.12);
+      border-radius: 20px;
+      transition: all .15s;
+    }
+
+    .site-nav-links a:hover {
+      color: #0d1b2e;
+      border-color: rgba(13,27,46,.28);
+      background: rgba(13,27,46,.04);
+    }
+
+    .site-nav-links a.active {
+      color: #b22234;
+      border-color: rgba(178,34,52,.35);
+      background: rgba(178,34,52,.05);
+    }
+
+    /* ── Slide engine ── */
+    .slides-wrap {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .slide {
+      position: absolute;
+      top: 52px; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity .5s ease;
+      pointer-events: none;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ─── SLIDE 1: "Meet Rachel." — bright hero ─── */
+    #slide-1 {
+      background: linear-gradient(160deg, #fff8f0 0%, #fff2e8 50%, #ffeedd 100%);
+    }
+
+    /* Scattered patriot dots */
+    #slide-1::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.14) 2.5px, transparent 2.5px),
+        radial-gradient(circle, rgba(26,63,111,.09) 2px, transparent 2px),
+        radial-gradient(circle, rgba(178,34,52,.07) 1.5px, transparent 1.5px);
+      background-size: 72px 72px, 48px 48px, 33px 33px;
+      background-position: 8px 8px, 28px 34px, 14px 18px;
+      pointer-events: none;
+    }
+
+    .s1-eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .22em;
+      color: #b22234;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+      position: relative;
+    }
+
+    .s1-title {
+      font-size: 92px;
+      font-weight: 800;
+      color: #0d1b2e;
+      line-height: 1.0;
+      letter-spacing: -0.02em;
+      text-align: center;
+      position: relative;
+    }
+
+    .s1-title strong { color: #b22234; }
+
+    .s1-sub {
+      font-size: 20px;
+      font-weight: 400;
+      color: #8a9baf;
+      margin-top: 20px;
+      position: relative;
+    }
+
+    /* ─── SLIDE 2: Persona — two-column split ─── */
+    #slide-2 {
+      flex-direction: row;
+      align-items: stretch;
+      justify-content: flex-start;
+      background: #ffffff;
+    }
+
+    /* Left: warm summer lifestyle panel */
+    .s2-left {
+      width: 44%;
+      flex-shrink: 0;
+      position: relative;
+      background: linear-gradient(160deg, #fff3e0 0%, #ffe0b2 45%, #ffcc80 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Outdoor/patio pattern overlay */
+    .s2-left::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.1) 2px, transparent 2px),
+        radial-gradient(circle, rgba(26,63,111,.08) 1.5px, transparent 1.5px);
+      background-size: 60px 60px, 40px 40px;
+      background-position: 0 0, 20px 22px;
+      pointer-events: none;
+    }
+
+    /* Patriot stripe at left panel bottom */
+    .s2-left::after {
+      content: "";
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 5px;
+      background: linear-gradient(90deg, #b22234 33%, #ffffff 33% 66%, #1a3f6f 66%);
+    }
+
+    .s2-avatar-scene {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      position: relative;
+    }
+
+    /* Avatar circle — outdoor warm palette */
+    .s2-avatar-circle {
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at 42% 38%, #ffe0b2 0%, #ffab40 35%, #e65100 75%, #bf360c 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 108px;
+      box-shadow:
+        0 0 0 5px rgba(255,255,255,.7),
+        0 0 0 8px rgba(178,34,52,.25),
+        0 20px 60px rgba(178,34,52,.2);
+      position: relative;
+    }
+
+    .s2-todo {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #b22234;
+      color: #fff;
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 12px;
+      white-space: nowrap;
+    }
+
+    .s2-scene-caption {
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(178,34,52,.7);
+      letter-spacing: .06em;
+    }
+
+    /* Right: stat/quote content */
+    .s2-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 52px 64px 52px 60px;
+      background: #ffffff;
+    }
+
+    .s2-role {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .22em;
+      color: #b22234;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .s2-name {
+      font-size: 64px;
+      font-weight: 800;
+      color: #0d1b2e;
+      line-height: 1.0;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+    }
+
+    .s2-name strong { font-weight: 800; color: #0d1b2e; }
+
+    .s2-job {
+      font-size: 19px;
+      font-weight: 400;
+      color: #8a9baf;
+      margin-bottom: 36px;
+    }
+
+    .s2-stats {
+      display: flex;
+      gap: 44px;
+      margin-bottom: 36px;
+    }
+
+    .s2-stat-val {
+      font-size: 34px;
+      font-weight: 800;
+      color: #b22234;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .s2-stat-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: #b0bfcc;
+      margin-top: 5px;
+    }
+
+    .s2-divider {
+      width: 100%;
+      height: 1px;
+      background: rgba(13,27,46,.08);
+      margin-bottom: 28px;
+    }
+
+    .s2-quote-mark {
+      font-size: 56px;
+      font-family: Georgia, serif;
+      color: #b22234;
+      line-height: .8;
+      margin-bottom: 4px;
+    }
+
+    .s2-quote {
+      font-family: "Playfair Display", Georgia, serif;
+      font-style: italic;
+      font-size: 21px;
+      line-height: 1.55;
+      color: #3a4a5a;
+    }
+
+    /* ─── SLIDE 3: Her wishlist ─── */
+    #slide-3 {
+      background: linear-gradient(160deg, #f0f5ff 0%, #e8f0ff 50%, #f5f7ff 100%);
+    }
+
+    .s3-top {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .s3-collection-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .2em;
+      color: #b22234;
+      text-transform: uppercase;
+    }
+
+    .s3-headline {
+      font-size: 50px;
+      font-weight: 800;
+      color: #0d1b2e;
+      letter-spacing: -0.015em;
+      line-height: 1.1;
+      text-align: center;
+      margin-bottom: 44px;
+      position: relative;
+    }
+
+    .s3-headline strong { color: #1a5fa0; }
+
+    .s3-cards {
+      display: flex;
+      gap: 22px;
+      justify-content: center;
+      align-items: stretch;
+      position: relative;
+    }
+
+    .s3-card {
+      width: 300px;
+      background: #ffffff;
+      border: 1.5px solid rgba(13,27,46,.09);
+      border-radius: 20px;
+      padding: 26px 22px 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(13,27,46,.07);
+      transition: transform .2s, box-shadow .2s;
+    }
+
+    .s3-card.featured {
+      border: 2px solid #b22234;
+      transform: scale(1.05);
+      box-shadow: 0 10px 40px rgba(178,34,52,.15);
+    }
+
+    .s3-card-badge {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+
+    .s3-card.featured .s3-card-badge {
+      background: rgba(178,34,52,.1);
+      color: #b22234;
+      border: 1px solid rgba(178,34,52,.25);
+    }
+
+    .s3-card:not(.featured) .s3-card-badge {
+      background: rgba(13,27,46,.05);
+      color: #7a8fa8;
+      border: 1px solid rgba(13,27,46,.1);
+    }
+
+    .s3-card-emoji { font-size: 66px; line-height: 1; }
+
+    .s3-card-name {
+      font-size: 17px;
+      font-weight: 700;
+      color: #0d1b2e;
+      line-height: 1.25;
+    }
+
+    .s3-card-detail {
+      font-size: 12px;
+      color: #8a9baf;
+    }
+
+    /* ─── SLIDE 4: Journey CTA ─── */
+    #slide-4 {
+      background: linear-gradient(160deg, #fff8f0 0%, #fef2e4 50%, #fde8d8 100%);
+    }
+
+    #slide-4::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.12) 2.5px, transparent 2.5px),
+        radial-gradient(circle, rgba(26,63,111,.08) 2px, transparent 2px);
+      background-size: 68px 68px, 44px 44px;
+      background-position: 0 0, 22px 28px;
+      pointer-events: none;
+    }
+
+    .s4-eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .22em;
+      color: #8a9baf;
+      text-transform: uppercase;
+      margin-bottom: 22px;
+      position: relative;
+    }
+
+    .s4-headline {
+      font-size: 62px;
+      font-weight: 800;
+      color: #0d1b2e;
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      text-align: center;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .s4-headline .accent { color: #b22234; }
+
+    .s4-sub {
+      font-size: 20px;
+      color: #7a8fa8;
+      margin-bottom: 48px;
+      font-weight: 400;
+      position: relative;
+    }
+
+    .s4-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #b22234;
+      color: #fff;
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 16px 36px;
+      border-radius: 50px;
+      text-decoration: none;
+      box-shadow: 0 6px 28px rgba(178,34,52,.35);
+      transition: transform .15s, box-shadow .15s;
+      position: relative;
+    }
+
+    .s4-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 36px rgba(178,34,52,.45);
+    }
+
+    /* ── Progress dots ── */
+    .progress-dots {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 200;
+    }
+
+    .dot {
+      width: 28px;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(13,27,46,.15);
+      cursor: pointer;
+      transition: background .25s, width .25s;
+    }
+
+    .dot.active {
+      background: #b22234;
+      width: 44px;
+    }
+
+    /* ── Click to continue ── */
+    .click-cta {
+      position: fixed;
+      bottom: 30px;
+      right: 48px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      color: rgba(13,27,46,.3);
+      text-transform: uppercase;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* Thumb preview */
+    .thumb-preview {
+      position: fixed;
+      bottom: 24px;
+      right: 48px;
+      width: 180px;
+      border: 1.5px solid rgba(13,27,46,.1);
+      border-radius: 10px;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity .35s;
+      z-index: 200;
+      pointer-events: none;
+      background: #fff;
+      box-shadow: 0 4px 16px rgba(13,27,46,.08);
+    }
+
+    .thumb-preview.visible { opacity: 1; }
+
+    .thumb-inner { padding: 10px 12px 8px; }
+
+    .thumb-label {
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #b22234;
+      margin-bottom: 3px;
+    }
+
+    .thumb-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #0d1b2e;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Unified site nav -->
+  <nav class="site-nav">
+    <a href="at-home-demo-map.html" class="site-nav-brand">
+      <span>AT HOME</span>
+      <span class="sf-dot"></span>
+      <span class="sf-label">Salesforce CX Vision</span>
+    </a>
+    <div class="site-nav-links">
+      <a href="at-home-demo-map.html">Journey Map</a>
+      <a href="at-home-vignette.html">Intro</a>
+      <a href="at-home-meet-rachel.html" class="active">Meet Rachel</a>
+      <a href="at-home-bvs.html">Business Value</a>
+    </div>
+  </nav>
+
+  <div class="slides-wrap" id="slides-wrap">
+
+    <!-- Slide 1: intro -->
+    <div class="slide active" id="slide-1">
+      <p class="s1-eyebrow">Customer Spotlight</p>
+      <h1 class="s1-title">Meet <strong>Rachel.</strong></h1>
+      <p class="s1-sub">At Home · Annual 4th of July BBQ Host</p>
+    </div>
+
+    <!-- Slide 2: persona -->
+    <div class="slide" id="slide-2">
+      <div class="s2-left">
+        <div class="s2-avatar-scene">
+          <div class="s2-avatar-circle">
+            🌟
+            <span class="s2-todo">TODO: Rachel photo</span>
+          </div>
+          <div class="s2-scene-caption">4th of July Host · Outdoor Entertainer</div>
+        </div>
+      </div>
+      <div class="s2-right">
+        <div class="s2-role">Enthusiastic Entertainer</div>
+        <div class="s2-name">Rachel<br/><strong>Morris</strong></div>
+        <div class="s2-job">Annual Host &amp; Outdoor Entertaining Enthusiast</div>
+        <div class="s2-stats" id="s2-stats"></div>
+        <div class="s2-divider"></div>
+        <div class="s2-quote-mark">"</div>
+        <div class="s2-quote" id="s2-quote"></div>
+      </div>
+    </div>
+
+    <!-- Slide 3: wishlist -->
+    <div class="slide" id="slide-3">
+      <div class="s3-top">
+        <div class="s3-collection-label">Rachel's Patio Wishlist</div>
+      </div>
+      <h2 class="s3-headline">Her top 3. <strong>Perfect for the 4th.</strong></h2>
+      <div class="s3-cards" id="s3-cards"></div>
+    </div>
+
+    <!-- Slide 4: CTA -->
+    <div class="slide" id="slide-4">
+      <p class="s4-eyebrow">The Customer Journey</p>
+      <h2 class="s4-headline">
+        Let's follow Rachel's journey<br/>to the <span class="accent">perfect 4th.</span>
+      </h2>
+      <p class="s4-sub">From first ad impression to a backyard she'll love</p>
+      <a href="at-home-demo-map.html" class="s4-cta">BEGIN THE JOURNEY &nbsp;→</a>
+    </div>
+
+  </div>
+
+  <div class="progress-dots" id="progress-dots"></div>
+  <div class="click-cta" id="click-cta">CLICK TO CONTINUE &nbsp;›</div>
+
+  <div class="thumb-preview" id="thumb-preview">
+    <div class="thumb-inner">
+      <div class="thumb-label">Next</div>
+      <div class="thumb-title" id="thumb-title"></div>
+    </div>
+  </div>
+
+  <script>
+    const story = AT_HOME_DEMO_STORY;
+    const p = story.persona;
+
+    document.getElementById("s2-quote").textContent = p.quote;
+
+    const statsEl = document.getElementById("s2-stats");
+    p.stats.forEach(s => {
+      const div = document.createElement("div");
+      div.innerHTML = `<div class="s2-stat-val">${s.value}</div><div class="s2-stat-label">${s.label}</div>`;
+      statsEl.appendChild(div);
+    });
+
+    const cardsEl = document.getElementById("s3-cards");
+    p.wishlist.forEach((item, i) => {
+      const div = document.createElement("div");
+      div.className = "s3-card" + (i === 0 ? " featured" : "");
+      div.innerHTML = `
+        <div class="s3-card-badge">${item.tag}</div>
+        <div class="s3-card-emoji">${item.emoji}</div>
+        <div class="s3-card-name">${item.name}</div>
+        <div class="s3-card-detail">${item.detail}</div>
+      `;
+      cardsEl.appendChild(div);
+    });
+
+    const totalSlides = 4;
+    let current = 1;
+    const thumbTitles = ["Meet Rachel →", "Her Patio Wishlist →", "Begin the Journey →", null];
+
+    const dotsEl = document.getElementById("progress-dots");
+    for (let i = 1; i <= totalSlides; i++) {
+      const dot = document.createElement("div");
+      dot.className = "dot" + (i === 1 ? " active" : "");
+      dot.addEventListener("click", e => { e.stopPropagation(); goTo(i); });
+      dotsEl.appendChild(dot);
+    }
+
+    function goTo(n) {
+      document.getElementById("slide-" + current).classList.remove("active");
+      dotsEl.children[current - 1].classList.remove("active");
+      current = Math.max(1, Math.min(totalSlides, n));
+      document.getElementById("slide-" + current).classList.add("active");
+      dotsEl.children[current - 1].classList.add("active");
+
+      const thumb = document.getElementById("thumb-preview");
+      const thumbTitle = document.getElementById("thumb-title");
+      if (current < totalSlides) {
+        thumb.classList.add("visible");
+        thumbTitle.textContent = thumbTitles[current - 1] || "";
+      } else {
+        thumb.classList.remove("visible");
+      }
+
+      document.getElementById("click-cta").style.display = current === totalSlides ? "none" : "flex";
+    }
+
+    document.getElementById("slides-wrap").addEventListener("click", () => {
+      if (current < totalSlides) goTo(current + 1);
+    });
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight" || e.key === " ") goTo(current + 1);
+      if (e.key === "ArrowLeft") goTo(current - 1);
+    });
+
+    goTo(1);
+  </script>
+</body>
+</html>

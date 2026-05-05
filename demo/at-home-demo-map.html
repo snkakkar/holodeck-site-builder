@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>At Home + Salesforce | Agentic Retail Journey</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,400;1,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="./at-home-demo-story.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Inter", -apple-system, sans-serif;
+      background: #f5f7ff;
+      color: #0d1b2e;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .slide {
+      width: 1440px;
+      padding: 64px 60px 36px;
+      background: linear-gradient(160deg, #f8faff 0%, #eef3ff 40%, #f0f6ff 100%);
+      transform-origin: center center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Subtle festive dots in background */
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.06) 1px, transparent 1px),
+        radial-gradient(circle, rgba(26,63,111,.04) 1px, transparent 1px);
+      background-size: 48px 48px, 32px 32px;
+      background-position: 0 0, 24px 24px;
+      pointer-events: none;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 38px;
+      position: relative;
+    }
+
+    .header-left h1 {
+      font-size: 36px;
+      font-weight: 400;
+      line-height: 1.12;
+      letter-spacing: -0.015em;
+      color: #0d1b2e;
+    }
+
+    .header-left h1 strong {
+      font-weight: 800;
+      color: #0d1b2e;
+    }
+
+    .subtitle {
+      margin-top: 7px;
+      font-size: 10.5px;
+      letter-spacing: 0.22em;
+      color: #7a8fa8;
+      font-weight: 600;
+    }
+
+    /* Brand lockup */
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .brand-name-block {
+      text-align: right;
+    }
+
+    .brand-name {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #0d1b2e;
+      line-height: 1;
+    }
+
+    .brand-sub {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .2em;
+      color: #9aabbf;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+
+    .brand-divider {
+      width: 1px;
+      height: 38px;
+      background: rgba(13,27,46,.15);
+    }
+
+    .brand-lockup img.sf-icon {
+      height: 40px;
+      width: auto;
+      opacity: .85;
+    }
+
+    /* ── Shared nav bar ── */
+    .site-nav {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: rgba(255,255,255,.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(13,27,46,.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      z-index: 50;
+    }
+
+    .site-nav-brand {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      color: #0d1b2e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .site-nav-brand .sf-dot { width: 7px; height: 7px; border-radius: 50%; background: #b22234; }
+    .site-nav-brand .sf-label { font-size: 10px; font-weight: 600; letter-spacing: .12em; color: #8a9baf; text-transform: uppercase; }
+
+    .site-nav-links { display: flex; gap: 6px; }
+
+    .site-nav-links a {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #5a6a7a;
+      text-decoration: none;
+      padding: 5px 14px;
+      border: 1.5px solid rgba(13,27,46,.12);
+      border-radius: 20px;
+      transition: all .15s;
+    }
+
+    .site-nav-links a:hover { color: #0d1b2e; border-color: rgba(13,27,46,.28); background: rgba(13,27,46,.04); }
+    .site-nav-links a.active { color: #b22234; border-color: rgba(178,34,52,.35); background: rgba(178,34,52,.05); }
+
+    /* ── 5-Step Flow ── */
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(9, auto);
+      justify-content: center;
+      gap: 0 10px;
+      align-items: start;
+      margin-bottom: 36px;
+      position: relative;
+    }
+
+    .step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      width: 200px;
+    }
+
+    .step-title {
+      font-family: "Playfair Display", Georgia, serif;
+      font-style: italic;
+      font-weight: 600;
+      font-size: 22px;
+      margin-bottom: 14px;
+      color: #0d1b2e;
+    }
+
+    /* ── Circle ── */
+    .circle-wrap {
+      position: relative;
+      width: 158px;
+      height: 158px;
+      margin-bottom: 16px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .circle-art {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 58px;
+      transition: box-shadow .25s, transform .2s;
+      border: 3px solid rgba(255,255,255,.9);
+      box-shadow: 0 6px 24px rgba(13,27,46,.12);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Step-specific circle gradients — bright, warm, festive */
+    .circle-anticipate { background: radial-gradient(ellipse at 38% 32%, #f8d6d6 0%, #e88080 35%, #c0392b 80%); }
+    .circle-engage     { background: radial-gradient(ellipse at 38% 32%, #d6eaff 0%, #6caee8 35%, #1a5fa0 80%); }
+    .circle-guide      { background: radial-gradient(ellipse at 38% 32%, #fff3cc 0%, #f5c06a 35%, #c47e1a 80%); }
+    .circle-convert    { background: radial-gradient(ellipse at 38% 32%, #d4f0e4 0%, #6cc499 35%, #2e7a50 80%); }
+    .circle-delight    { background: radial-gradient(ellipse at 38% 32%, #ffd6f0 0%, #f07ac0 35%, #9b2d6e 80%); }
+
+    .circle-wrap:hover .circle-art {
+      box-shadow: 0 8px 32px rgba(178,34,52,.25), 0 0 0 3px #b22234;
+      transform: translateY(-3px);
+    }
+
+    /* Hover tooltip */
+    .tooltip {
+      position: absolute;
+      bottom: calc(100% + 14px);
+      left: 50%;
+      transform: translateX(-50%) translateY(6px);
+      width: 236px;
+      background: #0d1b2e;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      padding: 16px 16px 14px;
+      text-align: left;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .22s ease, transform .22s ease;
+      z-index: 30;
+      box-shadow: 0 12px 40px rgba(0,0,0,.3);
+    }
+
+    .tooltip .tt {
+      font-family: "Playfair Display", Georgia, serif;
+      font-style: italic;
+      font-size: 15px;
+      color: #f5c06a;
+      margin-bottom: 7px;
+    }
+
+    .tooltip .tb {
+      font-size: 11.5px;
+      line-height: 1.58;
+      color: rgba(255,255,255,.8);
+    }
+
+    .tooltip .tech-row {
+      margin-top: 9px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .tooltip .t-tag {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(178,34,52,.25);
+      color: #f5a0a0;
+      border: 1px solid rgba(178,34,52,.35);
+    }
+
+    .circle-wrap:hover .tooltip {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+
+    /* Step copy */
+    .step-desc {
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: #4a5a6a;
+      margin-bottom: 14px;
+      padding: 0 4px;
+      flex: 1;
+    }
+
+    .cta {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      color: #b22234;
+      border: 1.5px solid rgba(178,34,52,.45);
+      border-radius: 22px;
+      padding: 7px 16px;
+      line-height: 1.4;
+      text-align: center;
+      display: inline-block;
+      background: rgba(178,34,52,.04);
+    }
+
+    /* ── Connectors ── */
+    .connector {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      align-self: center;
+      padding-top: 28px;
+    }
+
+    .connector .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #b22234;
+      opacity: .6;
+    }
+
+    .connector .arrow {
+      font-size: 19px;
+      color: #b22234;
+      line-height: 1;
+      margin-left: 1px;
+      opacity: .8;
+    }
+
+    /* ── Platform footer ── */
+    .platform {
+      border: 1.5px solid rgba(178,34,52,.3);
+      border-radius: 16px;
+      padding: 20px 28px 18px;
+      text-align: center;
+      background: rgba(255,255,255,.65);
+      backdrop-filter: blur(6px);
+    }
+
+    .platform h3 {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      color: #0d1b2e;
+    }
+
+    .tags {
+      font-size: 11px;
+      color: #7a8fa8;
+      line-height: 2.0;
+    }
+
+    .tags span { white-space: nowrap; }
+    .sep { margin: 0 7px; color: rgba(13,27,46,.2); }
+
+    .trust {
+      margin-top: 10px;
+      font-size: 9.5px;
+      letter-spacing: 0.22em;
+      color: #b22234;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="slide">
+
+    <!-- Unified site nav (absolute within scaled slide) -->
+    <nav class="site-nav">
+      <a href="at-home-demo-map.html" class="site-nav-brand">
+        <span>AT HOME</span>
+        <span class="sf-dot"></span>
+        <span class="sf-label">Salesforce CX Vision</span>
+      </a>
+      <div class="site-nav-links">
+        <a href="at-home-demo-map.html" class="active">Journey Map</a>
+        <a href="at-home-vignette.html">Intro</a>
+        <a href="at-home-meet-rachel.html">Meet Rachel</a>
+        <a href="at-home-bvs.html">Business Value</a>
+      </div>
+    </nav>
+
+    <header class="header">
+      <div class="header-left">
+        <h1>Agentic <strong>Retail Journey</strong></h1>
+        <p class="subtitle">PERSONALIZED &bull; AGENTIC &bull; CONNECTED</p>
+      </div>
+      <div class="brand-lockup">
+        <div class="brand-name-block">
+          <div class="brand-name">AT HOME</div>
+          <div class="brand-sub">+ Salesforce</div>
+        </div>
+        <span class="brand-divider"></span>
+        <img class="sf-icon"
+          src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Salesforce.com_logo.svg/3840px-Salesforce.com_logo.svg.png"
+          onerror="this.onerror=null;this.src='sf-icon.png';"
+          alt="Salesforce" />
+      </div>
+    </header>
+
+    <div class="flow" id="flow-container"></div>
+
+    <footer class="platform">
+      <h3 id="platform-title"></h3>
+      <div class="tags" id="platform-tags"></div>
+      <p class="trust" id="platform-trust"></p>
+    </footer>
+
+  </div>
+
+  <script>
+    const story = AT_HOME_DEMO_STORY;
+
+    // Build flow
+    const flow = document.getElementById("flow-container");
+    const circleClass = ["circle-anticipate","circle-engage","circle-guide","circle-convert","circle-delight"];
+
+    story.steps.forEach((step, i) => {
+      // Step
+      const div = document.createElement("div");
+      div.className = "step";
+      div.innerHTML = `
+        <h2 class="step-title">${step.title}</h2>
+        <div class="circle-wrap">
+          <div class="tooltip">
+            <div class="tt">${step.title}</div>
+            <div class="tb">${step.detail}</div>
+            <div class="tech-row">${step.technologies.map(t=>`<span class="t-tag">${t}</span>`).join("")}</div>
+          </div>
+          <div class="circle-art ${circleClass[i]}">${step.emoji}</div>
+        </div>
+        <p class="step-desc">${step.description}</p>
+        <div class="cta">${step.badge}</div>
+      `;
+      flow.appendChild(div);
+
+      // Connector (not after last)
+      if (i < story.steps.length - 1) {
+        const conn = document.createElement("div");
+        conn.className = "connector";
+        conn.innerHTML = `<span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="arrow">&#x203A;</span>`;
+        flow.appendChild(conn);
+      }
+    });
+
+    // Platform footer
+    document.getElementById("platform-title").textContent = story.platform.title;
+    document.getElementById("platform-trust").textContent = story.platform.subtitle;
+
+    const tagsEl = document.getElementById("platform-tags");
+    story.platform.capabilities.forEach((cap, i) => {
+      const span = document.createElement("span");
+      span.textContent = cap;
+      tagsEl.appendChild(span);
+      if (i < story.platform.capabilities.length - 1) {
+        const sep = document.createElement("span");
+        sep.className = "sep";
+        sep.textContent = "|";
+        tagsEl.appendChild(sep);
+      }
+    });
+
+    // Auto-scale
+    (function () {
+      var slide = document.querySelector(".slide");
+      function fit() {
+        slide.style.transform = "none";
+        var sw = slide.offsetWidth, sh = slide.offsetHeight;
+        var vw = window.innerWidth, vh = window.innerHeight;
+        var scale = Math.min(vw / sw, vh / sh, 1.3);
+        slide.style.transform = "scale(" + scale + ")";
+      }
+      fit();
+      window.addEventListener("resize", fit);
+    })();
+  </script>
+</body>
+</html>

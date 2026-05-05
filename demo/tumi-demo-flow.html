@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TUMI + Salesforce | Digital North Star</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Inter", -apple-system, sans-serif;
+      background: #060c18;
+      color: #fff;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .slide {
+      width: 1400px;
+      padding: 44px 60px 38px;
+      background: radial-gradient(ellipse at 50% 38%, #0f1b2d 0%, #080e1c 52%, #050a14 100%);
+      transform-origin: center center;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 44px;
+    }
+
+    .header h1 {
+      font-size: 38px;
+      font-weight: 400;
+      line-height: 1.12;
+      letter-spacing: -0.01em;
+    }
+    .header h1 strong { font-weight: 700; }
+
+    .subtitle {
+      margin-top: 8px;
+      font-size: 10.75px;
+      letter-spacing: 0.22em;
+      color: #7d8fa5;
+      font-weight: 500;
+    }
+
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .brand-lockup img.tumi-wm {
+      height: 62px;
+      width: auto;
+    }
+
+    .brand-lockup .divider {
+      width: 1px;
+      height: 43px;
+      background: rgba(255,255,255,0.3);
+    }
+
+    .brand-lockup img.sf-icon {
+      height: 51px;
+      width: auto;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(9, auto);
+      justify-content: center;
+      gap: 0 16px;
+      align-items: start;
+      margin-bottom: 44px;
+    }
+
+    .step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 0 8px;
+      width: 210px;
+    }
+
+    .step-title {
+      font-style: italic;
+      font-weight: 500;
+      font-size: 22px;
+      margin-bottom: 17px;
+    }
+
+    .circle-wrap {
+      position: relative;
+      width: 160px;
+      height: 160px;
+      margin-bottom: 17px;
+      cursor: pointer;
+    }
+
+    .circle-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+      display: block;
+      transition: box-shadow 0.25s ease;
+    }
+
+    .circle-wrap:hover .circle-img {
+      box-shadow: 0 0 0 2px rgba(197, 160, 89, 0.45);
+    }
+
+    .connector {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      align-self: center;
+      padding-top: 38px;
+    }
+
+    .connector .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #c5a059;
+    }
+
+    .connector .arrow {
+      font-size: 23px;
+      color: #c5a059;
+      line-height: 1;
+      margin-left: 2px;
+    }
+
+    .step-desc {
+      font-size: 13px;
+      line-height: 1.53;
+      color: rgba(255,255,255,0.82);
+      margin-bottom: 17px;
+      padding: 0 4px;
+      flex: 1;
+    }
+
+    .cta {
+      font-size: 12px;
+      font-weight: 500;
+      color: #c5a059;
+      border: 1px solid #c5a059;
+      border-radius: 23px;
+      padding: 9px 20px;
+      line-height: 1.38;
+      text-align: center;
+      display: inline-block;
+    }
+
+    .tooltip {
+      position: absolute;
+      bottom: calc(100% + 14px);
+      left: 50%;
+      transform: translateX(-50%) translateY(6px);
+      width: 230px;
+      background: rgba(8, 14, 28, 0.95);
+      border: 1px solid rgba(197, 160, 89, 0.45);
+      border-radius: 12px;
+      padding: 16px 16px 14px;
+      text-align: left;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      z-index: 20;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+    }
+
+    .tooltip .tt {
+      font-family: "Playfair Display", Georgia, serif;
+      font-style: italic;
+      font-size: 16px;
+      color: #c5a059;
+      margin-bottom: 8px;
+    }
+
+    .tooltip .tb {
+      font-size: 12px;
+      line-height: 1.58;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .circle-wrap:hover .tooltip {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+
+    .platform {
+      border: 1.5px solid rgba(225, 195, 120, 0.7);
+      border-radius: 17px;
+      padding: 24px 30px 21px;
+      text-align: center;
+      background: rgba(6, 12, 24, 0.3);
+    }
+
+    .platform h3 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 13px;
+    }
+
+    .tags {
+      font-size: 11px;
+      color: #6e82a0;
+      line-height: 2.08;
+    }
+    .tags span { white-space: nowrap; }
+    .sep { margin: 0 6px; color: rgba(110, 130, 160, 0.4); }
+
+    .trust {
+      margin-top: 14px;
+      font-size: 10px;
+      letter-spacing: 0.24em;
+      color: #c5a059;
+      font-weight: 600;
+    }
+
+    @media (max-width: 540px) {
+      .slide { width: auto; padding: 30px 16px 32px; }
+      .header { margin-bottom: 32px; }
+      .header h1 { font-size: 27px; }
+      .flow {
+        grid-template-columns: repeat(2, auto);
+        gap: 24px 13px;
+        margin-bottom: 32px;
+      }
+      .connector { display: none; }
+      .circle-wrap { width: 122px; height: 122px; }
+      .step { width: 162px; }
+      .step-title { font-size: 16.5px; }
+      .step-desc { font-size: 11.25px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="slide">
+
+    <header class="header">
+      <div>
+        <h1>Digital <strong>North Star</strong></h1>
+        <p class="subtitle">PERSONALIZED &bull; PREMIUM &bull; PREDICTED</p>
+      </div>
+      <div class="brand-lockup">
+        <img class="tumi-wm" src="https://www.midwaypartnership.com/wp-content/uploads/2023/10/mdw-logo-white-200x-tumi.png" onerror="this.onerror=null;this.src='tumi-wordmark.png';" alt="TUMI" />
+        <span class="divider"></span>
+        <img class="sf-icon" src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Salesforce.com_logo.svg/3840px-Salesforce.com_logo.svg.png" onerror="this.onerror=null;this.src='sf-icon.png';" alt="Salesforce" />
+      </div>
+    </header>
+
+    <div class="flow">
+
+      <div class="step">
+        <h2 class="step-title">Anticipate</h2>
+        <div class="circle-wrap">
+          <div class="tooltip">
+            <div class="tt">Anticipate</div>
+            <div class="tb">Unified customer profiles aggregate purchase history, service cases, product usage patterns, and loyalty data to predict customer needs before they arise.</div>
+          </div>
+          <img class="circle-img"
+               src="https://ng168e7540a5b7467482a88effe736d959--c.vf.force.com/resource/1764689552000/TumiFlow"
+               onerror="this.onerror=null;this.src='circle-anticipate.png';"
+               alt="Anticipate" />
+        </div>
+        <p class="step-desc">TUMI tracks Mike&rsquo;s travel patterns, purchase history, and bag lifecycle</p>
+        <div class="cta">Unified<br/>Customer View</div>
+      </div>
+
+      <div class="connector">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="arrow">&#x203A;</span>
+      </div>
+
+      <div class="step">
+        <h2 class="step-title">Engage</h2>
+        <div class="circle-wrap">
+          <div class="tooltip">
+            <div class="tt">Engage</div>
+            <div class="tb">AI-powered journey orchestration sends personalized emails at optimal moments &mdash; maintenance reminders based on product age and usage intensity.</div>
+          </div>
+          <img class="circle-img"
+               src="https://ng168e7540a5b7467482a88effe736d959--c.vf.force.com/resource/1764689401000/TumiDemoMikeCircle"
+               onerror="this.onerror=null;this.src='circle-engage.png';"
+               alt="Engage" />
+        </div>
+        <p class="step-desc">Mike receives proactive offers &mdash; upgrades, repair perks, and maintenance reminders</p>
+        <div class="cta">Predictive<br/>Engagement</div>
+      </div>
+
+      <div class="connector">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="arrow">&#x203A;</span>
+      </div>
+
+      <div class="step">
+        <h2 class="step-title">Support</h2>
+        <div class="circle-wrap">
+          <div class="tooltip">
+            <div class="tt">Support</div>
+            <div class="tb">When issues occur, intelligent agents instantly access customer context, identify products, check warranty status, and offer seamless repair options.</div>
+          </div>
+          <img class="circle-img"
+               src="https://ng168e7540a5b7467482a88effe736d959--c.vf.force.com/resource/1764692488000/TumiCircleProduct"
+               onerror="this.onerror=null;this.src='circle-support.png';"
+               alt="Support" />
+        </div>
+        <p class="step-desc">A wheel breaks and Agentforce identifies the bag, checks warranty, and books repair</p>
+        <div class="cta">Frictionless<br/>AI Support</div>
+      </div>
+
+      <div class="connector">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="arrow">&#x203A;</span>
+      </div>
+
+      <div class="step">
+        <h2 class="step-title">Elevate</h2>
+        <div class="circle-wrap">
+          <div class="tooltip">
+            <div class="tt">Elevate</div>
+            <div class="tb">Service agents receive AI recommendations for upgrades, can access endless aisle for product suggestions, and apply loyalty benefits in real-time.</div>
+          </div>
+          <img class="circle-img"
+               src="https://ng168e7540a5b7467482a88effe736d959--c.vf.force.com/resource/1764691149000/TumiDemoFlow5"
+               onerror="this.onerror=null;this.src='circle-elevate.png';"
+               alt="Elevate" />
+        </div>
+        <p class="step-desc">Associate leverages the power of Sales Coach to understand Mike and best upsell him in store</p>
+        <div class="cta">Turn Service<br/>Into Upsell</div>
+      </div>
+
+      <div class="connector">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="arrow">&#x203A;</span>
+      </div>
+
+      <div class="step">
+        <h2 class="step-title">Delight</h2>
+        <div class="circle-wrap">
+          <div class="tooltip">
+            <div class="tt">Delight</div>
+            <div class="tb">Experience the shopping agents our customers have implemented driving upsell revenue and better customer experiences across regions.</div>
+          </div>
+          <img class="circle-img"
+               src="ws-olive-shopper.png"
+               onerror="this.onerror=null;this.src='circle-elevate.png';"
+               alt="Delight — Williams Sonoma Olive AI Sous Chef" />
+        </div>
+        <p class="step-desc">Showcase how customers can leverage our Shopper agent live on a customer website</p>
+        <div class="cta">Agentic<br/>Commerce</div>
+      </div>
+
+    </div>
+
+    <footer class="platform">
+      <h3>Agentforce 360 Platform</h3>
+      <div class="tags">
+        <span>Voice &amp; Channels</span><span class="sep">|</span><span>Model Choice</span><span class="sep">|</span><span>Observability &amp; Orchestration</span><span class="sep">|</span><span>A2A &amp; MCP</span><span class="sep">|</span><span>Context Engineering</span>
+        <br/>
+        <span>Trust &amp; Security</span><span class="sep">|</span><span>Governance</span><span class="sep">|</span><span>Backup &amp; Recover</span><span class="sep">|</span><span>Builders &amp; Vibes</span><span class="sep">|</span><span>APIs &amp; SDKs</span><span class="sep">|</span><span>DevOps</span><span class="sep">|</span><span>Heroku</span>
+      </div>
+      <p class="trust">AGENTFORCE TRUST LAYER</p>
+    </footer>
+
+  </div>
+
+  <script>
+    (function() {
+      var slide = document.querySelector('.slide');
+      function fit() {
+        slide.style.transform = 'none';
+        var sw = slide.offsetWidth;
+        var sh = slide.offsetHeight;
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+        var scale = Math.min(vw / sw, vh / sh, 1.35);
+        slide.style.transform = 'scale(' + scale + ')';
+      }
+      fit();
+      window.addEventListener('resize', fit);
+    })();
+  </script>
+</body>
+</html>

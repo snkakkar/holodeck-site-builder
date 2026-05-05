@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>At Home + Salesforce | Business Value</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="./at-home-demo-story.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      font-family: "Inter", -apple-system, sans-serif;
+    }
+
+    /* ── Shared nav bar ── */
+    .site-nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(13,27,46,.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      z-index: 200;
+    }
+
+    .site-nav-brand {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      color: #0d1b2e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .site-nav-brand .sf-dot { width: 7px; height: 7px; border-radius: 50%; background: #b22234; }
+    .site-nav-brand .sf-label { font-size: 10px; font-weight: 600; letter-spacing: .12em; color: #8a9baf; text-transform: uppercase; }
+
+    .site-nav-links { display: flex; gap: 6px; }
+
+    .site-nav-links a {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #5a6a7a;
+      text-decoration: none;
+      padding: 5px 14px;
+      border: 1.5px solid rgba(13,27,46,.12);
+      border-radius: 20px;
+      transition: all .15s;
+    }
+
+    .site-nav-links a:hover { color: #0d1b2e; border-color: rgba(13,27,46,.28); background: rgba(13,27,46,.04); }
+    .site-nav-links a.active { color: #b22234; border-color: rgba(178,34,52,.35); background: rgba(178,34,52,.05); }
+
+    /* ── Slide engine ── */
+    .slides-wrap {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .slide {
+      position: absolute;
+      top: 52px; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity .5s ease;
+      pointer-events: none;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ─── SLIDE 1: Section title ─── */
+    #slide-1 {
+      background: linear-gradient(160deg, #fff8f0 0%, #fff2e8 50%, #ffeedd 100%);
+    }
+
+    #slide-1::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.14) 2.5px, transparent 2.5px),
+        radial-gradient(circle, rgba(26,63,111,.09) 2px, transparent 2px),
+        radial-gradient(circle, rgba(178,34,52,.07) 1.5px, transparent 1.5px);
+      background-size: 72px 72px, 48px 48px, 33px 33px;
+      background-position: 8px 8px, 28px 34px, 14px 18px;
+      pointer-events: none;
+    }
+
+    .s1-eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .22em;
+      color: #b22234;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .s1-headline {
+      font-family: "Playfair Display", Georgia, serif;
+      font-size: 72px;
+      font-weight: 700;
+      color: #0d1b2e;
+      line-height: 1.1;
+      text-align: center;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .s1-headline em {
+      font-style: italic;
+      font-weight: 400;
+      color: #1a5fa0;
+    }
+
+    .s1-sub {
+      font-size: 20px;
+      font-weight: 400;
+      color: #7a8fa8;
+      text-align: center;
+      max-width: 560px;
+      line-height: 1.6;
+      position: relative;
+    }
+
+    /* ─── SLIDE 2: Orbit / data profile ─── */
+    #slide-2 {
+      background: #ffffff;
+      flex-direction: row;
+      justify-content: center;
+      gap: 80px;
+    }
+
+    #slide-2::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 50% at 20% 80%, rgba(178,34,52,.05) 0%, transparent 65%),
+                  radial-gradient(ellipse 50% 40% at 90% 20%, rgba(26,63,111,.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .orbit-wrap {
+      width: 380px;
+      height: 380px;
+      flex-shrink: 0;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .orbit-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1.5px dashed rgba(178,34,52,.2);
+    }
+
+    .orbit-outer { width: 360px; height: 360px; }
+    .orbit-inner { width: 240px; height: 240px; border-color: rgba(26,63,111,.2); }
+
+    .orbit-center {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at 40% 38%, #d6eaff 0%, #6caee8 35%, #1a5fa0 80%);
+      border: 3px solid rgba(255,255,255,.9);
+      box-shadow: 0 0 0 2px rgba(26,63,111,.2), 0 8px 32px rgba(26,63,111,.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 38px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .orbit-label {
+      position: absolute;
+      bottom: -9px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 7.5px;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: #1a5fa0;
+      white-space: nowrap;
+      background: #fff;
+      padding: 1px 6px;
+      border-radius: 6px;
+      border: 1px solid rgba(26,63,111,.15);
+    }
+
+    .orbit-node {
+      position: absolute;
+      background: #ffffff;
+      border: 1.5px solid rgba(13,27,46,.1);
+      border-radius: 50px;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #3a4a5a;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      box-shadow: 0 2px 10px rgba(13,27,46,.07);
+    }
+
+    .orbit-node .n-icon { font-size: 14px; }
+
+    .n-instagram  { top: 2px;  left: 50%; transform: translateX(-50%); }
+    .n-website    { top: 28px; right: 8px; }
+    .n-sms        { bottom: 28px; right: 8px; }
+    .n-agent      { bottom: 2px; left: 50%; transform: translateX(-50%); }
+    .n-commerce   { bottom: 28px; left: 8px; }
+    .n-email      { top: 28px; left: 8px; }
+
+    .orbit-copy {
+      max-width: 520px;
+      position: relative;
+    }
+
+    .oc-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .2em;
+      color: #b22234;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+
+    .oc-headline {
+      font-size: 48px;
+      font-weight: 800;
+      color: #0d1b2e;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .oc-headline .accent { color: #1a5fa0; }
+
+    .oc-body {
+      font-size: 17px;
+      font-weight: 400;
+      color: #5a6a7a;
+      line-height: 1.65;
+      margin-bottom: 36px;
+    }
+
+    .oc-stats { display: flex; gap: 40px; }
+
+    .oc-stat-val {
+      font-size: 32px;
+      font-weight: 800;
+      color: #b22234;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .oc-stat-label {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: #b0bfcc;
+      margin-top: 5px;
+    }
+
+    /* ─── SLIDE 3: Capabilities ─── */
+    #slide-3 {
+      background: linear-gradient(160deg, #f0f5ff 0%, #e8f0ff 50%, #f5f7ff 100%);
+    }
+
+    #slide-3::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(26,63,111,.07) 1.5px, transparent 1.5px),
+        radial-gradient(circle, rgba(178,34,52,.05) 1px, transparent 1px);
+      background-size: 56px 56px, 32px 32px;
+      background-position: 0 0, 18px 20px;
+      pointer-events: none;
+    }
+
+    .s3-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .2em;
+      color: #b22234;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .s3-headline {
+      font-size: 46px;
+      font-weight: 800;
+      color: #0d1b2e;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      text-align: center;
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .s3-headline .accent { color: #1a5fa0; }
+
+    .s3-caps {
+      display: grid;
+      grid-template-columns: repeat(3, 300px);
+      gap: 16px;
+      position: relative;
+    }
+
+    .s3-cap {
+      background: #ffffff;
+      border: 1.5px solid rgba(13,27,46,.09);
+      border-radius: 16px;
+      padding: 22px 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 3px 14px rgba(13,27,46,.06);
+      position: relative;
+      overflow: hidden;
+      transition: box-shadow .2s, transform .2s;
+    }
+
+    .s3-cap:hover { box-shadow: 0 6px 24px rgba(13,27,46,.1); transform: translateY(-2px); }
+
+    .s3-cap::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: 16px 16px 0 0;
+    }
+
+    .s3-cap:nth-child(1)::before { background: #1a5fa0; }
+    .s3-cap:nth-child(2)::before { background: #b22234; }
+    .s3-cap:nth-child(3)::before { background: #2e7a50; }
+    .s3-cap:nth-child(4)::before { background: #c47e1a; }
+    .s3-cap:nth-child(5)::before { background: #7b5ea0; }
+    .s3-cap:nth-child(6)::before { background: #1a5fa0; }
+    .s3-cap:nth-child(7)::before { background: #b22234; }
+
+    .s3-cap-title { font-size: 14px; font-weight: 700; color: #0d1b2e; }
+    .s3-cap-desc { font-size: 12px; color: #6a7a8a; line-height: 1.5; }
+
+    /* ─── SLIDE 4: BVS Metrics ─── */
+    #slide-4 {
+      background: linear-gradient(160deg, #fff8f0 0%, #fef2e4 50%, #fde8d8 100%);
+    }
+
+    #slide-4::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.1) 2px, transparent 2px),
+        radial-gradient(circle, rgba(26,63,111,.07) 1.5px, transparent 1.5px);
+      background-size: 64px 64px, 40px 40px;
+      background-position: 0 0, 22px 28px;
+      pointer-events: none;
+    }
+
+    .s4-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .2em;
+      color: #b22234;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .s4-headline {
+      font-size: 46px;
+      font-weight: 800;
+      color: #0d1b2e;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      text-align: center;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .s4-todo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(178,34,52,.06);
+      border: 1px solid rgba(178,34,52,.2);
+      border-radius: 10px;
+      padding: 9px 16px;
+      font-size: 12px;
+      color: #b22234;
+      font-weight: 500;
+      margin-bottom: 36px;
+      position: relative;
+    }
+
+    .s4-metrics {
+      display: flex;
+      gap: 24px;
+      position: relative;
+    }
+
+    .s4-metric {
+      width: 190px;
+      background: #ffffff;
+      border: 1.5px solid rgba(13,27,46,.09);
+      border-radius: 18px;
+      padding: 28px 20px 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(13,27,46,.06);
+      transition: box-shadow .2s, transform .2s;
+    }
+
+    .s4-metric:hover { box-shadow: 0 8px 32px rgba(178,34,52,.12); transform: translateY(-2px); }
+
+    .s4-metric-icon { font-size: 26px; line-height: 1; }
+
+    .s4-metric-val {
+      font-family: "Playfair Display", Georgia, serif;
+      font-size: 48px;
+      font-weight: 700;
+      color: #b22234;
+      line-height: 1;
+    }
+
+    .s4-metric-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6a7a8a;
+      line-height: 1.3;
+    }
+
+    .s4-metric-todo {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: rgba(178,34,52,.5);
+    }
+
+    /* ─── SLIDE 5: Closing ─── */
+    #slide-5 {
+      background: linear-gradient(160deg, #f0f5ff 0%, #e8f0ff 50%, #f5f7ff 100%);
+    }
+
+    #slide-5::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.1) 2px, transparent 2px),
+        radial-gradient(circle, rgba(26,63,111,.08) 1.5px, transparent 1.5px);
+      background-size: 68px 68px, 44px 44px;
+      background-position: 0 0, 22px 28px;
+      pointer-events: none;
+    }
+
+    .s5-eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .22em;
+      color: #b22234;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .s5-headline {
+      font-family: "Playfair Display", Georgia, serif;
+      font-style: italic;
+      font-size: 54px;
+      font-weight: 400;
+      color: #0d1b2e;
+      line-height: 1.2;
+      text-align: center;
+      margin-bottom: 32px;
+      max-width: 860px;
+      position: relative;
+    }
+
+    .s5-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #b22234;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 15px 34px;
+      border-radius: 50px;
+      text-decoration: none;
+      box-shadow: 0 6px 28px rgba(178,34,52,.35);
+      transition: transform .15s, box-shadow .15s;
+      position: relative;
+    }
+
+    .s5-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 36px rgba(178,34,52,.5);
+    }
+
+    /* ── Progress dots ── */
+    .progress-dots {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 200;
+    }
+
+    .pdot {
+      width: 28px;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(13,27,46,.15);
+      cursor: pointer;
+      transition: background .25s, width .25s;
+    }
+
+    .pdot.active { background: #b22234; width: 44px; }
+
+    .click-cta {
+      position: fixed;
+      bottom: 30px;
+      right: 48px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      color: rgba(13,27,46,.3);
+      text-transform: uppercase;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="site-nav">
+    <a href="at-home-demo-map.html" class="site-nav-brand">
+      <span>AT HOME</span>
+      <span class="sf-dot"></span>
+      <span class="sf-label">Salesforce CX Vision</span>
+    </a>
+    <div class="site-nav-links">
+      <a href="at-home-demo-map.html">Journey Map</a>
+      <a href="at-home-vignette.html">Intro</a>
+      <a href="at-home-meet-rachel.html">Meet Rachel</a>
+      <a href="at-home-bvs.html" class="active">Business Value</a>
+    </div>
+  </nav>
+
+  <div class="slides-wrap" id="slides-wrap">
+
+    <!-- Slide 1: Section title -->
+    <div class="slide active" id="slide-1">
+      <p class="s1-eyebrow">The Business Outcome</p>
+      <h2 class="s1-headline">A completely connected journey.<br/><em>Driven by AI.</em></h2>
+      <p class="s1-sub">Higher conversion. Increased AOV. Lifelong loyalty.</p>
+    </div>
+
+    <!-- Slide 2: Data profile / orbit -->
+    <div class="slide" id="slide-2">
+      <div class="orbit-wrap">
+        <div class="orbit-ring orbit-outer"></div>
+        <div class="orbit-ring orbit-inner"></div>
+        <div class="orbit-center">
+          🏠
+          <span class="orbit-label">DATA CLOUD</span>
+        </div>
+        <div class="orbit-node n-instagram"><span class="n-icon">📸</span> Instagram Ad</div>
+        <div class="orbit-node n-website"><span class="n-icon">🖥️</span> Commerce Site</div>
+        <div class="orbit-node n-sms"><span class="n-icon">💬</span> SMS Signal</div>
+        <div class="orbit-node n-agent"><span class="n-icon">🤖</span> AI Agent Chat</div>
+        <div class="orbit-node n-commerce"><span class="n-icon">🛒</span> Cart &amp; Purchase</div>
+        <div class="orbit-node n-email"><span class="n-icon">📧</span> Email Nurture</div>
+      </div>
+
+      <div class="orbit-copy">
+        <p class="oc-eyebrow">Unified Customer Intelligence</p>
+        <h2 class="oc-headline">Every interaction<br/>builds a <span class="accent">smarter profile.</span></h2>
+        <p class="oc-body">Data Cloud unifies every signal — ad click, browsing behavior, cart save, SMS click, agent conversation, purchase, email engagement — into one living customer profile that powers every next action.</p>
+        <div class="oc-stats">
+          <div><div class="oc-stat-val">360°</div><div class="oc-stat-label">Customer View</div></div>
+          <div><div class="oc-stat-val">Real-time</div><div class="oc-stat-label">Data Activation</div></div>
+          <div><div class="oc-stat-val">AI-Driven</div><div class="oc-stat-label">Decisioning</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 3: Capabilities -->
+    <div class="slide" id="slide-3">
+      <p class="s3-eyebrow">Key Capabilities Shown Today</p>
+      <h2 class="s3-headline">Learning from <span class="accent">every signal, every shopper.</span></h2>
+      <div class="s3-caps" id="s3-caps"></div>
+    </div>
+
+    <!-- Slide 4: BVS Metrics -->
+    <div class="slide" id="slide-4">
+      <p class="s4-eyebrow">BVS Benchmarks</p>
+      <h2 class="s4-headline">The numbers that matter.</h2>
+      <div class="s4-todo">⚠️ Replace placeholder values with real BVS benchmarks — update <strong>at-home-demo-story.js → bvsMetrics</strong></div>
+      <div class="s4-metrics" id="s4-metrics"></div>
+    </div>
+
+    <!-- Slide 5: Closing -->
+    <div class="slide" id="slide-5">
+      <p class="s5-eyebrow">At Home + Salesforce</p>
+      <h2 class="s5-headline">"From inspiration to purchase to loyalty —<br/>every moment is connected."</h2>
+      <a href="at-home-demo-map.html" class="s5-cta">RETURN TO JOURNEY MAP &nbsp;→</a>
+    </div>
+
+  </div>
+
+  <div class="progress-dots" id="progress-dots"></div>
+  <div class="click-cta" id="click-cta">CLICK TO CONTINUE &nbsp;›</div>
+
+  <script>
+    const story = AT_HOME_DEMO_STORY;
+
+    const capsEl = document.getElementById("s3-caps");
+    story.platform.capabilities.forEach(cap => {
+      const tech = story.technologies ? story.technologies.find(t => t.label === cap) : null;
+      const desc = tech ? tech.description : "";
+      const div = document.createElement("div");
+      div.className = "s3-cap";
+      div.innerHTML = `<div class="s3-cap-title">${cap}</div><div class="s3-cap-desc">${desc}</div>`;
+      capsEl.appendChild(div);
+    });
+
+    const metricsEl = document.getElementById("s4-metrics");
+    story.bvsMetrics.forEach(m => {
+      const div = document.createElement("div");
+      div.className = "s4-metric";
+      div.innerHTML = `
+        <div class="s4-metric-icon">${m.icon}</div>
+        <div class="s4-metric-val">${m.value}</div>
+        <div class="s4-metric-label">${m.label}</div>
+        <div class="s4-metric-todo">TODO</div>
+      `;
+      metricsEl.appendChild(div);
+    });
+
+    const totalSlides = 5;
+    let current = 1;
+
+    const dotsEl = document.getElementById("progress-dots");
+    for (let i = 1; i <= totalSlides; i++) {
+      const dot = document.createElement("div");
+      dot.className = "pdot" + (i === 1 ? " active" : "");
+      dot.addEventListener("click", (e) => { e.stopPropagation(); goTo(i); });
+      dotsEl.appendChild(dot);
+    }
+
+    function goTo(n) {
+      document.getElementById("slide-" + current).classList.remove("active");
+      dotsEl.children[current - 1].classList.remove("active");
+      current = Math.max(1, Math.min(totalSlides, n));
+      document.getElementById("slide-" + current).classList.add("active");
+      dotsEl.children[current - 1].classList.add("active");
+      document.getElementById("click-cta").style.display = current === totalSlides ? "none" : "flex";
+    }
+
+    document.getElementById("slides-wrap").addEventListener("click", () => {
+      if (current < totalSlides) goTo(current + 1);
+    });
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight" || e.key === " ") goTo(current + 1);
+      if (e.key === "ArrowLeft") goTo(current - 1);
+    });
+
+    goTo(1);
+  </script>
+</body>
+</html>

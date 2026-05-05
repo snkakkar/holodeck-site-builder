@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>At Home + Salesforce | The Vision</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="./at-home-demo-story.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      font-family: "Inter", -apple-system, sans-serif;
+    }
+
+    /* ── Shared nav bar ── */
+    .site-nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(13,27,46,.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      z-index: 200;
+    }
+
+    .site-nav-brand {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      color: #0d1b2e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .site-nav-brand .sf-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #b22234;
+    }
+
+    .site-nav-brand .sf-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .12em;
+      color: #8a9baf;
+      text-transform: uppercase;
+    }
+
+    .site-nav-links {
+      display: flex;
+      gap: 6px;
+    }
+
+    .site-nav-links a {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #5a6a7a;
+      text-decoration: none;
+      padding: 5px 14px;
+      border: 1.5px solid rgba(13,27,46,.12);
+      border-radius: 20px;
+      transition: all .15s;
+      background: transparent;
+    }
+
+    .site-nav-links a:hover {
+      color: #0d1b2e;
+      border-color: rgba(13,27,46,.28);
+      background: rgba(13,27,46,.04);
+    }
+
+    .site-nav-links a.active {
+      color: #b22234;
+      border-color: rgba(178,34,52,.35);
+      background: rgba(178,34,52,.05);
+    }
+
+    /* ── Slide engine ── */
+    .slides-wrap {
+      width: 100vw;
+      height: 100vh;
+      padding-top: 52px; /* nav offset */
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .slide {
+      position: absolute;
+      top: 52px; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity .5s ease;
+      pointer-events: none;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ─── SLIDE 1: Cinematic opener — bright, bold ─── */
+    #slide-1 {
+      background: linear-gradient(160deg, #ffffff 0%, #f0f5ff 55%, #e8f0fa 100%);
+    }
+
+    /* Subtle confetti dots */
+    #slide-1::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.12) 2px, transparent 2px),
+        radial-gradient(circle, rgba(26,63,111,.08) 2px, transparent 2px),
+        radial-gradient(circle, rgba(178,34,52,.06) 1.5px, transparent 1.5px);
+      background-size: 80px 80px, 55px 55px, 38px 38px;
+      background-position: 10px 10px, 30px 40px, 5px 28px;
+      pointer-events: none;
+    }
+
+    .s1-eyebrow {
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: .22em;
+      color: #b22234;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .s1-headline {
+      font-size: 86px;
+      font-weight: 800;
+      color: #0d1b2e;
+      line-height: 1.0;
+      letter-spacing: -0.025em;
+      text-align: center;
+      position: relative;
+    }
+
+    .s1-headline em {
+      font-style: normal;
+      color: #b22234;
+    }
+
+    .s1-sub {
+      font-size: 20px;
+      font-weight: 400;
+      color: #7a8fa8;
+      margin-top: 22px;
+      letter-spacing: .02em;
+      position: relative;
+    }
+
+    /* ─── SLIDE 2: Presenter + mission ─── */
+    #slide-2 {
+      background: #ffffff;
+    }
+
+    #slide-2::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 50% at 90% 80%, rgba(178,34,52,.06) 0%, transparent 65%),
+                  radial-gradient(ellipse 60% 40% at 10% 20%, rgba(26,63,111,.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .s2-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .22em;
+      color: #b22234;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .s2-headline {
+      font-family: "Playfair Display", Georgia, serif;
+      font-style: italic;
+      font-size: 62px;
+      font-weight: 400;
+      color: #0d1b2e;
+      line-height: 1.1;
+      text-align: center;
+      margin-bottom: 18px;
+      max-width: 900px;
+      position: relative;
+    }
+
+    .s2-sub {
+      font-size: 18px;
+      font-weight: 400;
+      color: #5a6a7a;
+      text-align: center;
+      max-width: 600px;
+      line-height: 1.65;
+      margin-bottom: 44px;
+      position: relative;
+    }
+
+    .s2-presenter-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #f5f7ff;
+      border: 1.5px solid rgba(13,27,46,.1);
+      border-radius: 50px;
+      padding: 10px 22px;
+      position: relative;
+    }
+
+    .s2-presenter-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #b22234;
+      flex-shrink: 0;
+    }
+
+    .s2-presenter-text {
+      font-size: 14px;
+      font-weight: 600;
+      color: #3a4a5a;
+    }
+
+    /* ─── SLIDE 3: Three-part structure ─── */
+    #slide-3 {
+      background: #f5f7ff;
+    }
+
+    .s3-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .2em;
+      color: #8a9baf;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .s3-headline {
+      font-size: 50px;
+      font-weight: 800;
+      color: #0d1b2e;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      text-align: center;
+      margin-bottom: 44px;
+      position: relative;
+    }
+
+    .s3-headline .accent { color: #b22234; }
+
+    .s3-parts {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      position: relative;
+    }
+
+    .s3-part {
+      width: 300px;
+      background: #ffffff;
+      border: 1.5px solid rgba(13,27,46,.09);
+      border-radius: 18px;
+      padding: 28px 24px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(13,27,46,.06);
+    }
+
+    .s3-part::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: 18px 18px 0 0;
+    }
+
+    .s3-part:nth-child(1)::before { background: #b22234; }
+    .s3-part:nth-child(2)::before { background: #1a5fa0; }
+    .s3-part:nth-child(3)::before { background: #2e7a50; }
+
+    .s3-part-num {
+      font-family: "Playfair Display", Georgia, serif;
+      font-style: italic;
+      font-size: 40px;
+      font-weight: 400;
+      color: rgba(13,27,46,.08);
+      line-height: 1;
+    }
+
+    .s3-part-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0d1b2e;
+      line-height: 1.25;
+    }
+
+    .s3-part-desc {
+      font-size: 12.5px;
+      color: #5a6a7a;
+      line-height: 1.6;
+    }
+
+    .s3-part-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .s3-tag {
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: .07em;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(13,27,46,.05);
+      color: #7a8fa8;
+      border: 1px solid rgba(13,27,46,.1);
+    }
+
+    /* GA badge on slide 3 */
+    .s3-ga {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(46,122,80,.08);
+      border: 1px solid rgba(46,122,80,.22);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #2e7a50;
+      margin-top: 8px;
+      position: relative;
+    }
+
+    /* ─── Vignette slides (section announcements) ─── */
+    .vignette-slide {
+      background: linear-gradient(160deg, #f8f5ef 0%, #fef7ee 50%, #fdf0e8 100%);
+    }
+
+    /* Subtle confetti on vignette slides */
+    .vignette-slide::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.1) 2px, transparent 2px),
+        radial-gradient(circle, rgba(26,63,111,.07) 1.5px, transparent 1.5px);
+      background-size: 64px 64px, 40px 40px;
+      background-position: 0 0, 20px 26px;
+      pointer-events: none;
+    }
+
+    .v-eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .22em;
+      color: #b22234;
+      text-transform: uppercase;
+      margin-bottom: 22px;
+      position: relative;
+    }
+
+    .v-headline {
+      font-family: "Playfair Display", Georgia, serif;
+      font-size: 72px;
+      font-weight: 700;
+      color: #0d1b2e;
+      line-height: 1.1;
+      text-align: center;
+      margin-bottom: 18px;
+      position: relative;
+    }
+
+    .v-headline .amp {
+      font-style: italic;
+      font-weight: 400;
+      color: #8a9baf;
+    }
+
+    .v-sub {
+      font-size: 19px;
+      font-weight: 400;
+      color: #7a8fa8;
+      text-align: center;
+      max-width: 560px;
+      line-height: 1.6;
+      position: relative;
+    }
+
+    /* ── Progress dots ── */
+    .progress-dots {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 200;
+    }
+
+    .pdot {
+      width: 28px;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(13,27,46,.15);
+      cursor: pointer;
+      transition: background .25s, width .25s;
+    }
+
+    .pdot.active {
+      background: #b22234;
+      width: 44px;
+    }
+
+    /* ── Click to continue ── */
+    .click-cta {
+      position: fixed;
+      bottom: 30px;
+      right: 48px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      color: rgba(13,27,46,.3);
+      text-transform: uppercase;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* Thumb preview */
+    .thumb-preview {
+      position: fixed;
+      bottom: 24px;
+      right: 48px;
+      width: 192px;
+      border: 1.5px solid rgba(13,27,46,.1);
+      border-radius: 10px;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity .35s;
+      z-index: 200;
+      pointer-events: none;
+      background: #fff;
+      box-shadow: 0 4px 16px rgba(13,27,46,.08);
+    }
+
+    .thumb-preview.visible { opacity: 1; }
+
+    .thumb-inner { padding: 10px 14px 10px; }
+
+    .thumb-label {
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #b22234;
+      margin-bottom: 3px;
+    }
+
+    .thumb-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0d1b2e;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Unified site nav -->
+  <nav class="site-nav">
+    <a href="at-home-demo-map.html" class="site-nav-brand">
+      <span>AT HOME</span>
+      <span class="sf-dot"></span>
+      <span class="sf-label">Salesforce CX Vision</span>
+    </a>
+    <div class="site-nav-links">
+      <a href="at-home-demo-map.html">Journey Map</a>
+      <a href="at-home-vignette.html" class="active">Intro</a>
+      <a href="at-home-meet-rachel.html">Meet Rachel</a>
+      <a href="at-home-bvs.html">Business Value</a>
+    </div>
+  </nav>
+
+  <div class="slides-wrap" id="slides-wrap">
+
+    <!-- Slide 1 -->
+    <div class="slide active" id="slide-1">
+      <p class="s1-eyebrow">Salesforce CX Vision</p>
+      <h1 class="s1-headline">A connected, <em>agentic</em><br/>retail journey.</h1>
+      <p class="s1-sub">At Home + Salesforce</p>
+    </div>
+
+    <!-- Slide 2 -->
+    <div class="slide" id="slide-2">
+      <p class="s2-eyebrow">Salesforce CX Vision &bull; Agentic Retail Journey</p>
+      <h2 class="s2-headline">See how At Home turns<br/>moments into loyal relationships.</h2>
+      <p class="s2-sub">From a personalized ad to post-purchase nurture — every interaction creates context. Every context improves the next best experience.</p>
+      <div class="s2-presenter-row">
+        <div class="s2-presenter-dot"></div>
+        <div class="s2-presenter-text" id="s2-presenter">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Slide 3 -->
+    <div class="slide" id="slide-3">
+      <p class="s3-eyebrow">What you'll see today</p>
+      <h2 class="s3-headline">Three acts. One <span class="accent">connected platform.</span></h2>
+      <div class="s3-parts" id="s3-parts"></div>
+      <div class="s3-ga">✓ &nbsp;Everything shown today is <strong>GA</strong> and being used by customers today.</div>
+    </div>
+
+    <!-- Vignette slides appended dynamically -->
+
+  </div>
+
+  <div class="progress-dots" id="progress-dots"></div>
+  <div class="click-cta" id="click-cta">CLICK TO CONTINUE &nbsp;›</div>
+
+  <div class="thumb-preview" id="thumb-preview">
+    <div class="thumb-inner">
+      <div class="thumb-label">Next</div>
+      <div class="thumb-title" id="thumb-title"></div>
+    </div>
+  </div>
+
+  <script>
+    const story = AT_HOME_DEMO_STORY;
+
+    document.getElementById("s2-presenter").textContent =
+      story.presenterName + " · " + story.presenterTitle;
+
+    const s3Parts = document.getElementById("s3-parts");
+    const tagMap = [
+      ["Instagram", "Website", "SMS", "AI Agent", "Email"],
+      ["Data Cloud", "360° profile", "Real-time"],
+      ["Agentforce", "Clicks not code", "GA today"],
+    ];
+
+    story.demoStructure.forEach((part, i) => {
+      const div = document.createElement("div");
+      div.className = "s3-part";
+      div.innerHTML = `
+        <div class="s3-part-num">${i + 1}</div>
+        <div class="s3-part-title">${part.title}</div>
+        <div class="s3-part-desc">${part.description}</div>
+        <div class="s3-part-tags">${(tagMap[i]||[]).map(t=>`<span class="s3-tag">${t}</span>`).join("")}</div>
+      `;
+      s3Parts.appendChild(div);
+    });
+
+    // Vignette slides
+    const wrap = document.getElementById("slides-wrap");
+    story.vignetteSections.forEach((vs, i) => {
+      const div = document.createElement("div");
+      div.className = "slide vignette-slide";
+      div.id = "slide-" + (4 + i);
+      div.innerHTML = `
+        <p class="v-eyebrow">${vs.eyebrow}</p>
+        <h2 class="v-headline">${vs.title.replace(" & ", " <span class='amp'>&amp;</span> ")}</h2>
+        <p class="v-sub">${vs.subtitle}</p>
+      `;
+      wrap.appendChild(div);
+    });
+
+    const totalSlides = 3 + story.vignetteSections.length;
+    let current = 1;
+
+    const thumbTitles = ["The CX Vision →", "Three-Act Structure →", "Anticipate &amp; Engage →", "Guide &amp; Convert →", "Delight →", null];
+
+    const dotsEl = document.getElementById("progress-dots");
+    for (let i = 1; i <= totalSlides; i++) {
+      const dot = document.createElement("div");
+      dot.className = "pdot" + (i === 1 ? " active" : "");
+      dot.addEventListener("click", e => { e.stopPropagation(); goTo(i); });
+      dotsEl.appendChild(dot);
+    }
+
+    function goTo(n) {
+      document.getElementById("slide-" + current).classList.remove("active");
+      dotsEl.children[current - 1].classList.remove("active");
+      current = Math.max(1, Math.min(totalSlides, n));
+      document.getElementById("slide-" + current).classList.add("active");
+      dotsEl.children[current - 1].classList.add("active");
+
+      const thumb = document.getElementById("thumb-preview");
+      const thumbTitle = document.getElementById("thumb-title");
+      if (current < totalSlides && thumbTitles[current - 1]) {
+        thumb.classList.add("visible");
+        thumbTitle.innerHTML = thumbTitles[current - 1];
+      } else {
+        thumb.classList.remove("visible");
+      }
+
+      document.getElementById("click-cta").style.display = current === totalSlides ? "none" : "flex";
+    }
+
+    document.getElementById("slides-wrap").addEventListener("click", () => {
+      if (current < totalSlides) goTo(current + 1);
+    });
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight" || e.key === " ") goTo(current + 1);
+      if (e.key === "ArrowLeft") goTo(current - 1);
+    });
+
+    goTo(1);
+  </script>
+</body>
+</html>
