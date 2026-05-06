@@ -59,10 +59,10 @@ const AT_HOME_DEMO_STORY = {
     {
       id: 1,
       title: "Anticipate",
-      badge: "MCP Audience Segmentation",
+      badge: "Audience Segmentation",
       headline: "Know Rachel before she arrives.",
       eyebrow: "MARKETING CLOUD PERSONALIZATION",
-      description: "Rachel sees a personalized 4th of July patio promotion on Instagram, powered by MCP audience segments.",
+      description: "Rachel sees a personalized 4th of July patio promotion on Instagram, powered by salesforce segments.",
       detail: "Marketing Cloud Personalization identifies Rachel as a high-propensity outdoor furniture buyer and serves a targeted promotion — the right message, at the right moment, before she ever visits the site.",
       technologies: ["Marketing Cloud Personalization", "Email", "SMS"],
       emoji: "📸",

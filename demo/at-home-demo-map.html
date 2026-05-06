@@ -27,7 +27,7 @@
       background: linear-gradient(160deg, #f8faff 0%, #eef3ff 40%, #f0f6ff 100%);
       transform-origin: center center;
       position: relative;
-      overflow: hidden;
+      overflow: visible;
     }
 
     /* Subtle festive dots in background */
@@ -168,6 +168,7 @@
       align-items: start;
       margin-bottom: 36px;
       position: relative;
+      overflow: visible;
     }
 
     .step {
@@ -224,12 +225,12 @@
       transform: translateY(-3px);
     }
 
-    /* Hover tooltip */
+    /* Hover tooltip — appears below the circle to stay within slide bounds */
     .tooltip {
       position: absolute;
-      bottom: calc(100% + 14px);
+      top: calc(100% + 10px);
       left: 50%;
-      transform: translateX(-50%) translateY(6px);
+      transform: translateX(-50%) translateY(-6px);
       width: 220px;
       background: #0d1b2e;
       border: 1px solid rgba(255,255,255,.12);
@@ -239,19 +240,19 @@
       opacity: 0;
       pointer-events: none;
       transition: opacity .22s ease, transform .22s ease;
-      z-index: 30;
+      z-index: 100;
       box-shadow: 0 12px 40px rgba(0,0,0,.3);
     }
 
-    /* Prevent edge steps clipping off screen */
+    /* Nudge edge tooltips inward so they don't clip */
     .step:last-child .tooltip {
       left: auto;
       right: -8px;
-      transform: translateY(6px);
+      transform: translateY(-6px);
     }
     .step:first-child .tooltip {
       left: -8px;
-      transform: translateY(6px);
+      transform: translateY(-6px);
     }
 
     .tooltip .tt {
@@ -294,6 +295,14 @@
     .step:last-child .circle-wrap:hover .tooltip,
     .step:first-child .circle-wrap:hover .tooltip {
       transform: translateY(0);
+    }
+
+    /* Lift step on hover so tooltip renders above platform footer */
+    .step {
+      position: relative;
+    }
+    .circle-wrap:hover {
+      z-index: 100;
     }
 
     /* Step copy */

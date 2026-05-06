@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>At Home + Salesforce | CX Vision Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      font-family: "Inter", -apple-system, sans-serif;
+      background: #f5f7ff;
+      color: #0d1b2e;
+    }
+
+    /* ═══════════════════════════════════════
+       NAV
+    ═══════════════════════════════════════ */
+    .site-nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(13,27,46,.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      z-index: 500;
+    }
+
+    .site-nav-brand {
+      font-size: 15px; font-weight: 800; letter-spacing: .06em;
+      color: #0d1b2e; display: flex; align-items: center; gap: 10px;
+      text-decoration: none; cursor: pointer;
+    }
+    .site-nav-brand .sf-dot { width: 7px; height: 7px; border-radius: 50%; background: #b22234; }
+    .site-nav-brand .sf-label { font-size: 10px; font-weight: 600; letter-spacing: .12em; color: #8a9baf; text-transform: uppercase; }
+
+    .site-nav-links { display: flex; gap: 6px; }
+    .site-nav-links button {
+      font-size: 11.5px; font-weight: 600; color: #5a6a7a;
+      background: transparent; border: 1.5px solid rgba(13,27,46,.12);
+      border-radius: 20px; padding: 5px 14px; cursor: pointer;
+      font-family: inherit; transition: all .15s;
+    }
+    .site-nav-links button:hover { color: #0d1b2e; border-color: rgba(13,27,46,.28); background: rgba(13,27,46,.04); }
+    .site-nav-links button.active { color: #b22234; border-color: rgba(178,34,52,.35); background: rgba(178,34,52,.05); }
+
+    /* ═══════════════════════════════════════
+       SECTION CONTAINERS
+    ═══════════════════════════════════════ */
+    .section {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .4s ease;
+    }
+    .section:not(.active), .section:not(.active) * { pointer-events: none !important; }
+    .section.active { opacity: 1; pointer-events: auto; }
+
+    /* ═══════════════════════════════════════
+       SHARED KEYFRAMES
+    ═══════════════════════════════════════ */
+    @keyframes fadeUp      { from { opacity:0; transform:translateY(22px); }  to { opacity:1; transform:none; } }
+    @keyframes fadeUpBig   { from { opacity:0; transform:translateY(30px); }  to { opacity:1; transform:none; } }
+    @keyframes slideInLeft { from { opacity:0; transform:translateX(-40px); } to { opacity:1; transform:none; } }
+    @keyframes popIn       { from { opacity:0; transform:scale(0.88) translateY(14px); } to { opacity:1; transform:none; } }
+    @keyframes popInFeat   { from { opacity:0; transform:scale(0.9) translateY(14px); } to { opacity:1; transform:scale(1.05); } }
+    @keyframes orbitSpin        { from { transform:rotate(0deg); }   to { transform:rotate(360deg); } }
+    @keyframes orbitSpinReverse { from { transform:rotate(0deg); }   to { transform:rotate(-360deg); } }
+    @keyframes ctaPulse    { 0%,100% { box-shadow:0 6px 28px rgba(178,34,52,.35); } 50% { box-shadow:0 6px 36px rgba(178,34,52,.55); } }
+    @keyframes dotPulse    { 0% { transform:scale(1); } 40% { transform:scale(1.2); } 100% { transform:scale(1); } }
+    @keyframes floatBob    { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
+    @keyframes floatBobAlt { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-5px); } }
+    @keyframes shimmerSlide { 0% { left:-100%; } 100% { left:200%; } }
+    @keyframes nodePop { 0%,100% { transform:scale(1); } 50% { transform:scale(1.08); box-shadow:0 4px 18px rgba(178,34,52,.18); } }
+    @keyframes orbitNodeSpin { from { transform:rotate(0deg) translateX(var(--r)) rotate(0deg); } to { transform:rotate(360deg) translateX(var(--r)) rotate(-360deg); } }
+    @keyframes orbitNodeSpinRev { from { transform:rotate(0deg) translateX(var(--r)) rotate(0deg); } to { transform:rotate(-360deg) translateX(var(--r)) rotate(360deg); } }
+    @keyframes glowPulse { 0%,100% { box-shadow:0 0 0 0 rgba(26,63,111,0); } 50% { box-shadow:0 0 0 12px rgba(26,63,111,.08); } }
+    @keyframes centerBreath { 0%,100% { transform:scale(1); } 50% { transform:scale(1.04); } }
+    @keyframes confettiFall { 0% { transform:translateY(0) rotate(0deg); opacity:0; } 10% { opacity:.8; } 90% { opacity:.4; } 100% { transform:translateY(-110vh) rotate(540deg); opacity:0; } }
+    @keyframes orbitNodeFadeIn { from { opacity:0; } to { opacity:1; } }
+
+    /* ═══════════════════════════════════════
+       SHARED SLIDE ENGINE (used by all 3 deck sections)
+    ═══════════════════════════════════════ */
+    .slides-wrap {
+      width: 100vw; height: 100vh;
+      position: relative; overflow: hidden;
+      cursor: pointer; user-select: none;
+    }
+    .pslide {
+      position: absolute;
+      top: 52px; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      opacity: 0; transform: translateY(18px);
+      transition: opacity .45s ease, transform .45s ease;
+      pointer-events: none;
+    }
+    .pslide.active  { opacity:1; transform:translateY(0); pointer-events:auto; }
+    .pslide.exit    { opacity:0; transform:translateY(-10px); transition: opacity .3s ease, transform .3s ease; }
+
+    .progress-dots {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; gap: 10px; z-index: 400;
+    }
+    .pdot {
+      width: 28px; height: 6px; border-radius: 3px;
+      background: rgba(13,27,46,.15); cursor: pointer;
+      transition: background .25s, width .25s;
+    }
+    .pdot.active { background: #b22234; width: 44px; }
+    .pdot.pulse  { animation: dotPulse .35s ease both; }
+
+    .click-cta {
+      position: fixed; bottom: 30px; right: 48px;
+      font-size: 11px; font-weight: 700; letter-spacing: .14em;
+      color: rgba(13,27,46,.3); text-transform: uppercase;
+      z-index: 400; display: flex; align-items: center; gap: 5px;
+    }
+    .thumb-preview {
+      position: fixed; bottom: 24px; right: 48px; width: 192px;
+      border: 1.5px solid rgba(13,27,46,.1); border-radius: 10px;
+      overflow: hidden; opacity: 0; transition: opacity .35s;
+      z-index: 400; pointer-events: none;
+      background: #fff; box-shadow: 0 4px 16px rgba(13,27,46,.08);
+    }
+    .thumb-preview.visible { opacity: 1; }
+    .thumb-inner { padding: 10px 14px; }
+    .thumb-label { font-size: 8.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#b22234; margin-bottom:3px; }
+    .thumb-title { font-size: 12px; font-weight:700; color:#0d1b2e; }
+
+    /* ═══════════════════════════════════════
+       SECTION A — JOURNEY MAP
+       CSS copied verbatim from at-home-demo-map.html, prefixed with #sec-map where needed
+    ═══════════════════════════════════════ */
+    #sec-map {
+      display: flex; justify-content: center; align-items: flex-start;
+      top: 52px !important;
+      overflow: visible;
+    }
+    #sec-map .slide {
+      width: 1440px;
+      padding: 64px 60px 36px;
+      background: linear-gradient(160deg, #f8faff 0%, #eef3ff 40%, #f0f6ff 100%);
+      transform-origin: center center;
+      position: relative;
+      overflow: visible;
+    }
+    #sec-map .slide::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.06) 1px, transparent 1px),
+        radial-gradient(circle, rgba(26,63,111,.04) 1px, transparent 1px);
+      background-size: 48px 48px, 32px 32px;
+      background-position: 0 0, 24px 24px;
+    }
+    #sec-map .header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 38px; position: relative;
+    }
+    #sec-map .header-left h1 { font-size:36px; font-weight:400; line-height:1.12; letter-spacing:-.015em; color:#0d1b2e; }
+    #sec-map .header-left h1 strong { font-weight:800; color:#0d1b2e; }
+    #sec-map .subtitle { margin-top:7px; font-size:10.5px; letter-spacing:.22em; color:#7a8fa8; font-weight:600; }
+    #sec-map .brand-lockup { display:flex; align-items:center; gap:18px; }
+    #sec-map .brand-name-block { text-align:right; }
+    #sec-map .brand-name { font-size:22px; font-weight:800; letter-spacing:-.02em; color:#0d1b2e; line-height:1; }
+    #sec-map .brand-sub  { font-size:9px; font-weight:600; letter-spacing:.2em; color:#9aabbf; text-transform:uppercase; margin-top:3px; }
+    #sec-map .brand-divider { width:1px; height:38px; background:rgba(13,27,46,.15); }
+    #sec-map .brand-lockup img.sf-icon { height:40px; width:auto; opacity:.85; }
+    #sec-map .flow {
+      display: grid; grid-template-columns: repeat(9,auto);
+      justify-content: center; gap: 0 10px;
+      align-items: start; margin-bottom: 36px;
+      position: relative; overflow: visible;
+    }
+    #sec-map .step {
+      display: flex; flex-direction: column;
+      align-items: center; text-align: center;
+      width: 200px; position: relative;
+    }
+    #sec-map .step-title {
+      font-family: "Playfair Display", Georgia, serif;
+      font-style: italic; font-weight: 600;
+      font-size: 22px; margin-bottom: 14px; color: #0d1b2e;
+    }
+    #sec-map .circle-wrap {
+      position: relative; width: 158px; height: 158px;
+      margin-bottom: 16px; cursor: pointer; flex-shrink: 0;
+    }
+    #sec-map .circle-art {
+      width: 100%; height: 100%; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 58px;
+      transition: box-shadow .25s, transform .2s;
+      border: 3px solid rgba(255,255,255,.9);
+      box-shadow: 0 6px 24px rgba(13,27,46,.12);
+      position: relative; overflow: hidden;
+    }
+    #sec-map .circle-anticipate { background: radial-gradient(ellipse at 38% 32%, #f8d6d6 0%, #e88080 35%, #c0392b 80%); }
+    #sec-map .circle-engage     { background: radial-gradient(ellipse at 38% 32%, #d6eaff 0%, #6caee8 35%, #1a5fa0 80%); }
+    #sec-map .circle-guide      { background: radial-gradient(ellipse at 38% 32%, #fff3cc 0%, #f5c06a 35%, #c47e1a 80%); }
+    #sec-map .circle-convert    { background: radial-gradient(ellipse at 38% 32%, #d4f0e4 0%, #6cc499 35%, #2e7a50 80%); }
+    #sec-map .circle-delight    { background: radial-gradient(ellipse at 38% 32%, #ffd6f0 0%, #f07ac0 35%, #9b2d6e 80%); }
+    #sec-map .circle-wrap:hover .circle-art { box-shadow:0 8px 32px rgba(178,34,52,.25), 0 0 0 3px #b22234; transform:translateY(-3px); }
+    #sec-map .circle-wrap:hover { z-index: 100; }
+    #sec-map .tooltip {
+      position: absolute;
+      top: calc(100% + 10px); left: 50%;
+      transform: translateX(-50%) translateY(-6px);
+      width: 220px; background: #0d1b2e;
+      border: 1px solid rgba(255,255,255,.12); border-radius: 14px;
+      padding: 16px 16px 14px; text-align: left;
+      opacity: 0; pointer-events: none;
+      transition: opacity .22s ease, transform .22s ease;
+      z-index: 100; box-shadow: 0 12px 40px rgba(0,0,0,.3);
+    }
+    #sec-map .step:last-child .tooltip { left:auto; right:-8px; transform:translateY(-6px); }
+    #sec-map .step:first-child .tooltip { left:-8px; transform:translateY(-6px); }
+    #sec-map .circle-wrap:hover .tooltip { opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+    #sec-map .step:last-child .circle-wrap:hover .tooltip,
+    #sec-map .step:first-child .circle-wrap:hover .tooltip { transform:translateY(0); }
+    #sec-map .tooltip .tt { font-family:"Playfair Display",Georgia,serif; font-style:italic; font-size:15px; color:#f5c06a; margin-bottom:7px; }
+    #sec-map .tooltip .tb { font-size:11.5px; line-height:1.58; color:rgba(255,255,255,.8); }
+    #sec-map .tooltip .tech-row { margin-top:9px; display:flex; flex-wrap:wrap; gap:4px; }
+    #sec-map .tooltip .t-tag { font-size:9.5px; font-weight:700; letter-spacing:.07em; padding:2px 8px; border-radius:10px; background:rgba(178,34,52,.25); color:#f5a0a0; border:1px solid rgba(178,34,52,.35); }
+    #sec-map .step-desc { font-size:12.5px; line-height:1.55; color:#4a5a6a; margin-bottom:14px; padding:0 4px; flex:1; }
+    #sec-map .cta { font-size:11px; font-weight:700; letter-spacing:.04em; color:#b22234; border:1.5px solid rgba(178,34,52,.45); border-radius:22px; padding:7px 16px; line-height:1.4; text-align:center; display:inline-block; background:rgba(178,34,52,.04); }
+    #sec-map .connector { display:flex; align-items:center; gap:3px; align-self:center; padding-top:28px; }
+    #sec-map .connector .dot { width:5px; height:5px; border-radius:50%; background:#b22234; opacity:.6; }
+    #sec-map .connector .arrow { font-size:19px; color:#b22234; line-height:1; margin-left:1px; opacity:.8; }
+    #sec-map .platform { border:1.5px solid rgba(178,34,52,.3); border-radius:16px; padding:20px 28px 18px; text-align:center; background:rgba(255,255,255,.65); backdrop-filter:blur(6px); }
+    #sec-map .platform h3 { font-size:20px; font-weight:800; margin-bottom:10px; color:#0d1b2e; }
+    #sec-map .tags { font-size:11px; color:#7a8fa8; line-height:2.0; }
+    #sec-map .tags span { white-space:nowrap; }
+    #sec-map .sep { margin:0 7px; color:rgba(13,27,46,.2); }
+    #sec-map .trust { margin-top:10px; font-size:9.5px; letter-spacing:.22em; color:#b22234; font-weight:700; }
+
+    /* ═══════════════════════════════════════
+       SECTION B — INTRO (VIGNETTE)
+    ═══════════════════════════════════════ */
+    /* Slide backgrounds */
+    #vi-1 { background: linear-gradient(160deg, #ffffff 0%, #f0f5ff 55%, #e8f0fa 100%); }
+    #vi-1::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.12) 2px, transparent 2px),
+        radial-gradient(circle, rgba(26,63,111,.08) 2px, transparent 2px),
+        radial-gradient(circle, rgba(178,34,52,.06) 1.5px, transparent 1.5px);
+      background-size: 80px 80px, 55px 55px, 38px 38px;
+      background-position: 10px 10px, 30px 40px, 5px 28px;
+    }
+    #vi-2 { background: #ffffff; }
+    #vi-2::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background: radial-gradient(ellipse 70% 50% at 90% 80%, rgba(178,34,52,.06) 0%, transparent 65%),
+                  radial-gradient(ellipse 60% 40% at 10% 20%, rgba(26,63,111,.05) 0%, transparent 60%);
+    }
+    #vi-3 { background: #f5f7ff; }
+    .vignette-slide { background: linear-gradient(160deg, #f8f5ef 0%, #fef7ee 50%, #fdf0e8 100%); }
+    .vignette-slide::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.1) 2px, transparent 2px),
+        radial-gradient(circle, rgba(26,63,111,.07) 1.5px, transparent 1.5px);
+      background-size: 64px 64px, 40px 40px;
+      background-position: 0 0, 20px 26px;
+    }
+
+    /* Vignette text styles */
+    .vi-s1-eyebrow { font-size:11.5px; font-weight:700; letter-spacing:.22em; color:#b22234; text-transform:uppercase; margin-bottom:24px; position:relative; }
+    .vi-s1-headline { font-size:86px; font-weight:800; color:#0d1b2e; line-height:1.0; letter-spacing:-.025em; text-align:center; position:relative; }
+    .vi-s1-headline em { font-style:normal; color:#b22234; }
+    .vi-s1-sub { font-size:20px; font-weight:400; color:#7a8fa8; margin-top:22px; letter-spacing:.02em; position:relative; }
+
+    .vi-s2-eyebrow { font-size:11px; font-weight:700; letter-spacing:.22em; color:#b22234; text-transform:uppercase; margin-bottom:20px; position:relative; }
+    .vi-s2-headline { font-family:"Playfair Display",Georgia,serif; font-style:italic; font-size:62px; font-weight:400; color:#0d1b2e; line-height:1.1; text-align:center; margin-bottom:18px; max-width:900px; position:relative; }
+    .vi-s2-sub { font-size:18px; font-weight:400; color:#5a6a7a; text-align:center; max-width:600px; line-height:1.65; margin-bottom:44px; position:relative; }
+    .vi-s2-presenter-row { display:flex; align-items:center; gap:12px; background:#f5f7ff; border:1.5px solid rgba(13,27,46,.1); border-radius:50px; padding:10px 22px; position:relative; }
+    .vi-s2-presenter-dot { width:8px; height:8px; border-radius:50%; background:#b22234; flex-shrink:0; }
+    .vi-s2-presenter-text { font-size:14px; font-weight:600; color:#3a4a5a; }
+
+    .vi-s3-eyebrow { font-size:11px; font-weight:700; letter-spacing:.2em; color:#8a9baf; text-transform:uppercase; margin-bottom:14px; position:relative; }
+    .vi-s3-headline { font-size:50px; font-weight:800; color:#0d1b2e; line-height:1.1; letter-spacing:-.02em; text-align:center; margin-bottom:44px; position:relative; }
+    .vi-s3-headline .accent { color:#b22234; }
+    .vi-s3-parts { display:flex; gap:20px; justify-content:center; position:relative; }
+    .vi-s3-part { width:300px; background:#ffffff; border:1.5px solid rgba(13,27,46,.09); border-radius:18px; padding:28px 24px 24px; display:flex; flex-direction:column; gap:12px; position:relative; overflow:hidden; box-shadow:0 4px 20px rgba(13,27,46,.06); }
+    .vi-s3-part::before { content:""; position:absolute; top:0; left:0; right:0; height:3px; border-radius:18px 18px 0 0; }
+    .vi-s3-part:nth-child(1)::before { background:#b22234; }
+    .vi-s3-part:nth-child(2)::before { background:#1a5fa0; }
+    .vi-s3-part:nth-child(3)::before { background:#2e7a50; }
+    .vi-s3-part-num { font-family:"Playfair Display",Georgia,serif; font-style:italic; font-size:40px; font-weight:400; color:rgba(13,27,46,.08); line-height:1; }
+    .vi-s3-part-title { font-size:16px; font-weight:700; color:#0d1b2e; line-height:1.25; }
+    .vi-s3-part-desc { font-size:12.5px; color:#5a6a7a; line-height:1.6; }
+    .vi-s3-part-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+    .vi-s3-tag { font-size:9.5px; font-weight:600; letter-spacing:.07em; padding:2px 8px; border-radius:10px; background:rgba(13,27,46,.05); color:#7a8fa8; border:1px solid rgba(13,27,46,.1); }
+    .vi-s3-ga { display:flex; align-items:center; gap:8px; background:rgba(46,122,80,.08); border:1px solid rgba(46,122,80,.22); border-radius:10px; padding:10px 18px; font-size:13px; font-weight:600; color:#2e7a50; margin-top:8px; position:relative; }
+
+    .v-eyebrow { font-size:12px; font-weight:700; letter-spacing:.22em; color:#b22234; text-transform:uppercase; margin-bottom:22px; position:relative; }
+    .v-headline { font-family:"Playfair Display",Georgia,serif; font-size:72px; font-weight:700; color:#0d1b2e; line-height:1.1; text-align:center; margin-bottom:18px; position:relative; }
+    .v-headline .amp { font-style:italic; font-weight:400; color:#8a9baf; }
+    .v-sub { font-size:19px; font-weight:400; color:#7a8fa8; text-align:center; max-width:560px; line-height:1.6; position:relative; }
+
+    /* Vignette animations */
+    .pslide.active .vi-s1-eyebrow { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .vi-s1-headline { animation: fadeUp .5s ease both .25s; }
+    .pslide.active .vi-s1-sub      { animation: fadeUp .5s ease both .45s; }
+    .pslide.active .vi-s2-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .vi-s2-headline { animation: fadeUp .5s ease both .2s; }
+    .pslide.active .vi-s2-sub      { animation: fadeUp .5s ease both .35s; }
+    .pslide.active .vi-s2-presenter-row { animation: fadeUp .5s ease both .55s; }
+    .pslide.active .vi-s3-eyebrow  { animation: fadeUp .5s ease both .05s; }
+    .pslide.active .vi-s3-headline { animation: fadeUp .5s ease both .15s; }
+    .pslide.active .vi-s3-part:nth-child(1) { animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both .2s; }
+    .pslide.active .vi-s3-part:nth-child(2) { animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both .35s; }
+    .pslide.active .vi-s3-part:nth-child(3) { animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both .5s; }
+    .pslide.active .vi-s3-ga       { animation: fadeUp .5s ease both .7s; }
+    .pslide.active .v-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .v-headline { animation: fadeUp .5s ease both .25s; }
+    .pslide.active .v-sub      { animation: fadeUp .5s ease both .45s; }
+
+    /* ═══════════════════════════════════════
+       SECTION C — MEET RACHEL
+    ═══════════════════════════════════════ */
+    #mr-1 { background: linear-gradient(160deg, #fff8f0 0%, #fff2e8 50%, #ffeedd 100%); }
+    #mr-1::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.14) 2.5px, transparent 2.5px),
+        radial-gradient(circle, rgba(26,63,111,.09) 2px, transparent 2px),
+        radial-gradient(circle, rgba(178,34,52,.07) 1.5px, transparent 1.5px);
+      background-size: 72px 72px, 48px 48px, 33px 33px;
+      background-position: 8px 8px, 28px 34px, 14px 18px;
+    }
+    #mr-2 { flex-direction:row; align-items:stretch; justify-content:flex-start; background:#ffffff; }
+    #mr-3 { background: linear-gradient(160deg, #f0f5ff 0%, #e8f0ff 50%, #f5f7ff 100%); }
+    #mr-4 { background: linear-gradient(160deg, #fff8f0 0%, #fef2e4 50%, #fde8d8 100%); }
+    #mr-4::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.12) 2.5px, transparent 2.5px),
+        radial-gradient(circle, rgba(26,63,111,.08) 2px, transparent 2px);
+      background-size: 68px 68px, 44px 44px;
+      background-position: 0 0, 22px 28px;
+    }
+
+    .mr-s1-eyebrow { font-size:12px; font-weight:700; letter-spacing:.22em; color:#b22234; text-transform:uppercase; margin-bottom:28px; position:relative; }
+    .mr-s1-title   { font-size:92px; font-weight:800; color:#0d1b2e; line-height:1.0; letter-spacing:-.02em; text-align:center; position:relative; }
+    .mr-s1-title strong { color:#b22234; }
+    .mr-s1-sub     { font-size:20px; font-weight:400; color:#8a9baf; margin-top:20px; position:relative; }
+
+    .mr-s2-left { width:44%; flex-shrink:0; position:relative; background:linear-gradient(160deg,#fff3e0 0%,#ffe0b2 45%,#ffcc80 100%); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+    .mr-s2-left::before { content:""; position:absolute; inset:0; pointer-events:none; background-image: radial-gradient(circle,rgba(178,34,52,.1) 2px,transparent 2px), radial-gradient(circle,rgba(26,63,111,.08) 1.5px,transparent 1.5px); background-size:60px 60px,40px 40px; background-position:0 0,20px 22px; }
+    .mr-s2-left::after  { content:""; position:absolute; bottom:0; left:0; right:0; height:5px; background:linear-gradient(90deg,#b22234 33%,#ffffff 33% 66%,#1a3f6f 66%); }
+    .mr-s2-avatar-scene { display:flex; flex-direction:column; align-items:center; gap:20px; position:relative; }
+    .mr-s2-avatar-circle { width:280px; height:280px; border-radius:50%; background:radial-gradient(ellipse at 42% 38%,#ffe0b2 0%,#ffab40 35%,#e65100 75%,#bf360c 100%); display:flex; align-items:center; justify-content:center; font-size:108px; box-shadow:0 0 0 5px rgba(255,255,255,.7),0 0 0 8px rgba(178,34,52,.25),0 20px 60px rgba(178,34,52,.2); position:relative; }
+    .mr-s2-todo { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); background:#b22234; color:#fff; font-size:8.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:4px 10px; border-radius:12px; white-space:nowrap; }
+    .mr-s2-scene-caption { font-size:13px; font-weight:600; color:rgba(178,34,52,.7); letter-spacing:.06em; }
+    .mr-s2-right { flex:1; display:flex; flex-direction:column; justify-content:center; padding:52px 64px 52px 60px; background:#ffffff; }
+    .mr-s2-role { font-size:11px; font-weight:700; letter-spacing:.22em; color:#b22234; text-transform:uppercase; margin-bottom:14px; }
+    .mr-s2-name { font-size:64px; font-weight:800; color:#0d1b2e; line-height:1.0; letter-spacing:-.02em; margin-bottom:10px; }
+    .mr-s2-name strong { font-weight:800; color:#0d1b2e; }
+    .mr-s2-job  { font-size:19px; font-weight:400; color:#8a9baf; margin-bottom:36px; }
+    .mr-s2-stats { display:flex; gap:44px; margin-bottom:36px; }
+    .mr-s2-stat-val   { font-size:34px; font-weight:800; color:#b22234; letter-spacing:-.02em; line-height:1; }
+    .mr-s2-stat-label { font-size:10px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:#b0bfcc; margin-top:5px; }
+    .mr-s2-divider    { width:100%; height:1px; background:rgba(13,27,46,.08); margin-bottom:28px; }
+    .mr-s2-quote-mark { font-size:56px; font-family:Georgia,serif; color:#b22234; line-height:.8; margin-bottom:4px; }
+    .mr-s2-quote      { font-family:"Playfair Display",Georgia,serif; font-style:italic; font-size:21px; line-height:1.55; color:#3a4a5a; }
+
+    .mr-s3-top { position:absolute; top:18px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:6px; }
+    .mr-s3-collection-label { font-size:11px; font-weight:700; letter-spacing:.2em; color:#b22234; text-transform:uppercase; }
+    .mr-s3-headline { font-size:50px; font-weight:800; color:#0d1b2e; letter-spacing:-.015em; line-height:1.1; text-align:center; margin-bottom:44px; position:relative; }
+    .mr-s3-headline strong { color:#1a5fa0; }
+    .mr-s3-cards { display:flex; gap:22px; justify-content:center; align-items:stretch; position:relative; }
+    .mr-s3-card { width:300px; background:#ffffff; border:1.5px solid rgba(13,27,46,.09); border-radius:20px; padding:26px 22px 22px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px; box-shadow:0 4px 20px rgba(13,27,46,.07); transition:transform .25s,box-shadow .25s; overflow:hidden; position:relative; }
+    .mr-s3-card:not(.featured):hover { transform:translateY(-5px) scale(1.02); box-shadow:0 12px 36px rgba(13,27,46,.13); }
+    .mr-s3-card.featured { border:2px solid #b22234; transform:scale(1.05); box-shadow:0 10px 40px rgba(178,34,52,.15); }
+    .mr-s3-card.featured:hover { transform:scale(1.08) translateY(-4px); box-shadow:0 16px 48px rgba(178,34,52,.22); }
+    /* Shimmer sweep on featured card */
+    .mr-s3-card.featured::after { content:""; position:absolute; top:0; left:-100%; width:60%; height:100%; background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.45) 50%,transparent 70%); animation: shimmerSlide 3s ease-in-out 2s infinite; pointer-events:none; }
+    .mr-s3-card-badge { font-size:9.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; padding:4px 12px; border-radius:20px; }
+    .mr-s3-card.featured .mr-s3-card-badge { background:rgba(178,34,52,.1); color:#b22234; border:1px solid rgba(178,34,52,.25); }
+    .mr-s3-card:not(.featured) .mr-s3-card-badge { background:rgba(13,27,46,.05); color:#7a8fa8; border:1px solid rgba(13,27,46,.1); }
+    .mr-s3-card-emoji { font-size:66px; line-height:1; }
+    .mr-s3-card-name  { font-size:17px; font-weight:700; color:#0d1b2e; line-height:1.25; }
+    .mr-s3-card-detail { font-size:12px; color:#8a9baf; }
+
+    .mr-s4-eyebrow  { font-size:12px; font-weight:700; letter-spacing:.22em; color:#8a9baf; text-transform:uppercase; margin-bottom:22px; position:relative; }
+    .mr-s4-headline { font-size:62px; font-weight:800; color:#0d1b2e; line-height:1.08; letter-spacing:-.02em; text-align:center; margin-bottom:14px; position:relative; }
+    .mr-s4-headline .accent { color:#b22234; }
+    .mr-s4-sub { font-size:20px; color:#7a8fa8; margin-bottom:48px; font-weight:400; position:relative; }
+    .mr-s4-cta { display:inline-flex; align-items:center; gap:10px; background:#b22234; color:#fff; font-size:13.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:16px 36px; border-radius:50px; border:none; cursor:pointer; font-family:inherit; box-shadow:0 6px 28px rgba(178,34,52,.35); transition:transform .15s,box-shadow .15s; position:relative; }
+    .mr-s4-cta:hover { transform:translateY(-2px); box-shadow:0 10px 36px rgba(178,34,52,.45); }
+
+    /* Meet Rachel animations */
+    .pslide.active .mr-s1-eyebrow { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .mr-s1-title   { animation: fadeUpBig .55s ease both .25s; }
+    .pslide.active .mr-s1-sub     { animation: fadeUp .5s ease both .5s; }
+    .pslide.active .mr-s2-left    { animation: slideInLeft .55s ease both .1s; }
+    .pslide.active .mr-s2-role    { animation: fadeUp .5s ease both .2s; }
+    .pslide.active .mr-s2-name    { animation: fadeUp .5s ease both .3s; }
+    .pslide.active .mr-s2-job     { animation: fadeUp .5s ease both .4s; }
+    .pslide.active .mr-s2-stats > div:nth-child(1) { animation: fadeUp .5s ease both .5s; }
+    .pslide.active .mr-s2-stats > div:nth-child(2) { animation: fadeUp .5s ease both .6s; }
+    .pslide.active .mr-s2-stats > div:nth-child(3) { animation: fadeUp .5s ease both .7s; }
+    .pslide.active .mr-s2-divider    { animation: fadeUp .5s ease both .6s; }
+    .pslide.active .mr-s2-quote-mark { animation: fadeUp .5s ease both .7s; }
+    .pslide.active .mr-s2-quote      { animation: fadeUp .5s ease both .8s; }
+    .pslide.active .mr-s3-collection-label { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .mr-s3-headline    { animation: fadeUp .5s ease both .2s; }
+    .pslide.active .mr-s3-cards .mr-s3-card:nth-child(1):not(.featured) { animation: popIn .55s cubic-bezier(.34,1.56,.64,1) both .25s; }
+    .pslide.active .mr-s3-cards .mr-s3-card:nth-child(2):not(.featured) { animation: popIn .55s cubic-bezier(.34,1.56,.64,1) both .4s; }
+    .pslide.active .mr-s3-cards .mr-s3-card:nth-child(3):not(.featured) { animation: popIn .55s cubic-bezier(.34,1.56,.64,1) both .55s; }
+    .pslide.active .mr-s3-cards .mr-s3-card.featured:nth-child(1) { animation: popInFeat .55s cubic-bezier(.34,1.56,.64,1) both .25s; }
+    .pslide.active .mr-s3-cards .mr-s3-card.featured:nth-child(2) { animation: popInFeat .55s cubic-bezier(.34,1.56,.64,1) both .4s; }
+    .pslide.active .mr-s3-cards .mr-s3-card.featured:nth-child(3) { animation: popInFeat .55s cubic-bezier(.34,1.56,.64,1) both .55s; }
+    .pslide.active .mr-s4-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .mr-s4-headline { animation: fadeUp .5s ease both .25s; }
+    .pslide.active .mr-s4-sub      { animation: fadeUp .5s ease both .4s; }
+    .pslide.active .mr-s4-cta      { animation: fadeUp .5s ease both .55s, ctaPulse 2.5s ease-in-out 1.2s infinite; }
+
+    /* ═══════════════════════════════════════
+       SECTION D — BUSINESS VALUE
+    ═══════════════════════════════════════ */
+    #bv-1 { background: linear-gradient(160deg, #fff8f0 0%, #fff2e8 50%, #ffeedd 100%); }
+    #bv-1::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.14) 2.5px, transparent 2.5px),
+        radial-gradient(circle, rgba(26,63,111,.09) 2px, transparent 2px),
+        radial-gradient(circle, rgba(178,34,52,.07) 1.5px, transparent 1.5px);
+      background-size: 72px 72px, 48px 48px, 33px 33px;
+      background-position: 8px 8px, 28px 34px, 14px 18px;
+    }
+    #bv-2 { background:#ffffff; flex-direction:row; justify-content:center; align-items:center; gap:60px; }
+    #bv-2::before { content:""; position:absolute; inset:0; pointer-events:none; background: radial-gradient(ellipse 60% 50% at 20% 80%, rgba(178,34,52,.05) 0%, transparent 65%), radial-gradient(ellipse 50% 40% at 90% 20%, rgba(26,63,111,.05) 0%, transparent 60%); }
+    #bv-3 { background: linear-gradient(160deg, #f0f5ff 0%, #e8f0ff 50%, #f5f7ff 100%); }
+    #bv-3::before { content:""; position:absolute; inset:0; pointer-events:none; background-image: radial-gradient(circle, rgba(26,63,111,.07) 1.5px, transparent 1.5px), radial-gradient(circle, rgba(178,34,52,.05) 1px, transparent 1px); background-size: 56px 56px, 32px 32px; background-position: 0 0, 18px 20px; }
+    #bv-4 { background: linear-gradient(160deg, #fff8f0 0%, #fef2e4 50%, #fde8d8 100%); }
+    #bv-4::before { content:""; position:absolute; inset:0; pointer-events:none; background-image: radial-gradient(circle, rgba(178,34,52,.1) 2px, transparent 2px), radial-gradient(circle, rgba(26,63,111,.07) 1.5px, transparent 1.5px); background-size: 64px 64px, 40px 40px; background-position: 0 0, 22px 28px; }
+    #bv-5 { background: linear-gradient(160deg, #f0f5ff 0%, #e8f0ff 50%, #f5f7ff 100%); }
+    #bv-5::before { content:""; position:absolute; inset:0; pointer-events:none; background-image: radial-gradient(circle, rgba(178,34,52,.1) 2px, transparent 2px), radial-gradient(circle, rgba(26,63,111,.08) 1.5px, transparent 1.5px); background-size: 68px 68px, 44px 44px; background-position: 0 0, 22px 28px; }
+
+    .bv-s1-eyebrow  { font-size:12px; font-weight:700; letter-spacing:.22em; color:#b22234; text-transform:uppercase; margin-bottom:24px; position:relative; }
+    .bv-s1-headline { font-family:"Playfair Display",Georgia,serif; font-size:72px; font-weight:700; color:#0d1b2e; line-height:1.1; text-align:center; margin-bottom:16px; position:relative; }
+    .bv-s1-headline em { font-style:italic; font-weight:400; color:#1a5fa0; }
+    .bv-s1-sub      { font-size:20px; font-weight:400; color:#7a8fa8; text-align:center; max-width:560px; line-height:1.6; position:relative; }
+
+    .bv-orbit-wrap { width:560px; height:560px; flex-shrink:0; position:relative; display:flex; align-items:center; justify-content:center; }
+    .bv-orbit-ring  { position:absolute; border-radius:50%; border:1.5px dashed rgba(178,34,52,.25); }
+    .bv-orbit-outer { width:500px; height:500px; }
+    .bv-orbit-inner { width:300px; height:300px; border-color:rgba(26,63,111,.25); }
+    .bv-orbit-center { width:110px; height:110px; border-radius:50%; background:radial-gradient(ellipse at 40% 38%,#d6eaff 0%,#6caee8 35%,#1a5fa0 80%); border:3px solid rgba(255,255,255,.9); box-shadow:0 0 0 2px rgba(26,63,111,.2),0 8px 32px rgba(26,63,111,.18); display:flex; align-items:center; justify-content:center; font-size:38px; position:relative; z-index:10; flex-direction:column; }
+    .bv-orbit-label { font-size:7px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:#1a5fa0; white-space:nowrap; background:#fff; padding:1px 5px; border-radius:6px; border:1px solid rgba(26,63,111,.15); margin-top:3px; }
+    /* Orbit node container — rotates around center; inner pill counter-rotates to stay upright */
+    .bv-orbit-node-wrap { position:absolute; width:0; height:0; top:50%; left:50%; }
+    .bv-orbit-node  { position:absolute; background:#ffffff; border:1.5px solid rgba(13,27,46,.1); border-radius:50px; padding:5px 11px; font-size:11px; font-weight:700; color:#3a4a5a; white-space:nowrap; display:flex; align-items:center; gap:5px; box-shadow:0 2px 10px rgba(13,27,46,.08); }
+    .bv-orbit-node .n-icon { font-size:13px; }
+
+    .bv-orbit-copy { max-width:520px; position:relative; }
+    .bv-oc-eyebrow  { font-size:11px; font-weight:700; letter-spacing:.2em; color:#b22234; text-transform:uppercase; margin-bottom:18px; }
+    .bv-oc-headline { font-size:48px; font-weight:800; color:#0d1b2e; line-height:1.1; letter-spacing:-.02em; margin-bottom:16px; }
+    .bv-oc-headline .accent { color:#1a5fa0; }
+    .bv-oc-body     { font-size:17px; font-weight:400; color:#5a6a7a; line-height:1.65; margin-bottom:36px; }
+    .bv-oc-stats    { display:flex; gap:40px; }
+    .bv-oc-stat-val   { font-size:32px; font-weight:800; color:#b22234; letter-spacing:-.02em; line-height:1; }
+    .bv-oc-stat-label { font-size:9.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#b0bfcc; margin-top:5px; }
+
+    .bv-s3-eyebrow  { font-size:11px; font-weight:700; letter-spacing:.2em; color:#b22234; text-transform:uppercase; margin-bottom:14px; position:relative; }
+    .bv-s3-headline { font-size:46px; font-weight:800; color:#0d1b2e; line-height:1.1; letter-spacing:-.02em; text-align:center; margin-bottom:40px; position:relative; }
+    .bv-s3-headline .accent { color:#1a5fa0; }
+    .bv-s3-caps { display:grid; grid-template-columns:repeat(3,300px); gap:16px; position:relative; }
+    .bv-s3-cap  { background:#ffffff; border:1.5px solid rgba(13,27,46,.09); border-radius:16px; padding:22px 20px 18px; display:flex; flex-direction:column; gap:8px; box-shadow:0 3px 14px rgba(13,27,46,.06); position:relative; overflow:hidden; transition:box-shadow .2s,transform .2s; }
+    .bv-s3-cap:hover { box-shadow:0 6px 24px rgba(13,27,46,.1); transform:translateY(-2px); }
+    .bv-s3-cap::before { content:""; position:absolute; top:0; left:0; right:0; height:3px; border-radius:16px 16px 0 0; }
+    .bv-s3-cap:nth-child(1)::before { background:#1a5fa0; }
+    .bv-s3-cap:nth-child(2)::before { background:#b22234; }
+    .bv-s3-cap:nth-child(3)::before { background:#2e7a50; }
+    .bv-s3-cap:nth-child(4)::before { background:#c47e1a; }
+    .bv-s3-cap:nth-child(5)::before { background:#7b5ea0; }
+    .bv-s3-cap:nth-child(6)::before { background:#1a5fa0; }
+    .bv-s3-cap:nth-child(7)::before { background:#b22234; }
+    .bv-s3-cap-title { font-size:14px; font-weight:700; color:#0d1b2e; }
+    .bv-s3-cap-desc  { font-size:12px; color:#6a7a8a; line-height:1.5; }
+
+    .bv-s4-eyebrow  { font-size:11px; font-weight:700; letter-spacing:.2em; color:#b22234; text-transform:uppercase; margin-bottom:14px; position:relative; }
+    .bv-s4-headline { font-size:46px; font-weight:800; color:#0d1b2e; line-height:1.1; letter-spacing:-.02em; text-align:center; margin-bottom:14px; position:relative; }
+    .bv-s4-todo     { display:flex; align-items:center; gap:8px; background:rgba(178,34,52,.06); border:1px solid rgba(178,34,52,.2); border-radius:10px; padding:9px 16px; font-size:12px; color:#b22234; font-weight:500; margin-bottom:36px; position:relative; }
+    .bv-s4-metrics  { display:flex; gap:24px; position:relative; }
+    .bv-s4-metric   { width:190px; background:#ffffff; border:1.5px solid rgba(13,27,46,.09); border-radius:18px; padding:28px 20px 22px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px; box-shadow:0 4px 20px rgba(13,27,46,.06); transition:box-shadow .2s,transform .2s; }
+    .bv-s4-metric:hover { box-shadow:0 8px 32px rgba(178,34,52,.12); transform:translateY(-2px); }
+    .bv-s4-metric-icon  { font-size:26px; line-height:1; }
+    .bv-s4-metric-val   { font-family:"Playfair Display",Georgia,serif; font-size:48px; font-weight:700; color:#b22234; line-height:1; }
+    .bv-s4-metric-label { font-size:12px; font-weight:600; color:#6a7a8a; line-height:1.3; }
+    .bv-s4-metric-todo  { font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:rgba(178,34,52,.5); }
+
+    .bv-s5-eyebrow  { font-size:12px; font-weight:700; letter-spacing:.22em; color:#b22234; text-transform:uppercase; margin-bottom:24px; position:relative; }
+    .bv-s5-headline { font-family:"Playfair Display",Georgia,serif; font-style:italic; font-size:54px; font-weight:400; color:#0d1b2e; line-height:1.2; text-align:center; margin-bottom:32px; max-width:860px; position:relative; }
+    .bv-s5-cta { display:inline-flex; align-items:center; gap:10px; background:#b22234; color:#fff; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:15px 34px; border-radius:50px; border:none; cursor:pointer; font-family:inherit; box-shadow:0 6px 28px rgba(178,34,52,.35); transition:transform .15s,box-shadow .15s; position:relative; }
+    .bv-s5-cta:hover { transform:translateY(-2px); box-shadow:0 10px 36px rgba(178,34,52,.5); }
+
+    /* BVS animations */
+    .pslide.active .bv-s1-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .bv-s1-headline { animation: fadeUp .5s ease both .25s; }
+    .pslide.active .bv-s1-sub      { animation: fadeUp .5s ease both .45s; }
+    #bv-2.active .bv-orbit-outer { animation: orbitSpin 200s linear infinite; }
+    #bv-2.active .bv-orbit-inner { animation: orbitSpinReverse 200s linear infinite; }
+    #bv-2.active .bv-orbit-center { animation: fadeUp .5s ease both .15s, centerBreath 3.5s ease-in-out 1s infinite; }
+    /* Pause orbit animations when slide is not active (GPU efficiency) */
+    #bv-2:not(.active) .bv-orbit-node-wrap,
+    #bv-2:not(.active) .bv-orbit-node,
+    #bv-2:not(.active) .bv-orbit-ring,
+    #bv-2:not(.active) .bv-orbit-center,
+    #bv-2:not(.active) .bv-orbit-node-wrap > div { animation-play-state: paused !important; }
+    #bv-2.active .bv-oc-eyebrow  { animation: fadeUp .5s ease both .2s; }
+    #bv-2.active .bv-oc-headline { animation: fadeUp .5s ease both .35s; }
+    #bv-2.active .bv-oc-body     { animation: fadeUp .5s ease both .5s; }
+    #bv-2.active .bv-oc-stats > div:nth-child(1) { animation: fadeUp .5s ease both .65s; }
+    #bv-2.active .bv-oc-stats > div:nth-child(2) { animation: fadeUp .5s ease both .75s; }
+    #bv-2.active .bv-oc-stats > div:nth-child(3) { animation: fadeUp .5s ease both .85s; }
+    .pslide.active .bv-s3-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .bv-s3-headline { animation: fadeUp .5s ease both .2s; }
+    .pslide.active .bv-s3-cap:nth-child(1) { animation: popIn .45s ease both .25s; }
+    .pslide.active .bv-s3-cap:nth-child(2) { animation: popIn .45s ease both .35s; }
+    .pslide.active .bv-s3-cap:nth-child(3) { animation: popIn .45s ease both .45s; }
+    .pslide.active .bv-s3-cap:nth-child(4) { animation: popIn .45s ease both .55s; }
+    .pslide.active .bv-s3-cap:nth-child(5) { animation: popIn .45s ease both .65s; }
+    .pslide.active .bv-s3-cap:nth-child(6) { animation: popIn .45s ease both .75s; }
+    .pslide.active .bv-s3-cap:nth-child(7) { animation: popIn .45s ease both .85s; }
+    .pslide.active .bv-s4-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .bv-s4-headline { animation: fadeUp .5s ease both .2s; }
+    .pslide.active .bv-s4-todo     { animation: fadeUp .5s ease both .35s; }
+    .pslide.active .bv-s4-metric:nth-child(1) { animation: popIn .45s ease both .4s; }
+    .pslide.active .bv-s4-metric:nth-child(2) { animation: popIn .45s ease both .52s; }
+    .pslide.active .bv-s4-metric:nth-child(3) { animation: popIn .45s ease both .64s; }
+    .pslide.active .bv-s4-metric:nth-child(4) { animation: popIn .45s ease both .76s; }
+    .pslide.active .bv-s4-metric:nth-child(5) { animation: popIn .45s ease both .88s; }
+    .pslide.active .bv-s5-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .bv-s5-headline { animation: fadeUp .5s ease both .3s; }
+    .pslide.active .bv-s5-cta      { animation: fadeUp .5s ease both .55s, ctaPulse 2.5s ease-in-out 1.2s infinite; }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ SHARED NAV ═══ -->
+  <nav class="site-nav">
+    <div class="site-nav-brand" onclick="showSection('map')">
+      <span>AT HOME</span>
+      <span class="sf-dot"></span>
+      <span class="sf-label">Salesforce CX Vision</span>
+    </div>
+    <div class="site-nav-links">
+      <button id="nav-map"    onclick="showSection('map')">Journey Map</button>
+      <button id="nav-intro"  onclick="showSection('intro')">Intro</button>
+      <button id="nav-rachel" onclick="showSection('rachel')">Meet Rachel</button>
+      <button id="nav-bv"     onclick="showSection('bv')">Business Value</button>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════
+       SECTION: JOURNEY MAP
+  ═══════════════════════════════════════ -->
+  <div id="sec-map" class="section active">
+    <div class="slide" id="map-slide-inner">
+      <header class="header">
+        <div class="header-left">
+          <h1>Agentic <strong>Retail Journey</strong></h1>
+          <p class="subtitle">PERSONALIZED &bull; AGENTIC &bull; CONNECTED</p>
+        </div>
+        <div class="brand-lockup">
+          <div class="brand-name-block">
+            <div class="brand-name">AT HOME</div>
+            <div class="brand-sub">+ Salesforce</div>
+          </div>
+          <span class="brand-divider"></span>
+          <img class="sf-icon"
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Salesforce.com_logo.svg/3840px-Salesforce.com_logo.svg.png"
+            onerror="this.onerror=null;this.src='sf-icon.png';"
+            alt="Salesforce" />
+        </div>
+      </header>
+      <div class="flow" id="flow-container"></div>
+      <footer class="platform">
+        <h3 id="platform-title"></h3>
+        <div class="tags" id="platform-tags"></div>
+        <p class="trust" id="platform-trust"></p>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION: INTRO
+  ═══════════════════════════════════════ -->
+  <div id="sec-intro" class="section">
+    <div class="slides-wrap" id="intro-wrap">
+
+      <div class="pslide active" id="vi-1">
+        <p class="vi-s1-eyebrow">Salesforce CX Vision</p>
+        <h1 class="vi-s1-headline">A connected, <em>agentic</em><br/>retail journey.</h1>
+        <p class="vi-s1-sub">At Home + Salesforce</p>
+      </div>
+
+      <div class="pslide" id="vi-2">
+        <p class="vi-s2-eyebrow">Salesforce CX Vision &bull; Agentic Retail Journey</p>
+        <h2 class="vi-s2-headline">See how At Home turns<br/>moments into loyal relationships.</h2>
+        <p class="vi-s2-sub">From a personalized ad to post-purchase nurture — every interaction creates context. Every context improves the next best experience.</p>
+        <div class="vi-s2-presenter-row">
+          <div class="vi-s2-presenter-dot"></div>
+          <div class="vi-s2-presenter-text" id="vi-presenter">Loading…</div>
+        </div>
+      </div>
+
+      <div class="pslide" id="vi-3">
+        <p class="vi-s3-eyebrow">What you'll see today</p>
+        <h2 class="vi-s3-headline">Three acts. One <span class="accent">connected platform.</span></h2>
+        <div class="vi-s3-parts" id="vi-s3-parts"></div>
+        <div class="vi-s3-ga">✓ &nbsp;Everything shown today is <strong>GA</strong> and being used by customers today.</div>
+      </div>
+      <!-- Vignette slides injected by JS -->
+    </div>
+    <div class="progress-dots" id="intro-dots"></div>
+    <div class="click-cta" id="intro-cta">CLICK TO CONTINUE &nbsp;›</div>
+    <div class="thumb-preview" id="intro-thumb"><div class="thumb-inner"><div class="thumb-label">Next</div><div class="thumb-title" id="intro-thumb-title"></div></div></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION: MEET RACHEL
+  ═══════════════════════════════════════ -->
+  <div id="sec-rachel" class="section">
+    <div class="slides-wrap" id="rachel-wrap">
+
+      <div class="pslide active" id="mr-1">
+        <p class="mr-s1-eyebrow">Customer Spotlight</p>
+        <h1 class="mr-s1-title">Meet <strong>Rachel.</strong></h1>
+        <p class="mr-s1-sub">At Home · Annual 4th of July BBQ Host</p>
+      </div>
+
+      <div class="pslide" id="mr-2">
+        <div class="mr-s2-left">
+          <div class="mr-s2-avatar-scene">
+            <div class="mr-s2-avatar-circle">
+              🌟
+              <span class="mr-s2-todo">TODO: Rachel photo</span>
+            </div>
+            <div class="mr-s2-scene-caption">4th of July Host · Outdoor Entertainer</div>
+          </div>
+        </div>
+        <div class="mr-s2-right">
+          <div class="mr-s2-role">Enthusiastic Entertainer</div>
+          <div class="mr-s2-name">Rachel<br/><strong>Morris</strong></div>
+          <div class="mr-s2-job">Annual Host &amp; Outdoor Entertaining Enthusiast</div>
+          <div class="mr-s2-stats" id="mr-stats"></div>
+          <div class="mr-s2-divider"></div>
+          <div class="mr-s2-quote-mark">"</div>
+          <div class="mr-s2-quote" id="mr-quote"></div>
+        </div>
+      </div>
+
+      <div class="pslide" id="mr-3">
+        <div class="mr-s3-top">
+          <div class="mr-s3-collection-label">Rachel's Patio Wishlist</div>
+        </div>
+        <h2 class="mr-s3-headline">Her top 3. <strong>Perfect for the 4th.</strong></h2>
+        <div class="mr-s3-cards" id="mr-cards"></div>
+      </div>
+
+      <div class="pslide" id="mr-4">
+        <p class="mr-s4-eyebrow">The Customer Journey</p>
+        <h2 class="mr-s4-headline">Let's follow Rachel's journey<br/>to the <span class="accent">perfect 4th.</span></h2>
+        <p class="mr-s4-sub">From first ad impression to a backyard she'll love</p>
+        <button class="mr-s4-cta" onclick="showSection('map')">BEGIN THE JOURNEY &nbsp;→</button>
+      </div>
+
+    </div>
+    <div class="progress-dots" id="rachel-dots"></div>
+    <div class="click-cta" id="rachel-cta">CLICK TO CONTINUE &nbsp;›</div>
+    <div class="thumb-preview" id="rachel-thumb"><div class="thumb-inner"><div class="thumb-label">Next</div><div class="thumb-title" id="rachel-thumb-title"></div></div></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION: BUSINESS VALUE
+  ═══════════════════════════════════════ -->
+  <div id="sec-bv" class="section">
+    <div class="slides-wrap" id="bv-wrap">
+
+      <div class="pslide active" id="bv-1">
+        <p class="bv-s1-eyebrow">The Business Outcome</p>
+        <h2 class="bv-s1-headline">A completely connected journey.<br/><em>Driven by AI.</em></h2>
+        <p class="bv-s1-sub">Higher conversion. Increased AOV. Lifelong loyalty.</p>
+      </div>
+
+      <div class="pslide" id="bv-2">
+        <div class="bv-orbit-wrap" id="bv-orbit-wrap">
+          <div class="bv-orbit-ring bv-orbit-outer"></div>
+          <div class="bv-orbit-ring bv-orbit-inner"></div>
+          <div class="bv-orbit-center">🏠<span class="bv-orbit-label">AT HOME</span></div>
+          <!-- Orbit nodes injected by JS with proper rotating wrappers -->
+        </div>
+        <div class="bv-orbit-copy">
+          <p class="bv-oc-eyebrow">One Connected Platform</p>
+          <h2 class="bv-oc-headline">Personalized at every<br/><span class="accent">touchpoint.</span></h2>
+          <p class="bv-oc-body">Marketing Cloud Personalization powers every channel — onsite banners, price-drop SMS, post-purchase email. Commerce Cloud's AI-powered search surfaces the right product. Agentforce closes the sale. All connected, all on Salesforce.</p>
+          <div class="bv-oc-stats">
+            <div><div class="bv-oc-stat-val">MCP</div><div class="bv-oc-stat-label">Personalization</div></div>
+            <div><div class="bv-oc-stat-val">Commerce</div><div class="bv-oc-stat-label">AI Search</div></div>
+            <div><div class="bv-oc-stat-val">Agentforce</div><div class="bv-oc-stat-label">Shopper Agent</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pslide" id="bv-3">
+        <p class="bv-s3-eyebrow">Key Capabilities Shown Today</p>
+        <h2 class="bv-s3-headline">Personalize. Search. <span class="accent">Convert.</span></h2>
+        <div class="bv-s3-caps" id="bv-caps"></div>
+      </div>
+
+      <div class="pslide" id="bv-4">
+        <p class="bv-s4-eyebrow">BVS Benchmarks</p>
+        <h2 class="bv-s4-headline">The numbers that matter.</h2>
+        <div class="bv-s4-todo">⚠️ Replace placeholder values with real BVS benchmarks — update the <strong>bvsMetrics</strong> array in the JS below</div>
+        <div class="bv-s4-metrics" id="bv-metrics"></div>
+      </div>
+
+      <div class="pslide" id="bv-5">
+        <canvas id="fireworks-canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>
+        <p class="bv-s5-eyebrow" style="position:relative;z-index:1;">At Home + Salesforce</p>
+        <h2 class="bv-s5-headline" style="position:relative;z-index:1;">"From inspiration to purchase to loyalty —<br/>every moment is connected."</h2>
+        <button class="bv-s5-cta" onclick="showSection('map')" style="position:relative;z-index:1;">RETURN TO JOURNEY MAP &nbsp;→</button>
+      </div>
+
+    </div>
+    <div class="progress-dots" id="bv-dots"></div>
+    <div class="click-cta" id="bv-cta">CLICK TO CONTINUE &nbsp;›</div>
+  </div>
+
+  <script>
+  // ═══════════════════════════════════════
+  //  STORY DATA (inlined from at-home-demo-story.js)
+  // ═══════════════════════════════════════
+  const STORY = {
+    presenterName: "[PRESENTER NAME]",
+    presenterTitle: "[TITLE], Salesforce",
+    persona: {
+      quote: "My 4th of July BBQ is the event of the summer. This year, I want the backyard to be perfect.",
+      stats: [
+        { value: "4th of July", label: "The Event" },
+        { value: "Annual",      label: "BBQ Tradition" },
+        { value: "High Intent", label: "Purchase Signal" },
+      ],
+      wishlist: [
+        { name: "Catalina Outdoor Set",   tag: "PRIMARY CONSIDERATION", detail: "Saved to cart · price-drop trigger",          emoji: "🪑" },
+        { name: "Market Patio Umbrella",  tag: "AI SEARCH MATCH",       detail: "Contextual search · weather-resistant",       emoji: "⛱️" },
+        { name: "Outdoor String Lights",  tag: "COMPLETE THE LOOK",     detail: "Added by Agentforce Shopper Agent",            emoji: "✨" },
+      ],
+    },
+    steps: [
+      { title:"Anticipate", badge:"Audience Segmentation",    emoji:"📸", circleClass:"circle-anticipate",
+        description:"Rachel sees a personalized 4th of July patio promotion on Instagram, powered by Salesforce segments.",
+        detail:"Marketing Cloud Personalization identifies Rachel as a high-propensity outdoor furniture buyer and serves a targeted promotion — the right message, at the right moment, before she ever visits the site.",
+        technologies:["Marketing Cloud Personalization","Email","SMS"] },
+      { title:"Engage",     badge:"Onsite Personalization",   emoji:"🛍️", circleClass:"circle-engage",
+        description:"The At Home website adapts in real time to Rachel's outdoor entertaining intent — anonymous or known.",
+        detail:"Marketing Cloud Personalization serves a personalized 4th of July hero banner, tailored patio recommendations, and AI-powered contextual search results the moment Rachel lands on the Commerce Cloud storefront.",
+        technologies:["Marketing Cloud Personalization","Commerce Cloud"] },
+      { title:"Guide",      badge:"Agentforce Shopper Agent", emoji:"🤖", circleClass:"circle-guide",
+        description:"A price-drop SMS brings Rachel back. The Agentforce Shopper Agent helps her build the perfect outdoor setup.",
+        detail:"Marketing Cloud Personalization fires a proactive SMS when the Catalina Set price drops. Rachel meets the Agentforce Shopper Agent — asks about weather resistance, gets full product answers, and the agent builds her cart.",
+        technologies:["Marketing Cloud Personalization","SMS","Agentforce Shopper Agent"] },
+      { title:"Convert",    badge:"Higher Conversion & AOV",  emoji:"✅", circleClass:"circle-convert",
+        description:"The Agentforce Shopper Agent bundles the patio set, umbrella, and string lights. Rachel checks out.",
+        detail:"In a single agentic conversation on the Commerce Cloud storefront, the Shopper Agent builds Rachel's complete outdoor setup and guides her to checkout — or an exit-intent offer saves the sale with 10% off.",
+        technologies:["Agentforce Shopper Agent","Commerce Cloud"] },
+      { title:"Delight",    badge:"Lifecycle Personalization",emoji:"🌟", circleClass:"circle-delight",
+        description:"Rachel receives 'Top 5 Tips for Hosting the Ultimate 4th of July BBQ' — proactive, helpful, personal.",
+        detail:"Marketing Cloud Personalization delivers a post-purchase email tied to her purchase context — outdoor entertaining content, complementary products, and care tips. Every interaction makes the next one smarter.",
+        technologies:["Marketing Cloud Personalization","Email Automation"] },
+    ],
+    platform: {
+      title: "Salesforce Platform",
+      subtitle: "MARKETING CLOUD PERSONALIZATION · AGENTFORCE · COMMERCE CLOUD",
+      capabilities: ["Marketing Cloud Personalization","Agentforce Shopper Agent","Commerce Cloud","SMS & Email Automation","Onsite Personalization","AI-Powered Search","Post-Purchase Nurture"],
+    },
+    technologies: [
+      { label:"Marketing Cloud Personalization", description:"Real-time onsite, in-app, email, and SMS personalization — anonymous to known, always relevant." },
+      { label:"Agentforce Shopper Agent",        description:"Conversational AI agent on the Commerce Cloud storefront — answers questions, builds carts, drives conversion." },
+      { label:"Commerce Cloud",                  description:"Personalized storefront with AI-powered contextual search built in — from browse to checkout." },
+      { label:"SMS & Email Automation",          description:"Proactive re-engagement and post-purchase nurture — price-drop alerts, hosting tips, lifecycle moments." },
+      { label:"Onsite Personalization",          description:"Dynamic banners, product carousels, and recommendations that adapt in real time to shopper intent." },
+      { label:"AI-Powered Search",               description:"Contextual search built into Commerce Cloud — surfaces the right product for every shopper intent." },
+      { label:"Post-Purchase Nurture",           description:"Context-aware content and product recommendations that extend the relationship beyond the transaction." },
+    ],
+    demoStructure: [
+      { title:"Marketing Cloud Personalization", description:"See how MCP personalizes every touchpoint — Instagram ad, onsite hero, price-drop SMS, and post-purchase email — all from one platform.", tags:["Onsite","Email","SMS","In-App","Anonymous → Known"] },
+      { title:"Agentforce Shopper Agent",        description:"Meet the At Home Shopper Agent — a conversational AI built on Agentforce that answers product questions, recommends bundles, and builds carts.", tags:["Agentforce","Commerce Cloud","Clicks not code","GA today"] },
+      { title:"Commerce Cloud + AI Search",      description:"See how AI-powered contextual search — built into Commerce Cloud — surfaces exactly the right products based on Rachel's intent, not just her keywords.", tags:["Commerce Cloud","AI Search","Personalized Results"] },
+    ],
+    vignetteSections: [
+      { eyebrow:"MARKETING CLOUD PERSONALIZATION", title:"Anticipate & Engage", subtitle:"From anonymous interest to personalized onsite experience — before Rachel even identifies herself." },
+      { eyebrow:"AGENTFORCE SHOPPER AGENT",        title:"Guide & Convert",     subtitle:"The right re-engagement message, then the right AI agent to build the cart and close the sale." },
+      { eyebrow:"MARKETING CLOUD PERSONALIZATION", title:"Delight",             subtitle:"Post-purchase personalization that builds loyalty and drives the next visit." },
+    ],
+    // TODO: Replace XX% with real BVS benchmarks
+    bvsMetrics: [
+      { icon:"↑",  value:"XX%",  label:"Conversion Lift" },
+      { icon:"💳", value:"+$XX", label:"Average Order Value" },
+      { icon:"★",  value:"XX%",  label:"Loyalty Enrollment" },
+      { icon:"🔄", value:"XXx",  label:"Repeat Purchase Rate" },
+      { icon:"⚡", value:"XX%",  label:"Service Efficiency" },
+    ],
+  };
+
+  // ═══════════════════════════════════════
+  //  SECTION NAVIGATION
+  // ═══════════════════════════════════════
+  const SECTIONS = { map:'sec-map', intro:'sec-intro', rachel:'sec-rachel', bv:'sec-bv' };
+  const NAV_BTNS = { map:'nav-map', intro:'nav-intro', rachel:'nav-rachel', bv:'nav-bv' };
+  let activeSection = 'map';
+
+  function showSection(key) {
+    if (key === activeSection) return;
+    document.getElementById(SECTIONS[activeSection]).classList.remove('active');
+    document.getElementById(NAV_BTNS[activeSection]).classList.remove('active');
+    // Hide all deck chrome
+    ['intro','rachel','bv'].forEach(s => {
+      const d = document.getElementById(s+'-dots');
+      const c = document.getElementById(s+'-cta');
+      const t = document.getElementById(s+'-thumb');
+      if (d) d.style.display = 'none';
+      if (c) c.style.display = 'none';
+      if (t) t.classList.remove('visible');
+    });
+    activeSection = key;
+    document.getElementById(SECTIONS[key]).classList.add('active');
+    document.getElementById(NAV_BTNS[key]).classList.add('active');
+    // Show chrome for newly active deck section
+    if (key === 'intro') {
+      document.getElementById('intro-dots').style.display = 'flex';
+      document.getElementById('intro-cta').style.display = 'flex';
+    } else if (key === 'rachel') {
+      document.getElementById('rachel-dots').style.display = 'flex';
+      document.getElementById('rachel-cta').style.display = 'flex';
+    } else if (key === 'bv') {
+      document.getElementById('bv-dots').style.display = 'flex';
+      document.getElementById('bv-cta').style.display = 'flex';
+    }
+  }
+
+  document.getElementById('nav-map').classList.add('active');
+
+  // ═══════════════════════════════════════
+  //  JOURNEY MAP BUILD — verbatim from at-home-demo-map.html
+  // ═══════════════════════════════════════
+  (function buildMap() {
+    const story = STORY;
+    const flow = document.getElementById('flow-container');
+    const circleClass = ['circle-anticipate','circle-engage','circle-guide','circle-convert','circle-delight'];
+
+    story.steps.forEach((step, i) => {
+      const div = document.createElement('div');
+      div.className = 'step';
+      div.innerHTML = `
+        <h2 class="step-title">${step.title}</h2>
+        <div class="circle-wrap">
+          <div class="tooltip">
+            <div class="tt">${step.title}</div>
+            <div class="tb">${step.detail}</div>
+            <div class="tech-row">${step.technologies.map(t => `<span class="t-tag">${t}</span>`).join('')}</div>
+          </div>
+          <div class="circle-art ${circleClass[i]}">${step.emoji}</div>
+        </div>
+        <p class="step-desc">${step.description}</p>
+        <div class="cta">${step.badge}</div>
+      `;
+      flow.appendChild(div);
+
+      if (i < story.steps.length - 1) {
+        const conn = document.createElement('div');
+        conn.className = 'connector';
+        conn.innerHTML = `<span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="arrow">&#x203A;</span>`;
+        flow.appendChild(conn);
+      }
+    });
+
+    document.getElementById('platform-title').textContent = story.platform.title;
+    document.getElementById('platform-trust').textContent = story.platform.subtitle;
+
+    const tagsEl = document.getElementById('platform-tags');
+    story.platform.capabilities.forEach((cap, i) => {
+      const span = document.createElement('span');
+      span.textContent = cap;
+      tagsEl.appendChild(span);
+      if (i < story.platform.capabilities.length - 1) {
+        const sep = document.createElement('span');
+        sep.className = 'sep';
+        sep.textContent = '|';
+        tagsEl.appendChild(sep);
+      }
+    });
+
+    // zoom on the slide preserves :hover hit areas (unlike transform:scale on child of position:fixed)
+    var slide = document.getElementById('map-slide-inner');
+    function fitMap() {
+      slide.style.zoom = '';
+      var sw = 1440, sh = slide.offsetHeight;
+      var vw = window.innerWidth, vh = window.innerHeight - 52;
+      var scale = Math.min(vw / sw, vh / sh, 1);
+      slide.style.zoom = scale;
+    }
+    fitMap();
+    window.addEventListener('resize', fitMap);
+  })();
+
+  // ═══════════════════════════════════════
+  //  GENERIC SLIDE DECK ENGINE
+  // ═══════════════════════════════════════
+  function makeDeck(wrapId, dotsId, ctaId, thumbId, thumbTitleId, totalSlides) {
+    const dotsEl  = document.getElementById(dotsId);
+    const ctaEl   = document.getElementById(ctaId);
+    const thumbEl = thumbId ? document.getElementById(thumbId) : null;
+    const thumbTitleEl = thumbTitleId ? document.getElementById(thumbTitleId) : null;
+    let current = 1;
+
+    for (let i = 1; i <= totalSlides; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'pdot' + (i === 1 ? ' active' : '');
+      dot.addEventListener('click', e => { e.stopPropagation(); goTo(i); });
+      dotsEl.appendChild(dot);
+    }
+
+    // Hide dots/cta for inactive sections initially
+    if (wrapId !== 'intro-wrap') { dotsEl.style.display = 'none'; if (ctaEl) ctaEl.style.display = 'none'; }
+
+    function goTo(n) {
+      const next = Math.max(1, Math.min(totalSlides, n));
+      if (next === current) return;
+      const prefix = wrapId.replace('-wrap','').replace('intro','vi').replace('rachel','mr').replace('bv','bv');
+      const oldSlide = document.getElementById(prefix === 'vi' ? 'vi-'+current : prefix+'-'+current);
+      oldSlide.classList.add('exit');
+      dotsEl.children[current-1].classList.remove('active');
+      current = next;
+      setTimeout(() => {
+        oldSlide.classList.remove('active','exit');
+        const newSlide = document.getElementById(prefix === 'vi' ? 'vi-'+current : prefix+'-'+current);
+        newSlide.classList.add('active');
+      }, 300);
+      const activeDot = dotsEl.children[current-1];
+      activeDot.classList.remove('pulse'); void activeDot.offsetWidth;
+      activeDot.classList.add('active','pulse');
+      setTimeout(() => activeDot.classList.remove('pulse'), 360);
+      if (thumbEl && thumbTitleEl) {
+        // thumb handled per-deck
+      }
+      if (ctaEl) ctaEl.style.display = current === totalSlides ? 'none' : 'flex';
+    }
+
+    document.getElementById(wrapId).addEventListener('click', () => {
+      if (current < totalSlides) goTo(current + 1);
+    });
+
+    return { goTo, getDotsEl: () => dotsEl };
+  }
+
+  // ═══════════════════════════════════════
+  //  BUILD INTRO DECK
+  // ═══════════════════════════════════════
+  (function buildIntro() {
+    document.getElementById('vi-presenter').textContent = STORY.presenterName + ' · ' + STORY.presenterTitle;
+
+    const tagMap = [
+      ["Onsite","Email","SMS","In-App","Anonymous → Known"],
+      ["Agentforce","Commerce Cloud","Clicks not code","GA today"],
+      ["Commerce Cloud","AI Search","Personalized Results"],
+    ];
+    const partsEl = document.getElementById('vi-s3-parts');
+    STORY.demoStructure.forEach((part, i) => {
+      const div = document.createElement('div');
+      div.className = 'vi-s3-part';
+      div.innerHTML = `<div class="vi-s3-part-num">${i+1}</div><div class="vi-s3-part-title">${part.title}</div><div class="vi-s3-part-desc">${part.description}</div><div class="vi-s3-part-tags">${(tagMap[i]||[]).map(t=>`<span class="vi-s3-tag">${t}</span>`).join('')}</div>`;
+      partsEl.appendChild(div);
+    });
+
+    const wrap = document.getElementById('intro-wrap');
+    STORY.vignetteSections.forEach((vs, i) => {
+      const div = document.createElement('div');
+      div.className = 'pslide vignette-slide';
+      div.id = 'vi-' + (4 + i);
+      div.innerHTML = `<p class="v-eyebrow">${vs.eyebrow}</p><h2 class="v-headline">${vs.title.replace(' & ',' <span class="amp">&amp;</span> ')}</h2><p class="v-sub">${vs.subtitle}</p>`;
+      wrap.appendChild(div);
+    });
+
+    const total = 3 + STORY.vignetteSections.length;
+    const thumbTitles = ["The CX Vision →","Three-Act Structure →","Anticipate & Engage →","Guide & Convert →","Delight →",null];
+    const dotsEl = document.getElementById('intro-dots');
+    const ctaEl  = document.getElementById('intro-cta');
+    const thumbEl = document.getElementById('intro-thumb');
+    const thumbTitleEl = document.getElementById('intro-thumb-title');
+    let current = 1;
+
+    for (let i = 1; i <= total; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'pdot' + (i === 1 ? ' active' : '');
+      dot.addEventListener('click', e => { e.stopPropagation(); goTo(i); });
+      dotsEl.appendChild(dot);
+    }
+
+    function updateThumb() {
+      if (current < total && thumbTitles[current-1]) {
+        thumbEl.classList.add('visible');
+        thumbTitleEl.innerHTML = thumbTitles[current-1];
+      } else {
+        thumbEl.classList.remove('visible');
+      }
+      ctaEl.style.display = current === total ? 'none' : 'flex';
+    }
+
+    function goTo(n) {
+      const next = Math.max(1, Math.min(total, n));
+      if (next === current) return;
+      const oldSlide = document.getElementById('vi-' + current);
+      oldSlide.classList.add('exit');
+      dotsEl.children[current-1].classList.remove('active');
+      current = next;
+      setTimeout(() => {
+        oldSlide.classList.remove('active','exit');
+        document.getElementById('vi-' + current).classList.add('active');
+      }, 300);
+      const dot = dotsEl.children[current-1];
+      dot.classList.remove('pulse'); void dot.offsetWidth;
+      dot.classList.add('active','pulse');
+      setTimeout(() => dot.classList.remove('pulse'), 360);
+      updateThumb();
+    }
+
+    document.getElementById('intro-wrap').addEventListener('click', () => { if (current < total) goTo(current+1); });
+    document.addEventListener('keydown', e => {
+      if (activeSection !== 'intro') return;
+      if (e.key==='ArrowRight'||e.key===' ') goTo(current+1);
+      if (e.key==='ArrowLeft') goTo(current-1);
+    });
+
+    updateThumb();
+  })();
+
+  // ═══════════════════════════════════════
+  //  BUILD MEET RACHEL DECK
+  // ═══════════════════════════════════════
+  (function buildRachel() {
+    document.getElementById('mr-quote').textContent = STORY.persona.quote;
+    const statsEl = document.getElementById('mr-stats');
+    STORY.persona.stats.forEach(s => {
+      const div = document.createElement('div');
+      div.innerHTML = `<div class="mr-s2-stat-val">${s.value}</div><div class="mr-s2-stat-label">${s.label}</div>`;
+      statsEl.appendChild(div);
+    });
+    const cardsEl = document.getElementById('mr-cards');
+    STORY.persona.wishlist.forEach((item, i) => {
+      const div = document.createElement('div');
+      div.className = 'mr-s3-card' + (i===0?' featured':'');
+      div.innerHTML = `<div class="mr-s3-card-badge">${item.tag}</div><div class="mr-s3-card-emoji">${item.emoji}</div><div class="mr-s3-card-name">${item.name}</div><div class="mr-s3-card-detail">${item.detail}</div>`;
+      cardsEl.appendChild(div);
+    });
+
+    const total = 4;
+    const thumbTitles = ["Meet Rachel →","Her Patio Wishlist →","Begin the Journey →",null];
+    const dotsEl = document.getElementById('rachel-dots');
+    const ctaEl  = document.getElementById('rachel-cta');
+    const thumbEl = document.getElementById('rachel-thumb');
+    const thumbTitleEl = document.getElementById('rachel-thumb-title');
+    let current = 1;
+
+    for (let i = 1; i <= total; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'pdot' + (i===1?' active':'');
+      dot.addEventListener('click', e => { e.stopPropagation(); goTo(i); });
+      dotsEl.appendChild(dot);
+    }
+    dotsEl.style.display = 'none'; ctaEl.style.display = 'none';
+
+    function updateThumb() {
+      if (current < total && thumbTitles[current-1]) {
+        thumbEl.classList.add('visible'); thumbTitleEl.textContent = thumbTitles[current-1];
+      } else { thumbEl.classList.remove('visible'); }
+      ctaEl.style.display = current===total ? 'none' : (activeSection==='rachel' ? 'flex' : 'none');
+    }
+
+    function goTo(n) {
+      const next = Math.max(1, Math.min(total, n));
+      if (next === current) return;
+      const oldSlide = document.getElementById('mr-'+current);
+      oldSlide.classList.add('exit');
+      dotsEl.children[current-1].classList.remove('active');
+      current = next;
+      setTimeout(() => {
+        oldSlide.classList.remove('active','exit');
+        document.getElementById('mr-'+current).classList.add('active');
+      }, 300);
+      const dot = dotsEl.children[current-1];
+      dot.classList.remove('pulse'); void dot.offsetWidth;
+      dot.classList.add('active','pulse');
+      setTimeout(() => dot.classList.remove('pulse'), 360);
+      updateThumb();
+    }
+
+    document.getElementById('rachel-wrap').addEventListener('click', () => { if (current<total) goTo(current+1); });
+    document.addEventListener('keydown', e => {
+      if (activeSection !== 'rachel') return;
+      if (e.key==='ArrowRight'||e.key===' ') goTo(current+1);
+      if (e.key==='ArrowLeft') goTo(current-1);
+    });
+
+    // Show dots/cta when section becomes active
+    const origShow = showSection;
+    window._rachelShowCb = () => {
+      dotsEl.style.display = 'flex';
+      ctaEl.style.display = current===total ? 'none' : 'flex';
+      thumbEl.classList.remove('visible');
+      updateThumb();
+    };
+  })();
+
+  // ═══════════════════════════════════════
+  //  BUILD BVS DECK
+  // ═══════════════════════════════════════
+  (function buildBV() {
+    const capsEl = document.getElementById('bv-caps');
+    STORY.platform.capabilities.forEach(cap => {
+      const tech = STORY.technologies.find(t => t.label === cap);
+      const div = document.createElement('div');
+      div.className = 'bv-s3-cap';
+      div.innerHTML = `<div class="bv-s3-cap-title">${cap}</div><div class="bv-s3-cap-desc">${tech ? tech.description : ''}</div>`;
+      capsEl.appendChild(div);
+    });
+    const metricsEl = document.getElementById('bv-metrics');
+    STORY.bvsMetrics.forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'bv-s4-metric';
+      div.innerHTML = `<div class="bv-s4-metric-icon">${m.icon}</div><div class="bv-s4-metric-val">${m.value}</div><div class="bv-s4-metric-label">${m.label}</div><div class="bv-s4-metric-todo">TODO</div>`;
+      metricsEl.appendChild(div);
+    });
+
+    const total = 5;
+    const dotsEl = document.getElementById('bv-dots');
+    const ctaEl  = document.getElementById('bv-cta');
+    let current = 1;
+
+    for (let i = 1; i <= total; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'pdot' + (i===1?' active':'');
+      dot.addEventListener('click', e => { e.stopPropagation(); goTo(i); });
+      dotsEl.appendChild(dot);
+    }
+    dotsEl.style.display = 'none'; ctaEl.style.display = 'none';
+
+    function goTo(n) {
+      const next = Math.max(1, Math.min(total, n));
+      if (next === current) return;
+      const oldSlide = document.getElementById('bv-'+current);
+      oldSlide.classList.add('exit');
+      dotsEl.children[current-1].classList.remove('active');
+      current = next;
+      setTimeout(() => {
+        oldSlide.classList.remove('active','exit');
+        document.getElementById('bv-'+current).classList.add('active');
+      }, 300);
+      const dot = dotsEl.children[current-1];
+      dot.classList.remove('pulse'); void dot.offsetWidth;
+      dot.classList.add('active','pulse');
+      setTimeout(() => dot.classList.remove('pulse'), 360);
+      ctaEl.style.display = current===total ? 'none' : 'flex';
+    }
+
+    document.getElementById('bv-wrap').addEventListener('click', () => { if (current<total) goTo(current+1); });
+    document.addEventListener('keydown', e => {
+      if (activeSection !== 'bv') return;
+      if (e.key==='ArrowRight'||e.key===' ') goTo(current+1);
+      if (e.key==='ArrowLeft') goTo(current-1);
+    });
+  })();
+
+  // ═══════════════════════════════════════
+  //  BV-2 ORBIT NODES — True CSS rotation
+  // ═══════════════════════════════════════
+  (function buildOrbit() {
+    const wrap = document.getElementById('bv-orbit-wrap');
+    if (!wrap) return;
+    // Classic two-element orbit trick:
+    //  1. Arm div: centred at orbit origin, rotates. Width = radius. Height = 0.
+    //  2. Pill: absolute, right edge of arm, counter-rotates around its OWN centre.
+    //     Because wrapper rotates +θ and pill rotates −θ, net rotation = 0 → always upright.
+    const OUTER_DUR = 200; // 200s per lap — very graceful
+    const INNER_DUR = 200; // same duration, opposite direction
+    const nodes = [
+      { icon:'📸', label:'Instagram Ad',        r:210, startDeg:  0,  dur:OUTER_DUR, dir: 1 },
+      { icon:'🔍', label:'AI-Powered Search',   r:210, startDeg:120,  dur:OUTER_DUR, dir: 1 },
+      { icon:'💬', label:'Price-Drop SMS',      r:185, startDeg:240,  dur:OUTER_DUR, dir: 1 },
+      { icon:'🤖', label:'Shopper Agent',       r:120, startDeg: 60,  dur:INNER_DUR, dir:-1 },
+      { icon:'🛒', label:'Commerce Cloud',      r:120, startDeg:180,  dur:INNER_DUR, dir:-1 },
+      { icon:'📧', label:'Post-Purchase Email', r:100, startDeg:300,  dur:INNER_DUR, dir:-1 },
+    ];
+    nodes.forEach((n, i) => {
+      const orbitAnim   = n.dir ===  1 ? 'orbitSpin' : 'orbitSpinReverse';
+      const counterAnim = n.dir ===  1 ? 'orbitSpinReverse' : 'orbitSpin';
+      // Negative delay pre-advances the animation to startDeg position.
+      // For clockwise: delay = -(startDeg/360)*dur; for CCW: delay = -(1 - startDeg/360)*dur
+      const armDelay = n.dir === 1
+        ? -((n.startDeg / 360) * n.dur).toFixed(2)
+        : -(((360 - n.startDeg) / 360) * n.dur).toFixed(2);
+      // Arm: zero-height, pivots at its own left edge (transform-origin: 0 50%)
+      const arm = document.createElement('div');
+      arm.className = 'bv-orbit-node-wrap';
+      arm.style.cssText = `
+        width: ${n.r}px;
+        top: 50%;
+        left: 50%;
+        transform-origin: 0 0;
+        animation: ${orbitAnim} ${n.dur}s linear ${armDelay}s infinite;
+      `;
+      // Shell: positions pill at arm tip, centred vertically
+      const shell = document.createElement('div');
+      shell.style.cssText = `
+        position: absolute;
+        left: ${n.r}px;
+        top: 0;
+        transform: translate(-50%, -50%);
+      `;
+      // Pill: counter-rotates so text stays upright; same delay keeps sync
+      const pill = document.createElement('div');
+      pill.className = 'bv-orbit-node';
+      pill.innerHTML = `<span class="n-icon">${n.icon}</span>${n.label}`;
+      pill.style.cssText = `
+        animation: ${counterAnim} ${n.dur}s linear ${armDelay}s infinite;
+      `;
+      shell.appendChild(pill);
+      arm.appendChild(shell);
+      wrap.appendChild(arm);
+    });
+  })();
+
+  // ═══════════════════════════════════════
+  //  BV-5 FIREWORKS
+  // ═══════════════════════════════════════
+  (function initFireworks() {
+    const canvas = document.getElementById('fireworks-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const COLORS = ['#b22234','#1a5fa0','#ffffff','#f5c06a','#e8f0ff','#f8d6d6'];
+    let particles = [];
+    let rafId = null;
+    let running = false;
+
+    function resize() {
+      canvas.width  = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    }
+
+    function launch() {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height * 0.6 + 50;
+      const count = 32 + Math.floor(Math.random() * 20);
+      const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count;
+        const speed = 1.5 + Math.random() * 3.5;
+        particles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 1,
+          alpha: 1,
+          radius: 2 + Math.random() * 2.5,
+          color,
+          trail: [],
+        });
+      }
+    }
+
+    function tick() {
+      if (!running) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.trail.push({ x: p.x, y: p.y });
+        if (p.trail.length > 5) p.trail.shift();
+        p.x  += p.vx;
+        p.y  += p.vy;
+        p.vy += 0.055;
+        p.vx *= 0.98;
+        p.alpha -= 0.016;
+        if (p.alpha <= 0) return;
+        // Draw trail
+        p.trail.forEach((pt, ti) => {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, p.radius * (ti / p.trail.length) * 0.6, 0, Math.PI * 2);
+          ctx.fillStyle = p.color + Math.floor((ti / p.trail.length) * p.alpha * 80).toString(16).padStart(2,'0');
+          ctx.fill();
+        });
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      });
+      particles = particles.filter(p => p.alpha > 0);
+      rafId = requestAnimationFrame(tick);
+    }
+
+    let launchInterval = null;
+    function start() {
+      if (running) return;
+      running = true;
+      resize();
+      launch(); launch();
+      launchInterval = setInterval(() => { launch(); if (Math.random()>.5) launch(); }, 900);
+      tick();
+    }
+    function stop() {
+      running = false;
+      cancelAnimationFrame(rafId);
+      clearInterval(launchInterval);
+      particles = [];
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Watch bv-5 becoming active
+    const obs = new MutationObserver(muts => {
+      muts.forEach(m => {
+        if (m.target.id === 'bv-5') {
+          if (m.target.classList.contains('active')) start();
+          else stop();
+        }
+      });
+    });
+    obs.observe(document.getElementById('bv-5'), { attributes:true, attributeFilter:['class'] });
+    window.addEventListener('resize', resize);
+  })();
+
+  // ═══════════════════════════════════════
+  //  INTRO VI-1 FLOATING PARTICLES
+  // ═══════════════════════════════════════
+  (function initIntroParticles() {
+    const slide = document.getElementById('vi-1');
+    if (!slide) return;
+    const COLORS = ['#b22234','#1a5fa0','#f5c06a','#2e7a50'];
+    const SHAPES = ['★','✦','●','■'];
+    const COUNT = 18;
+    function makeParticle() {
+      const el = document.createElement('span');
+      el.textContent = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+      const size = 10 + Math.random() * 14;
+      const left = Math.random() * 100;
+      const delay = Math.random() * 8;
+      const dur = 7 + Math.random() * 9;
+      el.style.cssText = `
+        position:absolute;
+        left:${left}%;
+        bottom:-30px;
+        font-size:${size}px;
+        color:${COLORS[Math.floor(Math.random()*COLORS.length)]};
+        opacity:0;
+        pointer-events:none;
+        animation: confettiFall ${dur}s ease-in ${delay}s infinite;
+        z-index:0;
+      `;
+      slide.appendChild(el);
+    }
+    for (let i = 0; i < COUNT; i++) makeParticle();
+    // Ensure slide text stays above particles
+    slide.querySelectorAll('.vi-s1-eyebrow,.vi-s1-headline,.vi-s1-sub').forEach(el => el.style.position = 'relative');
+  })();
+
+  </script>
+</body>
+</html>
