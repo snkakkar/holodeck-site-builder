@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>At Home | In-Store Experience</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: "Inter", -apple-system, sans-serif; background: #f5f7ff; color: #0d1b2e; }
+
+    /* ── NAV ── */
+    .site-nav {
+      position: fixed; top: 0; left: 0; right: 0; height: 52px;
+      background: rgba(255,255,255,.92); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(13,27,46,.1);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 40px; z-index: 500;
+    }
+    .site-nav-brand {
+      font-size: 15px; font-weight: 800; letter-spacing: .06em;
+      color: #0d1b2e; display: flex; align-items: center; gap: 10px; text-decoration: none;
+    }
+    .site-nav-brand .sf-dot { width: 7px; height: 7px; border-radius: 50%; background: #b22234; }
+    .site-nav-brand .sf-label { font-size: 10px; font-weight: 600; letter-spacing: .12em; color: #8a9baf; text-transform: uppercase; }
+    .site-nav-links { display: flex; gap: 6px; }
+    .site-nav-links a {
+      font-size: 11.5px; font-weight: 600; color: #5a6a7a;
+      border: 1.5px solid rgba(13,27,46,.12); border-radius: 20px; padding: 5px 14px;
+      cursor: pointer; font-family: inherit; transition: all .15s; text-decoration: none;
+    }
+    .site-nav-links a:hover { color: #0d1b2e; border-color: rgba(13,27,46,.28); background: rgba(13,27,46,.04); }
+    .site-nav-links a.active { color: #b22234; border-color: rgba(178,34,52,.35); background: rgba(178,34,52,.05); }
+
+    /* ── SLIDE ENGINE ── */
+    .slides-wrap { width: 100vw; height: 100vh; position: relative; overflow: hidden; cursor: pointer; user-select: none; }
+    .pslide {
+      position: absolute; top: 52px; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      opacity: 0; transform: translateY(18px);
+      transition: opacity .45s ease, transform .45s ease;
+      pointer-events: none;
+    }
+    .pslide.active { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .pslide.exit   { opacity: 0; transform: translateY(-10px); transition: opacity .3s ease, transform .3s ease; }
+
+    .progress-dots {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 10px; z-index: 400;
+    }
+    .pdot { width: 28px; height: 6px; border-radius: 3px; background: rgba(13,27,46,.15); cursor: pointer; transition: background .25s, width .25s; }
+    .pdot.active { background: #b22234; width: 44px; }
+    .click-cta {
+      position: fixed; bottom: 30px; right: 48px;
+      font-size: 11px; font-weight: 700; letter-spacing: .14em;
+      color: rgba(13,27,46,.3); text-transform: uppercase;
+      z-index: 400; display: flex; align-items: center; gap: 5px;
+    }
+
+    /* ── KEYFRAMES ── */
+    @keyframes fadeUp    { from { opacity:0; transform:translateY(22px); } to { opacity:1; transform:none; } }
+    @keyframes fadeUpBig { from { opacity:0; transform:translateY(32px); } to { opacity:1; transform:none; } }
+    @keyframes popIn     { from { opacity:0; transform:scale(0.85) translateY(12px); } to { opacity:1; transform:none; } }
+    @keyframes slideInLeft { from { opacity:0; transform:translateX(-40px); } to { opacity:1; transform:none; } }
+    @keyframes shimmer   { 0% { transform:translateX(-150%); } 100% { transform:translateX(150%); } }
+    @keyframes ctaPulse  { 0%,100% { box-shadow:0 6px 28px rgba(178,34,52,.35); } 50% { box-shadow:0 6px 36px rgba(178,34,52,.55); } }
+    @keyframes dotPulse  { 0%,100% { box-shadow:0 0 0 0 rgba(178,34,52,0); } 50% { box-shadow:0 0 0 8px rgba(178,34,52,.18); } }
+    @keyframes breatheOrb { 0%,100% { box-shadow:0 0 0 5px rgba(255,255,255,.7),0 0 0 9px rgba(178,34,52,.12),0 14px 40px rgba(178,34,52,.15); } 50% { box-shadow:0 0 0 5px rgba(255,255,255,.7),0 0 0 12px rgba(178,34,52,.22),0 20px 60px rgba(178,34,52,.22); } }
+
+    /* ════════════════════════════════════════
+       SLIDE 1 — TITLE
+    ════════════════════════════════════════ */
+    #is-1 {
+      background: linear-gradient(160deg, #ffffff 0%, #f0f5ff 55%, #e8f0fa 100%);
+    }
+    #is-1::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.12) 2px, transparent 2px),
+        radial-gradient(circle, rgba(26,63,111,.08) 2px, transparent 2px),
+        radial-gradient(circle, rgba(178,34,52,.06) 1.5px, transparent 1.5px);
+      background-size: 80px 80px, 55px 55px, 38px 38px;
+      background-position: 10px 10px, 30px 40px, 5px 28px;
+    }
+
+    .is1-eyebrow  { font-size:11.5px; font-weight:700; letter-spacing:.22em; color:#b22234; text-transform:uppercase; margin-bottom:24px; position:relative; }
+    .is1-headline {
+      font-family:"Playfair Display",Georgia,serif; font-style:italic;
+      font-size:82px; font-weight:400; color:#0d1b2e; line-height:1.1; text-align:center;
+      max-width:900px; margin-bottom:22px; position:relative;
+    }
+    .is1-sub { font-size:20px; font-weight:400; color:#7a8fa8; letter-spacing:.02em; position:relative; text-align:center; }
+    .is1-sub strong { color:#0d1b2e; font-weight:700; }
+
+    .pslide.active .is1-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .is1-headline { animation: fadeUpBig .65s ease both .25s; }
+    .pslide.active .is1-sub      { animation: fadeUp .5s ease both .6s; }
+
+    /* ════════════════════════════════════════
+       SLIDE 2 — THE SCENE
+    ════════════════════════════════════════ */
+    #is-2 { flex-direction: row; align-items: stretch; justify-content: flex-start; background: #ffffff; }
+    #is-2::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background: radial-gradient(ellipse 60% 50% at 5% 90%, rgba(245,192,106,.08) 0%, transparent 60%),
+                  radial-gradient(ellipse 50% 40% at 95% 10%, rgba(26,63,111,.05) 0%, transparent 60%);
+    }
+
+    .is2-left {
+      width: 44%; flex-shrink: 0; position: relative;
+      background: linear-gradient(160deg, #fff3e0 0%, #ffe0b2 45%, #ffcc80 100%);
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .is2-left::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image: radial-gradient(circle,rgba(178,34,52,.1) 2px,transparent 2px), radial-gradient(circle,rgba(26,63,111,.08) 1.5px,transparent 1.5px);
+      background-size:60px 60px,40px 40px; background-position:0 0,20px 22px;
+    }
+    .is2-left::after {
+      content:""; position:absolute; bottom:0; left:0; right:0; height:5px;
+      background: linear-gradient(90deg, #b22234 33%, #ffffff 33% 66%, #1a3f6f 66%);
+    }
+
+    .is2-avatar-scene { display:flex; flex-direction:column; align-items:center; gap:20px; position:relative; }
+    .is2-avatar-circle {
+      width:240px; height:240px; border-radius:50%;
+      background: radial-gradient(ellipse at 42% 38%, #ffe0b2 0%, #ffab40 35%, #e65100 75%, #bf360c 100%);
+      display:flex; align-items:center; justify-content:center; font-size:92px;
+      animation: breatheOrb 4s ease-in-out 1s infinite;
+    }
+    .is2-scene-caption { font-size:13px; font-weight:600; color:rgba(178,34,52,.7); letter-spacing:.06em; }
+
+    .is2-right { flex:1; display:flex; flex-direction:column; justify-content:center; padding:52px 64px 52px 60px; }
+    .is2-role    { font-size:11px; font-weight:700; letter-spacing:.22em; color:#b22234; text-transform:uppercase; margin-bottom:14px; }
+    .is2-name    { font-size:56px; font-weight:800; color:#0d1b2e; line-height:1.0; letter-spacing:-.02em; margin-bottom:10px; }
+    .is2-sub     { font-size:18px; font-weight:400; color:#8a9baf; margin-bottom:36px; }
+    .is2-divider { width:100%; height:1px; background:rgba(13,27,46,.08); margin-bottom:28px; }
+
+    .is2-scene-items { display:flex; flex-direction:column; gap:16px; }
+    .is2-scene-item  { display:flex; align-items:flex-start; gap:16px; }
+    .is2-item-icon   { font-size:20px; width:40px; height:40px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:rgba(13,27,46,.04); border:1.5px solid rgba(13,27,46,.08); border-radius:10px; }
+    .is2-item-label  { font-size:9px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:#b0bfcc; margin-bottom:3px; }
+    .is2-item-text   { font-size:14px; font-weight:600; color:#0d1b2e; line-height:1.3; }
+    .is2-item-sub    { font-size:11.5px; color:#8a9baf; margin-top:2px; }
+
+    .pslide.active .is2-left               { animation: slideInLeft .55s ease both .1s; }
+    .pslide.active .is2-role               { animation: fadeUp .5s ease both .2s; }
+    .pslide.active .is2-name               { animation: fadeUp .5s ease both .3s; }
+    .pslide.active .is2-sub                { animation: fadeUp .5s ease both .4s; }
+    .pslide.active .is2-divider            { animation: fadeUp .5s ease both .5s; }
+    .pslide.active .is2-scene-item:nth-child(1) { animation: fadeUp .4s ease both .5s; }
+    .pslide.active .is2-scene-item:nth-child(2) { animation: fadeUp .4s ease both .62s; }
+    .pslide.active .is2-scene-item:nth-child(3) { animation: fadeUp .4s ease both .74s; }
+    .pslide.active .is2-scene-item:nth-child(4) { animation: fadeUp .4s ease both .86s; }
+
+    /* ════════════════════════════════════════
+       SLIDES 3 & 4 — BROWSE + CHECKOUT (TUMI-inspired layout, deck colors)
+    ════════════════════════════════════════ */
+    #is-3, #is-4 { flex-direction: row; align-items: stretch; justify-content: flex-start; background: #ffffff; }
+    #is-3::before, #is-4::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background: radial-gradient(ellipse 55% 45% at 5% 95%, rgba(245,192,106,.09) 0%, transparent 60%),
+                  radial-gradient(ellipse 45% 35% at 95% 5%, rgba(26,63,111,.05) 0%, transparent 60%);
+    }
+
+    /* Shared left panel for slides 3 & 4 */
+    .is-scene-left {
+      width: 44%; flex-shrink: 0; position: relative;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+      overflow: hidden; padding-bottom: 40px;
+    }
+    .is-scene-left::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image: radial-gradient(circle,rgba(178,34,52,.1) 2px,transparent 2px), radial-gradient(circle,rgba(26,63,111,.08) 1.5px,transparent 1.5px);
+      background-size:60px 60px,40px 40px; background-position:0 0,20px 22px;
+    }
+    .is-scene-left::after {
+      content:""; position:absolute; bottom:0; left:0; right:0; height:5px;
+      background: linear-gradient(90deg, #b22234 33%, #ffffff 33% 66%, #1a3f6f 66%);
+    }
+    .is3-left { background: linear-gradient(175deg, #fff3e0 0%, #ffe0b2 50%, #ffcc80 100%); }
+    .is4-left { background: linear-gradient(175deg, #fff3e0 0%, #ffd180 40%, #ffab40 100%); }
+
+    /* The person figure — fills panel naturally, no circular crop */
+    .is-figure {
+      font-size: 180px; line-height: 1; position: relative; z-index: 1;
+      filter: drop-shadow(0 20px 40px rgba(178,34,52,.18));
+    }
+    .is-scene-tag {
+      position: relative; z-index: 1; margin-top: 18px;
+      font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+      color: rgba(178,34,52,.75); background: rgba(255,255,255,.7);
+      padding: 6px 16px; border-radius: 20px; backdrop-filter: blur(4px);
+    }
+
+    /* Right panel — TUMI-inspired stat layout, deck colors */
+    .is-scene-right {
+      flex: 1; display: flex; flex-direction: column; justify-content: center;
+      padding: 52px 64px 52px 60px; background: #ffffff;
+    }
+    .is-sr-eyebrow { font-size:11px; font-weight:700; letter-spacing:.28em; color:#b22234; text-transform:uppercase; margin-bottom:18px; }
+    .is-sr-headline {
+      font-size: 58px; font-weight: 800; color: #0d1b2e;
+      line-height: 1.0; letter-spacing: -.02em; margin-bottom: 8px;
+    }
+    .is-sr-headline em { font-family:"Playfair Display",Georgia,serif; font-style:italic; font-weight:400; color:#b22234; }
+    .is-sr-sub { font-size: 17px; font-weight: 400; color: #8a9baf; margin-bottom: 32px; }
+
+    .is-sr-stats { display: flex; gap: 44px; margin-bottom: 28px; }
+    .is-sr-stat-val   { font-size: 28px; font-weight: 800; color: #b22234; letter-spacing: -.02em; line-height: 1; }
+    .is-sr-stat-label { font-size: 9.5px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: #b0bfcc; margin-top: 5px; }
+
+    .is-sr-divider { width: 100%; height: 1px; background: rgba(13,27,46,.08); margin-bottom: 26px; }
+
+    .is-sr-quote-mark { font-size: 52px; font-family: Georgia,serif; color: #b22234; line-height: .8; margin-bottom: 4px; }
+    .is-sr-quote { font-family:"Playfair Display",Georgia,serif; font-style:italic; font-size: 20px; line-height: 1.55; color: #3a4a5a; max-width: 480px; }
+
+    /* Slide 4 two-state crossfade */
+    .is4-state { position: absolute; top: 52px; left: 44%; right: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; padding: 52px 64px 52px 60px; background: #ffffff; transition: opacity .4s ease; }
+    .is4-state.hidden { opacity: 0; pointer-events: none; }
+    .is4-state.visible { opacity: 1; pointer-events: auto; }
+
+    /* Animations for new slides */
+    .pslide.active .is-scene-left  { animation: slideInLeft .55s ease both .1s; }
+    .pslide.active .is-figure      { animation: fadeUp .6s cubic-bezier(.34,1.4,.64,1) both .15s; }
+    .pslide.active .is-scene-tag   { animation: fadeUp .4s ease both .45s; }
+    .pslide.active .is-sr-eyebrow  { animation: fadeUp .5s ease both .2s; }
+    .pslide.active .is-sr-headline { animation: fadeUp .5s ease both .3s; }
+    .pslide.active .is-sr-sub      { animation: fadeUp .5s ease both .4s; }
+    .pslide.active .is-sr-stats    { animation: fadeUp .5s ease both .5s; }
+    .pslide.active .is-sr-divider  { animation: fadeUp .4s ease both .62s; }
+    .pslide.active .is-sr-quote-mark { animation: fadeUp .4s ease both .68s; }
+    .pslide.active .is-sr-quote    { animation: fadeUp .5s ease both .76s; }
+
+    /* ════════════════════════════════════════
+       SLIDE 5 — DATA CLOUD TIMELINE (renumbered)
+    ════════════════════════════════════════ */
+    #is-5 { background: linear-gradient(160deg, #f8faff 0%, #eef3ff 40%, #f0f6ff 100%); }
+    #is-5::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.06) 1px, transparent 1px),
+        radial-gradient(circle, rgba(26,63,111,.04) 1px, transparent 1px);
+      background-size: 48px 48px, 32px 32px;
+      background-position: 0 0, 24px 24px;
+    }
+
+    .is5-eyebrow  { font-size:11px; font-weight:700; letter-spacing:.22em; color:#b22234; text-transform:uppercase; margin-bottom:14px; position:relative; }
+    .is5-headline { font-size:48px; font-weight:800; color:#0d1b2e; line-height:1.1; letter-spacing:-.02em; text-align:center; margin-bottom:10px; position:relative; }
+    .is5-headline .accent { color:#1a5fa0; }
+    .is5-sub      { font-size:16px; color:#7a8fa8; text-align:center; max-width:640px; margin-bottom:56px; line-height:1.65; position:relative; }
+
+    .is5-timeline { position:relative; width:100%; max-width:1080px; padding:0 40px; }
+    .is5-track {
+      position:absolute; top:6px; left:80px; right:80px; height:2px;
+      background: linear-gradient(90deg, #b22234 0%, rgba(26,63,111,.7) 50%, rgba(178,34,52,.4) 100%);
+      border-radius:2px; overflow:hidden;
+    }
+    .is5-track::after {
+      content:""; position:absolute; inset:0; width:50%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
+      animation: shimmer 3s ease-in-out 1.2s infinite;
+    }
+    .is5-nodes { display:flex; justify-content:space-between; align-items:flex-start; position:relative; }
+    .is5-node  { display:flex; flex-direction:column; align-items:center; text-align:center; flex:1; }
+    .is5-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; margin-bottom:16px; background:#f5f7ff; border:2px solid rgba(13,27,46,.25); }
+    .is5-dot.hero { width:18px; height:18px; margin-bottom:13px; background:#b22234; border-color:#b22234; animation: dotPulse 2s ease-in-out infinite; }
+    .is5-node-icon   { font-size:26px; margin-bottom:8px; }
+    .is5-node-month  { font-size:9px; font-weight:700; letter-spacing:.2em; color:#b0bfcc; text-transform:uppercase; margin-bottom:4px; }
+    .is5-node-label  { font-size:13px; font-weight:700; color:#0d1b2e; line-height:1.3; max-width:105px; }
+    .is5-node-sub    { font-size:10.5px; color:#8a9baf; margin-top:4px; max-width:105px; line-height:1.4; }
+    .is5-node.hero .is5-node-label { color:#b22234; }
+
+    .pslide.active .is5-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .is5-headline { animation: fadeUp .5s ease both .2s; }
+    .pslide.active .is5-sub      { animation: fadeUp .5s ease both .35s; }
+    .pslide.active .is5-track    { animation: fadeUp .4s ease both .45s; }
+    .pslide.active .is5-node:nth-child(1) { animation: fadeUp .4s ease both .5s; }
+    .pslide.active .is5-node:nth-child(2) { animation: fadeUp .4s ease both .65s; }
+    .pslide.active .is5-node:nth-child(3) { animation: fadeUp .4s ease both .8s; }
+    .pslide.active .is5-node:nth-child(4) { animation: fadeUp .4s ease both .95s; }
+    .pslide.active .is5-node:nth-child(5) { animation: fadeUp .4s ease both 1.1s; }
+    .pslide.active .is5-node:nth-child(6) { animation: fadeUp .4s ease both 1.25s; }
+
+    /* ════════════════════════════════════════
+       SLIDE 6 — BRIDGE
+    ════════════════════════════════════════ */
+    #is-6 { background: linear-gradient(160deg, #fff8f0 0%, #fff2e8 50%, #ffeedd 100%); }
+    #is-6::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image:
+        radial-gradient(circle, rgba(178,34,52,.12) 2.5px, transparent 2.5px),
+        radial-gradient(circle, rgba(26,63,111,.08) 2px, transparent 2px),
+        radial-gradient(circle, rgba(178,34,52,.07) 1.5px, transparent 1.5px);
+      background-size: 72px 72px, 48px 48px, 33px 33px;
+      background-position: 8px 8px, 28px 34px, 14px 18px;
+    }
+
+    .is6-eyebrow  { font-size:12px; font-weight:700; letter-spacing:.22em; color:#8a9baf; text-transform:uppercase; margin-bottom:22px; position:relative; }
+    .is6-headline { font-size:62px; font-weight:800; color:#0d1b2e; line-height:1.08; letter-spacing:-.02em; text-align:center; margin-bottom:14px; position:relative; }
+    .is6-headline .accent { color:#b22234; }
+    .is6-sub { font-size:20px; color:#7a8fa8; text-align:center; max-width:520px; line-height:1.65; margin-bottom:52px; position:relative; font-weight:400; }
+    .is6-cta {
+      display:inline-flex; align-items:center; gap:10px;
+      background:#b22234; color:#fff; font-size:13.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+      padding:16px 36px; border-radius:50px; border:none; cursor:pointer; font-family:inherit;
+      box-shadow:0 6px 28px rgba(178,34,52,.35); transition:transform .15s, box-shadow .15s;
+      text-decoration:none; position:relative;
+    }
+    .is6-cta:hover { transform:translateY(-2px); box-shadow:0 10px 36px rgba(178,34,52,.45); }
+
+    .pslide.active .is6-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    .pslide.active .is6-headline { animation: fadeUpBig .65s ease both .25s; }
+    .pslide.active .is6-sub      { animation: fadeUp .5s ease both .55s; }
+    .pslide.active .is6-cta      { animation: fadeUp .5s ease both .75s, ctaPulse 2.5s ease-in-out 1.5s infinite; }
+  </style>
+</head>
+<body>
+
+  <nav class="site-nav">
+    <a href="at-home-unified.html" class="site-nav-brand">
+      <span>AT HOME</span>
+      <span class="sf-dot"></span>
+      <span class="sf-label">Salesforce CX Vision</span>
+    </a>
+    <div class="site-nav-links">
+      <a href="at-home-unified.html">Journey Map</a>
+      <a href="at-home-unified.html">Intro</a>
+      <a href="at-home-unified.html">Meet Rachel</a>
+      <a href="at-home-instore.html" class="active">In-Store</a>
+      <a href="at-home-unified.html">Business Value</a>
+    </div>
+  </nav>
+
+  <div class="slides-wrap" id="is-wrap">
+
+    <!-- Slide 1: Title -->
+    <div class="pslide active" id="is-1">
+      <p class="is1-eyebrow">In-Store Experience · December</p>
+      <h1 class="is1-headline">Every relationship begins<br/>with a single moment.</h1>
+      <p class="is1-sub"><strong>December.</strong> An At Home store. <strong>Rachel's</strong> holiday shopping.</p>
+    </div>
+
+    <!-- Slide 2: The Scene -->
+    <div class="pslide" id="is-2">
+      <div class="is2-left" style="padding-bottom:0;">
+        <img src="assets/At-Home-stores-retail.png" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;" alt="At Home Store"/>
+        <div class="is2-avatar-scene" style="position:relative;z-index:1;width:100%;height:100%;justify-content:flex-end;padding-bottom:32px;">
+          <div class="is2-scene-caption">December · At Home Store</div>
+        </div>
+      </div>
+      <div class="is2-right">
+        <div class="is2-role">The Moment That Starts Everything</div>
+        <div class="is2-name">One visit.<br/>One email.</div>
+        <div class="is2-sub">A digital receipt becomes the first data point in Rachel's unified profile.</div>
+        <div class="is2-divider"></div>
+        <div class="is2-scene-items">
+          <div class="is2-scene-item">
+            <div class="is2-item-icon">❄️</div>
+            <div>
+              <div class="is2-item-label">When</div>
+              <div class="is2-item-text">December · Holiday Season</div>
+              <div class="is2-item-sub">Last-minute holiday shopping in-store</div>
+            </div>
+          </div>
+          <div class="is2-scene-item">
+            <div class="is2-item-icon">📧</div>
+            <div>
+              <div class="is2-item-label">The Moment</div>
+              <div class="is2-item-text">Email captured at checkout</div>
+              <div class="is2-item-sub">Rachel shares her email for a digital receipt</div>
+            </div>
+          </div>
+          <div class="is2-scene-item">
+            <div class="is2-item-icon">☁️</div>
+            <div>
+              <div class="is2-item-label">What Happens Next</div>
+              <div class="is2-item-text">CDP builds her unified profile</div>
+              <div class="is2-item-sub">In-store identity now connects every future channel</div>
+            </div>
+          </div>
+          <div class="is2-scene-item">
+            <div class="is2-item-icon">🎯</div>
+            <div>
+              <div class="is2-item-label">Why It Matters</div>
+              <div class="is2-item-text">Anonymous → Known</div>
+              <div class="is2-item-sub">The bridge that makes every touchpoint personal</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 3: The Browse -->
+    <div class="pslide" id="is-3">
+      <div class="is-scene-left is3-left" style="background:none;">
+        <img src="assets/AtHomeStore.png" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;" alt="At Home Store"/>
+        <div class="is-scene-tag" style="z-index:1;">At Home Store · December</div>
+      </div>
+      <div class="is-scene-right">
+        <div class="is-sr-eyebrow">The Browse</div>
+        <div class="is-sr-headline">She's not just shopping.<br/>She's <em>inspired.</em></div>
+        <div class="is-sr-sub">Rachel shops for new furniture and home décor to refresh her space for the holiday season.</div>
+        <div class="is-sr-stats">
+          <div>
+            <div class="is-sr-stat-val">December</div>
+            <div class="is-sr-stat-label">Holiday Season</div>
+          </div>
+          <div>
+            <div class="is-sr-stat-val">In-Store</div>
+            <div class="is-sr-stat-label">At Home Visit</div>
+          </div>
+          <div>
+            <div class="is-sr-stat-val">High Intent</div>
+            <div class="is-sr-stat-label">Purchase Signal</div>
+          </div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">I'll know it when I see it. And when I see it, I want it to be perfect.</div>
+      </div>
+    </div>
+
+    <!-- Slide 4: Checkout — 2 states -->
+    <div class="pslide" id="is-4">
+      <div class="is-scene-left is4-left" style="background:none;padding:0;">
+        <img id="is4-img-s1" src="assets/barrett-storage-sectional-brown.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;transition:opacity .4s;" alt="Barrett Storage Sectional" />
+        <img id="is4-img-s2" src="assets/email_placeholder_mobile.png" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;opacity:0;transition:opacity .4s;" alt="Email capture" />
+        <div class="is-scene-tag" id="is4-tag" style="position:relative;z-index:1;">At Home Store · Home Furnishings</div>
+      </div>
+      <!-- State 1: She finds it -->
+      <div class="is4-state visible" id="is4-s1">
+        <div class="is-sr-eyebrow">The Find</div>
+        <div class="is-sr-headline">She finds it.<br/>She's <em>ready to buy.</em></div>
+        <div class="is-sr-sub">The Barrett Storage Sectional. Perfect for her home. It goes in the cart.</div>
+        <div class="is-sr-stats">
+          <div>
+            <div class="is-sr-stat-val">Sectional</div>
+            <div class="is-sr-stat-label">Added to Cart</div>
+          </div>
+          <div>
+            <div class="is-sr-stat-val">Considered</div>
+            <div class="is-sr-stat-label">Purchase Type</div>
+          </div>
+          <div>
+            <div class="is-sr-stat-val">Ready</div>
+            <div class="is-sr-stat-label">To Buy</div>
+          </div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">This is the one. It's exactly what my living room needs.</div>
+      </div>
+      <!-- State 2: She shares her email -->
+      <div class="is4-state hidden" id="is4-s2">
+        <div class="is-sr-eyebrow">The Pivotal Moment</div>
+        <div class="is-sr-headline">She shares<br/>her <em>email.</em></div>
+        <div class="is-sr-sub">A digital receipt offer. Rachel says yes. One action connects every future touchpoint.</div>
+        <div class="is-sr-stats">
+          <div>
+            <div class="is-sr-stat-val">Email</div>
+            <div class="is-sr-stat-label">Captured</div>
+          </div>
+          <div>
+            <div class="is-sr-stat-val">Profile</div>
+            <div class="is-sr-stat-label">Created in CDP</div>
+          </div>
+          <div>
+            <div class="is-sr-stat-val">Known</div>
+            <div class="is-sr-stat-label">Anonymous → Known</div>
+          </div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">The bridge that makes every future touchpoint personal. The journey starts here.</div>
+      </div>
+    </div>
+
+    <!-- Slide 5: Timeline -->
+    <div class="pslide" id="is-5">
+      <p class="is5-eyebrow">CDP · Unified Profile</p>
+      <h2 class="is5-headline">One profile. Every channel.<br/><span class="accent">Always personal.</span></h2>
+      <p class="is5-sub">CDP connects Rachel's in-store identity to every downstream touchpoint — turning a single December moment into six months of personalized engagement.</p>
+      <div class="is5-timeline">
+        <div class="is5-track"></div>
+        <div class="is5-nodes" id="is5-nodes"></div>
+      </div>
+    </div>
+
+    <!-- Slide 6: Bridge -->
+    <div class="pslide" id="is-6">
+      <p class="is6-eyebrow">The Journey Begins</p>
+      <h2 class="is6-headline">Six months of data.<br/>One <span class="accent">perfect moment.</span></h2>
+      <p class="is6-sub">Rachel is ready. CDP knows who she is, what she loves, and exactly when to reach her. The agentic journey starts now.</p>
+      <a class="is6-cta" href="at-home-unified.html">VIEW THE JOURNEY &nbsp;→</a>
+    </div>
+
+  </div>
+
+  <div class="progress-dots" id="is-dots"></div>
+  <div class="click-cta" id="is-cta">CLICK TO CONTINUE &nbsp;›</div>
+
+  <script>
+    const TIMELINE = [
+      { month:'DEC', icon:'🏪', label:'In-Store Visit',    sub:'Identity captured',          hero:true },
+      { month:'JAN', icon:'☁️', label:'Profile Builds',    sub:'CDP unifies'                           },
+      { month:'FEB', icon:'📧', label:'Spring Email',      sub:'Agentic conversation'                  },
+      { month:'JUN', icon:'📸', label:'Instagram Ad',      sub:'High-propensity signal'                },
+      { month:'JUL', icon:'💬', label:'Agentic SMS',       sub:'Cart recovery agent'                   },
+      { month:'JUL', icon:'🛒', label:'Purchase',          sub:'Agentforce closes sale',     hero:true },
+    ];
+
+    const nodesEl = document.getElementById('is5-nodes');
+    TIMELINE.forEach(n => {
+      const div = document.createElement('div');
+      div.className = 'is5-node' + (n.hero ? ' hero' : '');
+      div.innerHTML = `
+        <div class="is5-dot${n.hero ? ' hero' : ''}"></div>
+        <div class="is5-node-icon">${n.icon}</div>
+        <div class="is5-node-month">${n.month}</div>
+        <div class="is5-node-label">${n.label}</div>
+        <div class="is5-node-sub">${n.sub}</div>
+      `;
+      nodesEl.appendChild(div);
+    });
+
+    // Slide 4 two-state logic
+    let is4state = 1; // 1 = "she finds it", 2 = "she shares email"
+    const s1 = document.getElementById('is4-s1');
+    const s2 = document.getElementById('is4-s2');
+
+    function showIs4State(n) {
+      if (n === 1) {
+        s1.classList.remove('hidden'); s1.classList.add('visible');
+        s2.classList.remove('visible'); s2.classList.add('hidden');
+        document.getElementById('is4-tag').textContent = 'At Home Store · Home Furnishings';
+        document.getElementById('is4-img-s1').style.opacity = '1';
+        document.getElementById('is4-img-s2').style.opacity = '0';
+      } else {
+        s2.classList.remove('hidden'); s2.classList.add('visible');
+        s1.classList.remove('visible'); s1.classList.add('hidden');
+        document.getElementById('is4-tag').textContent = 'At Home Store · Email Captured';
+        document.getElementById('is4-img-s1').style.opacity = '0';
+        document.getElementById('is4-img-s2').style.opacity = '1';
+      }
+      is4state = n;
+    }
+
+    const TOTAL = 6;
+    const dotsEl = document.getElementById('is-dots');
+    const ctaEl  = document.getElementById('is-cta');
+    let current  = 1;
+
+    for (let i = 1; i <= TOTAL; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'pdot' + (i === 1 ? ' active' : '');
+      dot.addEventListener('click', e => { e.stopPropagation(); goTo(i); });
+      dotsEl.appendChild(dot);
+    }
+
+    function goTo(n) {
+      const next = Math.max(1, Math.min(TOTAL, n));
+      if (next === current) return;
+      const old = document.getElementById('is-' + current);
+      old.classList.add('exit');
+      dotsEl.children[current - 1].classList.remove('active');
+      current = next;
+      // Reset slide 4 state when entering it
+      if (current === 4) showIs4State(1);
+      setTimeout(() => {
+        old.classList.remove('active', 'exit');
+        document.getElementById('is-' + current).classList.add('active');
+      }, 300);
+      const dot = dotsEl.children[current - 1];
+      dot.classList.remove('pulse'); void dot.offsetWidth;
+      dot.classList.add('active');
+      ctaEl.style.display = current === TOTAL ? 'none' : 'flex';
+    }
+
+    document.getElementById('is-wrap').addEventListener('click', () => {
+      // Slide 4: first click advances state 1→2, second click advances to next slide
+      if (current === 4 && is4state === 1) {
+        showIs4State(2);
+        return;
+      }
+      if (current < TOTAL) goTo(current + 1);
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault();
+        if (current === 4 && is4state === 1) { showIs4State(2); return; }
+        goTo(current + 1);
+      }
+      if (e.key === 'ArrowLeft') {
+        if (current === 4 && is4state === 2) { showIs4State(1); return; }
+        goTo(current - 1);
+      }
+    });
+  </script>
+</body>
+</html>

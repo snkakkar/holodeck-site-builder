@@ -359,9 +359,10 @@
     .mr-s1-sub     { font-size:20px; font-weight:400; color:#8a9baf; margin-top:20px; position:relative; }
 
     .mr-s2-left { width:44%; flex-shrink:0; position:relative; background:linear-gradient(160deg,#fff3e0 0%,#ffe0b2 45%,#ffcc80 100%); display:flex; align-items:center; justify-content:center; overflow:hidden; }
-    .mr-s2-left::before { content:""; position:absolute; inset:0; pointer-events:none; background-image: radial-gradient(circle,rgba(178,34,52,.1) 2px,transparent 2px), radial-gradient(circle,rgba(26,63,111,.08) 1.5px,transparent 1.5px); background-size:60px 60px,40px 40px; background-position:0 0,20px 22px; }
     .mr-s2-left::after  { content:""; position:absolute; bottom:0; left:0; right:0; height:5px; background:linear-gradient(90deg,#b22234 33%,#ffffff 33% 66%,#1a3f6f 66%); }
-    .mr-s2-avatar-scene { display:flex; flex-direction:column; align-items:center; gap:20px; position:relative; }
+    .mr-s2-avatar-scene { display:flex; flex-direction:column; align-items:center; gap:0; position:relative; width:100%; height:100%; }
+    .mr-s2-hero-bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center; }
+    .mr-s2-hero-gif { position:absolute; z-index:1; width:150%; height:150%; object-fit:contain; object-position:center center; left:50%; top:50%; transform:translate(-50%,-50%); }
     .mr-s2-avatar-circle { width:280px; height:280px; border-radius:50%; background:radial-gradient(ellipse at 42% 38%,#ffe0b2 0%,#ffab40 35%,#e65100 75%,#bf360c 100%); display:flex; align-items:center; justify-content:center; font-size:108px; box-shadow:0 0 0 5px rgba(255,255,255,.7),0 0 0 8px rgba(178,34,52,.25),0 20px 60px rgba(178,34,52,.2); position:relative; }
     .mr-s2-todo { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); background:#b22234; color:#fff; font-size:8.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:4px 10px; border-radius:12px; white-space:nowrap; }
     .mr-s2-scene-caption { font-size:13px; font-weight:600; color:rgba(178,34,52,.7); letter-spacing:.06em; }
@@ -563,6 +564,7 @@
       <button id="nav-map"    onclick="showSection('map')">Journey Map</button>
       <button id="nav-intro"  onclick="showSection('intro')">Intro</button>
       <button id="nav-rachel" onclick="showSection('rachel')">Meet Rachel</button>
+      <button id="nav-instore" onclick="window.location.href='at-home-instore.html'">In-Store</button>
       <button id="nav-bv"     onclick="showSection('bv')">Business Value</button>
     </div>
   </nav>
@@ -612,8 +614,8 @@
 
       <div class="pslide" id="vi-2">
         <p class="vi-s2-eyebrow">Salesforce CX Vision &bull; Agentic Retail Journey</p>
-        <h2 class="vi-s2-headline">See how At Home turns<br/>moments into loyal relationships.</h2>
-        <p class="vi-s2-sub">From a personalized ad to post-purchase nurture — every interaction creates context. Every context improves the next best experience.</p>
+        <h2 class="vi-s2-headline">See how At Home turns<br/>a single visit into a loyal customer.</h2>
+        <p class="vi-s2-sub">From a December in-store visit to a 4th of July purchase — every interaction builds context. Every context makes the next experience more personal.</p>
         <div class="vi-s2-presenter-row">
           <div class="vi-s2-presenter-dot"></div>
           <div class="vi-s2-presenter-text" id="vi-presenter">Loading…</div>
@@ -622,7 +624,7 @@
 
       <div class="pslide" id="vi-3">
         <p class="vi-s3-eyebrow">What you'll see today</p>
-        <h2 class="vi-s3-headline">Three acts. One <span class="accent">connected platform.</span></h2>
+        <h2 class="vi-s3-headline">Three acts. One <span class="accent">agentic journey.</span></h2>
         <div class="vi-s3-parts" id="vi-s3-parts"></div>
         <div class="vi-s3-ga">✓ &nbsp;Everything shown today is <strong>GA</strong> and being used by customers today.</div>
       </div>
@@ -642,17 +644,14 @@
       <div class="pslide active" id="mr-1">
         <p class="mr-s1-eyebrow">Customer Spotlight</p>
         <h1 class="mr-s1-title">Meet <strong>Rachel.</strong></h1>
-        <p class="mr-s1-sub">At Home · Annual 4th of July BBQ Host</p>
+        <p class="mr-s1-sub">At Home · Her journey starts in December and ends at the perfect 4th of July BBQ</p>
       </div>
 
       <div class="pslide" id="mr-2">
         <div class="mr-s2-left">
           <div class="mr-s2-avatar-scene">
-            <div class="mr-s2-avatar-circle">
-              🌟
-              <span class="mr-s2-todo">TODO: Rachel photo</span>
-            </div>
-            <div class="mr-s2-scene-caption">4th of July Host · Outdoor Entertainer</div>
+            <img class="mr-s2-hero-bg" src="assets/Rachel_Hero-Background.jpg" alt="" />
+            <img class="mr-s2-hero-gif" src="assets/Rachel_Hero.gif" alt="Rachel" />
           </div>
         </div>
         <div class="mr-s2-right">
@@ -677,8 +676,8 @@
       <div class="pslide" id="mr-4">
         <p class="mr-s4-eyebrow">The Customer Journey</p>
         <h2 class="mr-s4-headline">Let's follow Rachel's journey<br/>to the <span class="accent">perfect 4th.</span></h2>
-        <p class="mr-s4-sub">From first ad impression to a backyard she'll love</p>
-        <button class="mr-s4-cta" onclick="showSection('map')">BEGIN THE JOURNEY &nbsp;→</button>
+        <p class="mr-s4-sub">From a December in-store visit to the ultimate 4th of July backyard</p>
+        <button class="mr-s4-cta" onclick="window.location.href='at-home-instore.html'">BEGIN THE JOURNEY &nbsp;→</button>
       </div>
 
     </div>
@@ -764,26 +763,26 @@
       ],
     },
     steps: [
-      { title:"Anticipate", badge:"Audience Segmentation",    emoji:"📸", circleClass:"circle-anticipate",
-        description:"Rachel sees a personalized 4th of July patio promotion on Instagram, powered by Salesforce segments.",
-        detail:"Marketing Cloud Personalization identifies Rachel as a high-propensity outdoor furniture buyer and serves a targeted promotion — the right message, at the right moment, before she ever visits the site.",
-        technologies:["Marketing Cloud Personalization","Email","SMS"] },
-      { title:"Engage",     badge:"Onsite Personalization",   emoji:"🛍️", circleClass:"circle-engage",
-        description:"The At Home website adapts in real time to Rachel's outdoor entertaining intent — anonymous or known.",
-        detail:"Marketing Cloud Personalization serves a personalized 4th of July hero banner, tailored patio recommendations, and AI-powered contextual search results the moment Rachel lands on the Commerce Cloud storefront.",
-        technologies:["Marketing Cloud Personalization","Commerce Cloud"] },
-      { title:"Guide",      badge:"Agentforce Shopper Agent", emoji:"🤖", circleClass:"circle-guide",
-        description:"A price-drop SMS brings Rachel back. The Agentforce Shopper Agent helps her build the perfect outdoor setup.",
-        detail:"Marketing Cloud Personalization fires a proactive SMS when the Catalina Set price drops. Rachel meets the Agentforce Shopper Agent — asks about weather resistance, gets full product answers, and the agent builds her cart.",
-        technologies:["Marketing Cloud Personalization","SMS","Agentforce Shopper Agent"] },
-      { title:"Convert",    badge:"Higher Conversion & AOV",  emoji:"✅", circleClass:"circle-convert",
-        description:"The Agentforce Shopper Agent bundles the patio set, umbrella, and string lights. Rachel checks out.",
-        detail:"In a single agentic conversation on the Commerce Cloud storefront, the Shopper Agent builds Rachel's complete outdoor setup and guides her to checkout — or an exit-intent offer saves the sale with 10% off.",
-        technologies:["Agentforce Shopper Agent","Commerce Cloud"] },
-      { title:"Delight",    badge:"Lifecycle Personalization",emoji:"🌟", circleClass:"circle-delight",
-        description:"Rachel receives 'Top 5 Tips for Hosting the Ultimate 4th of July BBQ' — proactive, helpful, personal.",
-        detail:"Marketing Cloud Personalization delivers a post-purchase email tied to her purchase context — outdoor entertaining content, complementary products, and care tips. Every interaction makes the next one smarter.",
-        technologies:["Marketing Cloud Personalization","Email Automation"] },
+      { title:"Know",     badge:"CDP · Unified Profile",        emoji:"🏪", circleClass:"circle-anticipate",
+        description:"An in-store visit seeds Rachel's profile. A personalized spring email sparks the first agentic conversation.",
+        detail:"Rachel's December in-store visit is captured in CDP, building her unified profile. Months later, a personalized spring email — grounded in her homeowner affinity — triggers a two-way agentic reply that recommends patio sets for 8+. Marketing channel becomes sales channel.",
+        technologies:["CDP","Marketing Cloud Personalization","Email"] },
+      { title:"Reach",    badge:"Paid Media · MCP",             emoji:"📸", circleClass:"circle-engage",
+        description:"June: Marketing Cloud Personalization identifies Rachel as high-propensity. A targeted Instagram ad finds her at exactly the right moment.",
+        detail:"Marketing Cloud Personalization connects Rachel's in-store visit and email engagement, scoring her as a high-propensity outdoor furniture buyer. A targeted 4th of July ad on Instagram surfaces at the perfect moment — powered by her unified profile.",
+        technologies:["Marketing Cloud Personalization","Paid Media"] },
+      { title:"Engage",   badge:"Onsite Personalization",       emoji:"🛍️", circleClass:"circle-guide",
+        description:"Rachel lands on a personalized B2C Commerce homepage — hero and recommendations already tailored to her intent.",
+        detail:"The Commerce Cloud storefront adapts in real time: a 4th of July hero banner, product recommendations that include the patio sets suggested to her over email, and AI-powered contextual search. Rachel finds the patio set, adds it to her cart — then life happens and she steps away.",
+        technologies:["Marketing Cloud Personalization","Commerce Cloud","AI-Powered Search"] },
+      { title:"Recover",  badge:"Agentic SMS · App Download",   emoji:"💬", circleClass:"circle-convert",
+        description:"An Agentic SMS initiates a two-way conversation, surfaces a Flash Sale in the app, and guides Rachel to download.",
+        detail:"The next day, Rachel receives an Agentic SMS — not a static reminder. The AI agent proactively surfaces a Flash Sale exclusive to the At Home app, Rachel replies 'That sounds great!', and the agent sends a direct download link. Recovery becomes a channel deepening moment.",
+        technologies:["Marketing Cloud Personalization","SMS","Agentforce"] },
+      { title:"Convert",  badge:"Agentforce Shopper Agent",      emoji:"🤖", circleClass:"circle-delight",
+        description:"The Agentforce Shopper Agent answers her questions, builds the full cart, and closes the sale. The journey doesn't end at checkout.",
+        detail:"Inside the app, the Agentforce Shopper Agent answers Rachel's questions about weather resistance, recommends the umbrella and string lights, and adds everything to her cart with one tap. She checks out. Post-purchase, a personalized email with hosting tips and care content extends the relationship.",
+        technologies:["Agentforce Shopper Agent","Commerce Cloud","Marketing Cloud Personalization"] },
     ],
     platform: {
       title: "Salesforce Platform",
@@ -800,14 +799,14 @@
       { label:"Post-Purchase Nurture",           description:"Context-aware content and product recommendations that extend the relationship beyond the transaction." },
     ],
     demoStructure: [
-      { title:"Marketing Cloud Personalization", description:"See how MCP personalizes every touchpoint — Instagram ad, onsite hero, price-drop SMS, and post-purchase email — all from one platform.", tags:["Onsite","Email","SMS","In-App","Anonymous → Known"] },
-      { title:"Agentforce Shopper Agent",        description:"Meet the At Home Shopper Agent — a conversational AI built on Agentforce that answers product questions, recommends bundles, and builds carts.", tags:["Agentforce","Commerce Cloud","Clicks not code","GA today"] },
-      { title:"Commerce Cloud + AI Search",      description:"See how AI-powered contextual search — built into Commerce Cloud — surfaces exactly the right products based on Rachel's intent, not just her keywords.", tags:["Commerce Cloud","AI Search","Personalized Results"] },
+      { title:"Know & Reach", description:"CDP unifies Rachel's in-store identity with every digital signal — powering a personalized spring email, an agentic two-way conversation, and a targeted Instagram ad.", tags:["CDP","Email","Paid Media","Anonymous → Known"] },
+      { title:"Engage & Recover", description:"The Commerce Cloud storefront adapts to Rachel's intent in real time. When she abandons her cart, an Agentic SMS — not a static reminder — recovers the sale and drives an app download.", tags:["Commerce Cloud","AI Search","Agentic SMS","MCP"] },
+      { title:"Convert", description:"The Agentforce Shopper Agent answers questions, builds the full cart, and closes the sale — then post-purchase personalization extends the relationship beyond the transaction.", tags:["Agentforce","Commerce Cloud","Clicks not code","GA today"] },
     ],
     vignetteSections: [
-      { eyebrow:"MARKETING CLOUD PERSONALIZATION", title:"Anticipate & Engage", subtitle:"From anonymous interest to personalized onsite experience — before Rachel even identifies herself." },
-      { eyebrow:"AGENTFORCE SHOPPER AGENT",        title:"Guide & Convert",     subtitle:"The right re-engagement message, then the right AI agent to build the cart and close the sale." },
-      { eyebrow:"MARKETING CLOUD PERSONALIZATION", title:"Delight",             subtitle:"Post-purchase personalization that builds loyalty and drives the next visit." },
+      { eyebrow:"MARKETING CLOUD PERSONALIZATION", title:"Know & Reach",   subtitle:"From in-store identity capture to a targeted ad — MCP connects every touchpoint before Rachel ever visits the site." },
+      { eyebrow:"MARKETING CLOUD PERSONALIZATION · COMMERCE CLOUD", title:"Engage & Recover", subtitle:"A personalized storefront, an abandoned cart, and an Agentic SMS that turns recovery into a relationship." },
+      { eyebrow:"AGENTFORCE SHOPPER AGENT",                     title:"Convert",        subtitle:"One conversation. Full cart. Checkout. Then post-purchase personalization that makes the next visit smarter." },
     ],
     // TODO: Replace XX% with real BVS benchmarks
     bvsMetrics: [
@@ -864,6 +863,7 @@
     const story = STORY;
     const flow = document.getElementById('flow-container');
     const circleClass = ['circle-anticipate','circle-engage','circle-guide','circle-convert','circle-delight'];
+    // Colors: red=Know, blue=Reach, gold=Engage, green=Recover, pink=Convert
 
     story.steps.forEach((step, i) => {
       const div = document.createElement('div');
@@ -999,7 +999,7 @@
     });
 
     const total = 3 + STORY.vignetteSections.length;
-    const thumbTitles = ["The CX Vision →","Three-Act Structure →","Anticipate & Engage →","Guide & Convert →","Delight →",null];
+    const thumbTitles = ["The CX Vision →","Three-Act Journey →","Know & Reach →","Engage & Recover →","Convert →",null];
     const dotsEl = document.getElementById('intro-dots');
     const ctaEl  = document.getElementById('intro-cta');
     const thumbEl = document.getElementById('intro-thumb');
