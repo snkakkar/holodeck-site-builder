@@ -3,150 +3,111 @@
 
 ---
 
-### What was created
+### Entry Points
 
-Five files in `/demo/`:
-
-| File | Type | Purpose |
-|---|---|---|
-| `at-home-demo-story.js` | Shared data config | Single source of truth for all story content, persona, journey stages, technologies, metrics |
-| `at-home-demo-map.html` | Hub page | Full journey map with deck vs. live-demo labeling; navigation to all deck assets |
-| `at-home-intro.html` | Deck Asset 1 | Executive intro — presenter name/title, demo theme, technology pills |
-| `at-home-vision.html` | Deck Asset 2 | Three-part demo structure: customer journey → data foundation → agent creation |
-| `at-home-meet-rachel.html` | Deck Asset 3 | Persona setup — Rachel Morris, signals, retail opportunity, journey preview |
-| `at-home-bvs.html` | Deck Asset 4 | Business Value close — BVS metrics (placeholders), key capabilities |
-
----
-
-### Which script rows these support
-
-| Script Row (Device = Deck) | Asset created |
+| File | Purpose |
 |---|---|
-| Intro: "Hi everyone, my name is…" | `at-home-intro.html` |
-| Intro: "I'm going to start off by showing you what an AI-driven experience looks like…" | `at-home-vision.html` |
-| Agentic CX: "To put the customer at the center of this vision, let's take a look through the perspective of Rachel…" | `at-home-meet-rachel.html` |
-| Section Close: "BVS Benchmarks & Key Capabilities (Coming Soon)" | `at-home-bvs.html` |
-
-The iPhone and MacBook live-demo steps are referenced in the journey map but not rebuilt — those are the live demo.
+| `at-home-unified.html` | **Primary entry point** — all sections in one file: Journey Map, Intro, Meet Rachel, Business Value |
+| `at-home-instore.html` | In-store demo deck — 14-slide journey from December in-store visit to 4th of July checkout |
+| `at-home-demo-map.html` | Standalone journey map (also embedded in unified) |
+| `at-home-vignette.html` | Standalone intro deck (also embedded in unified) |
+| `at-home-meet-rachel.html` | Standalone Meet Rachel deck (also embedded in unified) |
+| `at-home-bvs.html` | Standalone Business Value deck (also embedded in unified) |
 
 ---
 
-### How to run locally
-
-No build step needed. Open any file directly in a browser:
+### File Structure
 
 ```
-open /path/to/demo/at-home-demo-map.html
+demo/
+├── at-home-unified.html        # Primary presentation (all sections)
+├── at-home-instore.html        # In-store demo journey
+├── at-home-demo-map.html       # Journey map standalone
+├── at-home-vignette.html       # Intro standalone
+├── at-home-meet-rachel.html    # Meet Rachel standalone
+├── at-home-bvs.html            # Business Value standalone
+├── at-home-demo-story.js       # Shared story/data config
+├── styles/
+│   ├── tokens.css              # CSS custom properties (colors, spacing, fonts)
+│   ├── base.css                # Reset and html/body base styles
+│   ├── nav.css                 # .site-nav shared navigation styles
+│   ├── deck.css                # .pslide, .pdot, .click-cta slide engine styles
+│   └── components.css          # .brand-lockup, .cta-btn, .tag-pill, .demo-card
+├── js/
+│   ├── dom-utils.js            # DU utility (qs, qsa, el helpers)
+│   ├── deck.js                 # makeDeck() slide deck factory
+│   └── navigation.js           # setNavActive() helper
+├── assets/                     # Images, GIFs, PNGs
+└── sf-icon.png
 ```
 
-Or use a simple local server:
+---
+
+### Running Locally
 
 ```bash
-cd demo
-python3 -m http.server 8080
-# then open http://localhost:8080/at-home-demo-map.html
+cd demo && python3 -m http.server 8080
 ```
 
----
+Then open: `http://localhost:8080/at-home-unified.html`
 
-### Suggested presentation order
-
-1. `at-home-demo-map.html` — Orient the audience with the full journey overview
-2. `at-home-intro.html` — Executive opening (replaces the intro deck slide)
-3. `at-home-vision.html` — What the demo will show (3-part structure)
-4. `at-home-meet-rachel.html` — Introduce Rachel before the Instagram/iPhone live demo
-5. *(Live demo: Instagram → Website → Cart → SMS → AI Design Assistant → Checkout → Email)*
-6. `at-home-bvs.html` — Business value close
+No build step needed. Pure static HTML + CSS + vanilla JS.
 
 ---
 
-### Where to update presenter name / title
+### Suggested Presentation Order
 
-Edit `at-home-demo-story.js`:
+1. `at-home-unified.html` — Start here. Use the nav to move between sections:
+   - **Journey Map** — orient the audience with the full agentic retail journey
+   - **Intro** — executive opening (presenter name/title, three-act structure)
+   - **Meet Rachel** — introduce the customer persona before the live demo
+   - *(click "Demo" in nav to go to the in-store live demo)*
+   - **Business Value** — close with BVS benchmarks and platform capabilities
+2. `at-home-instore.html` — The live demo journey (14 slides, click-to-advance)
 
+---
+
+### Where to Update Content
+
+**Presenter name / title** — edit `at-home-demo-story.js`:
 ```js
-presenterName: "[PRESENTER NAME]",   // replace this
-presenterTitle: "[TITLE], Salesforce", // replace this
+presenterName: "[PRESENTER NAME]",
+presenterTitle: "[TITLE], Salesforce",
 ```
 
-Changes propagate to `at-home-intro.html` and `at-home-demo-map.html` automatically.
-
----
-
-### Where to update live demo links
-
-Edit `at-home-demo-story.js`:
-
-```js
-liveLinks: {
-  atHomeWebsite: null,    // TODO: add live At Home demo site URL
-  instagramWrapper: null, // TODO: add Instagram wrapper app URL
-  agentDemo: null,        // TODO: add Agentforce / AI Design Assistant demo URL
-},
-```
-
----
-
-### Where to replace placeholder visuals
-
-- **Rachel's avatar**: `at-home-meet-rachel.html` — find the `.persona-avatar` div with the 🌟 emoji. Replace the entire div with an `<img>` tag pointing to an approved lifestyle image. A `TODO: img` badge marks this location.
-- **Intro background**: `at-home-intro.html` — the dark background uses CSS gradients. Replace or layer a real At Home lifestyle/outdoor image using `background-image` on `.slide-wrap` if desired.
-- **BVS slide images**: `at-home-bvs.html` — the metrics section uses placeholder "XX%" values. See below.
-
----
-
-### Where to add real BVS benchmark numbers
-
-Edit `at-home-demo-story.js`:
-
+**BVS benchmark numbers** — edit `at-home-demo-story.js → bvsMetrics`:
 ```js
 bvsMetrics: [
-  { label: "Conversion Lift",     value: "XX%",  note: "TODO: insert real benchmark", icon: "↑" },
-  { label: "Average Order Value", value: "+$XX", note: "TODO: insert real benchmark", icon: "💳" },
-  // ...
+  { icon:"↑",  value:"XX%",  label:"Conversion Lift" },
+  // replace XX% with real numbers
 ],
 ```
 
-Replace the `value` fields with real numbers. The yellow TODO banner in `at-home-bvs.html` will be removed once values are populated — or remove the `.todo-banner` div manually.
+**Unified page story content** — `at-home-unified.html` has its own inline `STORY` object (intentionally separate from `at-home-demo-story.js` — the step titles differ).
 
 ---
 
-### Design tokens
+### Design Tokens
 
-All pages share these CSS variables (defined inline per page for zero-dependency portability):
+All pages share CSS custom properties defined in `styles/tokens.css`:
 
-```css
---brand-navy:      #0B1F3A   /* primary dark background */
---brand-graphite:  #1C2B3A
---patriot-red:     #B22234   /* accent / CTA / holiday red */
---patriot-blue:    #1A3F6F   /* link / highlight blue */
---cream:           #FAF7F2   /* warm white page background */
---patio-green:     #3B6E52   /* outdoor / nature accent */
---sky-blue:        #2E6DA4   /* secondary accent */
---warm-amber:      #C47E1A   /* TODO / warning accent */
+```
+--red: #b22234       (patriot red — CTAs, accents)
+--navy: #0d1b2e      (primary dark)
+--blue: #1a5fa0      (Salesforce blue)
+--gold: #f5c06a      (warm accent)
+--bg: #f5f7ff        (page background)
+--nav-height: 52px
 ```
 
 ---
 
-### Open items (from script)
+### Open Items
 
 - [ ] Update `presenterName` and `presenterTitle` in `at-home-demo-story.js`
-- [ ] Add slide images for Intro and BVS Benchmarks sections
-- [ ] Obtain iMessage screenshots for Order Servicing section (currently on hold)
+- [ ] Replace all `XX%` / `+$XX` placeholder BVS benchmark numbers with real data
+- [ ] Add product image of the Paloma Outdoor Set patio furniture
+- [ ] Confirm live demo URLs for Instagram, Agentforce, and Commerce Cloud scenes
+- [ ] Replace Rachel avatar placeholder with approved lifestyle image (assets/Rachel_Hero.gif currently in use)
 - [ ] CapGemini architecture alignment with At Home Stores LLC on Agentforce use cases
 - [ ] MC SE assigned to assist with MCP demo portion
-- [ ] Confirm executive attendees for Wednesday May 20th Top-to-Top dinner
-- [ ] **TODO: Replace all `XX%` / `+$XX` placeholder BVS benchmark numbers with real data**
-- [ ] **TODO: Add product image of the Catalina Outdoor Set patio furniture**
-- [ ] **TODO: Confirm whether Exit Intent banner (Option 2 checkout) is a Shopper Agent** (per @Aaron Riley / @Shachi Kakkar note in script)
-- [ ] **TODO: Add live demo URLs to `liveLinks` in `at-home-demo-story.js`**
-- [ ] **TODO: Replace Rachel avatar placeholder (🌟) with approved lifestyle image**
-
----
-
-### Tech stack
-
-- Pure static HTML + CSS + vanilla JS
-- Google Fonts: Inter + Playfair Display (loaded from CDN — requires internet at runtime)
-- No build step, no bundler, no framework dependencies
-- Single shared data file: `at-home-demo-story.js` (loaded via `<script src>` in each page)

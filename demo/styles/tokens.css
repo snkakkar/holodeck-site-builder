@@ -1,0 +1,53 @@
+:root {
+  /* Brand colors */
+  --red: #b22234;
+  --red-rgb: 178, 34, 52;
+  --navy: #0d1b2e;
+  --navy-rgb: 13, 27, 46;
+  --blue: #1a5fa0;
+  --blue-rgb: 26, 95, 160;
+  --blue-dark: #1a3f6f;
+  --gold: #f5c06a;
+  --gold-dark: #c47e1a;
+
+  /* Grays */
+  --gray-1: #7a8fa8;
+  --gray-2: #8a9baf;
+  --gray-3: #9aabbf;
+  --gray-4: #b0bfcc;
+  --gray-5: #3a4a5a;
+  --gray-6: #4a5a6a;
+  --gray-7: #5a6a7a;
+
+  /* Backgrounds */
+  --bg: #f5f7ff;
+  --bg-card: rgba(255, 255, 255, 0.65);
+  --bg-nav: rgba(255, 255, 255, 0.88);
+
+  /* Borders */
+  --border-nav: rgba(13, 27, 46, 0.1);
+  --border-card: rgba(13, 27, 46, 0.12);
+  --border-red: rgba(178, 34, 52, 0.3);
+  --border-red-strong: rgba(178, 34, 52, 0.45);
+
+  /* Nav */
+  --nav-height: 52px;
+
+  /* Typography */
+  --font-sans: "Inter", -apple-system, sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+
+  /* Transitions */
+  --transition-slide: opacity 0.4s ease;
+  --transition-nav: all 0.15s;
+
+  /* Shadows */
+  --shadow-card: 0 6px 24px rgba(13, 27, 46, 0.12);
+  --shadow-tooltip: 0 12px 40px rgba(0, 0, 0, 0.3);
+  --shadow-hover: 0 8px 32px rgba(178, 34, 52, 0.25), 0 0 0 3px #b22234;
+
+  /* Border radii */
+  --radius-card: 16px;
+  --radius-pill: 22px;
+  --radius-sm: 10px;
+}

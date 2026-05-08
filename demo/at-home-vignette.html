@@ -5,86 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>At Home + Salesforce | The Vision</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/tokens.css" />
+  <link rel="stylesheet" href="styles/base.css" />
+  <link rel="stylesheet" href="styles/nav.css" />
+  <link rel="stylesheet" href="styles/deck.css" />
+  <link rel="stylesheet" href="styles/components.css" />
   <script src="./at-home-demo-story.js"></script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-      font-family: "Inter", -apple-system, sans-serif;
-    }
-
-    /* ── Shared nav bar ── */
-    .site-nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: 52px;
-      background: rgba(255,255,255,.92);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(13,27,46,.1);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 40px;
-      z-index: 200;
-    }
-
-    .site-nav-brand {
-      font-size: 15px;
-      font-weight: 800;
-      letter-spacing: .06em;
-      color: #0d1b2e;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-    }
-
-    .site-nav-brand .sf-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: #b22234;
-    }
-
-    .site-nav-brand .sf-label {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: .12em;
-      color: #8a9baf;
-      text-transform: uppercase;
-    }
-
-    .site-nav-links {
-      display: flex;
-      gap: 6px;
-    }
-
-    .site-nav-links a {
-      font-size: 11.5px;
-      font-weight: 600;
-      color: #5a6a7a;
-      text-decoration: none;
-      padding: 5px 14px;
-      border: 1.5px solid rgba(13,27,46,.12);
-      border-radius: 20px;
-      transition: all .15s;
-      background: transparent;
-    }
-
-    .site-nav-links a:hover {
-      color: #0d1b2e;
-      border-color: rgba(13,27,46,.28);
-      background: rgba(13,27,46,.04);
-    }
-
-    .site-nav-links a.active {
-      color: #b22234;
-      border-color: rgba(178,34,52,.35);
-      background: rgba(178,34,52,.05);
-    }
-
     /* ── Slide engine ── */
     .slides-wrap {
       width: 100vw;
@@ -648,6 +575,9 @@
     </div>
   </div>
 
+  <script src="js/dom-utils.js"></script>
+  <script src="js/deck.js"></script>
+  <script src="js/navigation.js"></script>
   <script>
     const story = AT_HOME_DEMO_STORY;
 

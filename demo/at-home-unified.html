@@ -5,53 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>At Home + Salesforce | CX Vision Demo</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/tokens.css" />
+  <link rel="stylesheet" href="styles/base.css" />
+  <link rel="stylesheet" href="styles/nav.css" />
+  <link rel="stylesheet" href="styles/deck.css" />
+  <link rel="stylesheet" href="styles/components.css" />
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-      font-family: "Inter", -apple-system, sans-serif;
-      background: #f5f7ff;
-      color: #0d1b2e;
-    }
-
-    /* ═══════════════════════════════════════
-       NAV
-    ═══════════════════════════════════════ */
-    .site-nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: 52px;
-      background: rgba(255,255,255,.92);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(13,27,46,.1);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 40px;
-      z-index: 500;
-    }
-
-    .site-nav-brand {
-      font-size: 15px; font-weight: 800; letter-spacing: .06em;
-      color: #0d1b2e; display: flex; align-items: center; gap: 10px;
-      text-decoration: none; cursor: pointer;
-    }
-    .site-nav-brand .sf-dot { width: 7px; height: 7px; border-radius: 50%; background: #b22234; }
-    .site-nav-brand .sf-label { font-size: 10px; font-weight: 600; letter-spacing: .12em; color: #8a9baf; text-transform: uppercase; }
-
-    .site-nav-links { display: flex; gap: 6px; }
-    .site-nav-links button {
-      font-size: 11.5px; font-weight: 600; color: #5a6a7a;
-      background: transparent; border: 1.5px solid rgba(13,27,46,.12);
-      border-radius: 20px; padding: 5px 14px; cursor: pointer;
-      font-family: inherit; transition: all .15s;
-    }
-    .site-nav-links button:hover { color: #0d1b2e; border-color: rgba(13,27,46,.28); background: rgba(13,27,46,.04); }
-    .site-nav-links button.active { color: #b22234; border-color: rgba(178,34,52,.35); background: rgba(178,34,52,.05); }
-
     /* ═══════════════════════════════════════
        SECTION CONTAINERS
     ═══════════════════════════════════════ */
@@ -555,17 +514,17 @@
 
   <!-- ═══ SHARED NAV ═══ -->
   <nav class="site-nav">
-    <div class="site-nav-brand" onclick="showSection('map')">
+    <div class="site-nav-brand" id="nav-brand">
       <span>AT HOME</span>
       <span class="sf-dot"></span>
       <span class="sf-label">Salesforce CX Vision</span>
     </div>
     <div class="site-nav-links">
-      <button id="nav-map"    onclick="showSection('map')">Journey Map</button>
-      <button id="nav-intro"  onclick="showSection('intro')">Intro</button>
-      <button id="nav-rachel" onclick="showSection('rachel')">Meet Rachel</button>
-      <button id="nav-instore" onclick="window.location.href='at-home-instore.html'">Demo</button>
-      <button id="nav-bv"     onclick="showSection('bv')">Business Value</button>
+      <button id="nav-map">Journey Map</button>
+      <button id="nav-intro">Intro</button>
+      <button id="nav-rachel">Meet Rachel</button>
+      <button id="nav-instore" data-href="at-home-instore.html">Demo</button>
+      <button id="nav-bv">Business Value</button>
     </div>
   </nav>
 
@@ -742,6 +701,8 @@
     <div class="click-cta" id="bv-cta">CLICK TO CONTINUE &nbsp;›</div>
   </div>
 
+  <script src="js/dom-utils.js"></script>
+  <script src="js/navigation.js"></script>
   <script>
   // ═══════════════════════════════════════
   //  STORY DATA (inlined from at-home-demo-story.js)
@@ -856,6 +817,14 @@
 
   document.getElementById('nav-map').classList.add('active');
 
+  // Nav button event listeners (replaces inline onclick)
+  document.getElementById('nav-brand').addEventListener('click', () => showSection('map'));
+  document.getElementById('nav-map').addEventListener('click', () => showSection('map'));
+  document.getElementById('nav-intro').addEventListener('click', () => showSection('intro'));
+  document.getElementById('nav-rachel').addEventListener('click', () => showSection('rachel'));
+  document.getElementById('nav-instore').addEventListener('click', () => { window.location.href = 'at-home-instore.html'; });
+  document.getElementById('nav-bv').addEventListener('click', () => showSection('bv'));
+
   // ═══════════════════════════════════════
   //  JOURNEY MAP BUILD — verbatim from at-home-demo-map.html
   // ═══════════════════════════════════════
@@ -919,56 +888,6 @@
     fitMap();
     window.addEventListener('resize', fitMap);
   })();
-
-  // ═══════════════════════════════════════
-  //  GENERIC SLIDE DECK ENGINE
-  // ═══════════════════════════════════════
-  function makeDeck(wrapId, dotsId, ctaId, thumbId, thumbTitleId, totalSlides) {
-    const dotsEl  = document.getElementById(dotsId);
-    const ctaEl   = document.getElementById(ctaId);
-    const thumbEl = thumbId ? document.getElementById(thumbId) : null;
-    const thumbTitleEl = thumbTitleId ? document.getElementById(thumbTitleId) : null;
-    let current = 1;
-
-    for (let i = 1; i <= totalSlides; i++) {
-      const dot = document.createElement('div');
-      dot.className = 'pdot' + (i === 1 ? ' active' : '');
-      dot.addEventListener('click', e => { e.stopPropagation(); goTo(i); });
-      dotsEl.appendChild(dot);
-    }
-
-    // Hide dots/cta for inactive sections initially
-    if (wrapId !== 'intro-wrap') { dotsEl.style.display = 'none'; if (ctaEl) ctaEl.style.display = 'none'; }
-
-    function goTo(n) {
-      const next = Math.max(1, Math.min(totalSlides, n));
-      if (next === current) return;
-      const prefix = wrapId.replace('-wrap','').replace('intro','vi').replace('rachel','mr').replace('bv','bv');
-      const oldSlide = document.getElementById(prefix === 'vi' ? 'vi-'+current : prefix+'-'+current);
-      oldSlide.classList.add('exit');
-      dotsEl.children[current-1].classList.remove('active');
-      current = next;
-      setTimeout(() => {
-        oldSlide.classList.remove('active','exit');
-        const newSlide = document.getElementById(prefix === 'vi' ? 'vi-'+current : prefix+'-'+current);
-        newSlide.classList.add('active');
-      }, 300);
-      const activeDot = dotsEl.children[current-1];
-      activeDot.classList.remove('pulse'); void activeDot.offsetWidth;
-      activeDot.classList.add('active','pulse');
-      setTimeout(() => activeDot.classList.remove('pulse'), 360);
-      if (thumbEl && thumbTitleEl) {
-        // thumb handled per-deck
-      }
-      if (ctaEl) ctaEl.style.display = current === totalSlides ? 'none' : 'flex';
-    }
-
-    document.getElementById(wrapId).addEventListener('click', () => {
-      if (current < totalSlides) goTo(current + 1);
-    });
-
-    return { goTo, getDotsEl: () => dotsEl };
-  }
 
   // ═══════════════════════════════════════
   //  BUILD INTRO DECK

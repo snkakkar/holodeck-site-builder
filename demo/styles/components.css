@@ -1,0 +1,81 @@
+/* Brand lockup (AT HOME + Salesforce) */
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.brand-name-block {
+  text-align: right;
+}
+
+.brand-name {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--navy);
+  line-height: 1;
+}
+
+.brand-sub {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--gray-3);
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+.brand-divider {
+  width: 1px;
+  height: 38px;
+  background: rgba(13, 27, 46, 0.15);
+}
+
+.brand-lockup img.sf-icon {
+  height: 40px;
+  width: auto;
+  opacity: 0.85;
+}
+
+/* Common CTA button */
+.cta-btn {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--red);
+  border: 1.5px solid var(--border-red-strong);
+  border-radius: var(--radius-pill);
+  padding: 7px 16px;
+  background: rgba(178, 34, 52, 0.04);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  text-decoration: none;
+  display: inline-block;
+}
+
+.cta-btn:hover {
+  background: rgba(178, 34, 52, 0.09);
+}
+
+/* Tag / badge pill */
+.tag-pill {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(178, 34, 52, 0.08);
+  color: var(--red);
+  border: 1px solid rgba(178, 34, 52, 0.2);
+  white-space: nowrap;
+}
+
+/* Card */
+.demo-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-card);
+  border-radius: var(--radius-card);
+  padding: 20px 24px;
+  backdrop-filter: blur(6px);
+}

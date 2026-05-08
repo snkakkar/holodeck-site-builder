@@ -1,0 +1,79 @@
+.site-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-height);
+  background: var(--bg-nav);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-nav);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  z-index: 50;
+}
+
+.site-nav-brand {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.site-nav-brand .sf-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+}
+
+.site-nav-brand .sf-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--gray-2);
+  text-transform: uppercase;
+}
+
+.site-nav-links {
+  display: flex;
+  gap: 6px;
+}
+
+.site-nav-links a,
+.site-nav-links button {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--gray-7);
+  text-decoration: none;
+  padding: 5px 14px;
+  border: 1.5px solid var(--border-card);
+  border-radius: 20px;
+  transition: var(--transition-nav);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.site-nav-links a:hover,
+.site-nav-links button:hover {
+  color: var(--navy);
+  border-color: rgba(13, 27, 46, 0.28);
+  background: rgba(13, 27, 46, 0.04);
+}
+
+.site-nav-links a.active,
+.site-nav-links button.active {
+  color: var(--red);
+  border-color: rgba(178, 34, 52, 0.35);
+  background: rgba(178, 34, 52, 0.05);
+}
