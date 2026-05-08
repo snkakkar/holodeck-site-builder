@@ -31,8 +31,8 @@ const AT_HOME_DEMO_STORY = {
     ],
     wishlist: [
       {
-        id: "catalina",
-        name: "Catalina Outdoor Set",
+        id: "paloma",
+        name: "Paloma Outdoor Set",
         tag: "PRIMARY CONSIDERATION",
         detail: "Saved to cart · price-drop trigger",
         emoji: "🪑",
@@ -87,7 +87,7 @@ const AT_HOME_DEMO_STORY = {
       headline: "The right message. Then the right agent.",
       eyebrow: "MCP MULTI-CHANNEL + AGENTFORCE",
       description: "A price-drop SMS brings Rachel back. The Agentforce Shopper Agent helps her build the perfect outdoor setup.",
-      detail: "Marketing Cloud Personalization fires a proactive SMS when the Catalina Set price drops. Rachel opens the chat, meets the Agentforce Shopper Agent — asks about weather resistance, gets full product answers, and the agent builds her cart.",
+      detail: "Marketing Cloud Personalization fires a proactive SMS when the Paloma Set price drops. Rachel opens the chat, meets the Agentforce Shopper Agent — asks about weather resistance, gets full product answers, and the agent builds her cart.",
       technologies: ["Marketing Cloud Personalization", "SMS", "Agentforce Shopper Agent"],
       emoji: "🤖",
       colorClass: "step-guide",
@@ -203,7 +203,7 @@ const AT_HOME_DEMO_STORY = {
   openItems: [
     "Update presenterName and presenterTitle in at-home-demo-story.js",
     "Replace all XX% BVS benchmark placeholders with real numbers",
-    "Add product images for Rachel's wishlist (Catalina Set, Umbrella, String Lights)",
+    "Add product images for Rachel's wishlist (Paloma Set, Umbrella, String Lights)",
     "Add Rachel persona lifestyle photo to Meet Rachel slide",
     "Confirm live demo URLs and add to liveLinks",
     "Confirm Cimulate demo availability and integration point",

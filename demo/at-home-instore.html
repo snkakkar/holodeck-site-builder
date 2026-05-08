@@ -157,8 +157,8 @@
     /* ════════════════════════════════════════
        SLIDES 3 & 4 — BROWSE + CHECKOUT (TUMI-inspired layout, deck colors)
     ════════════════════════════════════════ */
-    #is-4, #is-5 { flex-direction: row; align-items: stretch; justify-content: flex-start; background: #ffffff; }
-    #is-4::before, #is-5::before {
+    #is-4, #is-5, #is-6, #is-7, #is-8, #is-9, #is-10, #is-11, #is-12, #is-13 { flex-direction: row; align-items: stretch; justify-content: flex-start; background: #ffffff; }
+    #is-4::before, #is-5::before, #is-6::before, #is-7::before, #is-8::before, #is-9::before, #is-10::before, #is-11::before, #is-12::before, #is-13::before {
       content:""; position:absolute; inset:0; pointer-events:none;
       background: radial-gradient(ellipse 55% 45% at 5% 95%, rgba(245,192,106,.09) 0%, transparent 60%),
                   radial-gradient(ellipse 45% 35% at 95% 5%, rgba(26,63,111,.05) 0%, transparent 60%);
@@ -289,8 +289,8 @@
     /* ════════════════════════════════════════
        SLIDE 6 — BRIDGE
     ════════════════════════════════════════ */
-    #is-6 { background: linear-gradient(160deg, #fff8f0 0%, #fff2e8 50%, #ffeedd 100%); }
-    #is-6::before {
+    #is-14 { background: linear-gradient(160deg, #fff8f0 0%, #fff2e8 50%, #ffeedd 100%); flex-direction: column !important; }
+    #is-14::before {
       content:""; position:absolute; inset:0; pointer-events:none;
       background-image:
         radial-gradient(circle, rgba(178,34,52,.12) 2.5px, transparent 2.5px),
@@ -313,10 +313,10 @@
     }
     .is6-cta:hover { transform:translateY(-2px); box-shadow:0 10px 36px rgba(178,34,52,.45); }
 
-    .pslide.active .is6-eyebrow  { animation: fadeUp .5s ease both .1s; }
-    .pslide.active .is6-headline { animation: fadeUpBig .65s ease both .25s; }
-    .pslide.active .is6-sub      { animation: fadeUp .5s ease both .55s; }
-    .pslide.active .is6-cta      { animation: fadeUp .5s ease both .75s, ctaPulse 2.5s ease-in-out 1.5s infinite; }
+    #is-14 .is6-eyebrow  { animation: fadeUp .5s ease both .1s; }
+    #is-14 .is6-headline { animation: fadeUpBig .65s ease both .25s; }
+    #is-14 .is6-sub      { animation: fadeUp .5s ease both .55s; }
+    #is-14 .is6-cta      { animation: fadeUp .5s ease both .75s, ctaPulse 2.5s ease-in-out 1.5s infinite; }
   </style>
 </head>
 <body>
@@ -497,8 +497,203 @@
       </div>
     </div>
 
-    <!-- Slide 6: Bridge -->
+    <!-- Slide 6: Feb Spring Email (2 states) -->
     <div class="pslide" id="is-6">
+      <!-- Left panel: transitions from neutral BG to email -->
+      <div class="is-scene-left is4-left" style="background:none;padding:0;">
+        <img src="assets/Rachel_Hero-Background.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;" alt="" />
+        <img id="is6-phone" src="assets/AtHome_iPhone_Rec.png" style="position:absolute;top:50%;left:0;right:0;margin:0 auto;transform:translateY(-50%);width:47.5%;z-index:3;opacity:0;transition:opacity .5s;" alt="Spring Email on iPhone" />
+        <div class="is-scene-tag" id="is6-tag" style="position:relative;z-index:4;">February · Two Months Later</div>
+      </div>
+      <!-- State 1: Time jump -->
+      <div class="is5-state visible" id="is6-s1">
+        <div class="is-sr-eyebrow">The Journey Continues</div>
+        <div class="is-sr-headline">Two months<br/><em>have passed.</em></div>
+        <div class="is-sr-sub">December's in-store visit quietly seeded Rachel's profile. CDP has been building a picture of who she is, what she loves, and when she buys.</div>
+        <div class="is-sr-stats">
+          <div><div class="is-sr-stat-val">December</div><div class="is-sr-stat-label">In-Store Visit</div></div>
+          <div><div class="is-sr-stat-val">→ February</div><div class="is-sr-stat-label">Two Months Later</div></div>
+          <div><div class="is-sr-stat-val">Profile</div><div class="is-sr-stat-label">Built in CDP</div></div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">One email address. Six months of potential. MCP is ready to act.</div>
+      </div>
+      <!-- State 2: The email arrives -->
+      <div class="is5-state hidden" id="is6-s2">
+        <div class="is-sr-eyebrow">Marketing Cloud Personalization</div>
+        <div class="is-sr-headline">The right message.<br/><em>Right moment.</em></div>
+        <div class="is-sr-sub">February. Rachel receives a personalized spring email — grounded in her in-store visit and homeowner profile. She clicks through to browse.</div>
+        <div class="is-sr-stats">
+          <div><div class="is-sr-stat-val">Personalized</div><div class="is-sr-stat-label">Email Content</div></div>
+          <div><div class="is-sr-stat-val">Seasonal</div><div class="is-sr-stat-label">Spring Trigger</div></div>
+          <div><div class="is-sr-stat-val">Known</div><div class="is-sr-stat-label">Profile Match</div></div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">Six months after her in-store visit — MCP delivers the right message at exactly the right moment.</div>
+      </div>
+    </div>
+
+    <!-- Slide 7: Website Browse -->
+    <div class="pslide" id="is-7">
+      <div class="is-scene-left is3-left" style="background:none;padding:0;position:relative;overflow:hidden;width:55%;">
+        <img src="assets/Rachel_Hero-Background.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;" alt="" />
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:88%;z-index:2;">
+          <img src="assets/Laptop Happy Browsing.gif" style="position:absolute;top:6%;left:11%;width:78%;z-index:1;" alt="Browsing" />
+          <img src="assets/macbook-transparent.png" style="position:relative;width:100%;z-index:2;" alt="MacBook" />
+        </div>
+        <div class="is-scene-tag" style="position:relative;z-index:4;">Commerce Cloud · Personalized Storefront</div>
+      </div>
+      <div class="is-scene-right">
+        <div class="is-sr-eyebrow">Marketing Cloud Personalization · Commerce Cloud</div>
+        <div class="is-sr-headline">She visits.<br/>The site <em>knows her.</em></div>
+        <div class="is-sr-sub">Rachel lands on a personalized Commerce Cloud storefront — the hero banner, product recommendations, and search results all reflect her outdoor entertaining intent.</div>
+        <div class="is-sr-stats">
+          <div><div class="is-sr-stat-val">Personalized</div><div class="is-sr-stat-label">Homepage</div></div>
+          <div><div class="is-sr-stat-val">AI Search</div><div class="is-sr-stat-label">Contextual Results</div></div>
+          <div><div class="is-sr-stat-val">Anonymous</div><div class="is-sr-stat-label">→ Known</div></div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">The site adapts before she says a word. Every product reflects what she's already told us.</div>
+      </div>
+    </div>
+
+    <!-- Slide 8: MCP Screens (3-click) -->
+    <div class="pslide" id="is-8">
+      <div class="is-scene-left is3-left" style="background:none;padding:0;position:relative;overflow:hidden;width:55%;">
+        <img src="assets/Rachel_Hero-Background.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;" alt="" />
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:88%;z-index:2;">
+          <img id="is8-screen" src="assets/Laptop Happy Browsing.gif" style="position:absolute;top:6%;left:11%;width:78%;z-index:1;" alt="MCP Screen" />
+          <img src="assets/macbook-transparent.png" style="position:relative;width:100%;z-index:2;" alt="MacBook" />
+        </div>
+        <div class="is-scene-tag" id="is8-tag" style="position:relative;z-index:4;">MCP · Onsite Personalization · Screen 1 of 3</div>
+      </div>
+      <div class="is-scene-right">
+        <div class="is-sr-eyebrow" id="is8-eyebrow">Marketing Cloud Personalization</div>
+        <div class="is-sr-headline" id="is8-headline">Personalized<br/><em>hero banner.</em></div>
+        <div class="is-sr-sub" id="is8-sub">MCP serves a tailored 4th of July hero banner the moment Rachel lands — outdoor furniture, her style, her moment.</div>
+        <div class="is-sr-stats">
+          <div><div class="is-sr-stat-val">Real-Time</div><div class="is-sr-stat-label">Personalization</div></div>
+          <div><div class="is-sr-stat-val">Anonymous</div><div class="is-sr-stat-label">→ Known</div></div>
+          <div><div class="is-sr-stat-val" id="is8-counter">1 / 3</div><div class="is-sr-stat-label">MCP Screen</div></div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote" id="is8-quote">Every visit starts with a signal. MCP turns that signal into a moment.</div>
+      </div>
+    </div>
+
+    <!-- Slide 9: Apr 4th of July Email -->
+    <div class="pslide" id="is-9">
+      <div class="is-scene-left is4-left" style="background:none;padding:0;">
+        <img src="assets/Rachel_Hero-Background.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;" alt="" />
+        <img src="assets/AtHome_iPhone_Rec.png" style="position:absolute;top:50%;left:0;right:0;margin:0 auto;transform:translateY(-50%);width:47.5%;z-index:3;" alt="4th of July Email" />
+        <div class="is-scene-tag" style="position:relative;z-index:4;">MCP · 4th of July Email · April</div>
+      </div>
+      <div class="is-scene-right">
+        <div class="is-sr-eyebrow">Marketing Cloud Personalization</div>
+        <div class="is-sr-headline">Start planning<br/><em>early.</em></div>
+        <div class="is-sr-sub">April. MCP fires a proactive 4th of July email — timed to Rachel's purchase window and outdoor entertaining profile.</div>
+        <div class="is-sr-stats">
+          <div><div class="is-sr-stat-val">April</div><div class="is-sr-stat-label">Early Signal</div></div>
+          <div><div class="is-sr-stat-val">Seasonal</div><div class="is-sr-stat-label">Trigger</div></div>
+          <div><div class="is-sr-stat-val">Proactive</div><div class="is-sr-stat-label">Outreach</div></div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">The best time to reach Rachel is before she starts searching. MCP knows exactly when that is.</div>
+      </div>
+    </div>
+
+    <!-- Slide 10: Instagram Ad (iframe) -->
+    <div class="pslide" id="is-10">
+      <div class="is-scene-left is3-left" style="background:none;padding:0;position:relative;overflow:hidden;">
+        <iframe src="https://pocketsic.aubreydemo.com/scene/1059/frame" style="position:absolute;inset:0;width:100%;height:100%;border:none;z-index:2;" allowfullscreen></iframe>
+        <div class="is-scene-tag" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:4;">MCP · Instagram Ad · June</div>
+      </div>
+      <div class="is-scene-right">
+        <div class="is-sr-eyebrow">Marketing Cloud Personalization · Paid Media</div>
+        <div class="is-sr-headline">She sees it<br/><em>on Instagram.</em></div>
+        <div class="is-sr-sub">June. MCP identifies Rachel as high-propensity and fires a targeted 4th of July ad — the right product, the right platform, the right moment.</div>
+        <div class="is-sr-stats">
+          <div><div class="is-sr-stat-val">High Intent</div><div class="is-sr-stat-label">Propensity Score</div></div>
+          <div><div class="is-sr-stat-val">Targeted</div><div class="is-sr-stat-label">Paid Media</div></div>
+          <div><div class="is-sr-stat-val">June</div><div class="is-sr-stat-label">Perfect Timing</div></div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">Six months of signals. One perfectly timed ad. Rachel clicks.</div>
+      </div>
+    </div>
+
+    <!-- Slide 11: Abandon Cart Email -->
+    <div class="pslide" id="is-11">
+      <div class="is-scene-left is4-left" style="background:none;padding:0;">
+        <img src="assets/Rachel_Hero-Background.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;" alt="" />
+        <img src="assets/AtHome_iPhone_Rec.png" style="position:absolute;top:50%;left:0;right:0;margin:0 auto;transform:translateY(-50%);width:47.5%;z-index:3;" alt="Abandon Cart Email" />
+        <div class="is-scene-tag" style="position:relative;z-index:4;">MCP · Abandon Cart Email · June</div>
+      </div>
+      <div class="is-scene-right">
+        <div class="is-sr-eyebrow">Marketing Cloud Personalization</div>
+        <div class="is-sr-headline">She left.<br/><em>We noticed.</em></div>
+        <div class="is-sr-sub">Rachel added the Paloma Outdoor Set to her cart — then life happened. MCP fires a personalized abandon cart email to bring her back.</div>
+        <div class="is-sr-stats">
+          <div><div class="is-sr-stat-val">Paloma Set</div><div class="is-sr-stat-label">In Cart</div></div>
+          <div><div class="is-sr-stat-val">Triggered</div><div class="is-sr-stat-label">Abandon Signal</div></div>
+          <div><div class="is-sr-stat-val">Recovery</div><div class="is-sr-stat-label">Opportunity</div></div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">The cart remembers. MCP makes sure Rachel does too.</div>
+      </div>
+    </div>
+
+    <!-- Slide 12: Agentic SMS (iframe) -->
+    <div class="pslide" id="is-12">
+      <div class="is-scene-left is3-left" style="background:none;padding:0;position:relative;overflow:hidden;">
+        <iframe src="https://pocketsic.aubreydemo.com/scene/1061/frame" style="position:absolute;inset:0;width:100%;height:100%;border:none;z-index:2;" allowfullscreen></iframe>
+        <div class="is-scene-tag" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:4;">Agentforce · Agentic SMS · July</div>
+      </div>
+      <div class="is-scene-right">
+        <div class="is-sr-eyebrow">Marketing Cloud Personalization · Agentforce</div>
+        <div class="is-sr-headline">Not a reminder.<br/><em>A conversation.</em></div>
+        <div class="is-sr-sub">July. An Agentic SMS reaches Rachel — not a static push. The AI agent surfaces a Flash Sale exclusive to the At Home app and drives the download.</div>
+        <div class="is-sr-stats">
+          <div><div class="is-sr-stat-val">Agentic</div><div class="is-sr-stat-label">Two-Way SMS</div></div>
+          <div><div class="is-sr-stat-val">Flash Sale</div><div class="is-sr-stat-label">App Exclusive</div></div>
+          <div><div class="is-sr-stat-val">Download</div><div class="is-sr-stat-label">Channel Deepening</div></div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">Recovery becomes a relationship. Rachel downloads the app.</div>
+      </div>
+    </div>
+
+    <!-- Slide 13: Shopper Agent / Purchase (iframe) -->
+    <div class="pslide" id="is-13">
+      <div class="is-scene-left is3-left" style="background:none;padding:0;position:relative;overflow:hidden;">
+        <iframe src="https://pocketsic.aubreydemo.com/scene/1060/frame" style="position:absolute;inset:0;width:100%;height:100%;border:none;z-index:2;" allowfullscreen></iframe>
+        <div class="is-scene-tag" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:4;">Agentforce Shopper Agent · July</div>
+      </div>
+      <div class="is-scene-right">
+        <div class="is-sr-eyebrow">Agentforce Shopper Agent · Commerce Cloud</div>
+        <div class="is-sr-headline">One conversation.<br/><em>Full cart. Checkout.</em></div>
+        <div class="is-sr-sub">Inside the app, the Agentforce Shopper Agent answers Rachel's questions, recommends the umbrella and string lights, and adds everything to her cart. She checks out.</div>
+        <div class="is-sr-stats">
+          <div><div class="is-sr-stat-val">Paloma Set</div><div class="is-sr-stat-label">In Cart</div></div>
+          <div><div class="is-sr-stat-val">+2 Items</div><div class="is-sr-stat-label">Recommended</div></div>
+          <div><div class="is-sr-stat-val">Purchased</div><div class="is-sr-stat-label">Agentforce Closes</div></div>
+        </div>
+        <div class="is-sr-divider"></div>
+        <div class="is-sr-quote-mark">"</div>
+        <div class="is-sr-quote">One agent. One conversation. The backyard is ready for the 4th.</div>
+      </div>
+    </div>
+
+    <!-- Slide 14: Bridge -->
+    <div class="pslide" id="is-14">
       <p class="is6-eyebrow">The Journey Begins</p>
       <h2 class="is6-headline">Six months of data.<br/>One <span class="accent">perfect moment.</span></h2>
       <p class="is6-sub">Rachel is ready. CDP knows who she is, what she loves, and exactly when to reach her. The agentic journey starts now.</p>
@@ -606,7 +801,45 @@
       is5state = n;
     }
 
-    const TOTAL = 6;
+    // Slide 6: time-jump → email
+    let is6state = 1;
+    function showIs6State(n) {
+      const s1 = document.getElementById('is6-s1');
+      const s2 = document.getElementById('is6-s2');
+      const phone = document.getElementById('is6-phone');
+      if (n === 1) {
+        s1.classList.remove('hidden'); s1.classList.add('visible');
+        s2.classList.remove('visible'); s2.classList.add('hidden');
+        phone.style.opacity = '0';
+        document.getElementById('is6-tag').textContent = 'February · Two Months Later';
+      } else {
+        s2.classList.remove('hidden'); s2.classList.add('visible');
+        s1.classList.remove('visible'); s1.classList.add('hidden');
+        phone.style.opacity = '1';
+        document.getElementById('is6-tag').textContent = 'MCP · Spring Email · February';
+      }
+      is6state = n;
+    }
+
+    // Slide 8: MCP 3-click states
+    const MCP_STATES = [
+      { tag:'MCP · Onsite Personalization · Screen 1 of 3', headline:'Personalized<br/><em>hero banner.</em>', sub:'MCP serves a tailored 4th of July hero banner the moment Rachel lands — outdoor furniture, her style, her moment.', quote:'Every visit starts with a signal. MCP turns that signal into a moment.', counter:'1 / 3' },
+      { tag:'MCP · Product Recommendations · Screen 2 of 3', headline:'Products she<br/><em>already wants.</em>', sub:'MCP surfaces patio sets recommended to Rachel over email — her browse history and purchase intent shaping every tile.', quote:'Recommendations aren\'t guesses. They\'re built from six months of Rachel\'s story.', counter:'2 / 3' },
+      { tag:'MCP · AI-Powered Search · Screen 3 of 3', headline:'Search that<br/><em>understands her.</em>', sub:'Contextual AI search built into Commerce Cloud surfaces exactly the right products for Rachel\'s outdoor entertaining intent.', quote:'She typed "patio". MCP heard "4th of July BBQ for 8".', counter:'3 / 3' },
+    ];
+    let is8state = 1;
+
+    function showIs8State(n) {
+      const s = MCP_STATES[n - 1];
+      document.getElementById('is8-tag').textContent = s.tag.replace(/<[^>]+>/g,'');
+      document.getElementById('is8-headline').innerHTML = s.headline;
+      document.getElementById('is8-sub').textContent = s.sub;
+      document.getElementById('is8-quote').textContent = s.quote;
+      document.getElementById('is8-counter').textContent = s.counter;
+      is8state = n;
+    }
+
+    const TOTAL = 14;
     const dotsEl = document.getElementById('is-dots');
     const ctaEl  = document.getElementById('is-cta');
     let current  = 1;
@@ -626,6 +859,8 @@
       dotsEl.children[current - 1].classList.remove('active');
       current = next;
       if (current === 5) showIs5State(1);
+      if (current === 6) showIs6State(1);
+      if (current === 8) showIs8State(1);
       setTimeout(() => {
         old.classList.remove('active', 'exit');
         document.getElementById('is-' + current).classList.add('active');
@@ -638,6 +873,8 @@
 
     document.getElementById('is-wrap').addEventListener('click', () => {
       if (current === 5 && is5state === 1) { showIs5State(2); return; }
+      if (current === 6 && is6state === 1) { showIs6State(2); return; }
+      if (current === 8 && is8state < 3) { showIs8State(is8state + 1); return; }
       if (current < TOTAL) goTo(current + 1);
     });
 
@@ -645,10 +882,14 @@
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
         if (current === 5 && is5state === 1) { showIs5State(2); return; }
+        if (current === 6 && is6state === 1) { showIs6State(2); return; }
+        if (current === 8 && is8state < 3) { showIs8State(is8state + 1); return; }
         goTo(current + 1);
       }
       if (e.key === 'ArrowLeft') {
         if (current === 5 && is5state === 2) { showIs5State(1); return; }
+        if (current === 6 && is6state === 2) { showIs6State(1); return; }
+        if (current === 8 && is8state > 1) { showIs8State(is8state - 1); return; }
         goTo(current - 1);
       }
     });
