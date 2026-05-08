@@ -22,7 +22,7 @@ demo/
 │   ├── slides.css              # Section containers, slide engine, all section layout/typography
 │   ├── components.css          # .brand-lockup, .cta-btn, .tag-pill, .demo-card
 │   ├── animations.css          # @keyframes + per-slide animation triggers
-│   └── at-home-theme.css       # Slide background gradients, dot patterns, circle fills
+│   └── demo-theme.css       # Slide background gradients, dot patterns, circle fills
 ├── js/
 │   ├── dom-utils.js            # DU utility (qs, qsa, el helpers)
 │   └── navigation.js           # setNavActive() helper
