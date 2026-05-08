@@ -1,0 +1,158 @@
+/* ═══════════════════════════════════════
+   ANIMATIONS — shared keyframes + per-slide triggers
+═══════════════════════════════════════ */
+
+/* ── Keyframes ── */
+@keyframes fadeUp      { from { opacity:0; transform:translateY(22px); }  to { opacity:1; transform:none; } }
+@keyframes fadeUpBig   { from { opacity:0; transform:translateY(30px); }  to { opacity:1; transform:none; } }
+@keyframes slideInLeft { from { opacity:0; transform:translateX(-40px); } to { opacity:1; transform:none; } }
+@keyframes popIn       { from { opacity:0; transform:scale(0.88) translateY(14px); } to { opacity:1; transform:none; } }
+@keyframes popInFeat   { from { opacity:0; transform:scale(0.9) translateY(14px); } to { opacity:1; transform:scale(1.05); } }
+@keyframes orbitSpin        { from { transform:rotate(0deg); }   to { transform:rotate(360deg); } }
+@keyframes orbitSpinReverse { from { transform:rotate(0deg); }   to { transform:rotate(-360deg); } }
+@keyframes ctaPulse    { 0%,100% { box-shadow:0 6px 28px rgba(178,34,52,.35); } 50% { box-shadow:0 6px 36px rgba(178,34,52,.55); } }
+@keyframes dotPulse    { 0% { transform:scale(1); } 40% { transform:scale(1.2); } 100% { transform:scale(1); } }
+@keyframes floatBob    { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
+@keyframes floatBobAlt { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-5px); } }
+@keyframes shimmerSlide { 0% { left:-100%; } 100% { left:200%; } }
+@keyframes nodePop { 0%,100% { transform:scale(1); } 50% { transform:scale(1.08); box-shadow:0 4px 18px rgba(178,34,52,.18); } }
+@keyframes orbitNodeSpin { from { transform:rotate(0deg) translateX(var(--r)) rotate(0deg); } to { transform:rotate(360deg) translateX(var(--r)) rotate(-360deg); } }
+@keyframes orbitNodeSpinRev { from { transform:rotate(0deg) translateX(var(--r)) rotate(0deg); } to { transform:rotate(-360deg) translateX(var(--r)) rotate(360deg); } }
+@keyframes glowPulse { 0%,100% { box-shadow:0 0 0 0 rgba(26,63,111,0); } 50% { box-shadow:0 0 0 12px rgba(26,63,111,.08); } }
+@keyframes centerBreath { 0%,100% { transform:scale(1); } 50% { transform:scale(1.04); } }
+@keyframes confettiFall { 0% { transform:translateY(0) rotate(0deg); opacity:0; } 10% { opacity:.8; } 90% { opacity:.4; } 100% { transform:translateY(-110vh) rotate(540deg); opacity:0; } }
+@keyframes orbitNodeFadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes breatheOrb {
+  0%,100% { box-shadow:0 0 0 5px rgba(255,255,255,.7),0 0 0 9px rgba(178,34,52,.12),0 14px 40px rgba(178,34,52,.15); }
+  50%     { box-shadow:0 0 0 5px rgba(255,255,255,.7),0 0 0 12px rgba(178,34,52,.22),0 20px 60px rgba(178,34,52,.22); }
+}
+@keyframes shimmer { 0% { transform:translateX(-150%); } 100% { transform:translateX(150%); } }
+
+/* ── Section B — Intro (Vignette) animation triggers ── */
+.pslide.active .vi-s1-eyebrow { animation: fadeUp .5s ease both .1s; }
+.pslide.active .vi-s1-headline { animation: fadeUp .5s ease both .25s; }
+.pslide.active .vi-s1-sub      { animation: fadeUp .5s ease both .45s; }
+.pslide.active .vi-s2-eyebrow  { animation: fadeUp .5s ease both .1s; }
+.pslide.active .vi-s2-headline { animation: fadeUp .5s ease both .2s; }
+.pslide.active .vi-s2-sub      { animation: fadeUp .5s ease both .35s; }
+.pslide.active .vi-s2-presenter-row { animation: fadeUp .5s ease both .55s; }
+.pslide.active .vi-s3-eyebrow  { animation: fadeUp .5s ease both .05s; }
+.pslide.active .vi-s3-headline { animation: fadeUp .5s ease both .15s; }
+.pslide.active .vi-s3-part:nth-child(1) { animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both .2s; }
+.pslide.active .vi-s3-part:nth-child(2) { animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both .35s; }
+.pslide.active .vi-s3-part:nth-child(3) { animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both .5s; }
+.pslide.active .vi-s3-ga       { animation: fadeUp .5s ease both .7s; }
+.pslide.active .v-eyebrow  { animation: fadeUp .5s ease both .1s; }
+.pslide.active .v-headline { animation: fadeUp .5s ease both .25s; }
+.pslide.active .v-sub      { animation: fadeUp .5s ease both .45s; }
+
+/* ── Section C — Meet Rachel animation triggers ── */
+.pslide.active .mr-s1-eyebrow { animation: fadeUp .5s ease both .1s; }
+.pslide.active .mr-s1-title   { animation: fadeUpBig .55s ease both .25s; }
+.pslide.active .mr-s1-sub     { animation: fadeUp .5s ease both .5s; }
+.pslide.active .mr-s2-left    { animation: slideInLeft .55s ease both .1s; }
+.pslide.active .mr-s2-role    { animation: fadeUp .5s ease both .2s; }
+.pslide.active .mr-s2-name    { animation: fadeUp .5s ease both .3s; }
+.pslide.active .mr-s2-job     { animation: fadeUp .5s ease both .4s; }
+.pslide.active .mr-s2-stats > div:nth-child(1) { animation: fadeUp .5s ease both .5s; }
+.pslide.active .mr-s2-stats > div:nth-child(2) { animation: fadeUp .5s ease both .6s; }
+.pslide.active .mr-s2-stats > div:nth-child(3) { animation: fadeUp .5s ease both .7s; }
+.pslide.active .mr-s2-divider    { animation: fadeUp .5s ease both .6s; }
+.pslide.active .mr-s2-quote-mark { animation: fadeUp .5s ease both .7s; }
+.pslide.active .mr-s2-quote      { animation: fadeUp .5s ease both .8s; }
+.pslide.active .mr-s3-collection-label { animation: fadeUp .5s ease both .1s; }
+.pslide.active .mr-s3-headline    { animation: fadeUp .5s ease both .2s; }
+.pslide.active .mr-s3-cards .mr-s3-card:nth-child(1):not(.featured) { animation: popIn .55s cubic-bezier(.34,1.56,.64,1) both .25s; }
+.pslide.active .mr-s3-cards .mr-s3-card:nth-child(2):not(.featured) { animation: popIn .55s cubic-bezier(.34,1.56,.64,1) both .4s; }
+.pslide.active .mr-s3-cards .mr-s3-card:nth-child(3):not(.featured) { animation: popIn .55s cubic-bezier(.34,1.56,.64,1) both .55s; }
+.pslide.active .mr-s3-cards .mr-s3-card.featured:nth-child(1) { animation: popInFeat .55s cubic-bezier(.34,1.56,.64,1) both .25s; }
+.pslide.active .mr-s3-cards .mr-s3-card.featured:nth-child(2) { animation: popInFeat .55s cubic-bezier(.34,1.56,.64,1) both .4s; }
+.pslide.active .mr-s3-cards .mr-s3-card.featured:nth-child(3) { animation: popInFeat .55s cubic-bezier(.34,1.56,.64,1) both .55s; }
+.pslide.active .mr-s4-eyebrow  { animation: fadeUp .5s ease both .1s; }
+.pslide.active .mr-s4-headline { animation: fadeUp .5s ease both .25s; }
+.pslide.active .mr-s4-sub      { animation: fadeUp .5s ease both .4s; }
+.pslide.active .mr-s4-cta      { animation: fadeUp .5s ease both .55s, ctaPulse 2.5s ease-in-out 1.2s infinite; }
+
+/* ── Section D — Business Value animation triggers ── */
+.pslide.active .bv-s1-eyebrow  { animation: fadeUp .5s ease both .1s; }
+.pslide.active .bv-s1-headline { animation: fadeUp .5s ease both .25s; }
+.pslide.active .bv-s1-sub      { animation: fadeUp .5s ease both .45s; }
+#bv-2.active .bv-orbit-outer { animation: orbitSpin 200s linear infinite; }
+#bv-2.active .bv-orbit-inner { animation: orbitSpinReverse 200s linear infinite; }
+#bv-2.active .bv-orbit-center { animation: fadeUp .5s ease both .15s, centerBreath 3.5s ease-in-out 1s infinite; }
+#bv-2:not(.active) .bv-orbit-node-wrap,
+#bv-2:not(.active) .bv-orbit-node,
+#bv-2:not(.active) .bv-orbit-ring,
+#bv-2:not(.active) .bv-orbit-center,
+#bv-2:not(.active) .bv-orbit-node-wrap > div { animation-play-state: paused !important; }
+#bv-2.active .bv-oc-eyebrow  { animation: fadeUp .5s ease both .2s; }
+#bv-2.active .bv-oc-headline { animation: fadeUp .5s ease both .35s; }
+#bv-2.active .bv-oc-body     { animation: fadeUp .5s ease both .5s; }
+#bv-2.active .bv-oc-stats > div:nth-child(1) { animation: fadeUp .5s ease both .65s; }
+#bv-2.active .bv-oc-stats > div:nth-child(2) { animation: fadeUp .5s ease both .75s; }
+#bv-2.active .bv-oc-stats > div:nth-child(3) { animation: fadeUp .5s ease both .85s; }
+.pslide.active .bv-s3-eyebrow  { animation: fadeUp .5s ease both .1s; }
+.pslide.active .bv-s3-headline { animation: fadeUp .5s ease both .2s; }
+.pslide.active .bv-s3-cap:nth-child(1) { animation: popIn .45s ease both .25s; }
+.pslide.active .bv-s3-cap:nth-child(2) { animation: popIn .45s ease both .35s; }
+.pslide.active .bv-s3-cap:nth-child(3) { animation: popIn .45s ease both .45s; }
+.pslide.active .bv-s3-cap:nth-child(4) { animation: popIn .45s ease both .55s; }
+.pslide.active .bv-s3-cap:nth-child(5) { animation: popIn .45s ease both .65s; }
+.pslide.active .bv-s3-cap:nth-child(6) { animation: popIn .45s ease both .75s; }
+.pslide.active .bv-s3-cap:nth-child(7) { animation: popIn .45s ease both .85s; }
+.pslide.active .bv-s4-eyebrow  { animation: fadeUp .5s ease both .1s; }
+.pslide.active .bv-s4-headline { animation: fadeUp .5s ease both .2s; }
+.pslide.active .bv-s4-todo     { animation: fadeUp .5s ease both .35s; }
+.pslide.active .bv-s4-metric:nth-child(1) { animation: popIn .45s ease both .4s; }
+.pslide.active .bv-s4-metric:nth-child(2) { animation: popIn .45s ease both .52s; }
+.pslide.active .bv-s4-metric:nth-child(3) { animation: popIn .45s ease both .64s; }
+.pslide.active .bv-s4-metric:nth-child(4) { animation: popIn .45s ease both .76s; }
+.pslide.active .bv-s4-metric:nth-child(5) { animation: popIn .45s ease both .88s; }
+.pslide.active .bv-s5-eyebrow  { animation: fadeUp .5s ease both .1s; }
+.pslide.active .bv-s5-headline { animation: fadeUp .5s ease both .3s; }
+.pslide.active .bv-s5-cta      { animation: fadeUp .5s ease both .55s, ctaPulse 2.5s ease-in-out 1.2s infinite; }
+
+/* ── Section E — Demo (instore) animation triggers ── */
+.pslide.active .is1-eyebrow  { animation: fadeUp .5s ease both .1s; }
+.pslide.active .is1-headline { animation: fadeUpBig .65s ease both .25s; }
+.pslide.active .is1-sub      { animation: fadeUp .5s ease both .6s; }
+.pslide.active .is2-left               { animation: slideInLeft .55s ease both .1s; }
+.pslide.active .is2-role               { animation: fadeUp .5s ease both .2s; }
+.pslide.active .is2-name               { animation: fadeUp .5s ease both .3s; }
+.pslide.active .is2-sub                { animation: fadeUp .5s ease both .4s; }
+.pslide.active .is2-divider            { animation: fadeUp .5s ease both .5s; }
+.pslide.active .is2-scene-item:nth-child(1) { animation: fadeUp .4s ease both .5s; }
+.pslide.active .is2-scene-item:nth-child(2) { animation: fadeUp .4s ease both .62s; }
+.pslide.active .is2-scene-item:nth-child(3) { animation: fadeUp .4s ease both .74s; }
+.pslide.active .is2-scene-item:nth-child(4) { animation: fadeUp .4s ease both .86s; }
+.pslide.active .is3-eyebrow  { animation: fadeUp .5s ease both .1s; }
+.pslide.active .is3-headline { animation: fadeUp .5s ease both .2s; }
+.pslide.active .is3-sub      { animation: fadeUp .5s ease both .35s; }
+.pslide.active .is3-track    { animation: fadeUp .4s ease both .45s; }
+.pslide.active .is3-node:nth-child(1)  { animation: fadeUp .4s ease both .5s; }
+.pslide.active .is3-node:nth-child(2)  { animation: fadeUp .4s ease both .6s; }
+.pslide.active .is3-node:nth-child(3)  { animation: fadeUp .4s ease both .7s; }
+.pslide.active .is3-node:nth-child(4)  { animation: fadeUp .4s ease both .8s; }
+.pslide.active .is3-node:nth-child(5)  { animation: fadeUp .4s ease both .9s; }
+.pslide.active .is3-node:nth-child(6)  { animation: fadeUp .4s ease both 1.0s; }
+.pslide.active .is3-node:nth-child(7)  { animation: fadeUp .4s ease both 1.1s; }
+.pslide.active .is3-node:nth-child(8)  { animation: fadeUp .4s ease both 1.2s; }
+.pslide.active .is3-node:nth-child(9)  { animation: fadeUp .4s ease both 1.3s; }
+.pslide.active .is3-node:nth-child(10) { animation: fadeUp .4s ease both 1.35s; }
+.pslide.active .is3-node:nth-child(11) { animation: fadeUp .4s ease both 1.4s; }
+.pslide.active .is3-node:nth-child(12) { animation: fadeUp .4s ease both 1.65s; }
+.pslide.active .is3-node:nth-child(13) { animation: fadeUp .4s ease both 1.7s; }
+.pslide.active .is-scene-left    { animation: slideInLeft .55s ease both .1s; }
+.pslide.active .is-figure        { animation: fadeUp .6s cubic-bezier(.34,1.4,.64,1) both .15s; }
+.pslide.active .is-scene-tag     { animation: fadeUp .4s ease both .45s; }
+.pslide.active .is-sr-eyebrow    { animation: fadeUp .5s ease both .2s; }
+.pslide.active .is-sr-headline   { animation: fadeUp .5s ease both .3s; }
+.pslide.active .is-sr-sub        { animation: fadeUp .5s ease both .4s; }
+.pslide.active .is-sr-stats      { animation: fadeUp .5s ease both .5s; }
+.pslide.active .is-sr-divider    { animation: fadeUp .4s ease both .62s; }
+.pslide.active .is-sr-quote-mark { animation: fadeUp .4s ease both .68s; }
+.pslide.active .is-sr-quote      { animation: fadeUp .5s ease both .76s; }
+#is-14.active .is6-eyebrow  { animation: fadeUp .5s ease both .1s; }
+#is-14.active .is6-headline { animation: fadeUpBig .65s ease both .25s; }
+#is-14.active .is6-sub      { animation: fadeUp .5s ease both .55s; }
+#is-14.active .is6-cta      { animation: fadeUp .5s ease both .75s, ctaPulse 2.5s ease-in-out 1.5s infinite; }
