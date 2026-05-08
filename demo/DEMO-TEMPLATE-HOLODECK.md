@@ -7,7 +7,7 @@
 
 | File | Purpose |
 |---|---|
-| `at-home-unified.html` | **Single presenter entry point** — all sections in one file: Journey Map, Intro, Meet Rachel, Demo (14-slide instore journey), Business Value |
+| `demo-holodeck-unified.html` | **Single presenter entry point** — all sections in one file: Journey Map, Intro, Meet Rachel, Demo (14-slide instore journey), Business Value |
 
 ---
 
@@ -15,7 +15,7 @@
 
 ```
 demo/
-├── at-home-unified.html        # Primary presentation (all sections)
+├── demo-holodeck-unified.html        # Primary presentation (all sections)
 ├── styles/
 │   ├── tokens.css              # CSS custom properties (colors, spacing, fonts)
 │   ├── base.css                # Reset and html/body base styles
@@ -38,7 +38,7 @@ demo/
 cd demo && python3 -m http.server 8080
 ```
 
-Then open: `http://localhost:8080/at-home-unified.html`
+Then open: `http://localhost:8080/demo-holodeck-unified.html`
 
 No build step needed. Pure static HTML + CSS + vanilla JS.
 
@@ -46,7 +46,7 @@ No build step needed. Pure static HTML + CSS + vanilla JS.
 
 ### Suggested Presentation Order
 
-Use the top nav to move between sections in `at-home-unified.html`:
+Use the top nav to move between sections in `demo-holodeck-unified.html`:
 
 1. **Journey Map** — orient the audience with the full agentic retail journey
 2. **Intro** — executive opening (presenter name/title, three-act structure)
@@ -58,7 +58,7 @@ Use the top nav to move between sections in `at-home-unified.html`:
 
 ### Where to Update Content
 
-**Presenter name / title** — edit the `STORY` object in `at-home-unified.html`:
+**Presenter name / title** — edit the `STORY` object in `demo-holodeck-unified.html`:
 ```js
 const STORY = {
   presenterName: "[PRESENTER NAME]",
@@ -67,7 +67,7 @@ const STORY = {
 }
 ```
 
-**BVS benchmark numbers** — edit `STORY.bvsMetrics` in `at-home-unified.html`:
+**BVS benchmark numbers** — edit `STORY.bvsMetrics` in `demo-holodeck-unified.html`:
 ```js
 bvsMetrics: [
   { icon:"↑",  value:"XX%",  label:"Conversion Lift" },
@@ -94,7 +94,7 @@ All pages share CSS custom properties defined in `styles/tokens.css`:
 
 ### Open Items
 
-- [ ] Update `presenterName` and `presenterTitle` in `at-home-unified.html → STORY`
+- [ ] Update `presenterName` and `presenterTitle` in `demo-holodeck-unified.html → STORY`
 - [ ] Replace all `XX%` / `+$XX` placeholder BVS benchmark numbers with real data
 - [ ] Add product image of the Paloma Outdoor Set patio furniture
 - [ ] Confirm live demo URLs for Instagram, Agentforce, and Commerce Cloud scenes

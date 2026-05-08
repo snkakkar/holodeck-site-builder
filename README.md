@@ -19,7 +19,7 @@ All sections are driven by `demo/holodeck.config.js` and rendered by shared HTML
 ## Repository structure
 
 - `demo/index.html` - local entry URL (redirects to the main experience)
-- `demo/at-home-unified.html` - unified presentation shell
+- `demo/demo-holodeck-unified.html` - unified presentation shell
 - `demo/holodeck.config.js` - primary content and configuration source
 - `demo/js/holodeck-render.js` - config-driven rendering logic
 - `demo/styles/` - theme, layout, and animation CSS

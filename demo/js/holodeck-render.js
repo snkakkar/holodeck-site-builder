@@ -2,7 +2,7 @@
 // Reads window.HOLODECK_CONFIG and does two things:
 //   1. Injects brand CSS custom properties into :root
 //   2. Builds window.STORY (the shape the existing render code expects)
-// Load this AFTER holodeck.config.js and BEFORE the inline script in at-home-unified.html.
+// Load this AFTER holodeck.config.js and BEFORE the inline script in demo-holodeck-unified.html.
 
 (function () {
   "use strict";
@@ -35,7 +35,7 @@
     document.head.insertBefore(link, document.head.firstChild);
   }
 
-  // ── 4. Build window.STORY (shape expected by at-home-unified.html) ──
+  // ── 4. Build window.STORY (shape expected by demo-holodeck-unified.html) ──
   window.STORY = {
     presenterName:  C.presenter.name,
     presenterTitle: C.presenter.title + ", " + C.presenter.company,
