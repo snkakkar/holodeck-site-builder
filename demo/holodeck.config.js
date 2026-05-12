@@ -833,4 +833,50 @@ window.HOLODECK_CONFIG = {
     "Add customer logo to assets/ and set brand.logoPath",
   ],
 
+  // ─────────────────────────────────────────────────────────────
+  //  BUILDER PLAN  →  Drives the Demo deck renderer
+  //  ⚑ The Demo section reads builderPlan.slides[] and renders one
+  //  asset-independent slide per entry. This default plan keeps the
+  //  template self-demoing when /demo/ is opened directly.
+  // ─────────────────────────────────────────────────────────────
+  builderPlan: {
+    audience:   "Mixed",
+    salesStage: "Discovery",
+    products:   ["Marketing Cloud", "Commerce Cloud", "Agentforce", "Data Cloud"],
+    storyFoundations: {
+      businessProblem:    "At Home knows their customers in stores but loses them online — every channel is a fresh start.",
+      currentStatePain:   "Anonymous browsers, abandoned carts, and disconnected service touchpoints leave revenue on the table.",
+      futureStateVision:  "One unified profile turns every channel into a continuation of the same customer relationship.",
+      transformationThesis: "Identity + AI + agents = personalized, agentic commerce on a single platform.",
+      executiveTakeaway:  "A single Salesforce platform compounds Marketing, Commerce, and Service into measurable lift.",
+    },
+    personas: [
+      {
+        name: "Rachel",
+        role: "Holiday shopper turned loyalist",
+        goals: "Refresh her home for the holidays without spending hours comparing stores online and in-app.",
+        painPoints: "She browses on multiple devices and hates re-explaining her taste every time she switches channels.",
+        demoRelevance: "Rachel's December store visit is the seed identity that powers six months of personalized, agentic engagement.",
+      },
+    ],
+    storyActs: [
+      { title: "In-store identity capture", channel: "POS", summary: "Rachel's first store visit creates a unified profile from a digital receipt.", salesforceCapabilities: "Data Cloud · Loyalty", businessValue: "Convert anonymous to known", demoMoment: "Email-on-receipt prompt" },
+      { title: "Personalized website re-entry", channel: "Web", summary: "She returns online and the storefront greets her with the products she touched in-store.", salesforceCapabilities: "Commerce Cloud · MCP", businessValue: "+ session value", demoMoment: "Personalized hero" },
+      { title: "Agentic SMS recovery", channel: "SMS", summary: "An agent reaches out via text when she abandons a cart with high intent signal.", salesforceCapabilities: "Agentforce · Marketing Cloud", businessValue: "Cart recovery", demoMoment: "Agent SMS thread" },
+      { title: "Mobile app shopper agent", channel: "Mobile", summary: "She switches to the app where the shopper agent helps her finalize the order.", salesforceCapabilities: "Agentforce · Commerce", businessValue: "Conversion lift", demoMoment: "Agent chat to checkout" },
+      { title: "Post-purchase loyalty", channel: "Email", summary: "After purchase, loyalty rewards and tailored follow-ups extend the relationship.", salesforceCapabilities: "Loyalty · MCP", businessValue: "Repeat AOV", demoMoment: "Branded confirmation email" },
+    ],
+    cxComponents: [],
+    slides: [
+      { order: 1, id: "demo-hero",       title: "Six months. One agentic journey.", layout: "hero",            sectionId: "demo", capabilities: ["Marketing Cloud", "Commerce Cloud", "Agentforce"] },
+      { order: 2, id: "demo-foundation", title: "Why this matters",                  layout: "storyFoundation", sectionId: "demo" },
+      { order: 3, id: "demo-timeline",   title: "Rachel's timeline",                 layout: "journeyTimeline", sectionId: "demo" },
+      { order: 4, id: "demo-profile",    title: "One customer · many signals",       layout: "unifiedProfile",  sectionId: "demo" },
+      { order: 5, id: "demo-agent",      title: "Agentforce · live moment",          layout: "agentConversation", sectionId: "demo" },
+      { order: 6, id: "demo-arch",       title: "Platform map",                      layout: "architecture",    sectionId: "demo" },
+      { order: 7, id: "demo-kpi",        title: "Why it matters",                    layout: "kpiScorecard",    sectionId: "demo" },
+      { order: 8, id: "demo-exec",       title: "The takeaway",                      layout: "executiveSummary",sectionId: "demo" },
+    ],
+  },
+
 };

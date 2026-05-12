@@ -1476,3 +1476,199 @@ button { font-family: inherit; }
 .bx-quality-dot.tone-good { background: var(--bx-good); }
 .bx-quality-text { color: var(--bx-ink); }
 .bx-quality-cta  { color: var(--bx-blue); font-weight: 600; }
+
+/* ════════════════════════════════════════════════════════════════
+   STEPPER STATUS — new step states with text labels and colors.
+   Replaces the simple done/not-done dichotomy.
+   ════════════════════════════════════════════════════════════════ */
+.bx-step-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.bx-step-status {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 4px;
+  display: inline-block;
+}
+.bx-step-status-not-started   { color: var(--bx-ink-3); }
+.bx-step-status-needs-input   { color: var(--bx-warn); }
+.bx-step-status-review-needed { color: var(--bx-warn); }
+.bx-step-status-ready         { color: var(--bx-blue); }
+.bx-step-status-generated     { color: var(--bx-good); }
+.bx-step-status-complete      { color: var(--bx-good); }
+.bx-step-status-optional      { color: var(--bx-ink-3); font-style: italic; }
+.bx-step-status-locked        { color: var(--bx-ink-3); }
+
+/* Step number variants */
+.bx-step-num.is-complete { background: var(--bx-good); color: #fff; }
+.bx-step-num.is-warn     { background: var(--bx-warn); color: #fff; }
+.bx-step-num.is-ready    { background: var(--bx-blue); color: #fff; }
+.bx-step-num.is-optional { background: var(--bx-bg-2); color: var(--bx-ink-3); }
+.bx-step-num.is-locked   { background: var(--bx-bg-2); color: var(--bx-ink-3); font-size: 12px; }
+.bx-step-num.is-default  { background: var(--bx-bg-2); color: var(--bx-ink-2); }
+
+.bx-step.is-locked { opacity: 0.55; cursor: not-allowed; }
+.bx-step.is-locked:hover { background: transparent; }
+.bx-step.is-locked .bx-step-label { color: var(--bx-ink-3); }
+
+/* Active overrides locked-style num so the user knows where they are */
+.bx-step.is-active .bx-step-num { background: var(--bx-red); color: #fff; opacity: 1; }
+.bx-step.is-active { opacity: 1; }
+.bx-step:focus-visible {
+  outline: 2px solid var(--bx-blue);
+  outline-offset: -2px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FIRST-RUN HOME — guided getting-started panel
+   ════════════════════════════════════════════════════════════════ */
+.bx-home-firstrun {
+  display: flex; flex-direction: column; gap: 20px;
+  max-width: 980px; margin: 0 auto;
+  padding: 8px 0 32px;
+}
+.bx-firstrun-hero {
+  background: linear-gradient(160deg, var(--bx-card) 0%, var(--bx-bg) 60%, var(--bx-bg-2) 100%);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius);
+  padding: 38px 36px;
+  text-align: center;
+  box-shadow: var(--bx-shadow);
+}
+.bx-firstrun-mark { font-size: 36px; line-height: 1; }
+.bx-firstrun-title {
+  font-family: var(--bx-font-serif);
+  font-size: 30px; font-weight: 700; color: var(--bx-navy);
+  letter-spacing: -0.01em; margin: 12px 0 10px;
+}
+.bx-firstrun-sub {
+  font-size: 15px; color: var(--bx-ink-2); line-height: 1.55;
+  max-width: 56ch; margin: 0 auto 18px;
+}
+.bx-firstrun-ctas { justify-content: center; flex-wrap: wrap; }
+.bx-firstrun-needs, .bx-firstrun-steps {
+  background: var(--bx-card);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius);
+  padding: 22px 26px;
+  box-shadow: var(--bx-shadow);
+}
+.bx-firstrun-needs-title, .bx-firstrun-steps-title {
+  font-family: var(--bx-font-serif);
+  font-size: 18px; font-weight: 700; color: var(--bx-navy);
+  margin-bottom: 10px;
+}
+.bx-firstrun-needs-list {
+  margin: 0; padding-left: 22px;
+  font-size: 14px; line-height: 1.8;
+  color: var(--bx-ink-2);
+}
+.bx-firstrun-steps-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.bx-firstrun-step { display: flex; gap: 16px; align-items: flex-start; }
+.bx-firstrun-step-num {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--bx-red); color: #fff;
+  font-weight: 800; font-size: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.bx-firstrun-step-title { font-weight: 700; color: var(--bx-navy); font-size: 14px; }
+.bx-firstrun-step-body  { color: var(--bx-ink-2); font-size: 13px; line-height: 1.55; margin-top: 2px; }
+
+/* ════════════════════════════════════════════════════════════════
+   FOUNDATIONS REVIEW — grouped cards with extracted/missing chips
+   ════════════════════════════════════════════════════════════════ */
+.bx-foundation-field {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--bx-line);
+}
+.bx-foundation-field:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+.bx-foundation-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   NARRATIVE — section preview cards
+   ════════════════════════════════════════════════════════════════ */
+.bx-narrative-section {
+  background: var(--bx-card);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius);
+  padding: 18px 22px;
+}
+.bx-narrative-slides { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bx-narrative-slide {
+  background: var(--bx-bg);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius-s);
+  padding: 10px 14px;
+}
+.bx-narrative-slide-title { font-weight: 700; color: var(--bx-navy); font-size: 13px; }
+.bx-narrative-slide-why   { font-size: 12px; color: var(--bx-ink-2); margin-top: 4px; line-height: 1.5; }
+
+/* ════════════════════════════════════════════════════════════════
+   PREVIEW SUMMARY (Step 7) + EXPORT CHECKLIST (Step 8)
+   ════════════════════════════════════════════════════════════════ */
+.bx-preview-summary { background: linear-gradient(160deg, var(--bx-card) 0%, var(--bx-bg) 100%); }
+.bx-summary-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+  margin-top: 8px;
+}
+.bx-summary-stat {
+  background: var(--bx-bg);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius-s);
+  padding: 14px 16px;
+  text-align: left;
+}
+.bx-summary-stat.is-warn  { border-left: 4px solid var(--bx-warn); }
+.bx-summary-stat.is-good  { border-left: 4px solid var(--bx-good); }
+.bx-summary-value {
+  font-family: var(--bx-font-serif);
+  font-size: 28px; font-weight: 700; color: var(--bx-primary, var(--bx-red)); color: var(--bx-red);
+  line-height: 1;
+}
+.bx-summary-label {
+  font-size: 11px; font-weight: 700; color: var(--bx-ink-3);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  margin-top: 6px;
+}
+.bx-preview-issues { margin: 12px 0 0; padding-left: 22px; font-size: 13px; color: var(--bx-warn); line-height: 1.7; }
+
+.bx-help-good { color: var(--bx-good); font-weight: 600; }
+
+.bx-checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bx-checklist-item {
+  display: grid; grid-template-columns: 28px 1fr auto; align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bx-bg);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius-s);
+}
+.bx-checklist-item.is-done .bx-checklist-icon { color: var(--bx-good); }
+.bx-checklist-item.is-pending .bx-checklist-icon { color: var(--bx-warn); }
+.bx-checklist-icon { font-weight: 800; }
+.bx-checklist-label { font-size: 13px; color: var(--bx-ink); }
+.bx-checklist-item.is-done .bx-checklist-label { color: var(--bx-ink-2); }
+.bx-checklist-hint { font-size: 11px; color: var(--bx-ink-3); }
+
+/* Center-row helper (used by Step 2 upload row) */
+.bx-row-center { align-items: center; }
+.bx-help-inline { font-size: 12px; color: var(--bx-ink-3); }
+
+/* Improve focus states throughout for keyboard a11y */
+.bx-btn:focus-visible {
+  outline: 2px solid var(--bx-blue);
+  outline-offset: 2px;
+}
+.bx-input:focus-visible, .bx-select:focus-visible, .bx-textarea:focus-visible {
+  outline: 2px solid var(--bx-blue);
+  outline-offset: 0;
+}
+.bx-icon-btn:focus-visible {
+  outline: 2px solid var(--bx-blue);
+  outline-offset: 2px;
+}

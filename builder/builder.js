@@ -26,13 +26,19 @@
   const ZIP       = window.HOLO_ZIP;
 
   // ─── App-level constants ──────────────────────────────────────
+  // 8-step guided flow. Story used to be one step doing three things
+  // (paste, foundations, regenerate). Splitting it into Script /
+  // Foundations / Narrative makes each user decision its own surface
+  // with one obvious next action.
   const STEPS = [
-    { id: "setup",   num: "1", label: "Project Setup",    help: "Customer, audience, products" },
-    { id: "story",   num: "2", label: "Story",            help: "Script + foundations + acts + personas" },
-    { id: "cx",      num: "3", label: "CX Components",    help: "AubreyDemo links to embed" },
-    { id: "recs",    num: "4", label: "Slide Plan",       help: "Section-grouped recommendations" },
-    { id: "preview", num: "5", label: "Preview Plan",     help: "Reorder & confirm slides" },
-    { id: "export",  num: "6", label: "Export",           help: "Download config + ZIP" },
+    { id: "setup",       num: "1", label: "Setup",                 help: "Customer, audience, products" },
+    { id: "script",      num: "2", label: "Script & Story",        help: "Paste or upload your demo script" },
+    { id: "foundations", num: "3", label: "Story Foundations",     help: "Review what was extracted" },
+    { id: "narrative",   num: "4", label: "Recommended Narrative", help: "See the suggested story arc" },
+    { id: "cx",          num: "5", label: "CX Components",         help: "Embed live AubreyDemo screens (optional)" },
+    { id: "recs",        num: "6", label: "Slide Selection",       help: "Customize the slide plan by section" },
+    { id: "preview",     num: "7", label: "Preview",               help: "Review the full demo before exporting" },
+    { id: "export",      num: "8", label: "Export",                help: "Download the complete demo ZIP" },
   ];
   const INDUSTRIES = ["Retail","Consumer Goods","Hospitality","Travel","Financial Services","Healthcare","Other"];
   const AUDIENCES  = ["Executive","IT","Marketing","Sales","Service","Store Ops","Field Ops","Mixed"];
@@ -46,7 +52,7 @@
   const app = {
     view: "home",
     state: null,
-    previewMode: "compact",     // "compact" | "expanded"
+    previewMode: "expanded",       // "compact" | "expanded"
     previewGrouping: "by-section", // "by-section" | "flat"
   };
 
@@ -302,54 +308,138 @@
     list.innerHTML = "";
     STEPS.forEach(function (s) {
       const isActive = s.id === app.state.step;
-      const isDone = stepCompletion(s.id);
+      const status = stepStatus(s.id);
+      const isLocked = status.state === "locked";
+      const cls = "bx-step bx-step-" + status.state +
+                  (isActive ? " is-active" : "") +
+                  (isLocked ? " is-locked" : "");
       const li = el("li", {
-        class: "bx-step" + (isActive ? " is-active" : "") + (isDone && !isActive ? " is-done" : ""),
-        on: { click: function () { app.state.step = s.id; renderShell(); commit(); } },
+        class: cls,
+        "aria-current": isActive ? "step" : undefined,
+        on: {
+          click: function () {
+            if (isLocked) {
+              toast(status.lockReason || "Complete the previous step first");
+              return;
+            }
+            app.state.step = s.id;
+            renderShell();
+            commit();
+          },
+        },
       }, [
-        el("div", { class: "bx-step-num", text: isDone && !isActive ? "✓" : s.num }),
-        el("div", {}, [
+        el("div", { class: "bx-step-num " + status.numClass, text: status.numText || s.num }),
+        el("div", { class: "bx-step-meta" }, [
           el("div", { class: "bx-step-label", text: s.label }),
           el("div", { class: "bx-step-help", text: s.help }),
+          el("div", { class: "bx-step-status bx-step-status-" + status.state, text: status.label }),
         ]),
       ]);
       list.appendChild(li);
     });
   }
 
-  function stepCompletion(id) {
+  // ─── Step status engine ───────────────────────────────────────
+  // Returns { state, label, numText, numClass, lockReason }
+  // Possible states: not-started | needs-input | ready | generated
+  //                  | review-needed | complete | optional | locked
+  function stepStatus(id) {
     const s = app.state;
-    if (!s) return false;
+    if (!s) return { state: "not-started", label: "Not started" };
+
+    const setupReady = !!(s.project.customerName && s.project.industry && s.project.audience && s.project.salesStage && (s.project.products || []).length);
+    const hasScript      = !!(s.scriptText && s.scriptText.trim().length > 50);
+    const foundationsHaveContent = !!(s.storyFoundations && (s.storyFoundations.businessProblem || s.storyFoundations.futureStateVision));
+    const hasPersona     = (s.personas || []).length > 0;
+    const hasActs        = (s.storyActs || []).length > 0;
+    const slideCount     = (s.slides || []).length;
+    const hasCx          = (s.cxComponents || []).length > 0;
+    const hasSelections  = Object.keys(s.selectedRecIds || {}).filter(function (k) { return s.selectedRecIds[k]; }).length > 0;
+
     if (id === "setup") {
-      const p = s.project;
-      return !!(p.customerName && p.industry && p.audience && p.salesStage && (p.products || []).length);
+      if (!s.project.customerName) return st("needs-input", "Add customer details");
+      if (!setupReady)              return st("needs-input", "Needs input");
+      return st("complete", "Complete");
     }
-    if (id === "story") {
-      const hasFoundations = s.storyFoundations && (s.storyFoundations.businessProblem || s.storyFoundations.futureStateVision);
-      const hasManual = (s.story && (s.story.bigProblem || s.story.futureVision));
-      return !!(hasFoundations || s.scriptText || hasManual || (s.storyActs || []).length || (s.personas || []).length);
+    if (id === "script") {
+      if (!setupReady) return locked("Finish Setup first");
+      if (!s.scriptText) return st("not-started", "Not started");
+      if (!hasScript)    return st("needs-input", "Script too short");
+      return st("complete", "Script captured");
+    }
+    if (id === "foundations") {
+      if (!hasScript) return locked("Paste a script first");
+      if (!foundationsHaveContent) return st("review-needed", "Run extract to populate");
+      return st("generated", "Extracted from script");
+    }
+    if (id === "narrative") {
+      if (!foundationsHaveContent) return locked("Review Story Foundations first");
+      if (!hasSelections) return st("ready", "Ready to generate");
+      return st("generated", "Narrative applied");
     }
     if (id === "cx") {
-      // Optional step — completed if any components added (or explicitly skipped)
-      return (s.cxComponents || []).length > 0 || s._cxSkipped;
+      // Treated as optional — never locks downstream.
+      if (hasCx)            return st("complete", (s.cxComponents.length) + " linked");
+      if (s._cxSkipped)     return st("optional", "Skipped");
+      return st("optional", "Optional");
     }
     if (id === "recs") {
-      return Object.keys(s.selectedRecIds || {}).filter(function (k) { return s.selectedRecIds[k]; }).length > 0;
+      if (!hasSelections && !slideCount) return locked("Generate the recommended narrative first");
+      if (!slideCount) return st("review-needed", "Build slide plan");
+      return st("complete", slideCount + " slides selected");
     }
-    if (id === "preview") return (s.slides || []).length > 0;
-    return false;
+    if (id === "preview") {
+      if (!slideCount) return locked("Build a slide plan first");
+      return st("ready", "Ready to review");
+    }
+    if (id === "export") {
+      if (!slideCount) return locked("Build a slide plan first");
+      return st("ready", "Ready to export");
+    }
+    return st("not-started", "Not started");
+
+    function st(state, label) {
+      return { state: state, label: label, numText: numFor(state), numClass: classFor(state) };
+    }
+    function locked(reason) {
+      return { state: "locked", label: "Locked", lockReason: reason, numText: "🔒", numClass: "is-locked" };
+    }
+    function numFor(state) {
+      if (state === "complete" || state === "generated") return "✓";
+      if (state === "ready")     return "→";
+      if (state === "optional")  return "—";
+      return null; // use default number
+    }
+    function classFor(state) {
+      return ({
+        "complete":      "is-complete",
+        "generated":     "is-complete",
+        "review-needed": "is-warn",
+        "needs-input":   "is-warn",
+        "ready":         "is-ready",
+        "optional":      "is-optional",
+        "not-started":   "is-default",
+        "locked":        "is-locked",
+      })[state] || "is-default";
+    }
   }
 
   // ─── BUILDER: main + side ─────────────────────────────────────
   function renderMain() {
     const main = $("#bxMain");
     main.innerHTML = "";
-    if      (app.state.step === "setup")   main.appendChild(viewSetup());
-    else if (app.state.step === "story")   main.appendChild(viewStory());
-    else if (app.state.step === "cx")      main.appendChild(viewCxComponents());
-    else if (app.state.step === "recs")    main.appendChild(viewRecommendations());
-    else if (app.state.step === "preview") main.appendChild(viewPreview());
-    else if (app.state.step === "export")  main.appendChild(viewExport());
+    // Migrate any legacy state.step values (older projects had "story").
+    if (app.state.step === "story") app.state.step = "script";
+    const step = app.state.step;
+    if      (step === "setup")       main.appendChild(viewSetup());
+    else if (step === "script")      main.appendChild(viewScript());
+    else if (step === "foundations") main.appendChild(viewFoundations());
+    else if (step === "narrative")   main.appendChild(viewNarrative());
+    else if (step === "cx")          main.appendChild(viewCxComponents());
+    else if (step === "recs")        main.appendChild(viewRecommendations());
+    else if (step === "preview")     main.appendChild(viewPreview());
+    else if (step === "export")      main.appendChild(viewExport());
+    else                             main.appendChild(viewSetup());
   }
 
   function renderSide() {
@@ -358,18 +448,22 @@
     const body  = $("#bxSideBody");
     body.innerHTML = "";
     const step = app.state.step;
-    if (step === "setup" || step === "story") {
+    if (step === "setup" || step === "script" || step === "foundations") {
       title.textContent = "Live Suggestions";
       sub.textContent = "We'll keep this updated as you fill things in";
       sideSuggestions(body);
-    } else if (step === "recs") {
+    } else if (step === "narrative" || step === "recs") {
       title.textContent = "Selected so far";
-      sub.textContent = countSelected() + " recommendations on";
+      sub.textContent = countSelected() + " slides included";
       sideSelectedSummary(body);
     } else if (step === "preview") {
       title.textContent = "Plan health";
       sub.textContent = "Missing inputs surface here";
       sidePlanHealth(body);
+    } else if (step === "cx") {
+      title.textContent = "CX Components";
+      sub.textContent = ((app.state.cxComponents || []).length) + " linked so far";
+      sideCxSummary(body);
     } else {
       title.textContent = "Ready to export";
       sub.textContent = "Snapshot of what you've built";
@@ -432,9 +526,9 @@
   function viewSetup() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 1 · Project Setup",
-      "Tell us who this demo is for",
-      "Five minutes here gives us enough signal to start recommending the right slides, sections, and assets. You can always come back and edit."
+      "Step 1 · Setup",
+      "Set up the customer demo",
+      "Add the basic customer, audience, and Salesforce product context so the builder can recommend the right story structure. Two minutes here saves twenty later."
     ));
     const s = app.state;
 
@@ -528,188 +622,148 @@
     return wrap;
   }
 
-  // ─── STEP 2: STORY ────────────────────────────────────────────
-  function viewStory() {
+  // ═══════════════════════════════════════════════════════════════
+  //  Shared script-extraction helper (used by Step 2 + Step 3)
+  //  Single source of truth: same parser pipeline, same logging,
+  //  same toast messages on success / failure.
+  // ═══════════════════════════════════════════════════════════════
+  function runScriptExtraction() {
+    const s = app.state;
+    if (window.HOLO_DEBUG) console.log("[holo] SCRIPT_INPUT_RECEIVED", { length: (s.scriptText || "").length, source: "extract-button" });
+    if (!PARSER) { toast("Story parser is not loaded — check your install"); return false; }
+    if (!s.scriptText || !s.scriptText.trim()) {
+      toast("Script text is empty — paste a script first");
+      app.state.step = "script"; renderShell();
+      return false;
+    }
+    let f;
+    try {
+      if (window.HOLO_DEBUG) console.log("[holo] PARSER_CALLED extractStoryFoundations", { length: s.scriptText.length });
+      f = PARSER.extractStoryFoundations(s.scriptText, s);
+    } catch (e) {
+      toast("Parser threw: " + e.message);
+      return false;
+    }
+    if (!f || !f.businessProblem) {
+      toast("Parser ran but found no story signals — check the script has Synopsis / CX Summary / numbered steps");
+      return false;
+    }
+    if (window.HOLO_DEBUG) console.log("[holo] PARSER_RESULT", {
+      businessProblem: f.businessProblem.slice(0, 60),
+      valueDrivers: f.valueDrivers.length,
+      agentforceMoments: f.agentforceMoments.length,
+      dataCloudMoments: f.dataCloudMoments.length,
+    });
+    PARSER.mergeExtractedStoryIntoState(f, s);
+    if (!(s.storyActs || []).length) {
+      const acts = PARSER.extractStoryActsFromScript(s.scriptText);
+      s.storyActs = acts.map(function (a) { return Object.assign({ id: uid("act_") }, a); });
+    }
+    if (!(s.personas || []).length) {
+      const desc = PARSER.extractPersonaDescription(s.scriptText);
+      if (desc) {
+        const name = (desc.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/) || [, ""])[1];
+        s.personas.push({
+          id: uid("persona_"),
+          name: name || "",
+          role: "", goals: "", painPoints: "",
+          demoRelevance: desc,
+        });
+      }
+    }
+    recompute();
+    commit();
+    toast("Foundations extracted — " + s.storyFoundations.valueDrivers.length + " value drivers, "
+          + s.storyActs.length + " acts, " + s.personas.length + " persona" + (s.personas.length === 1 ? "" : "s"));
+    return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  STEP 2: SCRIPT & STORY
+  //  One job: capture the script. Personas + acts live here too
+  //  because they often need manual edits even after extraction.
+  // ═══════════════════════════════════════════════════════════════
+  function viewScript() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 2 · Story",
-      "Shape the narrative",
-      "Paste a script if you have one. Or build the story from guided fields. Then capture the journey acts and personas."
+      "Step 2 · Script & Story",
+      "Add your demo script",
+      "Paste or upload the rough demo story. The builder extracts the narrative, personas, journey moments, and business value automatically."
     ));
     const s = app.state;
 
-    const tabs = el("div", { class: "bx-tabs" });
-    [["script", "Paste demo script"], ["manual", "Build from fields"]].forEach(function (t) {
-      const btn = el("button", { class: "bx-tab" + (s.storyMode === t[0] ? " is-active" : ""), text: t[1] });
-      btn.addEventListener("click", function () { s.storyMode = t[0]; renderMain(); commit(); });
-      tabs.appendChild(btn);
+    // ── Paste / Upload card ──────────────────────────────────
+    const c = el("div", { class: "bx-card bx-card-feature" });
+    c.appendChild(el("div", { class: "bx-card-title", text: "Paste your demo script" }));
+    c.appendChild(el("div", { class: "bx-card-sub", text: "Nothing is sent anywhere — extraction happens locally in your browser. The more structure your script has (Script Synopsis, CX Summary, numbered journey steps), the better the result." }));
+    c.appendChild(field({
+      label: "Script text",
+      type: "textarea",
+      large: true,
+      placeholder: "Paste a rough demo script, story outline, or transcript here…",
+      value: s.scriptText,
+      onInput: function (v) { s.scriptText = v; recompute(); renderSide(); commit(); },
+    }));
+    // Upload-from-file shortcut
+    const uploadRow = el("div", { class: "bx-row bx-mt-12 bx-row-center" });
+    const fileLabel = el("label", { class: "bx-btn bx-btn-secondary", text: "📎 Upload from file" });
+    const fileInput = el("input", { type: "file", style: "display: none;", accept: ".txt,.md,.json" });
+    fileInput.addEventListener("change", function () {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        s.scriptText = String(reader.result || "");
+        recompute(); commit(); renderShell();
+        toast("Loaded " + f.name);
+      };
+      reader.readAsText(f);
     });
-    wrap.appendChild(tabs);
+    fileLabel.appendChild(fileInput);
+    uploadRow.appendChild(fileLabel);
+    uploadRow.appendChild(el("div", { class: "bx-help bx-help-inline", text: "or drop in any .txt, .md, or .json file" }));
+    c.appendChild(uploadRow);
 
-    // ── Script paste card (script tab only) ──────────────────
-    if (s.storyMode === "script") {
-      const c = el("div", { class: "bx-card" });
-      c.appendChild(el("div", { class: "bx-card-title", text: "Paste your demo script" }));
-      c.appendChild(el("div", { class: "bx-card-sub", text: "We'll scan for keywords (agent, profile, segment, store, loyalty, etc.) and use them to drive recommendations. Nothing is sent anywhere — extraction happens locally." }));
-      c.appendChild(field({ label: "Script text", type: "textarea", large: true,
-        placeholder: "Paste a rough demo script, story outline, or transcript here…",
-        value: s.scriptText,
-        onInput: function (v) { s.scriptText = v; recompute(); renderSide(); commit(); } }));
-
-      if (s.scriptText) {
-        const sigs = RULES.extractScriptSignals(s.scriptText);
-        const keys = Object.keys(sigs);
-        if (keys.length) {
-          const row = el("div", { class: "bx-row bx-mt-12" });
-          row.appendChild(el("div", { class: "bx-rec-pill tone-good", text: "Signals detected" }));
-          keys.sort(function (a, b) { return sigs[b] - sigs[a]; }).forEach(function (k) {
-            row.appendChild(el("div", { class: "bx-rec-pill", text: k + " · " + sigs[k] }));
-          });
-          c.appendChild(row);
-        }
+    // Live signal preview
+    if (s.scriptText) {
+      const sigs = RULES.extractScriptSignals(s.scriptText);
+      const keys = Object.keys(sigs);
+      if (keys.length) {
+        c.appendChild(el("div", { class: "bx-help bx-mt-12", text: "Signals detected in your script:" }));
+        const row = el("div", { class: "bx-row bx-mt-6" });
+        keys.sort(function (a, b) { return sigs[b] - sigs[a]; }).forEach(function (k) {
+          row.appendChild(el("div", { class: "bx-rec-pill tone-good", text: k + " · " + sigs[k] }));
+        });
+        c.appendChild(row);
       }
-      wrap.appendChild(c);
     }
+    wrap.appendChild(c);
 
-    // ── Extract button + Quality Check (visible in BOTH tabs) ──
-    // Bugfix: previously the Extract button lived inside the script-tab
-    // branch only, and the default storyMode was "manual" — so new
-    // users had to discover the script tab before extraction was even
-    // possible. Lifted out so it's always reachable.
-    const extractRow = el("div", { class: "bx-card bx-extract-card" });
-    extractRow.appendChild(el("div", { class: "bx-card-title", text: "Extract Story Foundations" }));
-    extractRow.appendChild(el("div", { class: "bx-card-sub",
+    // ── Extract action ──────────────────────────────────────
+    const action = el("div", { class: "bx-card bx-extract-card" });
+    action.appendChild(el("div", { class: "bx-card-title", text: "Extract Story Foundations" }));
+    action.appendChild(el("div", { class: "bx-card-sub",
       text: s.scriptText
-        ? "Run the parser on your pasted script to fill foundations, story acts, and personas. We won't overwrite fields you've already edited manually."
-        : "Paste a script in the \"Paste demo script\" tab above — then click Extract." }));
-    extractRow.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+        ? "Run the parser on your script to generate the business problem, future-state vision, story acts, personas, and value drivers."
+        : "Paste a script above first, then click Extract." }));
+    action.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
       btn("✨ Extract Story Foundations", "bx-btn-primary", function () {
-        runScriptExtraction();
-      }),
-      btn("Run Story Quality Check", "bx-btn-secondary", function () { openStoryQualityModal(); }),
-    ]));
-    wrap.appendChild(extractRow);
-
-    // ── Manual story-foundation fields (manual tab only) ──────
-    if (s.storyMode !== "script") {
-      const c = el("div", { class: "bx-card" });
-      c.appendChild(el("div", { class: "bx-card-title", text: "Story foundations" }));
-      c.appendChild(el("div", { class: "bx-card-sub", text: "Short answers are fine. These flow into intro slides and the executive summary." }));
-      const fields = [
-        ["bigProblem",            "Big business problem"],
-        ["currentPain",           "Current-state pain"],
-        ["futureVision",          "Future-state vision"],
-        ["keyCustomerMoments",    "Key customer moments"],
-        ["operationalMoments",    "Operational moments"],
-        ["agentforceMoments",     "AI / Agentforce moments"],
-        ["dataCloudMoments",      "Data Cloud / unified profile moments"],
-        ["businessValueMoments",  "Business value moments"],
-        ["executiveTakeaway",     "Final executive takeaway"],
-      ];
-      fields.forEach(function (f) {
-        c.appendChild(field({ label: f[1], type: "textarea",
-          value: s.story[f[0]] || "",
-          onInput: function (v) { s.story[f[0]] = v; recompute(); renderSide(); commit(); } }));
-      });
-      wrap.appendChild(c);
-    }
-
-    // ── Foundations summary card (always visible if populated) ──
-    // Bugfix: previously inside the script-tab branch, so the extracted
-    // result vanished when SEs switched to the manual tab to edit.
-    const f = s.storyFoundations || {};
-    const hasAny = f.businessProblem || f.futureStateVision || (f.valueDrivers || []).length;
-    if (hasAny) {
-      const fc = el("div", { class: "bx-card bx-foundation-card" });
-      fc.appendChild(el("div", { class: "bx-card-title", text: "Story Foundations (extracted)" }));
-      fc.appendChild(el("div", { class: "bx-card-sub", text: "These flow into Step 4's slide plan. Re-run extract to refresh, or edit fields in the manual tab." }));
-      if (f.businessProblem)      fc.appendChild(foundationRow("Business problem", f.businessProblem));
-      if (f.currentStatePain)     fc.appendChild(foundationRow("Current-state pain", f.currentStatePain));
-      if (f.futureStateVision)    fc.appendChild(foundationRow("Future-state vision", f.futureStateVision));
-      if (f.transformationThesis) fc.appendChild(foundationRow("Transformation thesis", f.transformationThesis));
-      if (f.executiveTakeaway)    fc.appendChild(foundationRow("Executive takeaway", f.executiveTakeaway));
-      if ((f.valueDrivers       || []).length) fc.appendChild(foundationList("Value drivers", f.valueDrivers));
-      if ((f.agentforceMoments  || []).length) fc.appendChild(foundationList("Agentforce moments",  f.agentforceMoments.slice(0, 4)));
-      if ((f.dataCloudMoments   || []).length) fc.appendChild(foundationList("Data Cloud moments",  f.dataCloudMoments.slice(0, 4)));
-      if ((f.commerceMoments    || []).length) fc.appendChild(foundationList("Commerce moments",    f.commerceMoments.slice(0, 4)));
-      if ((f.marketingMoments   || []).length) fc.appendChild(foundationList("Marketing moments",   f.marketingMoments.slice(0, 4)));
-      if ((f.serviceMoments     || []).length) fc.appendChild(foundationList("Service moments",     f.serviceMoments.slice(0, 4)));
-      if ((f.assumptions        || []).length) fc.appendChild(foundationList("Assumptions",         f.assumptions));
-      if ((f.openQuestions      || []).length) fc.appendChild(foundationList("Open questions",      f.openQuestions));
-      wrap.appendChild(fc);
-    }
-
-    // The script-extraction routine. Single source of truth so both
-    // the script tab and the always-visible Extract card use the same
-    // pipeline. Surfaces specific failure reasons (no silent fail).
-    function runScriptExtraction() {
-      if (window.HOLO_DEBUG) console.log("[holo] SCRIPT_INPUT_RECEIVED", { length: (s.scriptText || "").length, source: "extract-button" });
-      if (!PARSER) { toast("Story parser is not loaded — check your install"); return; }
-      if (!s.scriptText || !s.scriptText.trim()) {
-        toast("Script text is empty — paste a script first");
-        if (s.storyMode !== "script") { s.storyMode = "script"; renderShell(); }
-        return;
-      }
-      let f;
-      try {
-        if (window.HOLO_DEBUG) console.log("[holo] PARSER_CALLED extractStoryFoundations", { length: s.scriptText.length });
-        f = PARSER.extractStoryFoundations(s.scriptText, s);
-      } catch (e) {
-        toast("Parser threw: " + e.message);
-        return;
-      }
-      if (!f || !f.businessProblem) {
-        toast("Parser ran but found no story signals — check the script has Synopsis / CX Summary / numbered steps");
-        return;
-      }
-      if (window.HOLO_DEBUG) console.log("[holo] PARSER_RESULT", {
-        businessProblem: f.businessProblem.slice(0, 60),
-        valueDrivers: f.valueDrivers.length,
-        agentforceMoments: f.agentforceMoments.length,
-        dataCloudMoments: f.dataCloudMoments.length,
-      });
-      if (window.HOLO_DEBUG) console.log("[holo] STATE_BEFORE_MERGE", { businessProblem: (s.storyFoundations || {}).businessProblem });
-      PARSER.mergeExtractedStoryIntoState(f, s);
-      if (window.HOLO_DEBUG) console.log("[holo] STATE_AFTER_MERGE", {
-        foundationsBP: s.storyFoundations.businessProblem.slice(0, 60),
-        personasCount: s.personas.length,
-        storyActsCount: s.storyActs.length,
-      });
-      // Seed acts and persona from the script if not already authored.
-      if (!(s.storyActs || []).length) {
-        const acts = PARSER.extractStoryActsFromScript(s.scriptText);
-        s.storyActs = acts.map(function (a) { return Object.assign({ id: uid("act_") }, a); });
-      }
-      if (!(s.personas || []).length) {
-        const desc = PARSER.extractPersonaDescription(s.scriptText);
-        if (desc) {
-          const name = (desc.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/) || [, ""])[1];
-          s.personas.push({
-            id: uid("persona_"),
-            name: name || "",
-            role: "", goals: "", painPoints: "",
-            demoRelevance: desc,
-          });
+        if (runScriptExtraction()) {
+          app.state.step = "foundations";
+          renderShell();
         }
-      }
-      recompute();
-      renderShell();
-      commit();
-      if (window.HOLO_DEBUG) console.log("[holo] AUTOSAVE_PROJECT", {
-        savedFoundationsBP: (s.storyFoundations.businessProblem || "").slice(0, 60),
-      });
-      toast("Foundations extracted — " + s.storyFoundations.valueDrivers.length + " value drivers, "
-            + s.storyActs.length + " acts, " + s.personas.length + " persona" + (s.personas.length === 1 ? "" : "s"));
-    }
+      }),
+    ]));
+    wrap.appendChild(action);
 
-    // Personas
+    // ── Personas ───────────────────────────────────────────
     const personasCard = el("div", { class: "bx-card" });
     personasCard.appendChild(el("div", { class: "bx-card-title", text: "Personas" }));
-    personasCard.appendChild(el("div", { class: "bx-card-sub", text: "Who is the demo about? One persona is enough for most demos." }));
+    personasCard.appendChild(el("div", { class: "bx-card-sub", text: "Who is the demo about? One persona is usually enough." }));
     const personaList = el("div", { class: "bx-list" });
     if (!s.personas.length) {
       personaList.appendChild(el("div", { class: "bx-empty",
-        html: "No personas yet. <strong>Add your first one</strong> — we'll recommend a Meet-the-Persona slide." }));
+        html: "No personas yet. They'll be auto-added after extraction, or <strong>add one manually</strong> below." }));
     }
     s.personas.forEach(function (p, idx) { personaList.appendChild(personaItem(p, idx)); });
     personasCard.appendChild(personaList);
@@ -721,14 +775,14 @@
     personasCard.appendChild(addPersona);
     wrap.appendChild(personasCard);
 
-    // Story acts
+    // ── Story acts ─────────────────────────────────────────
     const actsCard = el("div", { class: "bx-card" });
     actsCard.appendChild(el("div", { class: "bx-card-title", text: "Journey acts" }));
     actsCard.appendChild(el("div", { class: "bx-card-sub", text: "Three to five acts is the sweet spot. Each act becomes a slide moment downstream." }));
     const actList = el("div", { class: "bx-list" });
     if (!s.storyActs.length) {
       actList.appendChild(el("div", { class: "bx-empty",
-        html: "No acts yet. Try something like <strong>Discover → Engage → Recover → Convert</strong> as a starting frame." }));
+        html: "No acts yet. They'll be auto-extracted from numbered script steps. Or try a simple frame like <strong>Discover → Engage → Recover → Convert</strong>." }));
     }
     s.storyActs.forEach(function (a, idx) { actList.appendChild(actItem(a, idx)); });
     actsCard.appendChild(actList);
@@ -741,7 +795,276 @@
     actsCard.appendChild(addAct);
     wrap.appendChild(actsCard);
 
-    wrap.appendChild(stepFooter("story"));
+    wrap.appendChild(stepFooter("script"));
+    return wrap;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  STEP 3: STORY FOUNDATIONS
+  //  A clean review panel grouped into Core Narrative / Key Moments
+  //  / Business Value. Every field shows "Extracted" or "Missing"
+  //  with a clear hint about how to fix it.
+  // ═══════════════════════════════════════════════════════════════
+  function viewFoundations() {
+    const wrap = el("div");
+    wrap.appendChild(stepHeader(
+      "Step 3 · Story Foundations",
+      "Review the extracted story",
+      "These are the core narrative ingredients that will power the recommended slide plan. Edit any field — your changes are saved automatically."
+    ));
+    const s = app.state;
+    const f = s.storyFoundations || {};
+    const hasContent = !!(f.businessProblem || f.futureStateVision || (f.valueDrivers || []).length);
+
+    // ── Action bar: re-run extract / quality check ────────
+    const actionBar = el("div", { class: "bx-card bx-extract-card" });
+    actionBar.appendChild(el("div", { class: "bx-card-title",
+      text: hasContent ? "Story Foundations are ready" : "Run extraction to populate this step" }));
+    actionBar.appendChild(el("div", { class: "bx-card-sub",
+      text: hasContent
+        ? "Looks good. You can edit fields below, or move on to generate the Recommended Narrative."
+        : "Paste a script in Step 2 and click Extract to populate the foundations." }));
+    actionBar.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+      hasContent
+        ? btn("Re-run extraction", "bx-btn-secondary", function () {
+            if (runScriptExtraction()) renderShell();
+          })
+        : btn("← Back to Script", "bx-btn-primary", function () {
+            app.state.step = "script"; renderShell();
+          }),
+      btn("Run Story Quality Check", "bx-btn-secondary", function () { openStoryQualityModal(); }),
+    ]));
+    wrap.appendChild(actionBar);
+
+    if (!hasContent) {
+      wrap.appendChild(el("div", { class: "bx-empty bx-mt-18",
+        html: "<strong>Nothing extracted yet.</strong> Paste a script in Step 2 and click Extract Story Foundations. The app fills the fields below automatically." }));
+      wrap.appendChild(stepFooter("foundations"));
+      return wrap;
+    }
+
+    // ── Core Narrative ────────────────────────────────────
+    const coreFields = [
+      ["businessProblem",      "Business problem"],
+      ["currentStatePain",     "Current-state pain"],
+      ["futureStateVision",    "Future-state vision"],
+      ["primaryNarrative",     "Primary narrative"],
+      ["transformationThesis", "Transformation thesis"],
+      ["executiveTakeaway",    "Executive takeaway"],
+    ];
+    wrap.appendChild(foundationCard("Core Narrative",
+      "The story arc that powers the Intro and Business Value sections.",
+      coreFields, f, false));
+
+    // ── Key Moments ────────────────────────────────────────
+    const momentFields = [
+      ["customerMoments",    "Customer moments"],
+      ["operationalMoments", "Operational moments"],
+      ["agentforceMoments",  "Agentforce moments"],
+      ["dataCloudMoments",   "Data Cloud moments"],
+      ["commerceMoments",    "Commerce moments"],
+      ["marketingMoments",   "Marketing moments"],
+      ["serviceMoments",     "Service moments"],
+      ["loyaltyMoments",     "Loyalty moments"],
+    ];
+    wrap.appendChild(foundationCard("Key Moments",
+      "Pull-out moments by capability area. These shape Demo-section slides.",
+      momentFields, f, true));
+
+    // ── Business Value ─────────────────────────────────────
+    const valueFields = [
+      ["valueDrivers",   "Value drivers"],
+      ["assumptions",    "Assumptions"],
+      ["openQuestions",  "Open questions"],
+    ];
+    wrap.appendChild(foundationCard("Business Value",
+      "What outcomes the demo proves out, plus any flagged uncertainties.",
+      valueFields, f, true));
+
+    wrap.appendChild(stepFooter("foundations"));
+    return wrap;
+  }
+
+  // Render one foundation card with grouped fields. listMode=true
+  // means the field is a list (joined with "; " for editing).
+  function foundationCard(title, sub, fields, foundationObj, listMode) {
+    const card = el("div", { class: "bx-card" });
+    card.appendChild(el("div", { class: "bx-card-title", text: title }));
+    card.appendChild(el("div", { class: "bx-card-sub", text: sub }));
+    fields.forEach(function (entry) {
+      const key = entry[0];
+      const label = entry[1];
+      const raw = foundationObj[key];
+      const isPopulated = listMode ? (Array.isArray(raw) && raw.length > 0)
+                                    : (typeof raw === "string" && raw.trim().length > 0);
+      const value = listMode
+        ? (Array.isArray(raw) && raw.length ? raw.join("\n") : "")
+        : (raw || "");
+
+      const wrap = el("div", { class: "bx-foundation-field" });
+      const head = el("div", { class: "bx-foundation-head" }, [
+        el("label", { class: "bx-label", text: label }),
+        isPopulated
+          ? el("span", { class: "bx-rec-pill tone-good", text: "✓ Extracted" })
+          : el("span", { class: "bx-rec-pill tone-gold", text: "Missing — add this to improve slide quality" }),
+      ]);
+      wrap.appendChild(head);
+
+      if (listMode) {
+        // Editable textarea, one item per line. Strip leading "• ".
+        const editable = (Array.isArray(raw) ? raw.join("\n") : "");
+        const ta = el("textarea", { class: "bx-textarea", placeholder: "One item per line",
+          rows: Math.max(3, Math.min(8, (Array.isArray(raw) ? raw.length : 0) + 1)) });
+        ta.value = editable;
+        ta.addEventListener("input", function () {
+          const items = ta.value.split(/\n/).map(function (l) { return l.replace(/^[-•*\s]+/, "").trim(); }).filter(Boolean);
+          foundationObj[key] = items;
+          recompute(); renderSide(); commit();
+        });
+        wrap.appendChild(ta);
+      } else {
+        const ta = el("textarea", { class: "bx-textarea",
+          placeholder: "Edit if you want to refine the extracted text…",
+          rows: Math.max(2, Math.min(6, Math.ceil((value || "").length / 80))) });
+        ta.value = value;
+        ta.addEventListener("input", function () {
+          foundationObj[key] = ta.value;
+          // Mirror to legacy state.story for downstream readers.
+          mirrorFoundationField(key, ta.value);
+          recompute(); renderSide(); commit();
+        });
+        wrap.appendChild(ta);
+      }
+      card.appendChild(wrap);
+    });
+    return card;
+  }
+
+  // Keep the legacy state.story.* in sync when the SE edits a
+  // foundation field directly. recompute() reads from state.story
+  // today; the long-term refactor (P1-3) collapses these.
+  function mirrorFoundationField(key, value) {
+    const s = app.state;
+    const map = {
+      "businessProblem":   "bigProblem",
+      "currentStatePain":  "currentPain",
+      "futureStateVision": "futureVision",
+      "executiveTakeaway": "executiveTakeaway",
+    };
+    if (map[key]) s.story[map[key]] = value;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  STEP 4: RECOMMENDED NARRATIVE
+  //  A standalone view that walks the SE through the suggested
+  //  story arc + section breakdown + reasoning + audience fit.
+  //  One CTA: "Use Recommended Narrative".
+  // ═══════════════════════════════════════════════════════════════
+  function viewNarrative() {
+    const wrap = el("div");
+    wrap.appendChild(stepHeader(
+      "Step 4 · Recommended Narrative",
+      "We've drafted the story arc",
+      "An opinionated demo flow based on your customer, audience, and extracted foundations. Apply it as-is or customize in the next step."
+    ));
+    const s = app.state;
+    const plan = RULES.generateRecommendedNarrativePlan ? RULES.generateRecommendedNarrativePlan(s) : null;
+
+    if (!plan) {
+      wrap.appendChild(el("div", { class: "bx-empty",
+        html: "<strong>Couldn't generate a plan.</strong> Make sure Setup is complete and Story Foundations are extracted." }));
+      wrap.appendChild(stepFooter("narrative"));
+      return wrap;
+    }
+
+    const audience = (s.project.audience || "—");
+    const stage    = (s.project.salesStage || "—");
+    const products = (s.project.products || []);
+    const slidesInPlan = plan.anchorSlideIds.length;
+
+    // ── Hero card: applied? + one big CTA ───────────────────
+    const hasSlides = (s.slides || []).length > 0;
+    const hero = el("div", { class: "bx-card bx-card-feature" });
+    hero.appendChild(el("div", { class: "bx-card-title",
+      text: hasSlides ? "Narrative applied" : "Apply the recommended narrative" }));
+    hero.appendChild(el("div", { class: "bx-card-sub",
+      text: hasSlides
+        ? "You've already applied a narrative. Re-apply to refresh, or move on to customize slide-by-slide."
+        : "Click below to drop in a coherent " + slidesInPlan + "-slide demo plan tuned for " + audience + " · " + stage + ". You can customize anything in the next step." }));
+    const heroRow = el("div", { class: "bx-row bx-mt-12" });
+    heroRow.appendChild(btn(hasSlides ? "Re-apply recommended narrative" : "Use Recommended Narrative",
+      "bx-btn-primary", function () {
+      const ids = new Set(plan.anchorSlideIds);
+      s.selectedRecIds = {};
+      Array.from(ids).forEach(function (id) { s.selectedRecIds[id] = true; });
+      s.recommendations.forEach(function (r) { r.selected = !!s.selectedRecIds[r.id]; });
+      buildSlidePlanFromSelections();
+      commit();
+      toast("Narrative applied — " + ids.size + " slides");
+      app.state.step = "recs"; renderShell();
+    }));
+    if (hasSlides) {
+      heroRow.appendChild(btn("Continue to customize →", "bx-btn-secondary", function () {
+        app.state.step = "recs"; renderShell();
+      }));
+    }
+    hero.appendChild(heroRow);
+    wrap.appendChild(hero);
+
+    // ── Audience fit + product summary ───────────────────────
+    const fitCard = el("div", { class: "bx-card" });
+    fitCard.appendChild(el("div", { class: "bx-card-title", text: "Why this sequence?" }));
+    fitCard.appendChild(el("div", { class: "bx-card-sub",
+      text: "Optimized for an " + audience + " audience at the " + stage + " stage."
+            + (products.length ? " Featuring " + products.slice(0, 4).join(", ") + (products.length > 4 ? ", and others." : ".") : "") }));
+    const why = el("ul", { class: "bx-numlist" });
+    (plan.reasoning || []).slice(0, 5).forEach(function (r) { why.appendChild(el("li", { text: r })); });
+    fitCard.appendChild(why);
+    if ((plan.reasoning || []).length > 5) {
+      const moreDetails = el("details", { class: "bx-rec-details" });
+      const summary = el("summary", { class: "bx-rec-details-summary",
+        text: "Show " + (plan.reasoning.length - 5) + " more reasons" });
+      moreDetails.appendChild(summary);
+      const ul = el("ul", { class: "bx-numlist", style: "margin-top: 8px;" });
+      plan.reasoning.slice(5).forEach(function (r) { ul.appendChild(el("li", { text: r })); });
+      moreDetails.appendChild(ul);
+      fitCard.appendChild(moreDetails);
+    }
+    wrap.appendChild(fitCard);
+
+    // ── Section preview cards: what'll be in each section ──
+    plan.sections.forEach(function (sec) {
+      const slidesInSec = sec.slides.filter(function (r) { return plan.anchorSlideIds.indexOf(r.id) >= 0; });
+      const card = el("div", { class: "bx-card bx-narrative-section" });
+      const head = el("div", { class: "bx-section-head" }, [
+        el("div", { class: "bx-section-num", text: String(sec.order) }),
+        el("div", { class: "bx-section-meta" }, [
+          el("div", { class: "bx-section-label", text: sec.label }),
+          el("div", { class: "bx-section-purpose", text: sec.purpose }),
+        ]),
+        el("div", { class: "bx-section-count",
+          text: slidesInSec.length + " slide" + (slidesInSec.length === 1 ? "" : "s") }),
+      ]);
+      card.appendChild(head);
+
+      if (!slidesInSec.length) {
+        card.appendChild(el("div", { class: "bx-empty",
+          html: "No slides in this section yet. Add inputs in earlier steps to unlock more options." }));
+      } else {
+        const list = el("ul", { class: "bx-narrative-slides" });
+        slidesInSec.forEach(function (r) {
+          const li = el("li", { class: "bx-narrative-slide" }, [
+            el("div", { class: "bx-narrative-slide-title", text: r.title }),
+            el("div", { class: "bx-narrative-slide-why", text: r.rationale || "" }),
+          ]);
+          list.appendChild(li);
+        });
+        card.appendChild(list);
+      }
+      wrap.appendChild(card);
+    });
+
+    wrap.appendChild(stepFooter("narrative"));
     return wrap;
   }
 
@@ -811,22 +1134,51 @@
   function viewCxComponents() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 3 · CX Components",
-      "Embed AubreyDemo links",
-      "Paste links to AubreyDemo CX components you want to embed in the demo. Each one becomes an iframe-based slide in the Demo section. If a site blocks iframes, we'll show a fallback link."
+      "Step 5 · CX Component Links",
+      "Embed live demo screens (optional)",
+      "Paste AubreyDemo component links here so the final holodeck can embed live demo moments in the Demo section. Skip this step if you don't have any yet — your demo will still work."
     ));
     const s = app.state;
+    const components = s.cxComponents || [];
 
-    const list = el("div", { class: "bx-list" });
-    if (!(s.cxComponents || []).length) {
-      list.appendChild(el("div", { class: "bx-empty",
-        html: "No CX components yet. <strong>Skip this step</strong> if you don't have AubreyDemo links yet — you can come back anytime." }));
+    // Strong empty state if nothing added yet — explains the value
+    // and offers a clear "Skip" path so the user isn't stuck.
+    if (!components.length) {
+      const empty = el("div", { class: "bx-card" });
+      empty.appendChild(el("div", { class: "bx-card-title", text: "No CX components yet" }));
+      empty.appendChild(el("div", { class: "bx-card-sub",
+        text: "AubreyDemo links let your Demo section embed live screens — agentic chat, storefront flows, service consoles. If you're not running aubreydemo.com scenes, skip this step." }));
+      empty.appendChild(el("div", { class: "bx-help bx-mt-12",
+        html: "<strong>How it works:</strong> Paste a /scene/.../frame URL → it shows up as an iframe slide in the Demo section. If a site blocks embedding, we'll show an open-in-new-tab fallback automatically." }));
+      empty.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+        btn("+ Add CX Component Link", "bx-btn-primary", function () { addCxComponent(); }),
+        btn("Skip — I don't have CX links yet", "bx-btn-secondary", function () {
+          s._cxSkipped = true; commit();
+          app.state.step = "recs"; renderShell();
+        }),
+      ]));
+      wrap.appendChild(empty);
+      wrap.appendChild(stepFooter("cx"));
+      return wrap;
     }
-    (s.cxComponents || []).forEach(function (c, i) { list.appendChild(cxItem(c, i)); });
+
+    // Has components: list them.
+    const list = el("div", { class: "bx-list" });
+    components.forEach(function (c, i) { list.appendChild(cxItem(c, i)); });
     wrap.appendChild(list);
 
-    const addBtn = el("button", { class: "bx-add-btn", text: "+ Add CX component" });
-    addBtn.addEventListener("click", function () {
+    const addBtn = el("button", { class: "bx-add-btn", text: "+ Add CX Component Link" });
+    addBtn.addEventListener("click", function () { addCxComponent(); });
+    wrap.appendChild(addBtn);
+
+    // Inline note about iframe behavior — sets expectations
+    wrap.appendChild(el("div", { class: "bx-help bx-mt-18",
+      html: "<strong>Note:</strong> Some websites block iframe embedding via X-Frame-Options or CSP. If that happens, the exported demo will automatically show an open-in-new-tab fallback link instead." }));
+
+    wrap.appendChild(stepFooter("cx"));
+    return wrap;
+
+    function addCxComponent() {
       s.cxComponents = s.cxComponents || [];
       s.cxComponents.push({
         id: uid("cx_"), name: "New component", url: "",
@@ -837,18 +1189,7 @@
       });
       s._cxSkipped = false;
       recompute(); renderMain(); commit();
-    });
-    wrap.appendChild(addBtn);
-
-    if (!(s.cxComponents || []).length) {
-      const skip = el("button", { class: "bx-btn bx-btn-link bx-mt-12",
-        text: "Skip this step — I don't have CX links yet" });
-      skip.addEventListener("click", function () { s._cxSkipped = true; commit(); app.state.step = "recs"; renderShell(); });
-      wrap.appendChild(skip);
     }
-
-    wrap.appendChild(stepFooter("cx"));
-    return wrap;
   }
 
   function cxItem(c, idx) {
@@ -920,13 +1261,13 @@
     return item;
   }
 
-  // ─── STEP 4: RECOMMENDATIONS (section-grouped) ────────────────
+  // ─── STEP 6: SLIDE SELECTION (section-grouped) ────────────────
   function viewRecommendations() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 4 · Slide Plan",
-      "We picked these for you",
-      "Each recommendation is scored from your inputs. Toggle anything off you don't want, rename freely. The slide planner in Step 4 only uses what's selected here."
+      "Step 6 · Slide Selection",
+      "Customize the story structure",
+      "The recommended narrative is already applied. Toggle individual slides off, rename them inline, or expand a card for details. Slides are grouped by section."
     ));
     const s = app.state;
 
@@ -1119,37 +1460,86 @@
   function toggleRec(id) {
     app.state.selectedRecIds[id] = !app.state.selectedRecIds[id];
     app.state.recommendations.forEach(function (r) { if (r.id === id) r.selected = app.state.selectedRecIds[id]; });
+    // Rebuild the slide plan from the current selections so Preview
+    // and Export see exactly what the SE picked.  Without this, the
+    // stored state.slides stays frozen at whatever was last built
+    // (typically the 8-slide Recommended Narrative) and additional
+    // selections never reach the preview / ZIP.
+    buildSlidePlanFromSelections();
     renderMain(); renderSide(); commit();
   }
 
-  // ─── STEP 4: PREVIEW PLAN ─────────────────────────────────────
+  // ─── STEP 7: PREVIEW ──────────────────────────────────────────
   function viewPreview() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 5 · Preview Plan",
-      "Confirm the shape of your demo",
-      "Expanded Preview shows a close approximation of the generated holodeck screen — driven by your real customer, story, and brand inputs. Missing content or assets will be flagged."
+      "Step 7 · Preview",
+      "Preview the holodeck",
+      "Review how the story will feel before downloading the complete demo package. What you see here is what the exported demo will render."
     ));
     if (!app.state.slides.length) {
       wrap.appendChild(el("div", { class: "bx-empty",
-        html: "No slides yet. <strong>Go to Step 4</strong>, pick recommendations, then build the plan." }));
+        html: "No slides yet. <strong>Go back to Step 6</strong>, customize the slide plan, then return to preview." }));
       wrap.appendChild(stepFooter("preview"));
       return wrap;
     }
 
-    // Toolbar: compact/expanded + by-section/flat + Preview Full Demo
-    const toolbar = el("div", { class: "bx-row bx-row-between bx-preview-toolbar" }, [
+    // ── Summary panel: total / sections / missing / ready? ──
+    const s = app.state;
+    const slides = s.slides || [];
+    const cx = (s.cxComponents || []);
+    const cxWithoutUrl = cx.filter(function (c) { return !c.url; }).length;
+    const slidesNeedingCx = slides.filter(function (sl) {
+      return sl.layout === "embeddedCxComponent" && (!(sl.linkedCxComponentIds || []).length);
+    }).length;
+    const slidesWithMissing = slides.filter(function (sl) { return (sl.missingInputs || []).length > 0; }).length;
+    const sectionsCovered = new Set(slides.map(function (sl) { return sl.sectionId; })).size;
+    const summary = el("div", { class: "bx-card bx-preview-summary" });
+    summary.appendChild(el("div", { class: "bx-card-title", text: "Demo summary" }));
+    summary.appendChild(el("div", { class: "bx-summary-grid" }, [
+      summaryStat(slides.length, "slides"),
+      summaryStat(sectionsCovered + " / 5", "sections covered"),
+      summaryStat(cx.length, "CX component" + (cx.length === 1 ? "" : "s")),
+      summaryStat(slidesWithMissing, "slides need attention", slidesWithMissing > 0 ? "warn" : "good"),
+    ]));
+    if (slidesNeedingCx || cxWithoutUrl || slidesWithMissing) {
+      const issues = el("ul", { class: "bx-preview-issues" });
+      if (slidesNeedingCx)   issues.appendChild(el("li", { text: slidesNeedingCx + " embedded CX slide" + (slidesNeedingCx === 1 ? "" : "s") + " need a link" }));
+      if (cxWithoutUrl)      issues.appendChild(el("li", { text: cxWithoutUrl + " CX component" + (cxWithoutUrl === 1 ? "" : "s") + " missing a URL" }));
+      if (slidesWithMissing) issues.appendChild(el("li", { text: slidesWithMissing + " slide" + (slidesWithMissing === 1 ? "" : "s") + " flagged with missing inputs" }));
+      summary.appendChild(issues);
+    } else {
+      summary.appendChild(el("div", { class: "bx-help bx-mt-12 bx-help-good",
+        text: "✓ Everything looks good. Move on to Export when you're ready." }));
+    }
+    summary.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+      btn("Continue to Export →", "bx-btn-primary", function () {
+        app.state.step = "export"; renderShell();
+      }),
+      btn("▶ Preview Full Demo", "bx-btn-secondary", function () { openFullDemoModal(); }),
+    ]));
+    wrap.appendChild(summary);
+
+    function summaryStat(value, label, tone) {
+      return el("div", { class: "bx-summary-stat " + (tone ? "is-" + tone : "") }, [
+        el("div", { class: "bx-summary-value", text: String(value) }),
+        el("div", { class: "bx-summary-label", text: label }),
+      ]);
+    }
+
+    // View controls: compact/expanded + by-section/flat
+    // (Preview Full Demo button now lives in the summary card above.)
+    const toolbar = el("div", { class: "bx-preview-toolbar" }, [
       el("div", { class: "bx-row" }, [
         el("div", { class: "bx-segmented" }, [
-          modeBtn("compact",  "Compact Cards"),
-          modeBtn("expanded", "Expanded Preview"),
+          modeBtn("compact",  "Compact"),
+          modeBtn("expanded", "Expanded"),
         ]),
         el("div", { class: "bx-segmented" }, [
-          groupBtn("by-section", "Show by section"),
-          groupBtn("flat",       "Show flat sequence"),
+          groupBtn("by-section", "By section"),
+          groupBtn("flat",       "Flat sequence"),
         ]),
       ]),
-      btn("▶ Preview Full Demo", "bx-btn-secondary", function () { openFullDemoModal(); }),
     ]);
     wrap.appendChild(toolbar);
 
@@ -1290,18 +1680,45 @@
   function viewExport() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 6 · Export",
-      "Get your demo",
-      "Use Complete Demo ZIP when you want a ready-to-run package. Use Config only when you want to update an existing demo folder."
+      "Step 8 · Export",
+      "Download your demo",
+      "Use Complete Demo ZIP for a ready-to-run package. Use Config only when you want to update an existing demo folder."
     ));
-    const cfgJs   = CONFIG.toHolodeckConfigJs(app.state);
-    const cfgJson = CONFIG.toJsonString(app.state);
+    const s = app.state;
+    // Use the polished adapter's output for the visible config — this
+    // is the file that drives the /demo template, so the SE sees the
+    // exact shape they'll get inside the ZIP.  Fall back to the legacy
+    // builder config only if the adapter isn't loaded.
+    const cfgJs   = (window.HOLO_ADAPTER && window.HOLO_ADAPTER.toPolishedHolodeckConfigJs)
+      ? window.HOLO_ADAPTER.toPolishedHolodeckConfigJs(s)
+      : CONFIG.toHolodeckConfigJs(s);
+    const cfgJson = CONFIG.toJsonString(s);
 
-    // ── ZIP (the hero action) ──────────────────────────────────
+    // ── Readiness checklist ───────────────────────────────────
+    const checks = buildExportChecklist(s);
+    const incomplete = checks.filter(function (c) { return !c.done; }).length;
+    const checkCard = el("div", { class: "bx-card" });
+    checkCard.appendChild(el("div", { class: "bx-card-title", text: "Export readiness" }));
+    checkCard.appendChild(el("div", { class: "bx-card-sub",
+      text: incomplete === 0
+        ? "Everything looks good. You're ready to download."
+        : incomplete + " item" + (incomplete === 1 ? "" : "s") + " still need attention. You can export anyway — the placeholders will be flagged in the README." }));
+    const list = el("ul", { class: "bx-checklist" });
+    checks.forEach(function (c) {
+      list.appendChild(el("li", { class: "bx-checklist-item " + (c.done ? "is-done" : "is-pending") }, [
+        el("span", { class: "bx-checklist-icon", text: c.done ? "✓" : "○" }),
+        el("span", { class: "bx-checklist-label", text: c.label }),
+        c.hint ? el("span", { class: "bx-checklist-hint", text: c.hint }) : null,
+      ]));
+    });
+    checkCard.appendChild(list);
+    wrap.appendChild(checkCard);
+
+    // ── Primary: Complete Demo ZIP ────────────────────────────
     const zipCard = el("div", { class: "bx-card bx-card-feature" });
-    zipCard.appendChild(el("div", { class: "bx-card-title", text: "Complete Demo ZIP" }));
+    zipCard.appendChild(el("div", { class: "bx-card-title", text: "Download Complete Demo ZIP" }));
     zipCard.appendChild(el("div", { class: "bx-card-sub",
-      text: "A ready-to-run folder mirroring the existing demo/ structure: index.html, config, CSS, JS, assets folder, README, HOW_TO_RUN — everything an SE needs to open and present locally." }));
+      text: "Use this when you want a ready-to-run demo folder with HTML, CSS, JS, config, assets, and instructions." }));
     const zipFiles = el("ul", { class: "bx-zip-tree" }, [
       el("li", { text: "📄 README.md  ·  HOW_TO_RUN.md" }),
       el("li", { text: "📁 demo/" }, [
@@ -1318,42 +1735,100 @@
     zipCard.appendChild(zipFiles);
     zipCard.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
       btn("⬇ Download Complete Demo ZIP", "bx-btn-primary", function () {
-        try {
-          window.HOLO_ZIP.downloadCompleteDemoZip(app.state);
-          toast("ZIP downloaded");
-        } catch (e) { toast("Couldn't build the ZIP: " + e.message); }
+        if (incomplete > 0) {
+          if (!confirm("You can export now, but " + incomplete + " item" + (incomplete === 1 ? "" : "s") +
+                       " still need attention. Export anyway?")) return;
+        }
+        toast("Building polished demo ZIP…");
+        Promise.resolve(window.HOLO_ZIP.downloadCompleteDemoZip(s)).then(function (payload) {
+          if (payload && payload.mode === "legacy") {
+            toast("Exported (offline mode — open the builder via http:// for the polished template)");
+          } else {
+            toast("Polished demo ZIP downloaded");
+          }
+        }).catch(function (e) {
+          toast("Couldn't build the ZIP: " + (e && e.message || e));
+        });
       }),
     ]));
     wrap.appendChild(zipCard);
 
-    // ── Config-only options ────────────────────────────────────
+    // ── Secondary: config-only ─────────────────────────────────
     const c1 = el("div", { class: "bx-card" });
     c1.appendChild(el("div", { class: "bx-card-title", text: "Config only" }));
     c1.appendChild(el("div", { class: "bx-card-sub", text: "Use these to update a demo folder you already have." }));
     c1.appendChild(el("div", { class: "bx-row" }, [
-      btn("Copy Config JS", "bx-btn-secondary", function () {
-        CONFIG.copyToClipboard(cfgJs).then(function () { toast("Copied holodeck.config.js"); });
-      }),
       btn("Download Config JS", "bx-btn-secondary", function () {
-        CONFIG.downloadFile("holodeck.config.js", cfgJs, "text/javascript");
+        CONFIG.downloadFile("holodeck.config.js", cfgJs, "text/javascript"); toast("Downloaded");
       }),
       btn("Download JSON", "bx-btn-secondary", function () {
-        CONFIG.downloadFile("holodeck-builder.json", cfgJson, "application/json");
+        CONFIG.downloadFile("holodeck-builder.json", cfgJson, "application/json"); toast("Downloaded");
       }),
-      btn("Copy JSON", "bx-btn-secondary", function () {
-        CONFIG.copyToClipboard(cfgJson).then(function () { toast("Copied JSON snapshot"); });
+      btn("Copy Config JS", "bx-btn-link", function () {
+        CONFIG.copyToClipboard(cfgJs).then(function () { toast("Copied"); });
+      }),
+      btn("Copy JSON", "bx-btn-link", function () {
+        CONFIG.copyToClipboard(cfgJson).then(function () { toast("Copied"); });
       }),
     ]));
     wrap.appendChild(c1);
 
     // ── Live config preview ───────────────────────────────────
     const c2 = el("div", { class: "bx-card" });
-    c2.appendChild(el("div", { class: "bx-card-title", text: "Preview — holodeck.config.js" }));
-    c2.appendChild(el("div", { class: "bx-card-sub", text: "Read-only preview of the generated file." }));
+    c2.appendChild(el("div", { class: "bx-card-title", text: "Generated config" }));
+    c2.appendChild(el("div", { class: "bx-card-sub", text: "Read-only preview of the holodeck.config.js that will ship in the ZIP." }));
     c2.appendChild(el("pre", { class: "bx-code", text: cfgJs }));
     wrap.appendChild(c2);
 
     return wrap;
+  }
+
+  // Export readiness — the user-facing checklist surfaced on Step 8.
+  // Each item has { label, done, hint? }. Order matches the wizard.
+  function buildExportChecklist(s) {
+    const out = [];
+    const setupReady = !!(s.project.customerName && s.project.industry && s.project.audience && s.project.salesStage && (s.project.products || []).length);
+    const f = s.storyFoundations || {};
+    const foundationsReady = !!(f.businessProblem && f.futureStateVision);
+    out.push({ label: "Project setup complete", done: setupReady, hint: setupReady ? "" : "Customer, industry, audience, stage, and products" });
+    out.push({ label: "Story foundations populated", done: foundationsReady, hint: foundationsReady ? "" : "Run Extract Story Foundations on Step 2" });
+    out.push({ label: "Personas added", done: (s.personas || []).length > 0 });
+    out.push({ label: "Story acts captured", done: (s.storyActs || []).length >= 3, hint: ((s.storyActs || []).length >= 3) ? "" : "3+ acts recommended" });
+    out.push({ label: "Recommended narrative applied", done: (s.slides || []).length > 0 });
+    const cx = s.cxComponents || [];
+    out.push({ label: "CX components ready or skipped", done: cx.length > 0 || s._cxSkipped,
+               hint: cx.filter(function (c) { return !c.url; }).length > 0 ? "Some components are missing URLs" : "" });
+    out.push({ label: "Slide plan reviewed", done: (s.slides || []).length >= 5,
+               hint: ((s.slides || []).length >= 5) ? "" : "5+ slides recommended" });
+
+    // Asset readiness — the polished demo's image-left/text-right
+    // slides have visible PLACEHOLDER panels until the SE drops real
+    // assets in.  Always surface this so the SE knows what to do
+    // before presenting externally.
+    const personaImages = (s.personas || []).length > 0
+      ? "persona portrait, hero GIF, phone GIF"
+      : "no personas yet";
+    const cxUrls = cx.filter(function (c) { return c.url; }).length;
+    out.push({
+      label: "Demo assets uploaded",
+      done: false,
+      hint: "Drop logo, " + personaImages + ", store/product photos into demo/assets/ after extracting the ZIP",
+    });
+    if (cx.length === 0) {
+      out.push({
+        label: "Live CX scene URLs added",
+        done: false,
+        hint: "Optional — paste AubreyDemo /frame URLs in Step 5 to embed live screens",
+      });
+    } else if (cxUrls < cx.length) {
+      out.push({
+        label: "All CX components have URLs",
+        done: false,
+        hint: (cx.length - cxUrls) + " of " + cx.length + " missing URLs",
+      });
+    }
+
+    return out;
   }
 
   function btn(label, klass, onClick) {
@@ -1462,6 +1937,23 @@
       body.appendChild(card);
     });
   }
+  function sideCxSummary(body) {
+    const s = app.state;
+    const components = s.cxComponents || [];
+    if (!components.length) {
+      body.appendChild(el("div", { class: "bx-side-empty",
+        html: "<strong>Optional step.</strong> AubreyDemo CX components let the demo embed live screens. Skip if you don't have any yet." }));
+      return;
+    }
+    components.forEach(function (c) {
+      const card = el("div", { class: "bx-side-card" });
+      card.appendChild(el("div", { class: "bx-side-card-t", text: c.name || "(unnamed)" }));
+      const sub = c.url ? (c.type || "web") + " · " + (c.deviceFrame || "desktop") : "URL needed";
+      card.appendChild(el("div", { class: "bx-side-card-s", text: sub }));
+      body.appendChild(card);
+    });
+  }
+
   function sideExportSummary(body) {
     const s = app.state;
     [
@@ -1681,15 +2173,19 @@
   }
 
   function openExportModal() {
-    const cfgJs   = CONFIG.toHolodeckConfigJs(app.state);
+    const cfgJs   = (window.HOLO_ADAPTER && window.HOLO_ADAPTER.toPolishedHolodeckConfigJs)
+      ? window.HOLO_ADAPTER.toPolishedHolodeckConfigJs(app.state)
+      : CONFIG.toHolodeckConfigJs(app.state);
     const cfgJson = CONFIG.toJsonString(app.state);
     const wrap = el("div");
     wrap.appendChild(el("p", { style: "margin: 0 0 14px; font-size: 13px; color: var(--bx-ink-2);",
       text: "Use Complete Demo ZIP for a ready-to-run package. Use Config only when updating an existing demo folder." }));
     wrap.appendChild(el("div", { class: "bx-modal-actions", style: "margin-top: 0; margin-bottom: 14px;" }, [
       btn("⬇ Download Complete Demo ZIP", "bx-btn-primary", function () {
-        try { window.HOLO_ZIP.downloadCompleteDemoZip(app.state); toast("ZIP downloaded"); }
-        catch (e) { toast("Couldn't build the ZIP: " + e.message); }
+        toast("Building polished demo ZIP…");
+        Promise.resolve(window.HOLO_ZIP.downloadCompleteDemoZip(app.state)).then(function (payload) {
+          toast(payload && payload.mode === "legacy" ? "Exported (offline mode)" : "Polished demo ZIP downloaded");
+        }).catch(function (e) { toast("Couldn't build the ZIP: " + (e && e.message || e)); });
       }),
       btn("Download Config JS", "bx-btn-secondary", function () {
         CONFIG.downloadFile("holodeck.config.js", cfgJs, "text/javascript"); toast("Downloaded");

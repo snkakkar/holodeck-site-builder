@@ -187,16 +187,55 @@
   }
 
   // ─── Empty state ───────────────────────────────────────────────
+  // First-run experience: explain what the tool does, what to bring,
+  // and the fastest path to value. Three CTAs ranked by likelihood.
   function emptyState(handlers) {
-    return el("div", { class: "bx-empty bx-home-empty" }, [
-      el("div", { style: "font-size: 28px;", text: "🪐" }),
-      el("h3", { class: "bx-home-empty-h", text: "No projects yet" }),
-      el("p", { class: "bx-home-empty-p",
-        html: "Start a new holodeck or import a config file. You can also <strong>generate one with AI</strong> from rough customer notes." }),
-      el("div", { class: "bx-row" }, [
-        primaryBtn("+ New Holodeck Project", function () { handlers.onNew && handlers.onNew(); }),
-        ghostBtn("Import Config", function () { handlers.onImport && handlers.onImport(); }),
+    const root = el("div", { class: "bx-home-firstrun" });
+
+    // Hero pitch
+    root.appendChild(el("div", { class: "bx-firstrun-hero" }, [
+      el("div", { class: "bx-firstrun-mark", text: "🪐" }),
+      el("h2", { class: "bx-firstrun-title", text: "Build a customer-specific Salesforce Holodeck" }),
+      el("p", { class: "bx-firstrun-sub",
+        html: "Paste a demo script — the builder extracts the story, picks the right slides, and packages a ready-to-run demo folder. <strong>No code, no JSON, no slide editor.</strong>" }),
+      el("div", { class: "bx-row bx-firstrun-ctas" }, [
+        primaryBtn("+ Create your first holodeck", function () { handlers.onNew && handlers.onNew(); }),
+        ghostBtn("Import an existing config", function () { handlers.onImport && handlers.onImport(); }),
         ghostBtn("Generate with AI", function () { handlers.onAiPrompt && handlers.onAiPrompt(); }),
+      ]),
+    ]));
+
+    // What you'll need
+    root.appendChild(el("div", { class: "bx-firstrun-needs" }, [
+      el("div", { class: "bx-firstrun-needs-title", text: "What you'll need" }),
+      el("ul", { class: "bx-firstrun-needs-list" }, [
+        el("li", { text: "A demo script or rough story outline (paste or upload)" }),
+        el("li", { text: "Customer name, industry, audience, and Salesforce products in scope" }),
+        el("li", { text: "Optional: AubreyDemo links to embed live screens" }),
+      ]),
+    ]));
+
+    // Five-step preview
+    root.appendChild(el("div", { class: "bx-firstrun-steps" }, [
+      el("div", { class: "bx-firstrun-steps-title", text: "How it works" }),
+      el("ol", { class: "bx-firstrun-steps-list" }, [
+        firstrunStep("1", "Add customer details", "Industry, audience, products — sets the recommendation tone."),
+        firstrunStep("2", "Paste your demo script", "We extract foundations, personas, and journey acts locally in your browser."),
+        firstrunStep("3", "Apply the recommended narrative", "Eight to ten slides grouped into Intro / Journey / Persona / Demo / Business Value."),
+        firstrunStep("4", "Preview the demo", "Realistic previews — what you see is what ships."),
+        firstrunStep("5", "Download the complete ZIP", "A runnable demo/ folder with HTML, CSS, JS, config, and a README."),
+      ]),
+    ]));
+
+    return root;
+  }
+
+  function firstrunStep(num, title, body) {
+    return el("li", { class: "bx-firstrun-step" }, [
+      el("div", { class: "bx-firstrun-step-num", text: num }),
+      el("div", {}, [
+        el("div", { class: "bx-firstrun-step-title", text: title }),
+        el("div", { class: "bx-firstrun-step-body", text: body }),
       ]),
     ]);
   }

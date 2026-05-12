@@ -51,9 +51,18 @@ No npm install or build step is required.
 python3 -m http.server 8080
 ```
 
-Open `http://localhost:8080/builder/`. Fill in customer/audience/products, paste a script, pick recommendations, preview slide cards, and download a generated `holodeck.config.js`. Drop the file into `demo/holodeck.config.js` and you're ready to go.
+Open `http://localhost:8080/builder/`. Fill in customer/audience/products, paste a script, pick recommendations, preview slide cards, and click **Download Complete Demo ZIP**. The exported ZIP ships a verbatim copy of the polished `/demo` template — same HTML shell, same CSS, same JS — with your customer's content already filled into `holodeck.config.js`. Extract, run a local server inside the `demo/` folder, and you have a customer-ready Holodeck.
 
 **Option B — Edit the config file directly.** Open `demo/holodeck.config.js` and update Zone 1 fields by hand. See `HOW_TO_BUILD_HOLODECK.md` for the playbook.
+
+## Builder previews vs. final output — important
+
+The Builder shows two different things:
+
+- **In-app slide previews** ([`builder/preview-renderer.js`](builder/preview-renderer.js)) — lightweight thumbnails the SE uses to scan their plan. They are **indicative only**; they are not the customer-facing output.
+- **Exported Holodeck** — the polished `/demo` template with the SE's content adapted in by [`builder/holodeck-adapter.js`](builder/holodeck-adapter.js). This is what the customer sees.
+
+The exporter ([`builder/zip-exporter.js`](builder/zip-exporter.js)) fetches `/demo` files at export time and ships them into the ZIP unchanged, so the visual reference and the final output never drift apart. To upgrade the visual quality of the output, edit `/demo` — the next export will pick the changes up automatically.
 
 ## How customization works
 

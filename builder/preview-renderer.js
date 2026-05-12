@@ -1,12 +1,25 @@
 // ════════════════════════════════════════════════════════════════
-//  PREVIEW RENDERER
-//  Realistic per-layout previews of the final holodeck screens.
-//  Driven by the real builder state — customer name, brand colors,
-//  personas, story acts, products, business value text, assets.
+//  PREVIEW RENDERER  ⚠ INDICATIVE BUILDER PREVIEWS — NOT PRODUCTION OUTPUT
 //
-//  Two modes:
+//  WHAT THIS FILE IS:
+//    Lightweight, in-builder slide thumbnails. SEs use these to scan
+//    their slide plan and confirm content is flowing correctly. They
+//    are simplified renderings — useful for review, NOT customer-ready.
+//
+//  WHAT THIS FILE IS NOT:
+//    The final customer-facing Holodeck output. That comes from the
+//    polished /demo template — see holodeck-adapter.js + zip-exporter.js.
+//    The exported ZIP ships a verbatim copy of the /demo template files
+//    (HTML, 7 CSS files, runtime JS, device frames) plus an adapted
+//    holodeck.config.js that drives them.
+//
+//  THE TWO RENDER PATHS — DO NOT CONFUSE
+//    Builder UI       → preview-renderer.js  (this file — review only)
+//    Customer demo    → /demo template + holodeck-adapter.js  (production)
+//
+//  Two modes for the in-builder preview:
 //    • compact   — small card for scanning slide order
-//    • expanded  — close approximation of the final screen
+//    • expanded  — closer approximation of the final screen, still indicative
 //
 //  Public API:
 //    HOLO_PREVIEW.renderPreviewCard(slide, state, handlers)

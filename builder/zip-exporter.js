@@ -17,50 +17,168 @@
 (function (global) {
   "use strict";
 
-  const CONFIG = global.HOLO_CONFIG;
+  const CONFIG  = global.HOLO_CONFIG;
   const PREVIEW = global.HOLO_PREVIEW;
+  const ADAPTER = global.HOLO_ADAPTER;
+
+  // ── /demo template manifest ─────────────────────────────────
+  // Source-of-truth list of files we ship in the polished export.
+  // Path is the location both inside the builder server (where we
+  // fetch from) and inside the exported ZIP (where they end up).
+  // Listed verbatim so the polished demo *is* the /demo folder —
+  // no string-baked duplicate of the template that could drift.
+  const DEMO_TEMPLATE_FILES = [
+    // Entry + runnable shell
+    { src: "../demo/index.html",                         dest: "demo/index.html",                         kind: "text" },
+    { src: "../demo/demo-holodeck-unified.html",         dest: "demo/demo-holodeck-unified.html",         kind: "text" },
+    { src: "../demo/DEMO-TEMPLATE-HOLODECK.md",          dest: "demo/DEMO-TEMPLATE-HOLODECK.md",          kind: "text", optional: true },
+
+    // Stylesheets — the full polished design system
+    { src: "../demo/styles/tokens.css",                  dest: "demo/styles/tokens.css",                  kind: "text" },
+    { src: "../demo/styles/base.css",                    dest: "demo/styles/base.css",                    kind: "text" },
+    { src: "../demo/styles/nav.css",                     dest: "demo/styles/nav.css",                     kind: "text", optional: true },
+    { src: "../demo/styles/deck.css",                    dest: "demo/styles/deck.css",                    kind: "text", optional: true },
+    { src: "../demo/styles/slides.css",                  dest: "demo/styles/slides.css",                  kind: "text" },
+    { src: "../demo/styles/components.css",              dest: "demo/styles/components.css",              kind: "text" },
+    { src: "../demo/styles/animations.css",              dest: "demo/styles/animations.css",              kind: "text" },
+    { src: "../demo/styles/demo-theme.css",              dest: "demo/styles/demo-theme.css",              kind: "text" },
+
+    // Runtime JS
+    { src: "../demo/js/holodeck-render.js",              dest: "demo/js/holodeck-render.js",              kind: "text" },
+    { src: "../demo/js/demo-deck-renderer.js",           dest: "demo/js/demo-deck-renderer.js",           kind: "text" },
+    { src: "../demo/js/dom-utils.js",                    dest: "demo/js/dom-utils.js",                    kind: "text", optional: true },
+    { src: "../demo/js/navigation.js",                   dest: "demo/js/navigation.js",                   kind: "text", optional: true },
+
+    // Device-frame assets the demo renders into
+    { src: "../demo/assets/iPhone16Pro_FRAME.png",       dest: "demo/assets/iPhone16Pro_FRAME.png",       kind: "binary" },
+    { src: "../demo/assets/macbook-transparent.png",     dest: "demo/assets/macbook-transparent.png",     kind: "binary" },
+    { src: "../demo/assets/sf-icon.png",                 dest: "demo/assets/sf-icon.png",                 kind: "binary", optional: true },
+  ];
 
   // ─── Public entry point ──────────────────────────────────────
+  // The polished export is async because it fetches the /demo/
+  // template files from the same origin the builder is served from.
+  // If fetch fails (file:// open of the builder, or /demo unavailable),
+  // we fall back to the legacy generator-based ZIP so the SE always
+  // gets *something*.
   function downloadCompleteDemoZip(state) {
-    const payload = buildDemoZipPayload(state);
-    const blob = encodeZip(payload.files);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "holodeck-" + safeSlug(state) + ".zip";
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 250);
-    return payload;
+    return buildDemoZipPayload(state).then(function (payload) {
+      const blob = encodeZip(payload.files);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "holodeck-" + safeSlug(state) + ".zip";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 250);
+      return payload;
+    });
   }
 
   // ─── Build the file list to put into the ZIP ─────────────────
+  // Tries the polished path first (fetch /demo/ template files +
+  // adapt config). Falls back to the legacy generator if any of the
+  // template fetches fail.
   function buildDemoZipPayload(state) {
     const slug = safeSlug(state);
     const root = "holodeck-" + slug + "/";
-    const cfgJs   = CONFIG.toHolodeckConfigJs(state);
-    const cfgJson = CONFIG.toJsonString(state);
-    const exportMeta = generateExportMetadata(state);
+    return tryFetchPolishedTemplate().then(function (templateFiles) {
+      if (!templateFiles) return buildLegacyPayload(state, slug, root);
+      return buildPolishedPayload(state, slug, root, templateFiles);
+    });
+  }
+
+  // Polished path: copy /demo verbatim, swap in adapter-built config.
+  function buildPolishedPayload(state, slug, root, templateFiles) {
+    const polishedCfgJs = ADAPTER
+      ? ADAPTER.toPolishedHolodeckConfigJs(state)
+      : CONFIG.toHolodeckConfigJs(state);
+    const builderJson = CONFIG.toJsonString(state);
+    const exportMeta  = generateExportMetadata(state);
 
     const files = [
       // Top-level docs
-      { path: root + "README.md",                    content: generateReadme(state) },
-      { path: root + "HOW_TO_RUN.md",                content: generateHowToRun(state) },
+      { path: root + "README.md",     content: generateReadme(state) },
+      { path: root + "HOW_TO_RUN.md", content: generateHowToRun(state) },
+    ];
 
-      // Runnable demo folder
-      { path: root + "demo/index.html",              content: generateDemoIndexHtml(state) },
-      { path: root + "demo/holodeck.config.js",      content: cfgJs },
+    // Drop in every fetched template file under /demo, but skip the
+    // template's stock holodeck.config.js — we replace it with ours.
+    templateFiles.forEach(function (tf) {
+      if (/holodeck\.config\.js$/.test(tf.dest)) return;
+      files.push({ path: root + tf.dest, content: tf.content });
+    });
+
+    // Our adapted config + JSON snapshot
+    files.push({ path: root + "demo/holodeck.config.js",        content: polishedCfgJs });
+    files.push({ path: root + "demo/data/holodeck-config.json", content: builderJson });
+    files.push({ path: root + "demo/assets/ASSET_INSTRUCTIONS.md", content: generateAssetInstructions(state) });
+
+    // Builder metadata for round-trip
+    files.push({ path: root + "source/builder-export-metadata.json", content: JSON.stringify(exportMeta, null, 2) });
+    files.push({ path: root + "source/holodeck-builder.json",        content: builderJson });
+
+    return { files: files, slug: slug, root: root, mode: "polished" };
+  }
+
+  // Legacy path: generator-built minimal runtime. Kept as fallback so
+  // the export still produces a ZIP if the builder is opened over
+  // file:// (no fetch) or /demo isn't reachable for some reason.
+  function buildLegacyPayload(state, slug, root) {
+    const cfgJs   = CONFIG.toHolodeckConfigJs(state);
+    const cfgJson = CONFIG.toJsonString(state);
+    const exportMeta = generateExportMetadata(state);
+    const files = [
+      { path: root + "README.md",     content: generateReadme(state) },
+      { path: root + "HOW_TO_RUN.md", content: generateHowToRun(state) },
+      { path: root + "demo/index.html",                content: generateDemoIndexHtml(state) },
+      { path: root + "demo/holodeck.config.js",        content: cfgJs },
       { path: root + "demo/data/holodeck-config.json", content: cfgJson },
-      { path: root + "demo/css/styles.css",          content: generateDemoCss(state) },
-      { path: root + "demo/js/app.js",               content: generateDemoAppJs(state) },
-      { path: root + "demo/js/renderer.js",          content: generateDemoRendererJs(state) },
+      { path: root + "demo/css/styles.css",            content: generateDemoCss(state) },
+      { path: root + "demo/js/app.js",                 content: generateDemoAppJs(state) },
+      { path: root + "demo/js/renderer.js",            content: generateDemoRendererJs(state) },
       { path: root + "demo/assets/ASSET_INSTRUCTIONS.md", content: generateAssetInstructions(state) },
-
-      // Builder metadata for round-trip back into the builder
       { path: root + "source/builder-export-metadata.json", content: JSON.stringify(exportMeta, null, 2) },
       { path: root + "source/holodeck-builder.json",        content: cfgJson },
     ];
-    return { files: files, slug: slug, root: root };
+    return { files: files, slug: slug, root: root, mode: "legacy" };
+  }
+
+  // ─── Fetch the /demo template files ──────────────────────────
+  // Resolves to an array of { dest, content (string or Uint8Array) }
+  // or null if the polished template can't be reached (e.g. file://).
+  function tryFetchPolishedTemplate() {
+    if (typeof fetch !== "function") return Promise.resolve(null);
+    const promises = DEMO_TEMPLATE_FILES.map(function (tf) {
+      return fetch(tf.src, { cache: "no-store" }).then(function (res) {
+        if (!res.ok) {
+          if (tf.optional) return null;
+          throw new Error("HTTP " + res.status + " on " + tf.src);
+        }
+        if (tf.kind === "binary") {
+          return res.arrayBuffer().then(function (buf) {
+            return { dest: tf.dest, content: new Uint8Array(buf) };
+          });
+        }
+        return res.text().then(function (text) {
+          return { dest: tf.dest, content: text };
+        });
+      }).catch(function (err) {
+        if (tf.optional) return null;
+        throw err;
+      });
+    });
+    return Promise.all(promises)
+      .then(function (results) {
+        return results.filter(Boolean);
+      })
+      .catch(function (err) {
+        // Any required file failed → fall back to legacy.
+        if (typeof console !== "undefined" && console.warn) {
+          console.warn("[holo] Polished template fetch failed, falling back to legacy export:", err && err.message);
+        }
+        return null;
+      });
   }
 
   // ─── Slug helper ─────────────────────────────────────────────
@@ -109,16 +227,29 @@
       "",
       "## What's in this package",
       "",
+      "This is the **polished Salesforce Holodeck template** — the same shell",
+      "that powers the reference Holodeck demo, with your customer's content",
+      "dropped in. The Builder previews you saw inside the app are simplified",
+      "thumbnails; this is the real customer-facing experience.",
+      "",
       "```",
-      "demo/                  Runnable static-site holodeck",
-      "  index.html           Open this to run the demo",
-      "  holodeck.config.js   Customer + slide config (the file you edit)",
-      "  data/                JSON snapshot of the config (round-trips to the builder)",
-      "  css/styles.css       Theme + slide layouts",
-      "  js/app.js            Navigation + boot",
-      "  js/renderer.js       Renders slides from the config",
-      "  assets/              Drop logos / images / scene URLs here",
-      "source/                Builder metadata for re-importing",
+      "demo/                              Runnable static-site Holodeck",
+      "  index.html                       Redirects to the unified shell",
+      "  demo-holodeck-unified.html       The full polished demo (5 sections)",
+      "  holodeck.config.js               Customer + story config (you edit this)",
+      "  data/holodeck-config.json        JSON snapshot (round-trips to the Builder)",
+      "  styles/                          Polished design system",
+      "    tokens.css · base.css · slides.css · components.css",
+      "    animations.css · demo-theme.css · nav.css · deck.css",
+      "  js/                              Config-driven renderer",
+      "    holodeck-render.js             Bridges config → DOM",
+      "    dom-utils.js · navigation.js",
+      "  assets/                          Drop logos, persona images, and scene GIFs here",
+      "    iPhone16Pro_FRAME.png          Device frame (do not replace)",
+      "    macbook-transparent.png        Device frame (do not replace)",
+      "    sf-icon.png                    Salesforce mark (fallback)",
+      "    ASSET_INSTRUCTIONS.md          What to add and where",
+      "source/                            Builder metadata + JSON snapshot for re-import",
       "```",
       "",
       "## Quick start",
@@ -167,12 +298,34 @@
   // ─── HOW_TO_RUN ──────────────────────────────────────────────
   function generateHowToRun(state) {
     return [
-      "# How to run this holodeck",
+      "# How to run this Holodeck",
       "",
-      "## Option 1 — open the file directly",
+      "## Recommended — local server",
       "",
-      "Double-click `demo/index.html`. Most slides will work; some browsers block",
-      "loading the JSON config from a `file://` URL, so if the slides don't appear,",
+      "```bash",
+      "cd demo",
+      "python3 -m http.server 8080",
+      "```",
+      "",
+      "Then open `http://localhost:8080/demo-holodeck-unified.html` in Chrome.",
+      "",
+      "## What you'll see",
+      "",
+      "Five polished sections, navigable from the top nav:",
+      "",
+      "1. **Journey Map** — the customer's end-to-end agentic journey",
+      "2. **Intro** — opening vignettes + three-act structure",
+      "3. **Meet [Persona]** — persona introduction with wishlist + CTA",
+      "4. **Demo** — slide-by-slide moments (timeline, device frames, scenes)",
+      "5. **Business Value** — orbit, capabilities, BVS metrics, close",
+      "",
+      "Use the top nav to jump between sections. Inside each deck section,",
+      "click anywhere or press `→` / `Space` to advance, `←` to go back.",
+      "",
+      "## Option 1 — file:// open (limited)",
+      "",
+      "Double-click `demo/index.html`. Some browsers block JSON / iframe",
+      "loading from `file://` URLs, so if anything looks broken,",
       "use Option 2.",
       "",
       "## Option 2 — local server (recommended)",
