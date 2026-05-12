@@ -214,6 +214,10 @@
     const shell = $("#bxShell");
     shell.innerHTML = "";
 
+    // Always strip the quality footer first; only the builder view re-adds it.
+    const stale = $("#bxQualityFooter");
+    if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+
     if (app.view === "home") {
       shell.classList.add("is-single");
       const wrap = el("section", { class: "bx-page", id: "bxPage" });
@@ -261,6 +265,35 @@
     shell.appendChild(stepper); shell.appendChild(main); shell.appendChild(side);
     renderStepper(); renderMain(); renderSide();
     setSaveIndicator(false);
+
+    // Persistent Quality Check strip — always visible while in the
+    // builder so SEs see issues before reaching the export step.
+    renderQualityFooter(shell);
+  }
+
+  function renderQualityFooter(shell) {
+    if (!VALIDATE_STORY || !app.state) return;
+    const result = VALIDATE_STORY.validateGeneratedStoryAndSlides(app.state);
+    const { errors = 0, warnings = 0 } = result.summary || {};
+    // Don't add the footer twice across re-renders.
+    const existing = $("#bxQualityFooter");
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+    const footer = el("button", {
+      id: "bxQualityFooter",
+      class: "bx-quality-footer" + (errors ? " has-errors" : warnings ? " has-warnings" : " is-clean"),
+      "aria-label": "Open Story Quality Check",
+    });
+    const tone = errors ? "tone-red" : (warnings ? "tone-gold" : "tone-good");
+    const dot  = el("span", { class: "bx-quality-dot " + tone });
+    const text = errors  ? errors + " issue" + (errors === 1 ? "" : "s") + " to fix"
+               : warnings? warnings + " warning" + (warnings === 1 ? "" : "s")
+                         : "Story looks healthy";
+    footer.appendChild(dot);
+    footer.appendChild(el("span", { class: "bx-quality-text", text: text }));
+    footer.appendChild(el("span", { class: "bx-quality-cta", text: "Run Story Quality Check →" }));
+    footer.addEventListener("click", function () { openStoryQualityModal(); });
+    document.body.appendChild(footer);
   }
 
   // ─── BUILDER: stepper ─────────────────────────────────────────
@@ -513,6 +546,7 @@
     });
     wrap.appendChild(tabs);
 
+    // ── Script paste card (script tab only) ──────────────────
     if (s.storyMode === "script") {
       const c = el("div", { class: "bx-card" });
       c.appendChild(el("div", { class: "bx-card-title", text: "Paste your demo script" }));
@@ -521,42 +555,6 @@
         placeholder: "Paste a rough demo script, story outline, or transcript here…",
         value: s.scriptText,
         onInput: function (v) { s.scriptText = v; recompute(); renderSide(); commit(); } }));
-
-      // Extract button — runs the parser, fills foundations + acts + personas.
-      c.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
-        btn("✨ Extract Story Foundations", "bx-btn-primary", function () {
-          if (!PARSER) { toast("Parser not loaded"); return; }
-          if (!s.scriptText || !s.scriptText.trim()) { toast("Paste a script first"); return; }
-          const f = PARSER.extractStoryFoundations(s.scriptText, s);
-          PARSER.mergeExtractedStoryIntoState(f, s);
-          // If the script has clean numbered acts + sections, also seed
-          // storyActs (only when the SE hasn't already authored them).
-          if (!(s.storyActs || []).length) {
-            const acts = PARSER.extractStoryActsFromScript(s.scriptText);
-            s.storyActs = acts.map(function (a) { return Object.assign({ id: uid("act_") }, a); });
-          }
-          // Seed a persona from the persona description if we don't have one
-          if (!(s.personas || []).length) {
-            const desc = PARSER.extractPersonaDescription(s.scriptText);
-            if (desc) {
-              const name = (desc.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/) || [, ""])[1];
-              s.personas.push({
-                id: uid("persona_"),
-                name: name || "",
-                role: "",
-                goals: "",
-                painPoints: "",
-                demoRelevance: desc,
-              });
-            }
-          }
-          recompute();
-          renderShell();
-          commit();
-          toast("Foundations extracted from script");
-        }),
-        btn("Run Story Quality Check", "bx-btn-secondary", function () { openStoryQualityModal(); }),
-      ]));
 
       if (s.scriptText) {
         const sigs = RULES.extractScriptSignals(s.scriptText);
@@ -571,26 +569,29 @@
         }
       }
       wrap.appendChild(c);
+    }
 
-      // Foundations summary card — shows what was extracted
-      const f = s.storyFoundations || {};
-      const hasAny = f.businessProblem || f.futureStateVision || (f.valueDrivers || []).length;
-      if (hasAny) {
-        const fc = el("div", { class: "bx-card bx-foundation-card" });
-        fc.appendChild(el("div", { class: "bx-card-title", text: "Story Foundations (extracted)" }));
-        fc.appendChild(el("div", { class: "bx-card-sub", text: "These flow into Step 4's slide plan. Edit anytime in the manual tab below." }));
-        if (f.businessProblem)    fc.appendChild(foundationRow("Business problem", f.businessProblem));
-        if (f.currentStatePain)   fc.appendChild(foundationRow("Current-state pain", f.currentStatePain));
-        if (f.futureStateVision)  fc.appendChild(foundationRow("Future-state vision", f.futureStateVision));
-        if (f.transformationThesis) fc.appendChild(foundationRow("Transformation thesis", f.transformationThesis));
-        if ((f.valueDrivers || []).length) fc.appendChild(foundationList("Value drivers", f.valueDrivers));
-        if ((f.agentforceMoments || []).length) fc.appendChild(foundationList("Agentforce moments", f.agentforceMoments.slice(0, 4)));
-        if ((f.dataCloudMoments  || []).length) fc.appendChild(foundationList("Data Cloud moments", f.dataCloudMoments.slice(0, 4)));
-        if ((f.serviceMoments    || []).length) fc.appendChild(foundationList("Service moments", f.serviceMoments.slice(0, 4)));
-        if ((f.assumptions       || []).length) fc.appendChild(foundationList("Assumptions", f.assumptions));
-        wrap.appendChild(fc);
-      }
-    } else {
+    // ── Extract button + Quality Check (visible in BOTH tabs) ──
+    // Bugfix: previously the Extract button lived inside the script-tab
+    // branch only, and the default storyMode was "manual" — so new
+    // users had to discover the script tab before extraction was even
+    // possible. Lifted out so it's always reachable.
+    const extractRow = el("div", { class: "bx-card bx-extract-card" });
+    extractRow.appendChild(el("div", { class: "bx-card-title", text: "Extract Story Foundations" }));
+    extractRow.appendChild(el("div", { class: "bx-card-sub",
+      text: s.scriptText
+        ? "Run the parser on your pasted script to fill foundations, story acts, and personas. We won't overwrite fields you've already edited manually."
+        : "Paste a script in the \"Paste demo script\" tab above — then click Extract." }));
+    extractRow.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+      btn("✨ Extract Story Foundations", "bx-btn-primary", function () {
+        runScriptExtraction();
+      }),
+      btn("Run Story Quality Check", "bx-btn-secondary", function () { openStoryQualityModal(); }),
+    ]));
+    wrap.appendChild(extractRow);
+
+    // ── Manual story-foundation fields (manual tab only) ──────
+    if (s.storyMode !== "script") {
       const c = el("div", { class: "bx-card" });
       c.appendChild(el("div", { class: "bx-card-title", text: "Story foundations" }));
       c.appendChild(el("div", { class: "bx-card-sub", text: "Short answers are fine. These flow into intro slides and the executive summary." }));
@@ -611,6 +612,94 @@
           onInput: function (v) { s.story[f[0]] = v; recompute(); renderSide(); commit(); } }));
       });
       wrap.appendChild(c);
+    }
+
+    // ── Foundations summary card (always visible if populated) ──
+    // Bugfix: previously inside the script-tab branch, so the extracted
+    // result vanished when SEs switched to the manual tab to edit.
+    const f = s.storyFoundations || {};
+    const hasAny = f.businessProblem || f.futureStateVision || (f.valueDrivers || []).length;
+    if (hasAny) {
+      const fc = el("div", { class: "bx-card bx-foundation-card" });
+      fc.appendChild(el("div", { class: "bx-card-title", text: "Story Foundations (extracted)" }));
+      fc.appendChild(el("div", { class: "bx-card-sub", text: "These flow into Step 4's slide plan. Re-run extract to refresh, or edit fields in the manual tab." }));
+      if (f.businessProblem)      fc.appendChild(foundationRow("Business problem", f.businessProblem));
+      if (f.currentStatePain)     fc.appendChild(foundationRow("Current-state pain", f.currentStatePain));
+      if (f.futureStateVision)    fc.appendChild(foundationRow("Future-state vision", f.futureStateVision));
+      if (f.transformationThesis) fc.appendChild(foundationRow("Transformation thesis", f.transformationThesis));
+      if (f.executiveTakeaway)    fc.appendChild(foundationRow("Executive takeaway", f.executiveTakeaway));
+      if ((f.valueDrivers       || []).length) fc.appendChild(foundationList("Value drivers", f.valueDrivers));
+      if ((f.agentforceMoments  || []).length) fc.appendChild(foundationList("Agentforce moments",  f.agentforceMoments.slice(0, 4)));
+      if ((f.dataCloudMoments   || []).length) fc.appendChild(foundationList("Data Cloud moments",  f.dataCloudMoments.slice(0, 4)));
+      if ((f.commerceMoments    || []).length) fc.appendChild(foundationList("Commerce moments",    f.commerceMoments.slice(0, 4)));
+      if ((f.marketingMoments   || []).length) fc.appendChild(foundationList("Marketing moments",   f.marketingMoments.slice(0, 4)));
+      if ((f.serviceMoments     || []).length) fc.appendChild(foundationList("Service moments",     f.serviceMoments.slice(0, 4)));
+      if ((f.assumptions        || []).length) fc.appendChild(foundationList("Assumptions",         f.assumptions));
+      if ((f.openQuestions      || []).length) fc.appendChild(foundationList("Open questions",      f.openQuestions));
+      wrap.appendChild(fc);
+    }
+
+    // The script-extraction routine. Single source of truth so both
+    // the script tab and the always-visible Extract card use the same
+    // pipeline. Surfaces specific failure reasons (no silent fail).
+    function runScriptExtraction() {
+      if (window.HOLO_DEBUG) console.log("[holo] SCRIPT_INPUT_RECEIVED", { length: (s.scriptText || "").length, source: "extract-button" });
+      if (!PARSER) { toast("Story parser is not loaded — check your install"); return; }
+      if (!s.scriptText || !s.scriptText.trim()) {
+        toast("Script text is empty — paste a script first");
+        if (s.storyMode !== "script") { s.storyMode = "script"; renderShell(); }
+        return;
+      }
+      let f;
+      try {
+        if (window.HOLO_DEBUG) console.log("[holo] PARSER_CALLED extractStoryFoundations", { length: s.scriptText.length });
+        f = PARSER.extractStoryFoundations(s.scriptText, s);
+      } catch (e) {
+        toast("Parser threw: " + e.message);
+        return;
+      }
+      if (!f || !f.businessProblem) {
+        toast("Parser ran but found no story signals — check the script has Synopsis / CX Summary / numbered steps");
+        return;
+      }
+      if (window.HOLO_DEBUG) console.log("[holo] PARSER_RESULT", {
+        businessProblem: f.businessProblem.slice(0, 60),
+        valueDrivers: f.valueDrivers.length,
+        agentforceMoments: f.agentforceMoments.length,
+        dataCloudMoments: f.dataCloudMoments.length,
+      });
+      if (window.HOLO_DEBUG) console.log("[holo] STATE_BEFORE_MERGE", { businessProblem: (s.storyFoundations || {}).businessProblem });
+      PARSER.mergeExtractedStoryIntoState(f, s);
+      if (window.HOLO_DEBUG) console.log("[holo] STATE_AFTER_MERGE", {
+        foundationsBP: s.storyFoundations.businessProblem.slice(0, 60),
+        personasCount: s.personas.length,
+        storyActsCount: s.storyActs.length,
+      });
+      // Seed acts and persona from the script if not already authored.
+      if (!(s.storyActs || []).length) {
+        const acts = PARSER.extractStoryActsFromScript(s.scriptText);
+        s.storyActs = acts.map(function (a) { return Object.assign({ id: uid("act_") }, a); });
+      }
+      if (!(s.personas || []).length) {
+        const desc = PARSER.extractPersonaDescription(s.scriptText);
+        if (desc) {
+          const name = (desc.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/) || [, ""])[1];
+          s.personas.push({
+            id: uid("persona_"),
+            name: name || "",
+            role: "", goals: "", painPoints: "",
+            demoRelevance: desc,
+          });
+        }
+      }
+      recompute();
+      renderShell();
+      commit();
+      if (window.HOLO_DEBUG) console.log("[holo] AUTOSAVE_PROJECT", {
+        savedFoundationsBP: (s.storyFoundations.businessProblem || "").slice(0, 60),
+      });
+      toast("Foundations extracted — " + s.storyFoundations.valueDrivers.length + " value drivers, "
+            + s.storyActs.length + " acts, " + s.personas.length + " persona" + (s.personas.length === 1 ? "" : "s"));
     }
 
     // Personas
@@ -860,18 +949,12 @@
       banner.appendChild(why);
       banner.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
         btn("Use Recommended Narrative", "bx-btn-primary", function () {
-          // Auto-select all anchors + every "required" or "recommended" rule.
+          // Auto-select ONLY the anchors the engine picked. The cap is
+          // audience-aware (8–10 typical, 12 for technical) and the
+          // engine already enforces it in collectAnchorSlideIds.
           const ids = new Set(plan.anchorSlideIds);
-          plan.sections.forEach(function (sec) {
-            sec.slides.forEach(function (r) {
-              if (r.selectionStatus === "required" || r.selectionStatus === "recommended") {
-                ids.add(r.id);
-              }
-            });
-          });
           s.selectedRecIds = {};
           Array.from(ids).forEach(function (id) { s.selectedRecIds[id] = true; });
-          // Update recommendation.selected mirrors
           s.recommendations.forEach(function (r) { r.selected = !!s.selectedRecIds[r.id]; });
           buildSlidePlanFromSelections();
           renderMain(); renderSide(); commit();
@@ -936,54 +1019,91 @@
   function recCard(r) {
     const isOn = !!app.state.selectedRecIds[r.id];
     const card = el("div", { class: "bx-rec" + (isOn ? " is-on" : "") });
-    const check = el("div", { class: "bx-rec-check", role: "checkbox" });
-    check.addEventListener("click", function () { toggleRec(r.id); });
+
+    // Real checkbox — keyboard- and screen-reader-accessible.
+    const checkboxId = "bx-rec-cb-" + r.id;
+    const check = el("input", { type: "checkbox", class: "bx-rec-check", id: checkboxId });
+    if (isOn) check.setAttribute("checked", "checked");
+    check.addEventListener("change", function () { toggleRec(r.id); });
+    check.addEventListener("click", function (e) { e.stopPropagation(); });
+
     const body = el("div", { class: "bx-rec-body" });
 
+    // Header row: title + a single status pill. Capabilities, layout,
+    // audience, and missing-inputs detail moves into the disclosure.
     const row = el("div", { class: "bx-rec-row" });
     const titleInput = el("input", { type: "text", class: "bx-input",
       style: "max-width: 380px; padding: 6px 10px; font-size: 13px; font-weight: 700;",
+      "aria-label": "Slide title",
       value: app.state.customRecTitles[r.id] || r.title });
     titleInput.addEventListener("input", function () {
       app.state.customRecTitles[r.id] = titleInput.value; commit();
     });
+    titleInput.addEventListener("click", function (e) { e.stopPropagation(); });
     row.appendChild(titleInput);
 
-    // Selection status pill
-    if (r.selectionStatus === "required")    row.appendChild(el("span", { class: "bx-rec-pill tone-red",  text: "Required" }));
-    else if (r.selectionStatus === "recommended") row.appendChild(el("span", { class: "bx-rec-pill tone-gold", text: "Recommended" }));
-    else if (r.selectionStatus === "optional") row.appendChild(el("span", { class: "bx-rec-pill", text: "Optional" }));
-
-    // Layout pill
-    if (r.layout) row.appendChild(el("span", { class: "bx-rec-pill tone-blue", text: layoutLabelShort(r.layout) }));
-
-    // Capabilities
-    (r.capabilities || []).slice(0, 3).forEach(function (cap) {
-      row.appendChild(el("span", { class: "bx-rec-pill", text: cap }));
-    });
-
-    // Audience flag
-    if ((r.audienceTags || []).indexOf("IT") >= 0) row.appendChild(el("span", { class: "bx-rec-pill", text: "Technical only" }));
+    // One single status badge — derived from the most important signal.
+    row.appendChild(statusPill(r));
 
     body.appendChild(row);
     body.appendChild(el("div", { class: "bx-rec-why", text: r.rationale || "Suggested based on your inputs." }));
 
-    // Readiness flags
-    const readinessPills = el("div", { class: "bx-rec-row bx-mt-6" });
-    if (r.layout === "embeddedCxComponent" && !(app.state.cxComponents || []).length) {
-      readinessPills.appendChild(el("span", { class: "bx-rec-pill tone-gold", text: "Needs iframe" }));
+    // ── Details disclosure (collapsed by default) ─────────────
+    const detailsRow = el("details", { class: "bx-rec-details" });
+    const summary = el("summary", { class: "bx-rec-details-summary", text: "Details" });
+    detailsRow.appendChild(summary);
+    const detailsBody = el("div", { class: "bx-rec-details-body" });
+
+    if (r.layout) {
+      detailsBody.appendChild(detailRow("Layout", layoutLabelShort(r.layout)));
+    }
+    if ((r.capabilities || []).length) {
+      detailsBody.appendChild(detailRow("Capabilities", r.capabilities.join(" · ")));
+    }
+    if ((r.audienceTags || []).length) {
+      detailsBody.appendChild(detailRow("Audience", r.audienceTags.join(", ")));
     }
     if (r.missingInputs && r.missingInputs.length) {
-      readinessPills.appendChild(el("span", { class: "bx-rec-pill tone-gold", text: "Missing: " + r.missingInputs.join(", ") }));
+      detailsBody.appendChild(detailRow("Missing", r.missingInputs.join(", ")));
     }
-    if (readinessPills.children.length) body.appendChild(readinessPills);
+    if (r.layout === "embeddedCxComponent" && !(app.state.cxComponents || []).length) {
+      detailsBody.appendChild(detailRow("Status", "Needs an AubreyDemo URL"));
+    }
+    if (typeof r.priority === "number") {
+      detailsBody.appendChild(detailRow("Score", String(r.priority)));
+    }
+    detailsRow.appendChild(detailsBody);
+    summary.addEventListener("click", function (e) { e.stopPropagation(); });
+    body.appendChild(detailsRow);
 
-    card.appendChild(check); card.appendChild(body);
-    card.addEventListener("click", function (e) {
-      if (e.target === titleInput || e.target === check) return;
-      toggleRec(r.id);
-    });
+    // The card itself is a label so clicking anywhere toggles the
+    // checkbox — except inputs/buttons/details, which stop propagation.
+    const label = el("label", { class: "bx-rec-label", for: checkboxId });
+    label.appendChild(check);
+    label.appendChild(body);
+    card.appendChild(label);
     return card;
+  }
+
+  // Single derived status badge. Order of precedence: missing-input >
+  // needs-iframe > required > recommended > optional.
+  function statusPill(r) {
+    if (r.missingInputs && r.missingInputs.length) {
+      return el("span", { class: "bx-rec-pill tone-gold", text: "Needs input" });
+    }
+    if (r.layout === "embeddedCxComponent" && !(app.state.cxComponents || []).length) {
+      return el("span", { class: "bx-rec-pill tone-gold", text: "Needs iframe" });
+    }
+    if (r.selectionStatus === "required")    return el("span", { class: "bx-rec-pill tone-red",  text: "Required" });
+    if (r.selectionStatus === "recommended") return el("span", { class: "bx-rec-pill tone-good", text: "Recommended" });
+    return el("span", { class: "bx-rec-pill", text: "Optional" });
+  }
+
+  function detailRow(label, value) {
+    return el("div", { class: "bx-rec-detail-row" }, [
+      el("span", { class: "bx-rec-detail-label", text: label }),
+      el("span", { class: "bx-rec-detail-value", text: value }),
+    ]);
   }
 
   function layoutLabelShort(layout) {
@@ -1170,7 +1290,7 @@
   function viewExport() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 5 · Export",
+      "Step 6 · Export",
       "Get your demo",
       "Use Complete Demo ZIP when you want a ready-to-run package. Use Config only when you want to update an existing demo folder."
     ));

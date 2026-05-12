@@ -1045,22 +1045,70 @@
 
   function byPriorityDesc(a, b) { return b.priority - a.priority; }
 
+  // Audience-aware anchor caps. Total slides should land in this range.
+  // Executive readouts must stay short (8–9). Technical audiences can
+  // tolerate more depth (up to ~12).
+  const ANCHOR_BUDGETS = {
+    "Executive":     { total: 8,  perDemo: 2 },
+    "IT":            { total: 12, perDemo: 4 },
+    "Marketing":     { total: 10, perDemo: 3 },
+    "Sales":         { total: 9,  perDemo: 3 },
+    "Service":       { total: 10, perDemo: 3 },
+    "Store Ops":     { total: 9,  perDemo: 3 },
+    "Field Ops":     { total: 9,  perDemo: 3 },
+    "Mixed":         { total: 10, perDemo: 3 },
+    "":              { total: 9,  perDemo: 3 },
+  };
+
   function collectAnchorSlideIds(sections, state) {
+    const audience = (state.project && state.project.audience) || "";
+    const budget = ANCHOR_BUDGETS[audience] || ANCHOR_BUDGETS[""];
+    const hasCx = (state.cxComponents || []).length > 0;
+
+    // Per section: how many slides we want as anchors.
+    // Executive demos lean very thin in Demo, very rich in Business Value.
+    const perSection = {
+      "intro":          audience === "Executive" ? 2 : 2,
+      "journey-map":    1,
+      "meet-persona":   1,
+      "demo":           budget.perDemo,
+      "business-value": audience === "Executive" ? 2 : 2,
+    };
+
     const anchors = [];
     sections.forEach(function (s) {
-      // First "required" rule per section, plus the highest-priority
-      // selection if no explicit required exists.
+      const cap = perSection[s.id] || 1;
+
+      // Required rules always count toward the cap (but never exceed it).
       const required = s.slides.filter(function (r) { return r.selectionStatus === "required"; });
-      if (required.length) {
-        anchors.push(required[0].id);
-      } else if (s.slides.length) {
-        anchors.push(s.slides[0].id);
+      const recommended = s.slides.filter(function (r) { return r.selectionStatus === "recommended"; });
+
+      // Take required first (sorted by priority).
+      required.slice(0, cap).forEach(function (r) { anchors.push(r.id); });
+
+      // Fill remaining slots with the highest-priority recommended rules.
+      const remaining = cap - Math.min(required.length, cap);
+      recommended.slice(0, remaining).forEach(function (r) { anchors.push(r.id); });
+
+      // Special case: if the SE has CX components, force one
+      // embeddedCxComponent slide into the Demo section even if it
+      // wasn't going to make the cap (it's the most differentiated content).
+      if (s.id === "demo" && hasCx) {
+        const cx = s.slides.find(function (r) { return r.layout === "embeddedCxComponent"; });
+        if (cx && anchors.indexOf(cx.id) < 0) anchors.push(cx.id);
       }
-      // Plus any embedded-CX slide if components are present
-      const cx = s.slides.find(function (r) { return r.layout === "embeddedCxComponent"; });
-      if (cx && (state.cxComponents || []).length) anchors.push(cx.id);
     });
-    return uniqIds(anchors);
+
+    // Hard cap on the total (drop the lowest-priority extras if we overshot
+    // because of the CX special case).
+    const ranked = uniqIds(anchors);
+    if (ranked.length <= budget.total) return ranked;
+
+    // Build a quick priority lookup from sections.
+    const priById = {};
+    sections.forEach(function (s) { s.slides.forEach(function (r) { priById[r.id] = r.priority; }); });
+    ranked.sort(function (a, b) { return (priById[b] || 0) - (priById[a] || 0); });
+    return ranked.slice(0, budget.total);
   }
 
   function uniqIds(a) {

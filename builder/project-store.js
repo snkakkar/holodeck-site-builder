@@ -194,7 +194,7 @@
       personas:        seed.personas        || [],
       storyActs:       seed.storyActs       || [],
       scriptText:      seed.scriptText      || "",
-      storyMode:       seed.storyMode       || "manual",
+      storyMode:       seed.storyMode       || "script",
       scenes:          seed.scenes          || [],
       assets:          seed.assets          || [],
       cxComponents:    seed.cxComponents    || [],

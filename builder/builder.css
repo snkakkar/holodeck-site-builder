@@ -406,22 +406,78 @@ button { font-family: inherit; }
   border-color: rgba(178, 34, 52, 0.40);
   background: rgba(178, 34, 52, 0.03);
 }
+/* Real <input type="checkbox"> sized to look like the old div checkbox.
+   appearance:none gives us full styling control while keeping native
+   keyboard / a11y semantics. */
 .bx-rec-check {
+  -webkit-appearance: none; appearance: none;
   width: 22px; height: 22px;
   border-radius: 6px;
   border: 1.5px solid var(--bx-line-2);
   background: #fff;
   flex-shrink: 0;
   cursor: pointer;
+  margin: 2px 0 0 0;
   display: inline-flex; align-items: center; justify-content: center;
-  margin-top: 2px;
+  position: relative;
 }
-.bx-rec.is-on .bx-rec-check {
+.bx-rec-check:focus-visible {
+  outline: 2px solid var(--bx-blue);
+  outline-offset: 2px;
+}
+.bx-rec-check:checked {
   background: var(--bx-red);
   border-color: var(--bx-red);
-  color: #fff;
 }
-.bx-rec.is-on .bx-rec-check::after { content: "✓"; font-size: 13px; font-weight: 800; }
+.bx-rec-check:checked::after {
+  content: "✓";
+  color: #fff;
+  font-size: 13px; font-weight: 800;
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+/* Whole-card click target — wraps the checkbox + body so labels work. */
+.bx-rec-label {
+  display: flex; gap: 12px; flex: 1;
+  cursor: pointer;
+  min-width: 0;
+}
+/* Details disclosure */
+.bx-rec-details {
+  margin-top: 8px;
+}
+.bx-rec-details-summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  color: var(--bx-ink-3);
+  padding: 4px 8px;
+  border-radius: var(--bx-radius-s);
+  display: inline-block;
+}
+.bx-rec-details-summary::-webkit-details-marker { display: none; }
+.bx-rec-details-summary::before { content: "▸ "; transition: transform 0.15s; display: inline-block; }
+.bx-rec-details[open] .bx-rec-details-summary::before { content: "▾ "; }
+.bx-rec-details-summary:hover { color: var(--bx-navy); background: var(--bx-bg-2); }
+.bx-rec-details-body {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--bx-bg);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius-s);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.bx-rec-detail-row {
+  display: grid; grid-template-columns: 110px 1fr;
+  gap: 8px;
+  font-size: 11px;
+}
+.bx-rec-detail-label {
+  font-weight: 700; color: var(--bx-ink-3);
+  letter-spacing: 0.04em; text-transform: uppercase; font-size: 10px;
+}
+.bx-rec-detail-value { color: var(--bx-ink); }
 .bx-rec-body { flex: 1; min-width: 0; }
 .bx-rec-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bx-rec-title {
@@ -904,6 +960,12 @@ button { font-family: inherit; }
 /* ════════════════════════════════════════════════════════════════
    ZIP export feature card
    ════════════════════════════════════════════════════════════════ */
+/* Story Extract action card — always visible on Step 2, both tabs.
+   Subtle accent so the SE notices the primary CTA. */
+.bx-extract-card {
+  border-left: 4px solid var(--bx-red);
+}
+
 .bx-card-feature {
   background: linear-gradient(160deg, #fff 0%, var(--bx-bg) 100%);
   border-color: rgba(178, 34, 52, 0.30);
@@ -1383,3 +1445,34 @@ button { font-family: inherit; }
   .bx-foundation-row { grid-template-columns: 1fr; gap: 4px; }
   .hp-foundation-grid, .hp-twostate-cols { grid-template-columns: 1fr; }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   Persistent Quality Check footer (builder steps only)
+   ════════════════════════════════════════════════════════════════ */
+.bx-quality-footer {
+  position: fixed;
+  bottom: 16px; right: 20px;
+  z-index: 60;
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 9px 16px;
+  background: var(--bx-card);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius-pill);
+  box-shadow: var(--bx-shadow-2);
+  font-family: var(--bx-font-sans);
+  font-size: 12px; font-weight: 700;
+  color: var(--bx-ink);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.bx-quality-footer:hover { transform: translateY(-1px); }
+.bx-quality-footer:focus-visible { outline: 2px solid var(--bx-blue); outline-offset: 2px; }
+.bx-quality-footer.has-errors   { border-color: rgba(178, 34, 52, 0.45); }
+.bx-quality-footer.has-warnings { border-color: rgba(196, 126, 26, 0.45); }
+.bx-quality-footer.is-clean     { border-color: rgba(46, 122, 80, 0.45); }
+.bx-quality-dot { width: 10px; height: 10px; border-radius: 50%; }
+.bx-quality-dot.tone-red  { background: var(--bx-red); }
+.bx-quality-dot.tone-gold { background: var(--bx-warn); }
+.bx-quality-dot.tone-good { background: var(--bx-good); }
+.bx-quality-text { color: var(--bx-ink); }
+.bx-quality-cta  { color: var(--bx-blue); font-weight: 600; }

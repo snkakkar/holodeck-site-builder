@@ -830,18 +830,30 @@
         ]);
         card.appendChild(head);
         const safe = isSafeHttpUrl(c.url) ? c.url : "";
+        const trusted = isTrustedIframeOrigin(safe);
         if (mode === "expanded" && safe) {
-          // Render a live iframe wrapped in a device chrome
+          // Render a live iframe wrapped in a device chrome.
+          // Sandbox tightening: drop allow-same-origin so a malicious
+          // pasted URL can't read parent-origin cookies/storage. Trusted
+          // origins (aubreydemo.com) keep allow-same-origin so their
+          // scenes function normally.
           const wrap = el("div", { class: "hp-embedded-frame is-" + (c.deviceFrame || "desktop") });
           const ifr = el("iframe", {
             src: safe,
-            sandbox: "allow-scripts allow-same-origin allow-forms",
+            sandbox: trusted
+              ? "allow-scripts allow-same-origin allow-forms allow-popups"
+              : "allow-scripts allow-forms allow-popups",
             referrerpolicy: "no-referrer",
             loading: "lazy",
+            title: c.name || "CX component",
             style: "width: 100%; height: 100%; border: 0;",
           });
           wrap.appendChild(ifr);
           card.appendChild(wrap);
+          if (!trusted) {
+            card.appendChild(el("div", { class: "hp-asset-pill tone-gold",
+              text: "Off-allowlist origin — sandbox tightened" }));
+          }
         } else if (safe) {
           card.appendChild(el("div", { class: "hp-embedded-url", text: safe }));
         }
@@ -855,9 +867,6 @@
         if (safe) {
           const open = el("a", { class: "hp-embedded-cta", href: safe, target: "_blank", rel: "noopener noreferrer", text: "Open in new tab ↗" });
           card.appendChild(open);
-        }
-        if (safe && /aubreydemo\.com/i.test(safe) === false) {
-          card.appendChild(el("div", { class: "hp-asset-pill tone-gold", text: "Not aubreydemo.com — verify iframe support" }));
         }
         return card;
       }
@@ -897,6 +906,19 @@
     if (!s || typeof s !== "string") return false;
     try { const u = new URL(s); return u.protocol === "http:" || u.protocol === "https:"; }
     catch (e) { return false; }
+  }
+
+  // Trusted origins are allowed allow-same-origin; everything else gets
+  // a tightened sandbox. Edit this list when more demo platforms come on.
+  const TRUSTED_IFRAME_HOSTS = ["aubreydemo.com"];
+  function isTrustedIframeOrigin(s) {
+    if (!s) return false;
+    try {
+      const u = new URL(s);
+      return TRUSTED_IFRAME_HOSTS.some(function (h) {
+        return u.hostname === h || u.hostname.endsWith("." + h);
+      });
+    } catch (e) { return false; }
   }
 
   // ─── Helpers used by multiple layouts ─────────────────────────
