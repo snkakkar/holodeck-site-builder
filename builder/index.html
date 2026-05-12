@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Holodeck Builder — Authoring Workspace</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="builder.css" />
+</head>
+<body>
+
+  <!-- Top bar — populated by builder.js -->
+  <header class="bx-topbar">
+    <div class="bx-topbar-left" id="bxTopbarLeft"></div>
+    <div class="bx-topbar-actions" id="bxTopbarActions"></div>
+  </header>
+
+  <!-- Shell — builder.js fills with home / builder / aiPrompt -->
+  <main class="bx-shell" id="bxShell"></main>
+
+  <!-- Modal -->
+  <div class="bx-modal" id="bxModal" hidden>
+    <div class="bx-modal-card">
+      <div class="bx-modal-head">
+        <div class="bx-modal-title" id="bxModalTitle">Modal</div>
+        <button class="bx-icon-btn" data-action="close-modal" aria-label="Close">×</button>
+      </div>
+      <div class="bx-modal-body" id="bxModalBody"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="bx-toast" id="bxToast" hidden></div>
+
+  <!-- Scripts — order matters: shared modules first, app shell last -->
+  <script src="recommendation-rules.js"></script>
+  <script src="preview-renderer.js"></script>
+  <script src="config-generator.js"></script>
+  <script src="ai-config-prompt.js"></script>
+  <script src="project-store.js"></script>
+  <script src="story-parser.js"></script>
+  <script src="story-validator.js"></script>
+  <script src="import-validator.js"></script>
+  <script src="project-home.js"></script>
+  <script src="zip-exporter.js"></script>
+  <script src="builder.js"></script>
+</body>
+</html>

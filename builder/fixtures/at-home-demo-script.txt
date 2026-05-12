@@ -1,0 +1,120 @@
+At Home Demo Script
+Salesforce Customer Experience Vision
+
+Customer: At Home Furniture (https://www.athome.com/)
+
+Script Synopsis:
+This demo showcases how At Home leverages Salesforce to create a personalized,
+multi-visit customer journey for Rachel Morris, who is shopping for her annual
+4th of July barbecue. It highlights Agentforce AI, MCP, and a connected
+platform — from a personalized ad through a clienteling and service experience.
+
+CX Summary:
+An Instagram ad for a 4th of July sale leads to a personalized website
+experience. A price drop alert via SMS brings the customer back to the site,
+where she uses an AI Agent / MCP to find the perfect patio set and joins the
+loyalty program. Proactive iMessage and email notifications confirm her order
+and offer hosting tips. Later, she texts At Home to start an exchange and the
+service agent handles it without a phone call.
+
+Persona Description:
+Rachel Morris is a 34-year-old homeowner who throws an annual 4th of July
+barbecue. This year she is shopping for new outdoor furniture so the patio
+feels perfect for friends and family. She is a busy parent who relies on
+mobile, browses on her laptop in the evening, and expects retailers to
+recognize her across channels.
+
+Chapter 1 — Vision Setup
+Section - Intro
+Channel - presentation
+Device - MacBook
+1. Open the demo with the Salesforce Customer Experience Vision for At Home.
+   Talk track: connected data + AI + commerce + service.
+   Notes: keep the framing executive-friendly.
+
+Chapter 2 — Discover
+Section - Personalized advertising
+Channel - Instagram
+Device - iPhone
+2. Rachel sees a personalized Instagram ad for At Home's Red, White & Blue
+   Decor sale because Data Cloud identifies her as a high-propensity buyer for
+   outdoor furniture.
+   Notes: key data point for re-engagement; ad creative pulled from ad library.
+
+Section - Personalized commerce landing
+Channel - Website
+Device - MacBook
+3. She clicks to an At Home website experience built on Salesforce B2C
+   Commerce. The hero banner and product recommendations are personalized
+   to outdoor entertaining.
+4. She browses patio sets and wishlists the Laguna Patio Set.
+   Notes: wishlist becomes the re-engagement signal.
+
+Chapter 3 — Re-engage
+Section - Price drop and return
+Channel - SMS
+Device - iPhone
+5. A few days later, a price drop on the Laguna Patio Set triggers a proactive
+   SMS notification. Rachel taps the link and returns to the product page.
+
+Chapter 4 — Decide with AI
+Section - AI Design Assistant
+Channel - Website chat
+Device - MacBook
+6. Rachel opens the At Home AI Design Assistant on the product page.
+7. The agent answers questions about weather-resistant cushions and durability
+   for a family with kids.
+8. The agent recommends a matching umbrella and patriotic throw pillows.
+9. Rachel asks the agent to add the patio set, umbrella, and pillows to cart.
+   Notes: clicks not code; agent grounds answers in product information.
+
+Section - Checkout incentive
+Channel - Website
+Device - MacBook
+10. At checkout, Rachel receives an additional 10% checkout incentive and
+    completes the purchase.
+
+Chapter 5 — Nurture
+Section - Post-purchase content
+Channel - Email and iMessage
+Device - iPhone
+11. A post-purchase agentic message sends her hosting tips for the 4th of July
+    BBQ — recipes, table styling, and party prep.
+    Notes: lifecycle moment.
+
+Chapter 6 — Service
+Section - Order servicing exchange
+Channel - iMessage
+Device - iPhone
+12. Rachel later texts At Home through iMessage to start an exchange for the
+    umbrella because it arrived with a defect.
+13. The AI agent identifies her order, confirms the return reason, and offers
+    ship-back or in-store exchange.
+    Notes: service without starting over.
+
+Chapter 7 — Close
+Section - Business value
+Channel - presentation
+Device - MacBook
+14. Close the demo by highlighting a connected digital + physical journey
+    powered by AI and customer data, leading to higher conversion rates,
+    increased average order value, and lifelong loyalty.
+
+Capabilities and platforms shown:
+Agentforce AI, MCP, Data Cloud, Salesforce B2C Commerce, Marketing automation,
+Personalization, Order servicing, Connected platform.
+
+Channels and devices:
+MacBook, iPhone, Instagram, Website, SMS, Email, iMessage.
+
+Business value:
+Higher conversion through timely re-engagement.
+Increased average order value through AI-assisted cross-sell.
+Improved loyalty and lifetime value through personalized follow-up.
+Reduced service friction through automated order servicing.
+A more consistent customer experience across digital and physical channels.
+
+Open questions:
+Which loyalty mechanics should be shown in the final demo?
+Should the exchange flow end with a store associate moment or remain digital?
+Which BVS benchmark metrics should be shown in the closing slide?

@@ -18,6 +18,8 @@ All sections are driven by `demo/holodeck.config.js` and rendered by shared HTML
 
 ## Repository structure
 
+- `builder/index.html` - guided UI builder for non-technical SEs (exports `holodeck.config.js`)
+- `builder/builder.js`, `builder.css`, `recommendation-rules.js`, `preview-renderer.js`, `config-generator.js` - builder source
 - `demo/index.html` - local entry URL (redirects to the main experience)
 - `demo/demo-holodeck-unified.html` - unified presentation shell
 - `demo/holodeck.config.js` - primary content and configuration source
@@ -40,6 +42,18 @@ python3 -m http.server 8080
 4. Present from the loaded Holodeck experience.
 
 No npm install or build step is required.
+
+## Two ways to build a demo
+
+**Option A — UI Builder (recommended for non-technical SEs).** Start here:
+
+```bash
+python3 -m http.server 8080
+```
+
+Open `http://localhost:8080/builder/`. Fill in customer/audience/products, paste a script, pick recommendations, preview slide cards, and download a generated `holodeck.config.js`. Drop the file into `demo/holodeck.config.js` and you're ready to go.
+
+**Option B — Edit the config file directly.** Open `demo/holodeck.config.js` and update Zone 1 fields by hand. See `HOW_TO_BUILD_HOLODECK.md` for the playbook.
 
 ## How customization works
 
