@@ -37,6 +37,66 @@
 (function (global) {
   "use strict";
 
+  // ─── State-path utilities ──────────────────────────────────────
+  // Resolve dotted/indexed paths like "personas[0].wishlistHeadline"
+  // against a root object. Used by the inline popover editor so every
+  // text field on every preview slide can bind to its canonical state
+  // location with a one-line declaration in the runtime manifest.
+  function parsePath(path) {
+    const out = [];
+    String(path || "").split(".").forEach(function (seg) {
+      const m = seg.match(/^([^\[]+)((?:\[\d+\])*)$/);
+      if (!m) { out.push(seg); return; }
+      out.push(m[1]);
+      const idx = m[2] || "";
+      const rx = /\[(\d+)\]/g;
+      let r;
+      while ((r = rx.exec(idx))) out.push(parseInt(r[1], 10));
+    });
+    return out;
+  }
+  function getAtPath(root, path) {
+    const parts = parsePath(path);
+    let cur = root;
+    for (let i = 0; i < parts.length; i++) {
+      if (cur == null) return undefined;
+      cur = cur[parts[i]];
+    }
+    return cur;
+  }
+  function setAtPath(root, path, value) {
+    const parts = parsePath(path);
+    if (!parts.length) return;
+    let cur = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const key = parts[i];
+      const nextKey = parts[i + 1];
+      if (cur[key] == null) cur[key] = (typeof nextKey === "number") ? [] : {};
+      // If we're indexing into something that wasn't an array, leave it alone.
+      cur = cur[key];
+    }
+    cur[parts[parts.length - 1]] = value;
+  }
+
+  // ─── Shared copy generators ────────────────────────────────────
+  // Pure helpers (pronouns, stance, BVS, journey, opener copy, slide
+  // manifest) live in holodeck-shared.js so the in-builder preview
+  // and the exported polished template render the same defaults.
+  // Local fallbacks here keep the preview from breaking if the shared
+  // module fails to load (the build will still degrade gracefully).
+  const SHARED = global.HOLO_SHARED || {};
+  function pronounsFor(value) {
+    return SHARED.pronounsFor ? SHARED.pronounsFor(value) : { subj: "Her", obj: "her", poss: "her", nom: "she" };
+  }
+  function wishlistHeadlineFor(pron) {
+    return SHARED.wishlistHeadlineFor
+      ? SHARED.wishlistHeadlineFor(pron, { wrapStrong: false })
+      : pron.subj + " top 3. Picked just for " + pron.obj + ".";
+  }
+  function isLegacyWishlistHeadline(s) {
+    return SHARED.isLegacyWishlistHeadline ? SHARED.isLegacyWishlistHeadline(s) : false;
+  }
+
   // ─── DOM helper ────────────────────────────────────────────────
   function el(tag, attrs, children) {
     const node = document.createElement(tag);
@@ -110,6 +170,7 @@
         businessValueMoments: story.businessValueMoments || "",
       },
       theme: project.theme || "",
+      project: project,
       speakerNotes: (slide && slide.speakerNotes) || "",
       assets: (slide && slide.assets) || [],
       kpis: deriveKpis(state),
@@ -266,11 +327,15 @@
     handlers = handlers || {};
     const mode = handlers.mode || "compact";
 
-    const card = el("div", { class: "bx-preview hp-card hp-card-" + mode });
+    const card = el("div", { class: "bx-preview hp-card hp-card-" + mode + (slide.synthetic ? " is-synthetic" : "") });
 
     // Header
-    card.appendChild(el("div", { class: "bx-preview-num",
-      text: "Slide " + ((slide.order || 0) + 1) }));
+    const numEl = el("div", { class: "bx-preview-num",
+      text: "Slide " + ((slide.order || 0) + 1) });
+    if (slide.synthetic) {
+      numEl.appendChild(el("span", { class: "bx-preview-default-pill", text: "Template default" }));
+    }
+    card.appendChild(numEl);
     const layoutLabel = layoutLabelFor(slide.layout);
     card.appendChild(el("div", { class: "bx-preview-h" }, [
       el("div", { class: "bx-preview-title", text: slide.title || "Untitled" }),
@@ -287,9 +352,20 @@
         text: "Missing: " + missing.join(", ") }));
     }
 
-    // Footer actions
-    if (handlers.onMoveUp || handlers.onMoveDown || handlers.onRemove) {
+    // Footer actions — Edit-text always shown when editor fields exist.
+    const editorFields = editorFieldsForSlide(slide);
+    const showActions = handlers.onEdit && editorFields.length;
+    if (showActions || handlers.onMoveUp || handlers.onMoveDown || handlers.onRemove) {
       const actions = el("div", { class: "bx-preview-actions" });
+      if (showActions) {
+        const ed = el("button", { class: "bx-mini-btn bx-mini-btn-edit",
+          "aria-label": "Edit text", html: "✎ Edit text" });
+        ed.addEventListener("click", function (e) {
+          e.stopPropagation();
+          handlers.onEdit(slide, ed);
+        });
+        actions.appendChild(ed);
+      }
       if (handlers.onMoveUp) {
         const up = el("button", { class: "bx-mini-btn", "aria-label": "Move up", text: "↑" });
         up.addEventListener("click", function () { handlers.onMoveUp(slide.id); });
@@ -311,6 +387,296 @@
     return card;
   }
 
+  // ─── Editor field discovery ───────────────────────────────────
+  // Synthetic runtime slides carry an `editorPaths` map; SE-authored
+  // slides expose their own title / speakerNotes / persona. Returns an
+  // array of {label, path, kind} where kind is one of:
+  //   "text" | "textarea" | "list-strings" | "list-objects"
+  function editorFieldsForSlide(slide) {
+    if (!slide) return [];
+    if (slide.editorPaths) {
+      return Object.keys(slide.editorPaths).map(function (label) {
+        return { label: label, path: slide.editorPaths[label], kind: kindForPath(slide.editorPaths[label], label) };
+      });
+    }
+    // Synthetic runtime slides without editorPaths (e.g. bvOpener,
+    // which is hardcoded copy) have nothing the SE should edit —
+    // showing "Slide title / Speaker notes" would be misleading
+    // since those aren't real persisted fields on the slide.
+    if (slide.synthetic) return [];
+    // SE-authored slide → title + speaker notes + the state fields
+    // the slide's renderer actually reads. Keeps the popover honest:
+    // every visible string in the preview can be edited from one place.
+    const base = [
+      { label: "Slide title",   path: "__slide.title",        kind: "text",     slideField: "title" },
+      { label: "Speaker notes", path: "__slide.speakerNotes", kind: "textarea", slideField: "speakerNotes" },
+    ];
+    const extras = defaultEditorPathsForLayout((slide && slide.layout) || "");
+    Object.keys(extras).forEach(function (label) {
+      base.push({ label: label, path: extras[label], kind: kindForPath(extras[label], label) });
+    });
+    return base;
+  }
+
+  // What state fields each SE-authored layout pulls into its preview.
+  // Mirrors the renderer in LAYOUT_RENDERERS — keep them in sync. The
+  // runtime layouts (introHero/journeyMapMatrix/etc.) have their own
+  // editorPaths in buildSlideManifest, so they don't show up here.
+  function defaultEditorPathsForLayout(layout) {
+    switch (layout) {
+      case "hero":
+        return {
+          "Theme":           "project.theme",
+          "Customer name":   "project.customerName",
+          "Future vision":   "story.futureVision",
+          "Big problem":     "story.bigProblem",
+          "Audience":        "project.audience",
+          "Sales stage":     "project.salesStage",
+        };
+      case "storyFoundation":
+      case "storyFoundations":
+        return {
+          "Business problem":      "storyFoundations.businessProblem",
+          "Current-state pain":    "storyFoundations.currentStatePain",
+          "Future-state vision":   "storyFoundations.futureStateVision",
+          "Transformation thesis": "storyFoundations.transformationThesis",
+          "Primary narrative":     "storyFoundations.primaryNarrative",
+        };
+      case "currentFutureState":
+        return {
+          "Current-state pain":  "storyFoundations.currentStatePain",
+          "Future-state vision": "storyFoundations.futureStateVision",
+        };
+      case "futureState":
+        return {
+          "Future-state vision": "storyFoundations.futureStateVision",
+          "Value drivers":       "storyFoundations.valueDrivers",
+        };
+      case "personaCard":
+        // SE-authored mr-2 mirror — same fields as the runtime version.
+        return {
+          "Persona name (full)": "personas[0].name",
+          "Role (top label)":    "personas[0].role",
+          "Job title":           "personas[0].jobTitle",
+          "Stats":               "personas[0].stats",
+          "Quote (pain points)": "personas[0].painPoints",
+        };
+      case "unifiedProfile":
+        return {
+          "Goals":             "personas[0].goals",
+          "Data Cloud moments": "storyFoundations.dataCloudMoments",
+        };
+      case "agentConversation":
+        return {
+          "Customer name": "project.customerName",
+        };
+      case "kpiScorecard":
+        return {
+          "BVS metrics": "storyFoundations.bvsMetrics",
+        };
+      case "executiveSummary":
+        return {
+          "Big problem":         "story.bigProblem",
+          "Current pain":        "story.currentPain",
+          "Future vision":       "story.futureVision",
+          "Executive takeaway":  "storyFoundations.executiveTakeaway",
+        };
+      case "deviceMoment":
+      case "journeyTimeline":
+      case "demoMap":
+      case "architecture":
+      case "embeddedCxComponent":
+      case "nextSteps":
+      default:
+        // These pull entirely from arrays the SE manages elsewhere
+        // (storyActs, products, cxComponents) — exposing them as a
+        // single editorPath here would be duplicative.
+        return {};
+    }
+  }
+  function kindForPath(path, label) {
+    const p = String(path || "");
+    // Heuristic: any path ending in [n] / a known list field is treated as a list.
+    if (/\[\d+\]$/.test(p)) return "text";
+    // Lists of plain strings (one per line in the popover textarea).
+    if (/products$/.test(p)
+        || /Moments$/.test(p)        // dataCloudMoments, commerceMoments, …
+        || /valueDrivers$/.test(p)
+        || /assumptions$/.test(p)
+        || /openQuestions$/.test(p)) return "list-strings";
+    // Lists of objects (one row per entry, multiple inputs).
+    if (/wishlist$/.test(p) || /\.stats$/.test(p) || /bvsMetrics$/.test(p)
+        || /orbitNodes$/.test(p) || /capabilities$/.test(p)) return "list-objects";
+    if (/Notes$/.test(p) || /narrative$/i.test(p) || /takeaway$/i.test(p) || /vision$/i.test(p)
+        || /problem$/i.test(p) || /pain$/i.test(p) || /goals$/i.test(p)
+        || /demoRelevance$/i.test(p) || /relevance$/i.test(p) || /thesis$/i.test(p)
+        || label === "Speaker notes") return "textarea";
+    return "text";
+  }
+
+  // ─── Popover editor ───────────────────────────────────────────
+  // Renders an inline editor anchored next to a preview card. Each
+  // input binds via {get, set} closures around state-path resolution
+  // so commits flow through one place. `onChange` is fired (debounced)
+  // after every keystroke so the parent can re-render the preview.
+  function buildEditorPopover(slide, state, options) {
+    options = options || {};
+    const onChange = options.onChange || function () {};
+    const onClose  = options.onClose  || function () {};
+
+    const pop = el("div", { class: "bx-pop-edit", role: "dialog", "aria-label": "Edit slide text" });
+    const head = el("div", { class: "bx-pop-edit-head" }, [
+      el("div", { class: "bx-pop-edit-title", text: slide.title || "Edit slide text" }),
+      (function () {
+        const x = el("button", { class: "bx-pop-edit-close", "aria-label": "Close", text: "×" });
+        x.addEventListener("click", onClose);
+        return x;
+      })(),
+    ]);
+    pop.appendChild(head);
+
+    const body = el("div", { class: "bx-pop-edit-body" });
+    const fields = editorFieldsForSlide(slide);
+    if (!fields.length) {
+      body.appendChild(el("div", { class: "bx-pop-edit-empty",
+        text: "This slide doesn't have editable text fields. Adjust it from the slide planner instead." }));
+    }
+    fields.forEach(function (f) {
+      body.appendChild(buildEditorField(f, slide, state, onChange));
+    });
+    pop.appendChild(body);
+
+    pop.appendChild(el("div", { class: "bx-pop-edit-foot",
+      text: "Edits save automatically. Reopen Step 8 anytime to refine." }));
+    return pop;
+  }
+
+  function buildEditorField(f, slide, state, onChange) {
+    const row = el("div", { class: "bx-pop-edit-field" });
+    row.appendChild(el("div", { class: "bx-pop-edit-label", text: f.label }));
+
+    // Resolve get/set against either the slide itself (SE slides) or
+    // the state tree (runtime slides via state-path).
+    let get, set;
+    if (f.slideField) {
+      get = function () { return slide[f.slideField] || ""; };
+      set = function (v) { slide[f.slideField] = v; };
+    } else {
+      get = function () { return getAtPath(state, f.path); };
+      set = function (v) { setAtPath(state, f.path, v); };
+    }
+
+    if (f.kind === "list-strings") {
+      // Newline-separated textarea → array of trimmed non-empty strings.
+      const arr = get() || [];
+      const ta = el("textarea", { class: "bx-textarea", rows: "3",
+        placeholder: "One per line" });
+      ta.value = (Array.isArray(arr) ? arr : []).join("\n");
+      ta.addEventListener("input", function () {
+        const list = ta.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+        set(list);
+        onChange();
+      });
+      row.appendChild(ta);
+      return row;
+    }
+
+    if (f.kind === "list-objects") {
+      // Lazy-allocate row inputs based on the current array.
+      const arr = (get() || []).slice();
+      const wrap = el("div", { class: "bx-pop-edit-list" });
+      const slotCount = Math.max(arr.length, defaultRowsFor(f.path));
+      const layout = layoutForListPath(f.path);
+      for (let i = 0; i < slotCount; i++) {
+        const row = (arr[i] && typeof arr[i] === "object") ? arr[i] : {};
+        const card = el("div", { class: "bx-pop-edit-list-row" });
+        card.appendChild(el("div", { class: "bx-pop-edit-list-num", text: "#" + (i + 1) }));
+        layout.fields.forEach(function (fieldDef) {
+          const inp = el("input", { type: "text", class: "bx-input bx-pop-edit-list-input",
+            placeholder: fieldDef.placeholder || fieldDef.key,
+            value: row[fieldDef.key] || "" });
+          inp.addEventListener("input", function () {
+            const cur = (get() || []).slice();
+            while (cur.length <= i) cur.push({});
+            cur[i] = Object.assign({}, cur[i], (function () {
+              const o = {}; o[fieldDef.key] = inp.value; return o;
+            })());
+            set(cur);
+            onChange();
+          });
+          card.appendChild(inp);
+        });
+        wrap.appendChild(card);
+      }
+      row.appendChild(wrap);
+      return row;
+    }
+
+    // text / textarea
+    const v = get();
+    let inp;
+    if (f.kind === "textarea") {
+      inp = el("textarea", { class: "bx-textarea", rows: "3" });
+      inp.value = (v == null ? "" : String(v));
+    } else {
+      inp = el("input", { type: "text", class: "bx-input" });
+      inp.value = (v == null ? "" : String(v));
+    }
+    inp.addEventListener("input", function () { set(inp.value); onChange(); });
+    row.appendChild(inp);
+    return row;
+  }
+
+  // Per-list default row count and per-list field structure. Keeps
+  // the editor honest about what each array element holds (stat = val
+  // + label, wishlist = name + tag + detail + emoji, bvsMetrics = val
+  // + label) so SEs aren't typing JSON.
+  function defaultRowsFor(path) {
+    if (/wishlist$/.test(path))     return 3;
+    if (/\.stats$/.test(path))      return 3;
+    if (/bvsMetrics$/.test(path))   return 5;
+    if (/orbitNodes$/.test(path))   return 6;
+    if (/capabilities$/.test(path)) return 4;
+    return 3;
+  }
+  function layoutForListPath(path) {
+    if (/wishlist$/.test(path)) {
+      return { fields: [
+        { key: "name",   placeholder: "Item name" },
+        { key: "tag",    placeholder: "Tag (e.g. FOR HER)" },
+        { key: "detail", placeholder: "Short detail" },
+        { key: "emoji",  placeholder: "Emoji" },
+      ] };
+    }
+    if (/\.stats$/.test(path)) {
+      // mr-2 stats are short phrases like "Top moment" / "Tradition"
+      // — not numbers — so the placeholders mirror the polished slide.
+      return { fields: [
+        { key: "value", placeholder: "Value (e.g. Tom's son)" },
+        { key: "label", placeholder: "Caption (e.g. Top moment)" },
+      ] };
+    }
+    if (/bvsMetrics$/.test(path)) {
+      return { fields: [
+        { key: "value", placeholder: "Value (e.g. XX%)" },
+        { key: "label", placeholder: "Label (e.g. Conversion Lift)" },
+      ] };
+    }
+    if (/orbitNodes$/.test(path)) {
+      return { fields: [
+        { key: "icon",  placeholder: "Emoji (e.g. 📸)" },
+        { key: "label", placeholder: "Label (e.g. Personalized Ad)" },
+      ] };
+    }
+    if (/capabilities$/.test(path)) {
+      return { fields: [
+        { key: "label",       placeholder: "Capability (e.g. Data Cloud)" },
+        { key: "description", placeholder: "Short description" },
+      ] };
+    }
+    return { fields: [{ key: "value", placeholder: "Value" }] };
+  }
+
   function layoutLabelFor(layout) {
     return ({
       hero: "Hero",
@@ -328,6 +694,21 @@
       kpiScorecard: "KPI Scorecard",
       executiveSummary: "Executive Takeaway",
       nextSteps: "Next Steps",
+      // Runtime-only layouts (rendered in the polished /demo template
+      // regardless of what's in state.slides — see enumerateRuntimeSlides).
+      journeyMapMatrix: "Journey Map · 5 phases",
+      introHero:        "Intro · Hero",
+      introStoryHook:   "Intro · Story hook",
+      introThreeActs:   "Intro · Three acts",
+      introVignette:    "Intro · Vignette",
+      personaIntro:     "Persona · Meet",
+      personaWishlist:  "Persona · Wishlist",
+      personaCta:       "Persona · CTA",
+      chapterOpener:    "Demo · Opener",
+      bvOpener:         "BV · Outcome",
+      bvOrbit:          "BV · Orbit",
+      bvCapabilities:   "BV · Capabilities",
+      bvClosing:        "BV · Closing",
       unknown: "Layout",
     })[layout] || (layout || "Layout");
   }
@@ -471,34 +852,75 @@
     },
 
     // ── Persona card ──────────────────────────────────────────────
+    // Mirrors the polished mr-2 layout exactly:
+    //   left  : avatar
+    //   right : role · name (split into first / last) · jobTitle ·
+    //           3-stat grid · pull quote
+    // Same fields the adapter writes into HOLODECK_CONFIG.persona, so
+    // edits the SE makes in the popover (role, fullName, jobTitle,
+    // stats, painPoints/quote) show up identically in the export.
     personaCard: function (data, mode) {
       const root = el("div", { class: "hp hp-persona" });
       const p = data.persona;
       root.appendChild(el("div", { class: "hp-eyebrow", text: "Meet the persona" }));
       if (!p) {
         root.appendChild(el("div", { class: "hp-empty",
-          html: "Add a persona in <strong>Step 2</strong> — name, role, goals, pain points." }));
+          html: "Add a persona in <strong>Step 2</strong> — name, role, job title, stats, and a quote." }));
         return root;
       }
+      const fullName = p.name || "—";
+      const nameParts = fullName.trim().split(/\s+/);
+      const first = nameParts[0] || fullName;
+      const last  = nameParts.slice(1).join(" ");
+      const role = p.role || "";
+      // jobTitle defaults to role (mirrors adapter's buildPersona).
+      const jobTitle = p.jobTitle || p.role || "";
+      const quote = p.painPoints || p.goals || "";
+
       const left = el("div", { class: "hp-persona-l" }, [
-        el("div", { class: "hp-persona-avatar", text: (p.name || "?").slice(0, 1).toUpperCase() }),
-        el("div", { class: "hp-persona-name", text: p.name || "—" }),
-        p.role ? el("div", { class: "hp-persona-role", text: p.role }) : null,
+        el("div", { class: "hp-persona-avatar", text: (first || "?").slice(0, 1).toUpperCase() }),
       ]);
-      const right = el("div", { class: "hp-persona-r" }, [
-        p.goals ? section("Goals", p.goals) : null,
-        p.painPoints ? section("Pain points", p.painPoints) : null,
-        (mode === "expanded" && p.demoRelevance) ? section("Why she anchors the demo", p.demoRelevance) : null,
-      ]);
+      const right = el("div", { class: "hp-persona-r" });
+      if (role) right.appendChild(el("div", { class: "hp-persona-role", text: role }));
+      right.appendChild(el("div", { class: "hp-persona-name" }, [
+        document.createTextNode(first),
+        last ? el("br") : null,
+        last ? el("strong", { text: last }) : null,
+      ].filter(Boolean)));
+      if (jobTitle) right.appendChild(el("div", { class: "hp-persona-job", text: jobTitle }));
+
+      // Stats grid — pulls from p.stats (SE's pending-text edits) and
+      // falls back to the same [TODO]/Top Moment/Tradition/Signal
+      // defaults the adapter uses, so preview = export.
+      const defaultStats = [
+        { value: "[TODO]", label: "Top Moment" },
+        { value: "[TODO]", label: "Tradition"  },
+        { value: "[TODO]", label: "Signal"     },
+      ];
+      const statsArr = Array.isArray(p.stats) ? p.stats : [];
+      const stats = defaultStats.map(function (def, i) {
+        const row = statsArr[i] || {};
+        return {
+          value: (row.value && String(row.value).trim()) || def.value,
+          label: (row.label && String(row.label).trim()) || def.label,
+        };
+      });
+      const statsRow = el("div", { class: "hp-persona-stats" });
+      stats.forEach(function (s) {
+        statsRow.appendChild(el("div", { class: "hp-persona-stat" }, [
+          el("div", { class: "hp-persona-stat-v", text: s.value }),
+          el("div", { class: "hp-persona-stat-l", text: s.label }),
+        ]));
+      });
+      right.appendChild(statsRow);
+
+      if (quote) {
+        right.appendChild(el("div", { class: "hp-persona-quote-mark", text: "“" }));
+        right.appendChild(el("div", { class: "hp-persona-quote",
+          text: truncate(quote, mode === "expanded" ? 240 : 140) }));
+      }
       root.appendChild(el("div", { class: "hp-persona-row" }, [left, right]));
       return root;
-
-      function section(label, body) {
-        return el("div", { class: "hp-persona-sec" }, [
-          el("div", { class: "hp-persona-label", text: label }),
-          el("div", { class: "hp-persona-body", text: truncate(body, mode === "expanded" ? 240 : 120) }),
-        ]);
-      }
     },
 
     // ── Agent conversation ────────────────────────────────────────
@@ -677,29 +1099,28 @@
       }
     },
 
-    // ── KPI scorecard ────────────────────────────────────────────
+    // ── KPI scorecard (bv-4 in polished template) ────────────────
+    // Reads HOLO_SHARED.buildBvsMetrics — same source the adapter's
+    // buildBvs() uses, so the preview and exported scorecard show
+    // identical values and labels (including SE overrides from
+    // storyFoundations.bvsMetrics).
     kpiScorecard: function (data, mode) {
       const root = el("div", { class: "hp hp-kpi" });
-      root.appendChild(el("div", { class: "hp-eyebrow", text: "Business value" }));
-      root.appendChild(el("h3", { class: "hp-h3",
-        text: data.customerName ? "Why " + data.customerName + " wins" : "Business value scorecard" }));
-
+      root.appendChild(el("div", { class: "hp-eyebrow", text: "BVS Benchmarks" }));
+      root.appendChild(el("h3", { class: "hp-h3", text: "The numbers that matter." }));
+      const metrics = SHARED.buildBvsMetrics
+        ? SHARED.buildBvsMetrics(data.foundations)
+        : [];
       const grid = el("div", { class: "hp-kpi-grid" });
-      const kpis = (data.kpis || []).slice(0, mode === "expanded" ? 5 : 4);
-      kpis.forEach(function (k) {
+      metrics.slice(0, mode === "expanded" ? 5 : 4).forEach(function (k) {
         grid.appendChild(el("div", { class: "hp-kpi-card" }, [
           el("div", { class: "hp-kpi-value", text: k.value }),
           el("div", { class: "hp-kpi-label", text: k.label }),
-          mode === "expanded" && k.hint ? el("div", { class: "hp-kpi-hint", text: k.hint }) : null,
         ]));
       });
       root.appendChild(grid);
-      if (data.story.businessValueMoments) {
-        root.appendChild(el("div", { class: "hp-callout",
-          text: truncate(data.story.businessValueMoments, mode === "expanded" ? 280 : 140) }));
-      }
       root.appendChild(el("div", { class: "hp-disclaimer",
-        text: "Replace XX% / +$XX / XXh placeholders with BVS-approved values before presenting." }));
+        text: "⚠️ Replace placeholder values with real BVS benchmarks before presenting." }));
       return root;
     },
 
@@ -908,6 +1329,292 @@
       return root;
     },
 
+    // ═══════════════════════════════════════════════════════════
+    //  RUNTIME-ONLY LAYOUTS
+    //  Mirror slides the polished /demo template renders directly
+    //  (intro, persona, business-value, journey-map sections) even
+    //  when state.slides is empty. Surfaced via enumerateRuntimeSlides
+    //  so SEs see the full deck in Step 8 and can edit copy via the
+    //  pending-text editor.
+    // ═══════════════════════════════════════════════════════════
+
+    // ── Journey Map · 5-phase (Know · Reach · Engage · Recover · Convert) ──
+    // Reads HOLO_SHARED.bucketActsIntoFive(): same source the adapter
+    // uses, so the preview matrix and the exported circle row are
+    // guaranteed to show identical phase titles/descriptions/badges.
+    journeyMapMatrix: function (data, mode) {
+      const prods = data.products || [];
+      const phases = SHARED.bucketActsIntoFive
+        ? SHARED.bucketActsIntoFive(data.acts || [], prods)
+        : [];
+      const root = el("div", { class: "hp hp-jmatrix" });
+      const f = data.foundations || {};
+      const headline = f.transformationThesis
+        ? truncate(f.transformationThesis, 70)
+        : "A connected journey";
+      root.appendChild(el("div", { class: "hp-eyebrow",
+        text: data.customerName ? data.customerName + " · journey" : "Customer journey" }));
+      root.appendChild(el("h3", { class: "hp-h3", text: headline }));
+      const row = el("div", { class: "hp-jmatrix-row" });
+      phases.forEach(function (p) {
+        row.appendChild(el("div", { class: "hp-jmatrix-cell" }, [
+          el("div", { class: "hp-jmatrix-icon", text: p.emoji }),
+          el("div", { class: "hp-jmatrix-tag",  text: p.title }),
+          el("div", { class: "hp-jmatrix-desc", text: p.descriptionShort }),
+          el("div", { class: "hp-jmatrix-badge", text: p.badge }),
+        ]));
+      });
+      root.appendChild(row);
+      const tags = el("div", { class: "hp-badges" });
+      const caps = prods.length ? prods : ["Agentforce", "Data Cloud", "Commerce", "Marketing Cloud"];
+      caps.slice(0, 6).forEach(function (p) {
+        tags.appendChild(el("span", { class: "hp-badge tone-red", text: p }));
+      });
+      root.appendChild(tags);
+      return root;
+    },
+
+    // ── Intro · Hero (vi-1) ──
+    // Reads HOLO_SHARED.heroHeadlineParts so the headline stance
+    // (agentic / unified / personalized / connected) and the sub-line
+    // are byte-identical to the export.
+    introHero: function (data, mode) {
+      const root = el("div", { class: "hp hp-intro-hero" });
+      const theme = data.theme || "Salesforce Customer Experience Vision";
+      const name = data.customerName || "Customer";
+      const parts = SHARED.heroHeadlineParts
+        ? SHARED.heroHeadlineParts(name, data.foundations)
+        : { name: name, before: "a", accent: "connected", after: "customer journey" };
+      root.appendChild(el("div", { class: "hp-eyebrow", text: theme }));
+      root.appendChild(el("h2", { class: "hp-title",
+        text: parts.name + ", " + parts.before + " " + parts.accent + " " + parts.after + "." }));
+      root.appendChild(el("p", { class: "hp-sub", text: name + " + Salesforce" }));
+      return root;
+    },
+
+    // ── Intro · Story hook (vi-2) ──
+    // Reads HOLO_SHARED.storyHookParts + storyHookSubText so the
+    // preview text equals what the polished template renders.
+    introStoryHook: function (data, mode) {
+      const root = el("div", { class: "hp hp-intro-hook" });
+      const f = data.foundations || {};
+      const theme = data.theme || "Salesforce Customer Experience Vision";
+      const sub2 = (data.project && data.project.industry)
+        ? data.project.industry + " · " + ((data.project && data.project.audience) || "Executive") + " story"
+        : "Connected customer experience";
+      const h = SHARED.storyHookParts
+        ? SHARED.storyHookParts(f)
+        : { lead: "From a single moment", emph: "lifetime", tail: "to a", suffix: "of relevance." };
+      const tail = h.tail ? h.tail + " " : "";
+      const hook = h.lead + " " + tail + h.emph + " " + h.suffix;
+      const subText = SHARED.storyHookSubText
+        ? SHARED.storyHookSubText(f)
+        : "Every interaction builds context. Every context makes the next experience more personal.";
+      root.appendChild(el("div", { class: "hp-eyebrow", text: theme + " · " + sub2 }));
+      root.appendChild(el("h2", { class: "hp-title", text: hook }));
+      root.appendChild(el("p", { class: "hp-sub", text: truncate(subText, mode === "expanded" ? 280 : 180) }));
+      return root;
+    },
+
+    // ── Intro · Three acts overview (vi-3) ──
+    // Reads HOLO_SHARED.threeActsFor() — same source the adapter's
+    // buildDemoStructure() uses, so preview = export.
+    introThreeActs: function (data, mode) {
+      const acts = SHARED.threeActsFor ? SHARED.threeActsFor(data.foundations) : [];
+      const root = el("div", { class: "hp hp-three-acts" });
+      root.appendChild(el("div", { class: "hp-eyebrow", text: "What you'll see today" }));
+      root.appendChild(el("h3", { class: "hp-h3", text: "Three acts. One agentic journey." }));
+      const grid = el("div", { class: "hp-three-grid" });
+      acts.forEach(function (a, i) {
+        grid.appendChild(el("div", { class: "hp-three-card" }, [
+          el("div", { class: "hp-three-num", text: String(i + 1) }),
+          el("div", { class: "hp-three-title", text: a.title }),
+          el("div", { class: "hp-three-desc",  text: truncate(a.description, mode === "expanded" ? 200 : 110) }),
+        ]));
+      });
+      root.appendChild(grid);
+      return root;
+    },
+
+    // ── Intro · Vignette section (vi-4..6) ──
+    // Reads HOLO_SHARED.vignettesFor() to share defaults with the
+    // polished template's three vignette rows.
+    introVignette: function (data, mode) {
+      const idx = (data.slide && data.slide.runtimeIndex) || 0;
+      const list = SHARED.vignettesFor ? SHARED.vignettesFor(data.foundations) : [];
+      const v = list[idx] || list[0] || { eyebrow: "DATA CLOUD", title: "Know & Reach", subtitle: "" };
+      const root = el("div", { class: "hp hp-vignette" });
+      root.appendChild(el("div", { class: "hp-eyebrow", text: v.eyebrow }));
+      root.appendChild(el("h3", { class: "hp-h3", text: v.title }));
+      root.appendChild(el("p", { class: "hp-sub",
+        text: truncate(v.subtitle, mode === "expanded" ? 240 : 140) }));
+      return root;
+    },
+
+    // ── Persona · Meet (mr-1) ──
+    // Headline = "Meet <first>." Sub = "<Customer> · <journey arc>".
+    // Pulls from HOLO_SHARED so the polished mr-s1 slide and this
+    // tile read identically.
+    personaIntro: function (data, mode) {
+      const p = data.persona || {};
+      const first = (SHARED.personaFirstName ? SHARED.personaFirstName(p) : "") || "your persona";
+      const root = el("div", { class: "hp hp-persona-intro" });
+      root.appendChild(el("div", { class: "hp-eyebrow", text: "Customer Spotlight" }));
+      root.appendChild(el("h2", { class: "hp-title", text: "Meet " + first + "." }));
+      root.appendChild(el("p", { class: "hp-sub",
+        text: SHARED.personaIntroSub
+          ? SHARED.personaIntroSub(p, data.customerName)
+          : (data.customerName || "Customer") + " · [TODO: journey arc]" }));
+      return root;
+    },
+
+    // ── Persona · Wishlist (mr-3) ──
+    personaWishlist: function (data, mode) {
+      const p = data.persona || {};
+      const pron = pronounsFor(p.pronouns);
+      const tagFor = "FOR " + pron.obj.toUpperCase();
+      const wish = (p.wishlist && p.wishlist.length) ? p.wishlist : [
+        { name: "Item one",   detail: "[TODO: wishlist item one detail]",   tag: tagFor },
+        { name: "Item two",   detail: "[TODO: wishlist item two detail]",   tag: "ALSO LIKED" },
+        { name: "Item three", detail: "[TODO: wishlist item three detail]", tag: "EXPLORE" },
+      ];
+      const root = el("div", { class: "hp hp-wishlist" });
+      // If the SE hasn't customized the headline (or has only the
+      // legacy "Her top 3..." default), synthesize from pronouns so
+      // changes in Step 4 show up immediately in the preview.
+      const stored = p.wishlistHeadline;
+      const headline = (stored && !isLegacyWishlistHeadline(stored))
+        ? stored
+        : wishlistHeadlineFor(pron);
+      const headlineClean = String(headline).replace(/<\/?[^>]+>/g, "");
+      root.appendChild(el("div", { class: "hp-eyebrow", text: p.wishlistLabel || "Wishlist" }));
+      root.appendChild(el("h3", { class: "hp-h3", text: headlineClean }));
+      const cards = el("div", { class: "hp-wish-cards" });
+      wish.slice(0, 3).forEach(function (item, i) {
+        cards.appendChild(el("div", { class: "hp-wish-card" + (i === 0 ? " is-featured" : "") }, [
+          el("div", { class: "hp-wish-tag",    text: item.tag || "PICK" }),
+          el("div", { class: "hp-wish-name",   text: item.name || "—" }),
+          el("div", { class: "hp-wish-detail", text: truncate(item.detail || "", mode === "expanded" ? 90 : 50) }),
+        ]));
+      });
+      root.appendChild(cards);
+      return root;
+    },
+
+    // ── Persona · CTA into demo (mr-4) ──
+    // Matches holodeck-adapter.js buildPersona() ctaHeadline / ctaSub /
+    // ctaLabel so what the SE sees here is exactly what the polished
+    // /demo template will render.
+    // CTA copy reads HOLO_SHARED.personaCtaCopy so the ctaHeadline /
+    // ctaSub / ctaLabel the adapter writes into HOLODECK_CONFIG match
+    // this preview tile exactly.
+    personaCta: function (data, mode) {
+      const cta = SHARED.personaCtaCopy
+        ? SHARED.personaCtaCopy(data.persona || {}, data.story || {})
+        : { label: "BEGIN THE JOURNEY →", headline: "Let's follow the journey.", sub: "" };
+      const root = el("div", { class: "hp hp-persona-cta" });
+      root.appendChild(el("div", { class: "hp-eyebrow", text: "The Customer Journey" }));
+      root.appendChild(el("h2", { class: "hp-title", text: cta.headline }));
+      root.appendChild(el("p", { class: "hp-sub", text: cta.sub }));
+      // Strip the &nbsp; that the export keeps (HTML context); preview
+      // renders text nodes so we want a plain space + arrow.
+      root.appendChild(el("div", { class: "hp-cta-btn",
+        text: String(cta.label).replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim() }));
+      return root;
+    },
+
+    // ── Demo · Chapter opener (auto-prepended) ──
+    // Reads HOLO_SHARED.chapterOpenerCopy so the eyebrow/headline/sub
+    // are byte-identical to demo-deck-renderer.js defaultOpenerSub.
+    chapterOpener: function (data, mode) {
+      const root = el("div", { class: "hp hp-opener" });
+      const c = SHARED.chapterOpenerCopy
+        ? SHARED.chapterOpenerCopy({
+            customerName: data.customerName,
+            persona:      data.persona,
+            acts:         data.acts || [],
+            theme:        data.theme,
+            demoTitle:    (data.foundations && data.foundations.demoTitle) || "",
+          })
+        : { eyebrow: "Customer Demo",
+            headline: "Every relationship begins with a single moment.",
+            sub: "" };
+      root.appendChild(el("div", { class: "hp-eyebrow", text: c.eyebrow }));
+      root.appendChild(el("h2", { class: "hp-title", text: c.headline }));
+      root.appendChild(el("p", { class: "hp-sub", text: c.sub }));
+      return root;
+    },
+
+    // ── BV · Outcome opener (bv-1) ──
+    bvOpener: function (data, mode) {
+      const root = el("div", { class: "hp hp-bv-opener" });
+      root.appendChild(el("div", { class: "hp-eyebrow", text: "The Business Outcome" }));
+      root.appendChild(el("h2", { class: "hp-title",
+        text: "A completely connected journey. Driven by AI." }));
+      root.appendChild(el("p", { class: "hp-sub",
+        text: "Higher conversion. Increased AOV. Lifelong loyalty." }));
+      return root;
+    },
+
+    // ── BV · Orbit (bv-2) ──
+    bvOrbit: function (data, mode) {
+      const root = el("div", { class: "hp hp-bv-orbit" });
+      root.appendChild(el("div", { class: "hp-eyebrow", text: "How it all connects" }));
+      root.appendChild(el("h3", { class: "hp-h3",
+        text: data.customerName ? data.customerName + " · the orbit" : "One platform. Every moment." }));
+      const orbit = el("div", { class: "hp-orbit-vis" });
+      orbit.appendChild(el("div", { class: "hp-orbit-center",
+        text: (data.customerName || "BRAND").slice(0, 14).toUpperCase() }));
+      // Same 6-slot list the adapter writes into HOLODECK_CONFIG.orbitNodes
+      // (defaults → product-derived → storyFoundations.orbitNodes overrides).
+      const nodes = SHARED.buildOrbitNodes
+        ? SHARED.buildOrbitNodes(data.foundations, data.products || [])
+        : [];
+      nodes.slice(0, 6).forEach(function (n, i) {
+        orbit.appendChild(el("div", { class: "hp-orbit-pill hp-orbit-pos-" + i,
+          text: (n.icon ? n.icon + " " : "") + (n.label || "[TODO]") }));
+      });
+      root.appendChild(orbit);
+      return root;
+    },
+
+    // ── BV · Capabilities recap (bv-3) ──
+    // Reads the same SHARED.buildCapabilities the adapter writes
+    // into HOLODECK_CONFIG.technologies, so SE overrides on
+    // storyFoundations.capabilities show up identically in preview
+    // and export.
+    bvCapabilities: function (data, mode) {
+      const root = el("div", { class: "hp hp-bv-caps" });
+      root.appendChild(el("div", { class: "hp-eyebrow", text: "Key Capabilities Shown Today" }));
+      root.appendChild(el("h3", { class: "hp-h3", text: "Personalize. Search. Convert." }));
+      const grid = el("div", { class: "hp-bv-caps-grid" });
+      const caps = SHARED.buildCapabilities
+        ? SHARED.buildCapabilities(data.foundations, data.products || [])
+        : [];
+      const limit = mode === "expanded" ? 6 : 4;
+      caps.slice(0, limit).forEach(function (c) {
+        grid.appendChild(el("div", { class: "hp-bv-cap" }, [
+          el("div", { class: "hp-bv-cap-title", text: c.label || "—" }),
+          el("div", { class: "hp-bv-cap-desc",  text: truncate(c.description || "", mode === "expanded" ? 120 : 70) }),
+        ]));
+      });
+      root.appendChild(grid);
+      return root;
+    },
+
+    // ── BV · Closing slide (bv-5) ──
+    bvClosing: function (data, mode) {
+      const root = el("div", { class: "hp hp-bv-closing" });
+      const f = data.foundations || {};
+      const quote = f.executiveTakeaway || data.story.executiveTakeaway
+        || "[TODO: closing executive quote]";
+      root.appendChild(el("div", { class: "hp-eyebrow",
+        text: (data.customerName || "Customer") + " + Salesforce" }));
+      root.appendChild(el("h2", { class: "hp-title", text: "”" + truncate(quote, 160) + "”" }));
+      root.appendChild(el("div", { class: "hp-cta-btn", text: "RETURN TO JOURNEY MAP →" }));
+      return root;
+    },
+
     // ── Unknown layout — neutral, never duplicates other slides ──
     unknown: function (data, mode) {
       const root = el("div", { class: "hp hp-unknown" });
@@ -958,11 +1665,54 @@
     if (data.story.businessValueMoments) return truncate(data.story.businessValueMoments, 140);
     return "Here's what I'd recommend, grounded in your unified profile and your last interaction.";
   }
+  // Delegate to HOLO_SHARED so adapter and preview produce identical
+  // truncation (same ellipsis behavior, same whitespace handling).
   function truncate(s, max) {
+    if (SHARED.truncate) return SHARED.truncate(s, max);
     if (!s) return "";
     s = String(s).replace(/\s+/g, " ").trim();
     if (s.length <= max) return s;
     return s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  enumerateRuntimeSlides
+  //  Returns the EXACT ordered slide list the polished /demo template
+  //  renders at runtime. The exported template is the source of truth:
+  //
+  //    • JOURNEY MAP   → 1 hardcoded slide (sec-map)
+  //    • INTRO         → 3 hardcoded (vi-1..3) + 3 dynamic vignettes (vi-4..6)
+  //    • MEET PERSONA  → 4 hardcoded (mr-1..4)
+  //    • DEMO          → 1 chapter opener (auto-prepended) + state.slides
+  //                      filtered to sectionId === "demo" (or untagged,
+  //                      treated as demo for legacy state)
+  //    • BUSINESS VALUE → 5 hardcoded (bv-1..5)
+  //
+  //  Total = 17 fixed + (demo slides). Slides the SE assigned to other
+  //  sections are NOT shown here, because the polished /demo template
+  //  doesn't render them — they would be silently dropped on export, so
+  //  surfacing them in the preview just creates the mismatch the user
+  //  reported (preview said 30, export had 21).
+  //
+  //  Section / layout order matches the on-screen order the polished
+  //  template uses: Journey Map first, then Intro, Meet Persona, Demo,
+  //  Business Value (see <nav> in demo-holodeck-unified.html).
+  //
+  //  Each entry is shaped like a state.slide so renderPreviewCard can
+  //  consume it directly. Synthetic (runtime-only) entries are tagged
+  //  with `synthetic: true` so the preview UI can suppress mutating
+  //  actions (move/remove) for them.
+  // ═══════════════════════════════════════════════════════════════
+  function enumerateRuntimeSlides(state) {
+    // Slide manifest lives in HOLO_SHARED.buildSlideManifest so the
+    // builder's Step 8 preview list and the export's slide order are
+    // generated from one place — adding/removing/reordering a runtime
+    // slide here fixes both code paths automatically.
+    if (SHARED.buildSlideManifest) return SHARED.buildSlideManifest(state);
+    // Conservative fallback: if the shared module is missing, pass
+    // through whatever real demo slides the SE authored so the preview
+    // still has something to render.
+    return ((state && state.slides) || []).slice();
   }
 
   // ─── Public API ───────────────────────────────────────────────
@@ -974,6 +1724,11 @@
     assetReadiness:              assetReadiness,
     readinessPill:               readinessPill,
     layoutLabelFor:              layoutLabelFor,
+    enumerateRuntimeSlides:      enumerateRuntimeSlides,
+    editorFieldsForSlide:        editorFieldsForSlide,
+    buildEditorPopover:          buildEditorPopover,
+    getAtPath:                   getAtPath,
+    setAtPath:                   setAtPath,
     LAYOUT_RENDERERS:            LAYOUT_RENDERERS,
   };
 })(window);

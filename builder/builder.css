@@ -1272,11 +1272,12 @@ button { font-family: inherit; }
 .hp-democard-cap { font-size: 9px; font-weight: 800; color: var(--hp-primary); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 5px; }
 .hp-democard-asset { font-size: 11px; color: var(--bx-ink-3); margin-top: 4px; }
 
-/* Persona */
+/* Persona spotlight (mr-2 layout): role · name · jobTitle ·
+   3-stat grid · pull quote.  Mirrors the polished /demo template. */
 .hp-persona-row {
-  display: grid; grid-template-columns: 130px 1fr; gap: 16px; align-items: start;
+  display: grid; grid-template-columns: 100px 1fr; gap: 16px; align-items: start;
 }
-.hp-persona-l { text-align: center; }
+.hp-persona-l { text-align: center; padding-top: 4px; }
 .hp-persona-avatar {
   width: 64px; height: 64px;
   border-radius: 50%;
@@ -1286,11 +1287,51 @@ button { font-family: inherit; }
   font-family: var(--bx-font-serif);
   font-size: 26px; font-weight: 700;
 }
-.hp-persona-name { font-family: var(--bx-font-serif); font-size: 16px; font-weight: 700; color: var(--bx-navy); margin-top: 6px; }
-.hp-persona-role { font-size: 10px; color: var(--bx-ink-3); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
-.hp-persona-r { display: flex; flex-direction: column; gap: 8px; }
+.hp-persona-r { display: flex; flex-direction: column; gap: 6px; }
+.hp-persona-role {
+  font-size: 10px; font-weight: 800; color: var(--hp-secondary);
+  letter-spacing: 0.10em; text-transform: uppercase;
+}
+.hp-persona-name {
+  font-family: var(--bx-font-serif);
+  font-size: 22px; font-weight: 400; color: var(--bx-navy);
+  line-height: 1.05;
+}
+.hp-persona-name strong { font-weight: 800; }
+.hp-persona-job { font-size: 11px; color: var(--bx-ink-3); margin-top: 2px; }
+.hp-persona-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  margin-top: 8px;
+}
+.hp-persona-stat {
+  background: var(--bx-bg-2); border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius-s);
+  padding: 8px 10px; text-align: left;
+}
+.hp-persona-stat-v {
+  font-family: var(--bx-font-serif);
+  font-size: 18px; font-weight: 800; color: var(--hp-primary);
+  line-height: 1;
+}
+.hp-persona-stat-l {
+  font-size: 9px; font-weight: 700; color: var(--bx-ink-3);
+  letter-spacing: 0.08em; text-transform: uppercase; margin-top: 4px;
+}
+.hp-persona-quote-mark {
+  font-family: var(--bx-font-serif);
+  font-size: 28px; color: var(--hp-secondary);
+  line-height: 0.6; margin-top: 8px;
+}
+.hp-persona-quote {
+  font-style: italic; font-size: 12px; color: var(--bx-ink);
+  line-height: 1.55;
+}
+/* Legacy styles kept so other layouts (unifiedProfile, etc.) that
+   still reference .hp-persona-label / .hp-persona-body / .hp-persona-sec
+   render correctly. Don't remove unless those layouts are removed too. */
 .hp-persona-label { font-size: 9px; font-weight: 800; color: var(--hp-secondary); letter-spacing: 0.10em; text-transform: uppercase; }
-.hp-persona-body { font-size: 12px; color: var(--bx-ink); line-height: 1.55; margin-top: 2px; }
+.hp-persona-body  { font-size: 12px; color: var(--bx-ink); line-height: 1.55; margin-top: 2px; }
+.hp-persona-sec   { display: flex; flex-direction: column; }
 
 /* Agent chat */
 .hp-chat { display: flex; flex-direction: column; gap: 8px; max-width: 460px; margin: 4px 0; }
@@ -1737,10 +1778,97 @@ button { font-family: inherit; }
 /* Asset readiness pills (more colors for the new states) */
 .hp-asset-pill.tone-red { background: rgba(178,34,52,0.10); color: var(--bx-red); }
 
+/* ────────────────────────────────────────────────────────────────
+   Runtime / synthetic slides — template defaults shown in preview
+   ──────────────────────────────────────────────────────────────── */
+.hp-card.is-synthetic { border-style: dashed; }
+.bx-preview-default-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: rgba(26,95,160,0.10);
+  color: var(--bx-blue, #1a5fa0);
+  border-radius: 999px;
+  font-size: 9px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Runtime layouts — minimal styling so previews are legible. They
+   share .hp / .hp-eyebrow / .hp-title / .hp-sub from the existing
+   preview stylesheet; just add layout-specific scaffolding. */
+.hp-jmatrix-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 8px; }
+.hp-jmatrix-cell { background: var(--bx-bg); border: 1px solid var(--bx-line); border-radius: var(--bx-radius-s); padding: 8px; text-align: center; }
+.hp-jmatrix-icon { font-size: 18px; }
+.hp-jmatrix-tag  { font-size: 10px; font-weight: 800; letter-spacing: 0.10em; text-transform: uppercase; color: var(--hp-primary); margin-top: 4px; }
+.hp-jmatrix-desc { font-size: 10px; color: var(--bx-ink-2); line-height: 1.4; margin-top: 4px; }
+.hp-jmatrix-badge {
+  margin-top: 6px;
+  font-size: 9px; font-weight: 700;
+  color: var(--bx-ink-3);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  background: var(--bx-bg-2);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius-pill);
+  padding: 2px 6px;
+  display: inline-block;
+}
+
+.hp-three-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.hp-three-card { background: var(--bx-bg); border: 1px solid var(--bx-line); border-radius: var(--bx-radius-s); padding: 10px; }
+.hp-three-num   { font-size: 24px; font-weight: 800; color: var(--hp-primary); }
+.hp-three-title { font-size: 12px; font-weight: 700; margin-top: 2px; }
+.hp-three-desc  { font-size: 11px; color: var(--bx-ink-2); margin-top: 2px; }
+
+.hp-wish-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.hp-wish-card  { background: var(--bx-bg); border: 1px solid var(--bx-line); border-radius: var(--bx-radius-s); padding: 10px; }
+.hp-wish-card.is-featured { border-color: var(--hp-primary); }
+.hp-wish-tag    { font-size: 9px; font-weight: 800; letter-spacing: 0.10em; color: var(--hp-primary); text-transform: uppercase; }
+.hp-wish-name   { font-size: 12px; font-weight: 700; margin-top: 4px; }
+.hp-wish-detail { font-size: 11px; color: var(--bx-ink-2); margin-top: 2px; line-height: 1.4; }
+
+.hp-cta-btn {
+  display: inline-block; margin-top: 12px;
+  padding: 8px 14px;
+  background: var(--hp-primary); color: #fff;
+  border-radius: var(--bx-radius-s);
+  font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+.hp-orbit-vis {
+  position: relative; height: 160px; margin-top: 8px;
+  background: var(--bx-bg); border: 1px solid var(--bx-line); border-radius: var(--bx-radius-s);
+  overflow: hidden;
+}
+.hp-orbit-center {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: var(--hp-primary); color: #fff;
+  padding: 8px 12px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.06em;
+}
+.hp-orbit-pill {
+  position: absolute;
+  background: var(--bx-surface-bg, #fff); border: 1px solid var(--bx-line);
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; color: var(--bx-ink);
+  white-space: nowrap;
+}
+.hp-orbit-pos-0 { top: 6%;   left: 50%; transform: translateX(-50%); }
+.hp-orbit-pos-1 { top: 30%;  right: 4%; }
+.hp-orbit-pos-2 { bottom: 30%; right: 4%; }
+.hp-orbit-pos-3 { bottom: 6%; left: 50%; transform: translateX(-50%); }
+.hp-orbit-pos-4 { bottom: 30%; left: 4%; }
+.hp-orbit-pos-5 { top: 30%;  left: 4%; }
+
+.hp-bv-caps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.hp-bv-cap       { background: var(--bx-bg); border: 1px solid var(--bx-line); border-radius: var(--bx-radius-s); padding: 10px; }
+.hp-bv-cap-title { font-size: 11px; font-weight: 800; color: var(--hp-primary); }
+.hp-bv-cap-desc  { font-size: 11px; color: var(--bx-ink-2); margin-top: 2px; line-height: 1.4; }
+
 /* Foundation row stacking on narrow screens */
 @media (max-width: 720px) {
   .bx-foundation-row { grid-template-columns: 1fr; gap: 4px; }
   .hp-foundation-grid, .hp-twostate-cols { grid-template-columns: 1fr; }
+  .hp-jmatrix-row, .hp-three-grid, .hp-wish-cards, .hp-bv-caps-grid { grid-template-columns: 1fr; }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1969,4 +2097,109 @@ button { font-family: inherit; }
 .bx-icon-btn:focus-visible {
   outline: 2px solid var(--bx-action);
   outline-offset: 2px;
+}
+
+/* ── Edit-text mini button + popover (Step 8 preview) ─────────── */
+.bx-mini-btn-edit { color: var(--bx-action); }
+.bx-mini-btn-edit:hover {
+  background: var(--bx-action-soft);
+  border-color: var(--bx-action);
+  color: var(--bx-action);
+}
+
+.bx-pop-edit {
+  position: absolute;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid var(--bx-line);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18), 0 4px 12px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+  overflow: hidden;
+  font-family: var(--bx-font-sans);
+}
+.bx-pop-edit-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--bx-line);
+  background: var(--bx-bg-2);
+}
+.bx-pop-edit-title {
+  font-family: var(--bx-font-serif);
+  font-size: 14px; font-weight: 700;
+  color: var(--bx-navy);
+  letter-spacing: 0.01em;
+}
+.bx-pop-edit-close {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--bx-line);
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px; line-height: 1; color: var(--bx-ink-2);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.bx-pop-edit-close:hover { background: var(--bx-bg-2); color: var(--bx-ink-1); }
+.bx-pop-edit-body {
+  padding: 12px 14px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+.bx-pop-edit-empty {
+  font-size: 12px; color: var(--bx-ink-3);
+  font-style: italic;
+}
+.bx-pop-edit-field {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.bx-pop-edit-label {
+  font-size: 10px; font-weight: 700;
+  color: var(--bx-ink-3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.bx-pop-edit-field .bx-input,
+.bx-pop-edit-field .bx-textarea {
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.bx-pop-edit-field .bx-textarea { min-height: 60px; resize: vertical; }
+.bx-pop-edit-list {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.bx-pop-edit-list-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.bx-pop-edit-list-num {
+  flex: 0 0 auto;
+  width: 18px; text-align: right;
+  font-size: 11px; color: var(--bx-ink-3);
+  font-weight: 700;
+}
+.bx-pop-edit-list-input {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--bx-line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--bx-ink-1);
+  font-family: inherit;
+}
+.bx-pop-edit-list-input:focus-visible {
+  outline: 2px solid var(--bx-action);
+  outline-offset: 0;
+  border-color: var(--bx-action);
+}
+.bx-pop-edit-foot {
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--bx-line);
+  font-size: 11px;
+  color: var(--bx-ink-3);
+  background: var(--bx-bg-2);
 }

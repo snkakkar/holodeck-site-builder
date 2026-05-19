@@ -2217,12 +2217,12 @@
       "Preview the holodeck",
       "Review how the story will feel before downloading the complete demo package. What you see here is what the exported demo will render."
     ));
-    if (!app.state.slides.length) {
-      wrap.appendChild(el("div", { class: "bx-empty",
-        html: "No slides yet. <strong>Go back to Step 5</strong>, customize the slide plan, then return to preview." }));
-      wrap.appendChild(stepFooter("preview"));
-      return wrap;
-    }
+
+    // Runtime manifest: every slide the polished /demo template renders,
+    // including the hardcoded intro / persona / journey-map / business-value
+    // slides — merged with state.slides for the Demo section. SEs see the
+    // full deck even before they pick layouts in Step 5.
+    const runtimeSlides = (PREVIEW.enumerateRuntimeSlides ? PREVIEW.enumerateRuntimeSlides(app.state) : (app.state.slides || []));
 
     // ── Summary panel: total / sections / missing / ready? ──
     const s = app.state;
@@ -2233,11 +2233,11 @@
       return sl.layout === "embeddedCxComponent" && (!(sl.linkedCxComponentIds || []).length);
     }).length;
     const slidesWithMissing = slides.filter(function (sl) { return (sl.missingInputs || []).length > 0; }).length;
-    const sectionsCovered = new Set(slides.map(function (sl) { return sl.sectionId; })).size;
+    const sectionsCovered = new Set(runtimeSlides.map(function (sl) { return sl.sectionId; })).size;
     const summary = el("div", { class: "bx-card bx-preview-summary" });
     summary.appendChild(el("div", { class: "bx-card-title", text: "Demo summary" }));
     summary.appendChild(el("div", { class: "bx-summary-grid" }, [
-      summaryStat(slides.length, "slides"),
+      summaryStat(runtimeSlides.length, "slides total"),
       summaryStat(sectionsCovered + " / 5", "sections covered"),
       summaryStat(cx.length, "CX component" + (cx.length === 1 ? "" : "s")),
       summaryStat(slidesWithMissing, "slides need attention", slidesWithMissing > 0 ? "warn" : "good"),
@@ -2284,10 +2284,12 @@
     wrap.appendChild(toolbar);
 
     if (app.previewGrouping === "by-section") {
-      // Section-grouped preview
+      // Section-grouped preview — uses the runtime manifest so SEs see
+      // every slide the polished template will render, including the
+      // intro / persona / BV slides that aren't in state.slides.
       const sections = (RULES.SLIDE_SECTIONS || []);
       sections.forEach(function (sec) {
-        const slidesInSection = app.state.slides.filter(function (sl) { return sl.sectionId === sec.id; });
+        const slidesInSection = runtimeSlides.filter(function (sl) { return sl.sectionId === sec.id; });
         if (!slidesInSection.length) return;
         const sectionWrap = el("div", { class: "bx-preview-section" });
         const label = RULES.sectionLabelFor(sec, app.state);
@@ -2300,18 +2302,17 @@
           el("div", { class: "bx-preview-section-count", text: slidesInSection.length + " slide" + (slidesInSection.length === 1 ? "" : "s") }),
         ]));
         const grid = el("div", { class: "bx-preview-grid bx-preview-" + app.previewMode });
-        slidesInSection.forEach(function (sl) {
-          const idx = app.state.slides.indexOf(sl);
-          const slide = Object.assign({}, sl, { order: idx });
+        slidesInSection.forEach(function (sl, i) {
+          const slide = Object.assign({}, sl, { order: i });
           grid.appendChild(makePreviewCard(slide));
         });
         sectionWrap.appendChild(grid);
         wrap.appendChild(sectionWrap);
       });
     } else {
-      // Flat sequence
+      // Flat sequence — same merged manifest, in order.
       const grid = el("div", { class: "bx-preview-grid bx-preview-" + app.previewMode });
-      app.state.slides.forEach(function (sl, i) {
+      runtimeSlides.forEach(function (sl, i) {
         const slide = Object.assign({}, sl, { order: i });
         grid.appendChild(makePreviewCard(slide));
       });
@@ -2339,16 +2340,90 @@
       return b;
     }
     function makePreviewCard(slide) {
-      return PREVIEW.renderPreviewCard(slide, app.state, {
-        mode: app.previewMode,
-        onMoveUp:   function (id) { moveItem(app.state.slides, id, -1); renderSide(); },
-        onMoveDown: function (id) { moveItem(app.state.slides, id, 1); renderSide(); },
-        onRemove:   function (id) {
+      // Synthetic runtime slides (intro hero, persona spotlight, BV
+      // closing, etc.) aren't in state.slides — they're rendered by
+      // the template at runtime. Move/remove don't apply to them.
+      const handlers = { mode: app.previewMode };
+      handlers.onEdit = function (s, anchorBtn) {
+        openSlideTextPopover(s, anchorBtn);
+      };
+      if (!slide.synthetic) {
+        handlers.onMoveUp   = function (id) { moveItem(app.state.slides, id, -1); renderSide(); };
+        handlers.onMoveDown = function (id) { moveItem(app.state.slides, id, 1); renderSide(); };
+        handlers.onRemove   = function (id) {
           app.state.slides = app.state.slides.filter(function (x) { return x.id !== id; });
           renderMain(); renderSide(); commit();
-        },
-      });
+        };
+      }
+      return PREVIEW.renderPreviewCard(slide, app.state, handlers);
     }
+  }
+
+  // ─── Step 8 popover editor (Option #2) ────────────────────────
+  // Renders the inline text editor next to whichever preview card
+  // the SE clicked "Edit text" on. Edits flow through state-path
+  // bindings (synthetic slides) or direct slide fields (state.slides),
+  // and re-render the preview card in place so the SE sees their
+  // change immediately.
+  let _activePopover = null;
+  function closeSlidePopover() {
+    if (_activePopover && _activePopover.parentNode) {
+      _activePopover.parentNode.removeChild(_activePopover);
+    }
+    _activePopover = null;
+    document.removeEventListener("click", onDocClickForPopover, true);
+    document.removeEventListener("keydown", onEscForPopover, true);
+  }
+  function onDocClickForPopover(e) {
+    if (!_activePopover) return;
+    if (_activePopover.contains(e.target)) return;
+    // The Edit-text button itself toggles. If they clicked another
+    // Edit button on a different card, let it through (the openSlide…
+    // call below will close + reopen).
+    if (e.target.closest && e.target.closest(".bx-mini-btn-edit")) return;
+    closeSlidePopover();
+  }
+  function onEscForPopover(e) { if (e.key === "Escape") closeSlidePopover(); }
+  function openSlideTextPopover(slide, anchorBtn) {
+    closeSlidePopover();
+    const card = anchorBtn.closest(".bx-preview");
+    if (!card) return;
+    const pop = PREVIEW.buildEditorPopover(slide, app.state, {
+      onChange: function () {
+        commit();
+        // Re-render the preview body in place — keeps the popover open
+        // and avoids tearing down the whole preview grid on each keystroke.
+        const body = card.querySelector(".hp");
+        if (body && body.parentNode) {
+          const fresh = PREVIEW.renderSlidePreview(slide, app.state, app.previewMode);
+          body.parentNode.replaceChild(fresh, body);
+        }
+      },
+      onClose: closeSlidePopover,
+    });
+    // Anchor the popover absolutely so it sits beside the card no
+    // matter where the SE has scrolled. We position it via getBoundingClientRect
+    // and let CSS handle responsive collapse (under the card on narrow viewports).
+    pop.style.position = "absolute";
+    document.body.appendChild(pop);
+    const r = card.getBoundingClientRect();
+    const popW = 360;
+    const margin = 12;
+    let left = r.right + margin + window.scrollX;
+    let top  = r.top + window.scrollY;
+    // If we'd overflow the viewport on the right, flip to the left side.
+    if (left + popW > window.innerWidth + window.scrollX - 12) {
+      left = Math.max(12 + window.scrollX, r.left + window.scrollX - popW - margin);
+    }
+    pop.style.left = left + "px";
+    pop.style.top  = top  + "px";
+    pop.style.width = popW + "px";
+    _activePopover = pop;
+    // Defer doc-click binding so this very click doesn't close it.
+    setTimeout(function () {
+      document.addEventListener("click", onDocClickForPopover, true);
+      document.addEventListener("keydown", onEscForPopover, true);
+    }, 0);
   }
 
   // Section ordering used by the slide planner.

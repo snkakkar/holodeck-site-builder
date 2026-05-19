@@ -32,6 +32,12 @@
 (function (global) {
   "use strict";
 
+  // Pure copy generators live in holodeck-shared.js so the adapter
+  // and the in-builder preview agree on every default line. If H/SHARED
+  // is missing we fall back to noops — the export still produces a
+  // valid (if degraded) config rather than throwing.
+  const SHARED = global.HOLO_SHARED || {};
+
   const TODO = "[TODO: confirm with customer]";
 
   // ─── Asset library lookup ────────────────────────────────────
@@ -146,65 +152,42 @@
   // Long script paragraphs overflow these slots. We synthesize a
   // crisp headline from the customer name + a one-word stance, and
   // let the long prose live in the sub-headline.
+  // Hero/hook/stance copy lives in HOLO_SHARED so the in-builder
+  // preview and the export both render the same lines. Adapter
+  // wraps the shared parts in <br/> + <em> for display-type slots;
+  // preview renders plain text. Same source, two presentations.
   function shortHeroHeadline(name, project, f) {
-    const stance = pickStance(f);
-    // "<Customer>,<br/>reimagined as one <em>agentic</em> journey."
-    return name + ",<br/>" + stance.before + " <em>" + stance.accent + "</em> " + stance.after + ".";
+    const parts = SHARED.heroHeadlineParts
+      ? SHARED.heroHeadlineParts(name, f)
+      : { name: name, before: "a", accent: "connected", after: "customer journey" };
+    return parts.name + ",<br/>" + parts.before + " <em>" + parts.accent + "</em> " + parts.after + ".";
   }
-  function pickStance(f) {
-    // Bias the language toward whatever the script emphasized.
-    if (f.agentforceMoments && f.agentforceMoments.length) {
-      return { before: "reimagined as one", accent: "agentic", after: "journey" };
-    }
-    if (f.dataCloudMoments && f.dataCloudMoments.length) {
-      return { before: "powered by a", accent: "unified", after: "customer profile" };
-    }
-    if (f.commerceMoments && f.commerceMoments.length) {
-      return { before: "a", accent: "personalized", after: "shopper journey" };
-    }
-    return { before: "a", accent: "connected", after: "customer journey" };
-  }
-  function heroSubLine(name, project, f) {
+  function heroSubLine(name) {
     return name + " + Salesforce";
   }
   function shortStoryHook(name, f) {
-    // Always synthesize a short, display-type hook. The long script
-    // text is too dense for this 60-pt slot. The full story copy
-    // lives in storyHookSub (smaller body type).
-    if (f.agentforceMoments && f.agentforceMoments.length) {
-      return "From a single signal<br/>to an <em>agentic</em> journey.";
-    }
-    if (f.dataCloudMoments && f.dataCloudMoments.length) {
-      return "From scattered signals<br/>to a <em>unified</em> profile.";
-    }
-    if (f.commerceMoments && f.commerceMoments.length) {
-      return "From browse to buy,<br/><em>personalized</em> end to end.";
-    }
-    return "From a single moment<br/>to a <em>lifetime</em> of relevance.";
+    const h = SHARED.storyHookParts
+      ? SHARED.storyHookParts(f)
+      : { lead: "From a single moment", emph: "lifetime", tail: "to a", suffix: "of relevance." };
+    // Adapter slot is display-type — line-break before the accent and
+    // wrap it in <em>. Order: "<lead><br/>[<tail> ]<em>emph</em> <suffix>"
+    const tail = h.tail ? h.tail + " " : "";
+    return h.lead + "<br/>" + tail + "<em>" + h.emph + "</em> " + h.suffix;
   }
-  function storyHookSub(f, name) {
-    // This IS the long-prose slot, so use the full business problem.
-    if (f.businessProblem) return truncate(f.businessProblem, 280);
-    if (f.primaryNarrative) return truncate(f.primaryNarrative, 280);
-    return "Every interaction builds context. Every context makes the next experience more personal.";
+  function storyHookSub(f) {
+    return SHARED.storyHookSubText
+      ? SHARED.storyHookSubText(f)
+      : "Every interaction builds context. Every context makes the next experience more personal.";
   }
   function shortClosingQuote(f) {
     if (f.executiveTakeaway) return oneSentence(f.executiveTakeaway, 120) || truncate(f.executiveTakeaway, 120);
     return TODO + " — closing one-line takeaway";
   }
-  // Pick the first sentence and truncate. Returns "" if no good fit.
   function oneSentence(s, max) {
-    s = String(s || "").replace(/\s+/g, " ").trim();
-    if (!s) return "";
-    const m = s.match(/^[^.!?]+[.!?]/);
-    let out = m ? m[0].trim() : s;
-    if (out.length > max) out = out.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
-    return out;
+    return SHARED.oneSentence ? SHARED.oneSentence(s, max) : "";
   }
   function cleanHeadline(s, max) {
-    s = String(s || "").replace(/\s+/g, " ").trim();
-    if (s.length > max) s = s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
-    return s;
+    return SHARED.cleanHeadline ? SHARED.cleanHeadline(s, max) : truncate(s, max);
   }
 
   // ─── presenter / brand ───────────────────────────────────────
@@ -298,39 +281,10 @@
   //   3. SE overrides (storyFoundations.bvsMetrics[i].{value,label})
   //      — set via Step 7's pending-text editor.
   function buildBvs(state, f) {
-    const icons    = ["↑", "💳", "★", "🔄", "⚡"];
-    const drivers  = (f.valueDrivers || []).slice(0, 5);
-    const overrides = Array.isArray(f.bvsMetrics) ? f.bvsMetrics : [];
-    const fallback = [
-      { value: "XX%",  label: "Conversion Lift"      },
-      { value: "+$XX", label: "Average Order Value"  },
-      { value: "XX%",  label: "Loyalty Enrollment"   },
-      { value: "XXx",  label: "Repeat Purchase Rate" },
-      { value: "XX%",  label: "Service Efficiency"   },
-    ];
-    const metrics = fallback.map(function (def, i) {
-      const driverLabel = drivers[i] ? shortenLabel(drivers[i]) : "";
-      const ov = overrides[i] || {};
-      return {
-        icon:  icons[i] || "→",
-        value: (ov.value && String(ov.value).trim()) || (drivers[i] ? "[TODO: %]" : def.value),
-        label: (ov.label && String(ov.label).trim()) || driverLabel || def.label,
-      };
-    });
     return {
       disclaimer: "Replace placeholders with BVS-approved values before presenting externally.",
-      metrics: metrics,
+      metrics:    SHARED.buildBvsMetrics ? SHARED.buildBvsMetrics(f) : [],
     };
-  }
-  function shortenLabel(s) {
-    s = String(s || "").replace(/\s+/g, " ").trim();
-    // Trim "Higher conversion through ..." → "Conversion Lift"
-    const m = s.match(/^(?:higher|increased|improved|reduced|faster)\s+([\w\s\/]+?)(\s+through|\s+via|\s+from|$)/i);
-    if (m) return titleCase(m[1].trim());
-    return titleCase(s.split(/[.;]/)[0].slice(0, 32));
-  }
-  function titleCase(s) {
-    return String(s || "").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
 
   // ─── persona ─────────────────────────────────────────────────
@@ -384,9 +338,12 @@
                           ? p.wishlistHeadline
                           : wishlistHeadlineFor(pron),
       wishlistLabel:    p.wishlistLabel    ? p.wishlistLabel    : (first + "'s Wishlist"),
-      ctaLabel:         "BEGIN THE JOURNEY &nbsp;→",
-      ctaHeadline:      "Let's follow " + first + "'s journey.",
-      ctaSub:           truncate(p.demoRelevance || "From inspiration to purchase to loyalty.", 110),
+      // CTA copy comes from SHARED so the mr-4 preview tile and the
+      // exported slide stay in lock-step. Story passed through so the
+      // sub falls back to story.futureVision when demoRelevance is empty.
+      ctaLabel:         (SHARED.personaCtaCopy ? SHARED.personaCtaCopy(p, state.story).label    : "BEGIN THE JOURNEY &nbsp;→"),
+      ctaHeadline:      (SHARED.personaCtaCopy ? SHARED.personaCtaCopy(p, state.story).headline : "Let's follow " + first + "'s journey."),
+      ctaSub:           (SHARED.personaCtaCopy ? SHARED.personaCtaCopy(p, state.story).sub      : truncate(p.demoRelevance || "From inspiration to purchase to loyalty.", 110)),
       // Empty strings (not literal "[TODO:]" paths) so the browser
       // skips fetching a broken image. Step 7's Assets panel writes
       // any uploads into state.assetLibrary, which we read here so
@@ -397,24 +354,22 @@
       portrait:         asset(state, "persona.portrait"),
     };
   }
-  // Map the SE's pronoun selection (or empty) into the words we
-  // splice into wishlistHeadline. Default to she/her for legacy
-  // back-compat — the SE picks he/him or they/them on Step 4 / 7
-  // when it doesn't fit the persona.
+  // Pronoun helpers live in HOLO_SHARED so changes propagate to the
+  // preview without keeping two regexes in lock-step.
   function pronounsFor(value) {
-    const v = String(value || "").toLowerCase();
-    if (v === "he/him")     return { subj: "His",   obj: "him"  };
-    if (v === "they/them")  return { subj: "Their", obj: "them" };
-    return                         { subj: "Her",   obj: "her"  };
+    return SHARED.pronounsFor ? SHARED.pronounsFor(value) : { subj: "Her", obj: "her" };
   }
+  // Adapter writes the wishlist headline with <strong> wrapping for
+  // the polished template; preview reads the plain-text variant.
   function wishlistHeadlineFor(pron) {
-    return pron.subj + " top 3. <strong>Picked just for " + pron.obj + ".</strong>";
+    return SHARED.wishlistHeadlineFor
+      ? SHARED.wishlistHeadlineFor(pron, { wrapStrong: true })
+      : pron.subj + " top 3. <strong>Picked just for " + pron.obj + ".</strong>";
   }
   function isLegacyWishlistHeadline(s) {
-    // Match the old hardcoded "Her top 3. Picked just for her." pattern
-    // (or its his/their variants) so round-tripped exports don't lock
-    // in pronouns that no longer match the persona.
-    return /^(?:Her|His|Their) top 3\.\s*<strong>Picked just for (?:her|him|them)\.<\/strong>$/i.test(String(s || "").trim());
+    return SHARED.isLegacyWishlistHeadline
+      ? SHARED.isLegacyWishlistHeadline(s)
+      : false;
   }
   // Pull stats/wishlist from the persona itself when the SE has
   // filled them in on Step 7's pending-text editor. Otherwise fall
@@ -471,7 +426,9 @@
     const headline = f.transformationThesis
       ? cleanHeadline(f.transformationThesis, 70)
       : "A <strong>connected journey</strong>";
-    const steps = bucketActsIntoFive(acts, prods);
+    // Phase bucketing lives in HOLO_SHARED so the preview's
+    // journeyMapMatrix and the export's circle row share defaults.
+    const steps = SHARED.bucketActsIntoFive ? SHARED.bucketActsIntoFive(acts, prods) : [];
     return {
       headline: headline,
       steps:    steps,
@@ -482,49 +439,8 @@
       },
     };
   }
-  // Heuristic: take 5 highlights from acts. If fewer than 5, pad with
-  // generic phase headers tied to the product mix.
-  function bucketActsIntoFive(acts, prods) {
-    const circleClasses = ["circle-anticipate", "circle-engage", "circle-guide", "circle-convert", "circle-delight"];
-    const phaseTitles   = ["Know", "Reach", "Engage", "Recover", "Convert"];
-    const emojis        = ["🏪", "📸", "🛍️", "💬", "🤖"];
-    // Filter out chapter-header rows (titles like "Intro" / "Open" /
-    // "Close") so the 5 circles show real moments, not section titles.
-    function isHeaderTitle(t) { return !t || /^(intro|opening|open|chapter\s|section\s|close|closing)/i.test(t); }
-    const milestones = acts.filter(function (a) { return a && a.summary && !isHeaderTitle(a.title); });
-    const out = [];
-    for (let i = 0; i < 5; i++) {
-      const a = milestones[i];
-      out.push({
-        title:        a && a.title ? shortenTitle(a.title) : phaseTitles[i],
-        badge:        a && a.salesforceCapabilities ? truncate(a.salesforceCapabilities, 36) : (prods[i] || "Salesforce"),
-        emoji:        emojis[i],
-        circleClass:  circleClasses[i],
-        description:  a && a.summary ? truncate(a.summary, 200) : phaseDescription(phaseTitles[i], prods),
-        detail:       a && (a.notes || a.summary) ? truncate((a.notes || "") + " " + (a.summary || ""), 280) : phaseDetail(phaseTitles[i]),
-        technologies: a && a.salesforceCapabilities
-          ? a.salesforceCapabilities.split(/[,/·•]/).map(function (s) { return s.trim(); }).filter(Boolean)
-          : (prods.slice(0, 2).length ? prods.slice(0, 2) : ["Data Cloud"]),
-      });
-    }
-    return out;
-  }
-  function phaseDescription(t, prods) {
-    return ({
-      "Know":    "Identity captured; the journey begins from a single moment.",
-      "Reach":   "Targeted, personalized outreach finds the customer where they already are.",
-      "Engage":  "Personalized content adapts to the customer's intent in real time.",
-      "Recover": "Proactive re-engagement turns a near-miss into a relationship.",
-      "Convert": "An agentic moment closes the loop — purchase, service, or loyalty.",
-    })[t] || "Salesforce powers a connected moment.";
-  }
-  function phaseDetail(t) {
-    return phaseDescription(t) + " [TODO: enrich with customer-specific detail]";
-  }
   function shortenTitle(s) {
-    s = String(s || "").replace(/\s+/g, " ").trim();
-    if (s.length > 22) s = s.slice(0, 22).replace(/\s+\S*$/, "");
-    return s;
+    return SHARED.shortenTitle ? SHARED.shortenTitle(s) : String(s || "").slice(0, 22);
   }
 
   // ─── customer_narrative (Intro deck + closing) ──────────────
@@ -548,59 +464,21 @@
     };
   }
 
-  // ─── demoStructure (Intro three-act breakdown) ─────────────
+  // demoStructure + vignettes default copy lives in HOLO_SHARED so
+  // the in-builder Step 8 preview shows the same lines the export
+  // produces. Adapter just truncates per its slot widths.
   function buildDemoStructure(state, f) {
-    return [
-      {
-        title:       "Know & Reach",
-        description: f.dataCloudMoments && f.dataCloudMoments.length
-          ? truncate(f.dataCloudMoments[0], 200)
-          : "Data Cloud unifies the customer's signals across channels — a foundation for every downstream moment.",
-        tags:        deriveTags(f, "intro"),
-      },
-      {
-        title:       "Engage & Recover",
-        description: (f.commerceMoments && f.commerceMoments[0]) || (f.marketingMoments && f.marketingMoments[0]) || "Personalized engagement adapts to the customer's intent in real time. Proactive re-engagement closes near-misses.",
-        tags:        deriveTags(f, "demo"),
-      },
-      {
-        title:       "Convert",
-        description: (f.agentforceMoments && f.agentforceMoments[0]) || (f.serviceMoments && f.serviceMoments[0]) || "An agentic moment closes the loop with the customer.",
-        tags:        deriveTags(f, "close"),
-      },
-    ];
+    const acts = SHARED.threeActsFor ? SHARED.threeActsFor(f) : [];
+    return acts.map(function (a) {
+      return {
+        title:       a.title,
+        description: truncate(a.description, 200),
+        tags:        a.tags,
+      };
+    });
   }
-  function deriveTags(f, stage) {
-    if (stage === "intro") return ["Data Cloud", "Email", "Paid Media", "Anonymous → Known"];
-    if (stage === "demo")  return ["Commerce", "AI Search", "Agentic SMS", "MCP"];
-    return ["Agentforce", "Commerce", "Clicks not code", "GA today"];
-  }
-
-  // ─── vignetteSections (Intro chapter slides) ────────────────
   function buildVignetteSections(state, f) {
-    return [
-      {
-        eyebrow:  "DATA CLOUD · MARKETING CLOUD",
-        title:    "Know & Reach",
-        subtitle: f.dataCloudMoments && f.dataCloudMoments.length
-          ? truncate(f.dataCloudMoments[0], 220)
-          : "Identity, signals, and segments power every downstream touchpoint.",
-      },
-      {
-        eyebrow:  "COMMERCE · MARKETING CLOUD",
-        title:    "Engage & Recover",
-        subtitle: f.marketingMoments && f.marketingMoments.length
-          ? truncate(f.marketingMoments[0], 220)
-          : "Personalized engagement, then proactive recovery when the customer drops off.",
-      },
-      {
-        eyebrow:  "AGENTFORCE",
-        title:    "Convert",
-        subtitle: f.agentforceMoments && f.agentforceMoments.length
-          ? truncate(f.agentforceMoments[0], 220)
-          : "One conversation. Full cart. Closed loop. Then post-purchase nurture extends the relationship.",
-      },
-    ];
+    return SHARED.vignettesFor ? SHARED.vignettesFor(f) : [];
   }
 
   // ─── slides (Demo deck slide payload) ────────────────────────
@@ -689,52 +567,24 @@
   }
 
   // ─── technologies (BV capabilities slide) ────────────────────
+  // Same defaults + product-derived list + SE overrides
+  // (storyFoundations.capabilities) used by the bv-3 preview.
   function buildTechnologies(state, prods) {
-    if (!prods.length) {
-      return [
-        { label: "Data Cloud",                description: "Unified customer data across every channel and signal." },
-        { label: "Agentforce",                description: "Conversational AI agents that ground answers in customer context and close the loop." },
-        { label: "Commerce",                  description: "Personalized storefront with AI-powered search built in." },
-        { label: "Marketing Cloud",           description: "Personalized SMS, email, and journeys triggered by real-time signals." },
-      ];
-    }
-    const desc = {
-      "Data Cloud":      "Unified customer data across every channel and signal.",
-      "Agentforce":      "Conversational AI agents that ground answers in customer context and close the loop.",
-      "Sales Cloud":     "Pipeline, accounts, and deal-team workflows in one platform.",
-      "Service Cloud":   "Case management with AI-assisted resolution and proactive service.",
-      "Marketing Cloud": "Personalized SMS, email, and journeys triggered by real-time signals.",
-      "Commerce":        "Personalized storefront with AI-powered search built in.",
-      "Loyalty":         "Tier-based programs that drive repeat purchase and lifetime value.",
-      "MuleSoft":        "Integration across systems of record without ripping and replacing.",
-      "Tableau":         "Embedded analytics that make every conversation data-grounded.",
-    };
-    return prods.map(function (p) {
-      return { label: p, description: desc[p] || "[TODO: " + p + " value statement]" };
-    });
+    const f = (state && state.storyFoundations) || {};
+    return SHARED.buildCapabilities
+      ? SHARED.buildCapabilities(f, prods)
+      : [];
   }
 
   // ─── orbit (BV section) ──────────────────────────────────────
+  // Delegates to SHARED so preview + export read from one place,
+  // including any storyFoundations.orbitNodes overrides the SE made
+  // in Step 8.
   function buildOrbitNodes(state, prods) {
-    const seedIcons = ["📸", "🔍", "💬", "🤖", "🛒", "📧"];
-    const labels    = orbitLabelsFor(prods);
-    return labels.slice(0, 6).map(function (label, i) {
-      const ring = i < 3 ? 210 : 120;
-      const dur  = i < 3 ? 200 : 200;
-      const dir  = i < 3 ? 1 : -1;
-      return { icon: seedIcons[i] || "•", label: label, r: ring, startDeg: (i * 60) % 360, dur: dur, dir: dir };
-    });
-  }
-  function orbitLabelsFor(prods) {
-    const out = [];
-    if (prods.indexOf("Marketing Cloud") >= 0) out.push("Personalized Ad");
-    if (prods.indexOf("Commerce") >= 0)         out.push("AI-Powered Search");
-    if (prods.indexOf("Marketing Cloud") >= 0) out.push("SMS Re-engagement");
-    if (prods.indexOf("Agentforce") >= 0)       out.push("Shopper Agent");
-    if (prods.indexOf("Commerce") >= 0)         out.push("Commerce");
-    if (prods.indexOf("Marketing Cloud") >= 0) out.push("Post-Purchase Email");
-    while (out.length < 6) out.push("[TODO]");
-    return out;
+    const f = (state && state.storyFoundations) || {};
+    return SHARED.buildOrbitNodes
+      ? SHARED.buildOrbitNodes(f, prods)
+      : [];
   }
   function buildOrbitCenter(project) {
     return {
@@ -966,10 +816,14 @@
   }
 
   // ─── Helpers ─────────────────────────────────────────────────
+  // Text helpers delegate to HOLO_SHARED so the preview and export
+  // use byte-identical truncation/sentence logic.
   function truncate(s, max) {
-    s = String(s || "").replace(/\s+/g, " ").trim();
-    if (s.length <= max) return s;
-    return s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+    return SHARED.truncate ? SHARED.truncate(s, max) : (function () {
+      s = String(s || "").replace(/\s+/g, " ").trim();
+      if (s.length <= max) return s;
+      return s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+    })();
   }
   function slug(s) {
     return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "item";
