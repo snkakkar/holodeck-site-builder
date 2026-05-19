@@ -36,8 +36,8 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(178, 34, 52, 0.25);
-  border: 1.5px solid rgba(178, 34, 52, 0.4);
+  background: rgba(var(--red-rgb, 178,34,52), 0.25);
+  border: 1.5px solid rgba(var(--red-rgb, 178,34,52), 0.4);
   transition: all 0.25s;
   cursor: pointer;
 }

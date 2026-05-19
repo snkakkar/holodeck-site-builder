@@ -25,10 +25,10 @@
   --bg-nav: rgba(255, 255, 255, 0.88);
 
   /* Borders */
-  --border-nav: rgba(13, 27, 46, 0.1);
-  --border-card: rgba(13, 27, 46, 0.12);
-  --border-red: rgba(178, 34, 52, 0.3);
-  --border-red-strong: rgba(178, 34, 52, 0.45);
+  --border-nav: rgba(var(--navy-rgb), 0.1);
+  --border-card: rgba(var(--navy-rgb), 0.12);
+  --border-red: rgba(var(--red-rgb), 0.3);
+  --border-red-strong: rgba(var(--red-rgb), 0.45);
 
   /* Nav */
   --nav-height: 52px;
@@ -42,9 +42,9 @@
   --transition-nav: all 0.15s;
 
   /* Shadows */
-  --shadow-card: 0 6px 24px rgba(13, 27, 46, 0.12);
+  --shadow-card: 0 6px 24px rgba(var(--navy-rgb), 0.12);
   --shadow-tooltip: 0 12px 40px rgba(0, 0, 0, 0.3);
-  --shadow-hover: 0 8px 32px rgba(178, 34, 52, 0.25), 0 0 0 3px #b22234;
+  --shadow-hover: 0 8px 32px rgba(var(--red-rgb), 0.25), 0 0 0 3px var(--red);
 
   /* Border radii */
   --radius-card: 16px;

@@ -43,6 +43,14 @@
   const wrap = document.getElementById("demo-wrap");
   if (!wrap) return;
 
+  // Brand colors — flow through to JS-rendered accents (affinity dots,
+  // opener particles, fallback color arrays) so a teal-and-orange
+  // customer doesn't see Salesforce red bleed through inline-styled DOM.
+  const BRAND = CFG.brand || {};
+  const RED   = BRAND.primaryColor   || "#b22234";
+  const BLUE  = BRAND.secondaryColor || "#1a5fa0";
+  const GOLD  = BRAND.accentColor    || "#f5c06a";
+
   // ─── Helpers ──────────────────────────────────────────────────
   function el(tag, attrs, children) {
     const node = document.createElement(tag);
@@ -74,325 +82,681 @@
   const acts = plan.storyActs || [];
   const f = plan.storyFoundations || {};
 
+  // Every project gets a chapter-opener as the first demo slide.
+  // If the SE hasn't already added one (or imported a saved plan
+  // from before the layout existed), prepend a synthesized one so
+  // the deck always opens with a polished anchor moment.
+  ensureChapterOpener(demoSlides);
+  function ensureChapterOpener(list) {
+    const hasOpener = list.length && list[0] && list[0].layout === "chapterOpener";
+    if (hasOpener) return;
+    list.unshift({
+      id: "demo-chapter-opener",
+      layout: "chapterOpener",
+      sectionId: "demo",
+      // No title/sub — the renderer falls back to defaults that
+      // weave in customer / persona / first-act timing automatically.
+    });
+  }
+
   // ─── Layout renderers ─────────────────────────────────────────
-  // Each takes the slide config and returns the slide's INNER DOM.
-  // The wrapper (.pslide) is added by buildSlide() below.
+  // Every demo slide is a TWO-PANEL composition:
+  //   • LEFT panel  → device frame (phone/laptop) OR full-bleed photo,
+  //                   with a tasteful skeleton when no asset is given.
+  //   • RIGHT panel → eyebrow (small caps red) + serif/sans display
+  //                   headline + sub paragraph + chips/stats/quote.
+  // This mirrors the original At-Home Holodeck deck (see
+  // /Users/.../At Home Demo V2 demo) and keeps slides feeling like
+  // pitchable customer storytelling even before assets are uploaded.
+  // ─────────────────────────────────────────────────────────────
   const RENDERERS = {
 
-    // Title / hero — used for Setup, Future State, Takeaway, Hero
+    // ─── Chapter Opener ─────────────────────────────────────────
+    // The "Every relationship begins with a single moment." slide.
+    // Auto-inserted as the first demo slide on every project (see
+    // ensureChapterOpener() below) so SEs always get a polished
+    // anchor moment, even before they pick layouts in the Builder.
+    // Visual: serif italic display headline on a soft Salesforce
+    // gradient, with floating particles + an anchor sub line.
+    chapterOpener: function (s) {
+      const opener = (s && s.title) ? s.title : defaultOpenerHeadline();
+      const sub    = (s && (s.sub || s.speakerNotes)) || defaultOpenerSub();
+      const eyebrow = (s && (s.eyebrow || s.section)) ||
+        (customer.demoTitle ? customer.demoTitle : "Customer Demo");
+      const cap = el("div", { class: "dd-opener" }, [
+        el("div", { class: "dd-opener-particles" }, openerParticles()),
+        el("p", { class: "dd-opener-eyebrow", text: eyebrow }),
+        el("h1", { class: "dd-opener-headline", html: opener }),
+        el("p", { class: "dd-opener-sub",      html: sub }),
+      ]);
+      return [cap];
+    },
+
+    // ─── Hero (mid-deck pivot) ──────────────────────────────────
+    // Centered display headline — used to open mid-deck pivots
+    // between acts.  Same shape as the chapterOpener but with
+    // chips and a slightly less ceremonial gradient.
     hero: function (s) {
       return [
-        el("p", { class: "dd-title-eyebrow", text: deriveEyebrow(s) }),
-        el("h1", { class: "dd-title-headline", html: deriveHeadline(s) }),
-        el("p", { class: "dd-title-sub", text: deriveSub(s) }),
+        el("div", { class: "dd-hero" }, [
+          el("p", { class: "dd-eyebrow",  text: deriveEyebrow(s) }),
+          el("h1", { class: "dd-display", html: deriveHeadline(s) }),
+          el("p", { class: "dd-hero-sub", html: deriveSub(s) }),
+          products.length
+            ? el("div", { class: "dd-chips dd-chips-center" },
+                products.slice(0, 5).map(function (p) {
+                  return el("span", { class: "dd-chip dd-chip-red", text: p });
+                }))
+            : null,
+        ]),
       ];
     },
+
+    // ─── Story Foundation ──────────────────────────────────────
+    // Two-panel: LEFT framed quote-card showing the strategic
+    // thesis (or a skeleton if foundations are blank); RIGHT eyebrow
+    // + headline + 3 stat chips drawn from foundation fields.
     storyFoundation: function (s) {
-      const items = [];
-      if (f.businessProblem)      items.push(["Business problem",      f.businessProblem]);
-      if (f.currentStatePain)     items.push(["Current-state pain",    f.currentStatePain]);
-      if (f.futureStateVision)    items.push(["Future-state vision",   f.futureStateVision]);
-      if (f.transformationThesis) items.push(["Transformation thesis", f.transformationThesis]);
-      return [
-        el("p", { class: "dd-title-eyebrow", text: "Story Foundation" }),
-        el("h1", { class: "dd-title-headline", html: s.title || "Why this matters" }),
-        el("div", { class: "dd-foundation-grid" },
-          items.length
-            ? items.map(function (kv) {
-                return el("div", { class: "dd-foundation-card" }, [
-                  el("div", { class: "dd-foundation-label", text: kv[0] }),
-                  el("div", { class: "dd-foundation-body",  text: kv[1] }),
-                ]);
-              })
-            : [el("div", { class: "dd-empty-msg", text: "Add foundations in Step 3 of the Builder." })]
-        ),
-      ];
+      const stats = [];
+      if (f.businessProblem)    stats.push({ val: "Problem",  label: truncate(f.businessProblem,  46) });
+      if (f.currentStatePain)   stats.push({ val: "Today",    label: truncate(f.currentStatePain, 46) });
+      if (f.futureStateVision)  stats.push({ val: "Tomorrow", label: truncate(f.futureStateVision,46) });
+      const headline = f.transformationThesis
+        ? f.transformationThesis
+        : (s.title || "From a single moment to a connected future.");
+      return twoPanel({
+        left: leftQuote({
+          tag:   "Strategic foundation",
+          quote: f.executiveTakeaway || f.futureStateVision || "Connect every channel into one continuous customer relationship.",
+          stamp: customer.name ? customer.name + " · " + (customer.industry || "") : "",
+        }),
+        right: rightCopy({
+          eyebrow:  "Story Foundation",
+          headline: headline,
+          sub:      f.businessProblem || "Add foundation details in Step 3 of the Builder to fill this slide.",
+          stats:    stats,
+        }),
+      });
     },
+
+    // ─── Current vs Future state ───────────────────────────────
+    // Two-panel: LEFT split before/after card with two stacked
+    // panels; RIGHT eyebrow + headline + product chips showing
+    // what gets the customer from today → tomorrow.
     currentFutureState: function (s) {
-      return [
-        el("p", { class: "dd-title-eyebrow", text: "Before / After" }),
-        el("h1", { class: "dd-title-headline", html: s.title || "From today to a connected future" }),
-        el("div", { class: "dd-twostate" }, [
-          el("div", { class: "dd-twostate-col dd-twostate-current" }, [
-            el("div", { class: "dd-twostate-label", text: "Today" }),
-            el("div", { class: "dd-twostate-body", text: f.currentStatePain || "Add a current-state pain in Step 3." }),
+      return twoPanel({
+        left: el("div", { class: "dd-twostate-stack" }, [
+          el("div", { class: "dd-twostate-card dd-twostate-current" }, [
+            el("div", { class: "dd-twostate-tag", text: "Today" }),
+            el("div", { class: "dd-twostate-text", text: truncate(f.currentStatePain || "Disconnected channels, anonymous browsers, lost revenue.", 180) }),
           ]),
-          el("div", { class: "dd-twostate-col dd-twostate-future" }, [
-            el("div", { class: "dd-twostate-label", text: "Tomorrow" }),
-            el("div", { class: "dd-twostate-body", text: f.futureStateVision || "Add the future-state vision in Step 3." }),
+          el("div", { class: "dd-twostate-arrow", text: "↓" }),
+          el("div", { class: "dd-twostate-card dd-twostate-future" }, [
+            el("div", { class: "dd-twostate-tag", text: "Tomorrow" }),
+            el("div", { class: "dd-twostate-text", text: truncate(f.futureStateVision || "One unified profile across every channel.", 180) }),
           ]),
         ]),
-        products.length ? el("div", { class: "dd-bridge" }, [
-          el("div", { class: "dd-bridge-label", text: "What gets us there" }),
-          el("div", { class: "dd-badges" }, products.slice(0, 6).map(function (p) {
-            return el("span", { class: "dd-badge dd-badge-red", text: p });
-          })),
-        ]) : null,
-      ];
+        right: rightCopy({
+          eyebrow:  "Before / After",
+          headline: s.title || "From today to a <em>connected</em> future.",
+          sub:      f.transformationThesis || "Identity + AI + agents turn fragmented touches into one experience.",
+          chipsLabel: "What gets us there",
+          chips:    products.slice(0, 6).map(function (p) { return { type: "red", label: p }; }),
+        }),
+      });
     },
+
     futureState: function (s) {
       return RENDERERS.hero(s);
     },
 
-    // Journey Timeline — uses storyActs as horizontal timeline
+    // ─── Journey Timeline ───────────────────────────────────────
+    // Six-month above-the-line / below-the-line visualization.
+    // Centered horizontal track, hero milestone in red, rest in
+    // muted blue.  Uses storyActs as the milestone source.
     journeyTimeline: function (s) {
+      const months = ["DEC","JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV"];
+      const milestones = (acts.length ? acts : Array.from({length:5},function(_,i){return{title:"Moment "+(i+1)};}))
+        .slice(0, 7).map(function (a, i) {
+          return {
+            month: a.timing || months[i % 12] || ("M" + (i+1)),
+            icon:  channelIcon(a.channel),
+            label: a.title || a.demoMoment || ("Moment " + (i+1)),
+            sub:   a.channel || "",
+            hero:  i === 0 || a.heroMoment === true,
+          };
+        });
+      const half = Math.ceil(milestones.length / 2);
+      const above = milestones.slice(0, half);
+      const below = milestones.slice(half);
       return [
-        el("p", { class: "dd-title-eyebrow", text: deriveEyebrow(s) }),
-        el("h1", { class: "dd-title-headline", html: s.title || "Customer Journey" }),
-        acts.length ? el("div", { class: "dd-timeline" },
-          acts.slice(0, 7).map(function (a, i) {
-            return el("div", { class: "dd-timeline-step" }, [
-              el("div", { class: "dd-timeline-dot", text: String(i + 1) }),
-              el("div", { class: "dd-timeline-card" }, [
-                a.title    ? el("div", { class: "dd-timeline-title", text: a.title }) : null,
-                a.channel  ? el("div", { class: "dd-timeline-meta", text: "📱 " + a.channel }) : null,
-                a.summary  ? el("div", { class: "dd-timeline-summary", text: truncate(a.summary, 130) }) : null,
-                a.salesforceCapabilities ? el("div", { class: "dd-timeline-cap", text: a.salesforceCapabilities }) : null,
-              ]),
-            ]);
-          })
-        ) : el("div", { class: "dd-empty-msg", text: "Add story acts in Step 2 to fill the journey timeline." }),
+        el("div", { class: "dd-stack-center" }, [
+          el("p", { class: "dd-eyebrow", text: deriveEyebrow(s) }),
+          el("h2", { class: "dd-display dd-display-mid", html: s.title || "One journey. Every channel. <em>Always personal.</em>" }),
+          el("p", { class: "dd-sub-center",
+            text: f.transformationThesis || "From one moment, AI turns identity into months of personalized engagement." }),
+        ]),
+        el("div", { class: "dd-jt" }, [
+          el("div", { class: "dd-jt-row dd-jt-above" }, above.map(timelineNode)),
+          el("div", { class: "dd-jt-track" }),
+          el("div", { class: "dd-jt-row dd-jt-below" }, below.map(timelineNode)),
+        ]),
       ];
     },
 
-    // Demo Map — grid of acts as cards
+    // ─── Demo Map ───────────────────────────────────────────────
+    // 3-up grid of mini "moment" cards. Each card ⇒ device-frame
+    // skeleton + caption.  Acts as the demo's table of contents.
     demoMap: function (s) {
+      const items = (acts.length ? acts : Array.from({length:6},function(_,i){return{title:"Moment "+(i+1)};}))
+        .slice(0, 6);
       return [
-        el("p", { class: "dd-title-eyebrow", text: "Demo Map" }),
-        el("h1", { class: "dd-title-headline", html: s.title || "End-to-end demo flow" }),
-        acts.length ? el("div", { class: "dd-democards" },
-          acts.slice(0, 8).map(function (a, i) {
-            return el("div", { class: "dd-democard" }, [
-              el("div", { class: "dd-democard-num", text: String(i + 1).padStart(2, "0") }),
-              a.title    ? el("div", { class: "dd-democard-title", text: a.title }) : null,
-              a.channel  ? el("div", { class: "dd-democard-channel", text: a.channel }) : null,
-              a.salesforceCapabilities ? el("div", { class: "dd-democard-cap", text: a.salesforceCapabilities }) : null,
-            ]);
-          })
-        ) : el("div", { class: "dd-empty-msg", text: "Add story acts in Step 2 to build a demo map." }),
-      ];
-    },
-
-    // Persona Card — reuses persona block for non-Meet sections
-    personaCard: function (s) {
-      if (!persona) {
-        return [
-          el("p", { class: "dd-title-eyebrow", text: "Persona" }),
-          el("h1", { class: "dd-title-headline", html: s.title || "Meet the Persona" }),
-          el("div", { class: "dd-empty-msg", text: "Add a persona in Step 2 of the Builder." }),
-        ];
-      }
-      const initial = (persona.name || "?").trim().charAt(0).toUpperCase();
-      return [
-        el("p", { class: "dd-title-eyebrow", text: "Customer Spotlight" }),
-        el("div", { class: "dd-persona" }, [
-          el("div", { class: "dd-persona-avatar", text: initial }),
-          el("div", { class: "dd-persona-body" }, [
-            el("h1", { class: "dd-persona-name", text: persona.name }),
-            persona.role ? el("div", { class: "dd-persona-role", text: persona.role }) : null,
-            persona.goals ? el("div", { class: "dd-persona-section" }, [
-              el("div", { class: "dd-persona-label", text: "Goals" }),
-              el("div", { class: "dd-persona-text", text: persona.goals }),
-            ]) : null,
-            persona.painPoints ? el("div", { class: "dd-persona-section" }, [
-              el("div", { class: "dd-persona-label", text: "Pain points" }),
-              el("div", { class: "dd-persona-text", text: persona.painPoints }),
-            ]) : null,
-            persona.demoRelevance ? el("div", { class: "dd-persona-section" }, [
-              el("div", { class: "dd-persona-label", text: "Why she anchors the demo" }),
-              el("div", { class: "dd-persona-text", text: persona.demoRelevance }),
-            ]) : null,
-          ]),
+        el("div", { class: "dd-stack-center" }, [
+          el("p", { class: "dd-eyebrow", text: "Demo Map" }),
+          el("h2", { class: "dd-display dd-display-mid", html: s.title || "End-to-end <em>demo flow</em>" }),
         ]),
-      ];
-    },
-
-    // Agent Conversation — chat-style preview
-    agentConversation: function (s) {
-      const personaName = (persona && persona.name) || customer.name || "Customer";
-      const userMsg = (persona && persona.painPoints)
-        ? truncate(persona.painPoints, 100)
-        : "I need help — where do I start?";
-      const agentMsg = f.futureStateVision
-        ? truncate(f.futureStateVision, 140)
-        : "Here's a recommendation grounded in your unified profile and history.";
-      return [
-        el("p", { class: "dd-title-eyebrow", text: "Agentforce moment" }),
-        el("h1", { class: "dd-title-headline", html: s.title || (personaName + " · Live conversation") }),
-        el("div", { class: "dd-chat" }, [
-          el("div", { class: "dd-chat-bubble dd-chat-user" }, [
-            el("div", { class: "dd-chat-who", text: personaName }),
-            el("div", { class: "dd-chat-body", text: userMsg }),
-          ]),
-          el("div", { class: "dd-chat-bubble dd-chat-agent" }, [
-            el("div", { class: "dd-chat-who", text: "Agentforce" }),
-            el("div", { class: "dd-chat-body", text: agentMsg }),
-          ]),
-        ]),
-        el("div", { class: "dd-badges" }, capsBadges(s)),
-      ];
-    },
-
-    // Unified Profile — Data Cloud profile card
-    unifiedProfile: function (s) {
-      const initial = persona ? (persona.name || "?").trim().charAt(0).toUpperCase() : "?";
-      return [
-        el("p", { class: "dd-title-eyebrow", text: "Data Cloud · Unified Profile" }),
-        el("h1", { class: "dd-title-headline", html: s.title || "One customer, many signals" }),
-        el("div", { class: "dd-profile" }, [
-          el("div", { class: "dd-profile-head" }, [
-            el("div", { class: "dd-profile-avatar", text: initial }),
-            el("div", {}, [
-              el("div", { class: "dd-profile-name", text: persona ? persona.name : "[Persona]" }),
-              el("div", { class: "dd-profile-role", text: (persona && persona.role) || customer.industry || "" }),
-            ]),
-          ]),
-          el("div", { class: "dd-profile-fields" }, [
-            customer.name      ? profileField("Customer", customer.name) : null,
-            customer.industry  ? profileField("Industry", customer.industry) : null,
-            persona && persona.goals ? profileField("Goal", truncate(persona.goals, 60)) : null,
-            acts[0] && acts[0].channel ? profileField("Last channel", acts[0].channel) : null,
-          ]),
-          el("div", { class: "dd-profile-segs" }, [
-            el("div", { class: "dd-profile-label", text: "Signals & sources" }),
-            el("div", { class: "dd-chips" }, dataCloudSourcesChips()),
-          ]),
-        ]),
-      ];
-    },
-
-    // Architecture — three-layer system map
-    architecture: function (s) {
-      return [
-        el("p", { class: "dd-title-eyebrow", text: "Solution Architecture" }),
-        el("h1", { class: "dd-title-headline", html: s.title || "Platform map" }),
-        el("div", { class: "dd-arch-layers" }, [
-          archLayer("Data Sources",        ["Web", "Mobile", "POS", "Email", "Service"], "blue"),
-          archLayer("Salesforce Platform", products.length ? products : ["Pick products"], "red"),
-          archLayer("Channels & Devices",  ["Storefront", "App", "SMS", "Email", "Agent"], "gold"),
-        ]),
-      ];
-    },
-
-    // Device Moment — single device frame with the slide narrative
-    deviceMoment: function (s) {
-      const act = acts[0] || {};
-      const channel = (s && s.deviceFrame === "mobile") || (act.channel && /phone|sms|imessage|app|mobile/i.test(act.channel))
-        ? "phone" : "laptop";
-      return [
-        el("p", { class: "dd-title-eyebrow", text: "Channel · " + (act.channel || "Device moment") }),
-        el("h1", { class: "dd-title-headline", html: s.title || (act.title || "Device moment") }),
-        el("div", { class: "dd-device-stage" }, [
-          el("div", { class: "dd-device-frame dd-device-" + channel }, [
-            el("div", { class: "dd-device-screen" }, [
-              el("div", { class: "dd-device-headline", text: act.demoMoment || s.title || "Moment" }),
-              act.summary ? el("div", { class: "dd-device-body", text: truncate(act.summary, 120) }) : null,
-              el("div", { class: "dd-device-cta", text: act.businessValue ? truncate(act.businessValue, 40) : "Take action" }),
-            ]),
-          ]),
-          el("div", { class: "dd-device-narr" }, [
-            act.salesforceCapabilities ? el("div", { class: "dd-device-cap", text: act.salesforceCapabilities }) : null,
-            el("p", { class: "dd-device-sub", text: act.summary || f.businessProblem || "" }),
-            el("div", { class: "dd-badges" }, capsBadges(s)),
-          ]),
-        ]),
-      ];
-    },
-
-    // Embedded CX Component — iframe with device frame
-    embeddedCxComponent: function (s) {
-      const cxIds = s.linkedCxComponentIds || [];
-      const linked = cxIds.map(cxById).filter(Boolean);
-      const items = linked.length ? linked : cxList.slice(0, 1);
-
-      if (!items.length) {
-        return [
-          el("p", { class: "dd-title-eyebrow", text: "Live CX moment" }),
-          el("h1", { class: "dd-title-headline", html: s.title || "Embedded demo screen" }),
-          el("div", { class: "dd-empty-msg",
-            text: "No CX components linked yet. Add an AubreyDemo URL in Step 5 of the Builder." }),
-        ];
-      }
-
-      return [
-        el("p", { class: "dd-title-eyebrow", text: "Live CX moment" }),
-        el("h1", { class: "dd-title-headline", html: s.title || items[0].name }),
-        el("div", { class: "dd-embedded-list" }, items.slice(0, 2).map(function (c) {
-          return renderEmbeddedCxCard(c);
+        el("div", { class: "dd-mapgrid" }, items.map(function (a, i) {
+          return el("div", { class: "dd-mapcard" }, [
+            el("div", { class: "dd-mapcard-num", text: String(i+1).padStart(2,"0") }),
+            el("div", { class: "dd-skel dd-skel-mini" }, [skeletonShimmer()]),
+            el("div", { class: "dd-mapcard-title", text: a.title || ("Moment " + (i+1)) }),
+            a.channel ? el("div", { class: "dd-mapcard-meta", text: channelIcon(a.channel) + " " + a.channel }) : null,
+          ]);
         })),
       ];
     },
 
-    // KPI Scorecard — value driver cards
+    // ─── Persona Card / Customer spotlight ──────────────────────
+    // Two-panel: LEFT phone frame containing a stylized "profile
+    // card" (avatar circle + name + role); RIGHT eyebrow + name
+    // headline + role + stats + pull quote — original "Meet" feel.
+    personaCard: function (s) {
+      const p = persona || {};
+      const initial = (p.name || customer.name || "?").trim().charAt(0).toUpperCase();
+      const stats = (p.stats && p.stats.length)
+        ? p.stats.slice(0,3)
+        : [
+            { value: customer.industry || "Retail", label: "Industry" },
+            { value: p.role ? truncate(p.role, 16) : "Persona",     label: "Role"     },
+            { value: "Known",   label: "Identity" },
+          ];
+      return twoPanel({
+        left: phoneFrame(
+          el("div", { class: "dd-persona-card" }, [
+            el("div", { class: "dd-persona-avatar", text: initial }),
+            el("div", { class: "dd-persona-pname", text: p.name || customer.name || "Persona" }),
+            p.role ? el("div", { class: "dd-persona-prole", text: p.role }) : null,
+            el("div", { class: "dd-persona-pmeta", text: customer.name || "Customer" }),
+          ])
+        ),
+        right: rightCopy({
+          eyebrow:  "Customer Spotlight",
+          headlineHtml: "Meet <strong>" + escapeHtml(p.name || customer.name || "your customer") + ".</strong>",
+          sub:      p.demoRelevance || p.painPoints || (customer.name ? customer.name + " — the customer at the center of this story." : "The persona this demo is built around."),
+          stats:    stats.map(function (st) { return { val: st.value, label: st.label }; }),
+          quote:    p.goals ? truncate(p.goals, 140) : "",
+        }),
+      });
+    },
+
+    // ─── Agent Conversation ────────────────────────────────────
+    // Two-panel: LEFT phone frame with a chat thread; RIGHT eyebrow
+    // + headline + capabilities chips. Mirrors the SMS/agent slide
+    // in the original deck.
+    agentConversation: function (s) {
+      const personaName = (persona && persona.name) || customer.name || "Customer";
+      const userMsg = (persona && persona.painPoints)
+        ? truncate(persona.painPoints, 80)
+        : "Can you help me find what I left behind?";
+      const agentMsg = (acts[0] && acts[0].businessValue)
+        ? truncate(acts[0].businessValue, 100)
+        : (f.futureStateVision ? truncate(f.futureStateVision, 100) : "Here's a recommendation grounded in your unified profile.");
+      return twoPanel({
+        left: phoneFrame(
+          el("div", { class: "dd-chat-thread" }, [
+            el("div", { class: "dd-chat-head" }, [
+              el("div", { class: "dd-chat-headline", text: "Agentforce" }),
+              el("div", { class: "dd-chat-sub",      text: "Live chat" }),
+            ]),
+            el("div", { class: "dd-chat-bubble dd-chat-them", text: agentMsg }),
+            el("div", { class: "dd-chat-bubble dd-chat-me",   text: userMsg }),
+            el("div", { class: "dd-chat-bubble dd-chat-them dd-chat-typing" }, [
+              el("span", { class: "dd-typing-dot" }),
+              el("span", { class: "dd-typing-dot" }),
+              el("span", { class: "dd-typing-dot" }),
+            ]),
+          ])
+        ),
+        right: rightCopy({
+          eyebrow:  "Agentforce moment",
+          headlineHtml: s.title
+            ? escapeHtml(s.title)
+            : ("She left.<br/><em>" + escapeHtml(personaName) + " comes back.</em>"),
+          sub:      "An agent reaches " + escapeHtml(personaName) + " in the channel she's already in — grounded in her unified profile.",
+          stats: [
+            { val: "Triggered", label: "Abandon signal" },
+            { val: "Recovery",  label: "Opportunity"     },
+            { val: "Personal",  label: "Every reply"     },
+          ],
+          quote: "The cart remembers. The agent makes sure " + (persona && persona.name ? persona.name : "she") + " does too.",
+        }),
+      });
+    },
+
+    // ─── Unified Profile ───────────────────────────────────────
+    // Two-panel: LEFT laptop frame containing a stylized Data Cloud
+    // profile (sidebar + affinity dots).  RIGHT eyebrow + serif
+    // headline + bullet rows ("Real-time" / "Anonymous → Known").
+    unifiedProfile: function (s) {
+      const p = persona || {};
+      const initial = (p.name || "R").trim().charAt(0).toUpperCase();
+      const fullName = p.name || customer.name || "Customer";
+      const lifetime = "$" + (1500 + ((fullName.length * 137) % 6500)).toLocaleString() + ".00";
+      return twoPanel({
+        left: laptopFrame(
+          el("div", { class: "dd-cdp" }, [
+            el("div", { class: "dd-cdp-bar" }, [
+              el("span", { class: "dd-cdp-pill", text: (customer.name || "BRAND").toUpperCase().slice(0,12) }),
+              el("span", { class: "dd-cdp-bar-spacer" }),
+              el("span", { class: "dd-cdp-bar-dot" }),
+              el("span", { class: "dd-cdp-bar-name", text: fullName }),
+            ]),
+            el("div", { class: "dd-cdp-body" }, [
+              el("div", { class: "dd-cdp-side" }, [
+                el("div", { class: "dd-cdp-name",  text: fullName }),
+                el("div", { class: "dd-cdp-place", text: (customer.industry || "Customer") + " · profile" }),
+                el("div", { class: "dd-cdp-stat" }, [
+                  el("div", { class: "dd-cdp-stat-val", text: lifetime }),
+                  el("div", { class: "dd-cdp-stat-lbl", text: "Lifetime Value" }),
+                ]),
+                el("div", { class: "dd-cdp-stat" }, [
+                  el("div", { class: "dd-cdp-stat-val", text: "4" }),
+                  el("div", { class: "dd-cdp-stat-lbl", text: "Orders" }),
+                ]),
+              ]),
+              el("div", { class: "dd-cdp-main" }, [
+                el("div", { class: "dd-cdp-h", text: "Affinities" }),
+                el("div", { class: "dd-cdp-affinity" }, [
+                  affinityNode(74, 38, RED),
+                  affinityNode(48, 64, GOLD),
+                  affinityNode(62, 22, BLUE),
+                  affinityNode(82, 56, "#2e7a50"),
+                  affinityNode(34, 44, RED),
+                ]),
+                el("div", { class: "dd-cdp-track" }),
+                el("div", { class: "dd-cdp-rows" }, [
+                  el("div", { class: "dd-cdp-row dd-skel-row" }, [skeletonShimmer()]),
+                  el("div", { class: "dd-cdp-row dd-skel-row" }, [skeletonShimmer()]),
+                  el("div", { class: "dd-cdp-row dd-skel-row" }, [skeletonShimmer()]),
+                ]),
+              ]),
+            ]),
+          ])
+        ),
+        right: rightCopy({
+          eyebrow:  "Data Cloud · Unified Profile",
+          headlineHtml: s.title
+            ? escapeHtml(s.title)
+            : "Who is she,<br/><em>really?</em>",
+          sub:      "Data Cloud builds a rich affinity profile from " + (p.name || "her") + "'s behavior — past purchases, browse duration, categories explored. Over time, it scores against hundreds of attributes.",
+          stats: [
+            { val: "Real-Time", label: "Personalization" },
+            { val: "→ Known",   label: "Anonymous" },
+            { val: products[0] || "Data Cloud", label: "Powered by" },
+          ],
+          quote: "Every click, every scroll, every purchase is a signal — connected into a profile uniquely " + (p.name || "her") + ".",
+        }),
+      });
+    },
+
+    // ─── Architecture / Platform map ───────────────────────────
+    // Three-tier system map.  Tiers stack: Sources → Salesforce
+    // platform → Channels.  Connecting "rails" between tiers.
+    architecture: function (s) {
+      return [
+        el("div", { class: "dd-stack-center" }, [
+          el("p", { class: "dd-eyebrow", text: "Solution Architecture" }),
+          el("h2", { class: "dd-display dd-display-mid", html: s.title || "One platform. <em>Every layer.</em>" }),
+        ]),
+        el("div", { class: "dd-arch" }, [
+          archTier("Data Sources",    ["Web", "Mobile", "POS", "Email", "Service"], "blue"),
+          el("div", { class: "dd-arch-rail" }),
+          archTier("Salesforce",      products.length ? products.slice(0,6) : ["Pick products in Step 1"], "red"),
+          el("div", { class: "dd-arch-rail" }),
+          archTier("Channels",        ["Storefront", "App", "SMS", "Email", "Agent"], "gold"),
+        ]),
+      ];
+    },
+
+    // ─── Device Moment ─────────────────────────────────────────
+    // Two-panel: LEFT device frame (phone OR laptop based on the
+    // deviceFrame field / channel heuristic) showing a stylized
+    // "screen" — eyebrow + image skeleton + product card row.
+    // RIGHT eyebrow + headline + sub + capability chips.
+    deviceMoment: function (s) {
+      const act = (s.linkedActId && acts.find(function(a){return a.id===s.linkedActId;})) || acts[0] || {};
+      const isMobile = (s && s.deviceFrame === "mobile") ||
+                       (act.channel && /phone|sms|imessage|app|mobile/i.test(act.channel));
+      const screenInner = el("div", { class: "dd-screen" }, [
+        el("div", { class: "dd-screen-eyebrow", text: (act.channel || "Salesforce").toUpperCase() }),
+        el("div", { class: "dd-screen-h", text: act.demoMoment || act.title || s.title || "Moment" }),
+        el("div", { class: "dd-skel dd-skel-photo" }, [skeletonShimmer()]),
+        el("div", { class: "dd-screen-rows" }, [
+          el("div", { class: "dd-screen-row" }, [
+            el("div", { class: "dd-skel dd-skel-tile" }, [skeletonShimmer()]),
+            el("div", { class: "dd-skel-lines" }, [
+              el("div", { class: "dd-skel-line" }),
+              el("div", { class: "dd-skel-line dd-skel-line-short" }),
+            ]),
+          ]),
+          el("div", { class: "dd-screen-row" }, [
+            el("div", { class: "dd-skel dd-skel-tile" }, [skeletonShimmer()]),
+            el("div", { class: "dd-skel-lines" }, [
+              el("div", { class: "dd-skel-line" }),
+              el("div", { class: "dd-skel-line dd-skel-line-short" }),
+            ]),
+          ]),
+        ]),
+        el("div", { class: "dd-screen-cta", text: act.businessValue ? truncate(act.businessValue, 28).toUpperCase() : "TAKE ACTION" }),
+      ]);
+      return twoPanel({
+        left: isMobile ? phoneFrame(screenInner) : laptopFrame(screenInner),
+        right: rightCopy({
+          eyebrow:  (act.salesforceCapabilities || (s && s.capabilities && s.capabilities[0]) || "Live moment").toUpperCase(),
+          headlineHtml: s.title
+            ? escapeHtml(s.title)
+            : (act.title ? escapeHtml(act.title) : "A moment that <em>matters.</em>"),
+          sub:      act.summary || act.demoMoment || f.businessProblem || "Add a story act in Step 2 to fill this slide.",
+          chips:    capsList(s).map(function (c) { return { type:"blue", label:c }; }),
+        }),
+      });
+    },
+
+    // ─── Scene Photo ───────────────────────────────────────────
+    // Two-panel: LEFT a full-bleed scene photo (or skeleton);
+    // RIGHT a structured icon-bulleted "WHEN / THE MOMENT / WHAT
+    // HAPPENS NEXT / WHY IT MATTERS" list — mirrors the "At Home
+    // Store" opener slide from the original deck.
+    scenePhoto: function (s) {
+      const act = (s.linkedActId && acts.find(function(a){return a.id===s.linkedActId;})) || acts[0] || {};
+      const rows = [
+        { eyebrow:"WHEN",              icon:"❄️", title: act.timing  || "December · Holiday Season",  sub: "Last-minute holiday shopping in-store" },
+        { eyebrow:"THE MOMENT",        icon:"📧", title: act.demoMoment || "Email captured at checkout", sub: "She shares her email for a digital receipt" },
+        { eyebrow:"WHAT HAPPENS NEXT", icon:"☁️", title: "CDP builds a unified profile",                sub: "In-store identity now connects every future channel" },
+        { eyebrow:"WHY IT MATTERS",    icon:"🎯", title: "Anonymous → Known",                          sub: "The bridge that makes every touchpoint personal" },
+      ];
+      return [
+        el("div", { class: "dd-scene" }, [
+          // LEFT: full-bleed scene
+          el("div", { class: "dd-scene-photo dd-skel dd-skel-photo-full" }, [
+            skeletonShimmer(),
+            el("div", { class: "dd-scene-tag", text: act.location || (customer.name ? customer.name + " Store" : "Store") + " · " + (act.timing || "December") }),
+          ]),
+          // RIGHT: copy + icon list
+          el("div", { class: "dd-scene-copy" }, [
+            el("p", { class: "dd-eyebrow", text: deriveEyebrow(s).toUpperCase() }),
+            el("h2", { class: "dd-display dd-display-mid", html: s.title || "One visit.<br/>One email." }),
+            el("p", { class: "dd-sub",
+              text: act.summary || ("A digital receipt becomes the first data point in " + ((persona && persona.name) || "her") + "'s unified profile.") }),
+            el("div", { class: "dd-iconlist" }, rows.map(function (r) {
+              return el("div", { class: "dd-iconrow" }, [
+                el("div", { class: "dd-iconrow-icon", text: r.icon }),
+                el("div", { class: "dd-iconrow-body" }, [
+                  el("div", { class: "dd-iconrow-eyebrow", text: r.eyebrow }),
+                  el("div", { class: "dd-iconrow-title",   text: r.title }),
+                  el("div", { class: "dd-iconrow-sub",     text: r.sub }),
+                ]),
+              ]);
+            })),
+          ]),
+        ]),
+      ];
+    },
+
+    // ─── Embedded CX Component ─────────────────────────────────
+    // Two-panel: LEFT live iframe inside the matching device
+    // frame; RIGHT eyebrow + headline + chips. Empty-state shows
+    // a skeleton screen + clear CTA pointing back to Step 5.
+    embeddedCxComponent: function (s) {
+      const cxIds = s.linkedCxComponentIds || [];
+      const linked = cxIds.map(cxById).filter(Boolean);
+      const c = linked[0] || cxList[0] || null;
+      const isMobile = c ? (c.deviceFrame === "mobile") : false;
+      const inner = c && c.url && /^https?:\/\//.test(c.url)
+        ? renderCxIframe(c)
+        : el("div", { class: "dd-skel dd-skel-screen" }, [
+            skeletonShimmer(),
+            el("div", { class: "dd-skel-screen-msg",
+              text: c ? "Add a URL for this component in Step 5" : "Link a CX component in Step 5" }),
+          ]);
+      return twoPanel({
+        left:  isMobile ? phoneFrame(inner) : laptopFrame(inner),
+        right: rightCopy({
+          eyebrow:  c && c.type ? ("Live · " + c.type.toUpperCase()) : "LIVE CX MOMENT",
+          headlineHtml: s.title ? escapeHtml(s.title) : (c && c.name ? escapeHtml(c.name) : "Embedded demo screen"),
+          sub:      c && c.description ? c.description : "A live, click-through Aubrey demo screen embedded right inside the deck.",
+          chips:    capsList(s).map(function (cap) { return { type:"blue", label:cap }; }),
+        }),
+      });
+    },
+
+    // ─── KPI Scorecard ─────────────────────────────────────────
+    // Centered headline + 4-card metric grid + BVS disclaimer.
     kpiScorecard: function (s) {
       const kpis = deriveKpis();
       return [
-        el("p", { class: "dd-title-eyebrow", text: "Business Value" }),
-        el("h1", { class: "dd-title-headline", html: s.title || (customer.name ? "Why " + customer.name + " wins" : "Business Value Scorecard") }),
+        el("div", { class: "dd-stack-center" }, [
+          el("p", { class: "dd-eyebrow", text: "Business Value" }),
+          el("h2", { class: "dd-display dd-display-mid", html: s.title || (customer.name ? "Why <em>" + escapeHtml(customer.name) + "</em> wins." : "Why this matters.") }),
+          el("p", { class: "dd-sub-center", text: "Higher conversion. Bigger AOV. Lifelong loyalty." }),
+        ]),
         el("div", { class: "dd-kpi-grid" }, kpis.map(function (k) {
           return el("div", { class: "dd-kpi-card" }, [
-            el("div", { class: "dd-kpi-icon", text: k.icon }),
+            el("div", { class: "dd-kpi-icon",  text: k.icon }),
             el("div", { class: "dd-kpi-value", text: k.value }),
             el("div", { class: "dd-kpi-label", text: k.label }),
+            el("div", { class: "dd-kpi-todo",  text: "TODO" }),
           ]);
         })),
         el("div", { class: "dd-disclaimer", text: "Replace XX% / +$XX with BVS-approved values before presenting externally." }),
       ];
     },
 
-    // Executive Summary — closing takeaway
+    // ─── Executive Summary ─────────────────────────────────────
+    // Two-panel: LEFT framed pull-quote with executive takeaway;
+    // RIGHT three challenge / future / capabilities columns.
     executiveSummary: function (s) {
-      return [
-        el("p", { class: "dd-title-eyebrow", text: "Executive Takeaway" }),
-        el("h1", { class: "dd-title-headline", html: s.title || (customer.name ? customer.name + " — the takeaway" : "The takeaway") }),
-        el("div", { class: "dd-exec-cols" }, [
-          execCol("Challenge",    f.businessProblem    || f.currentStatePain || "Add a customer challenge in Step 3."),
-          execCol("Future state", f.futureStateVision  || "Add the future-state vision in Step 3."),
-          execCol("Capabilities", products.length ? products.join(" · ") : "Pick products in Step 1."),
+      return twoPanel({
+        left: leftQuote({
+          tag:   "Executive Takeaway",
+          quote: f.executiveTakeaway || ("A single Salesforce platform compounds every customer touch into measurable lift" + (customer.name ? " for " + customer.name + "." : ".")),
+          stamp: customer.name ? customer.name + " + Salesforce" : "Salesforce",
+        }),
+        right: el("div", { class: "dd-right" }, [
+          el("p", { class: "dd-eyebrow", text: "The Takeaway" }),
+          el("h2", { class: "dd-display dd-display-mid", html: s.title || "Three things that <em>compound.</em>" }),
+          el("div", { class: "dd-exec-cols" }, [
+            execCol("Challenge",    f.businessProblem    || f.currentStatePain || "Add a customer challenge in Step 3."),
+            execCol("Future state", f.futureStateVision  || "Add the future-state vision in Step 3."),
+            execCol("Capabilities", products.length ? products.slice(0,4).join(" · ") : "Pick products in Step 1."),
+          ]),
         ]),
-        f.executiveTakeaway ? el("div", { class: "dd-exec-callout", text: f.executiveTakeaway }) : null,
-      ];
+      });
     },
 
-    // Next Steps
+    // ─── Next Steps ────────────────────────────────────────────
+    // Two-panel: LEFT framed quote-card with closing CTA; RIGHT
+    // numbered roadmap items.
     nextSteps: function (s) {
-      return [
-        el("p", { class: "dd-title-eyebrow", text: "Roadmap & next steps" }),
-        el("h1", { class: "dd-title-headline", html: s.title || "From today to launch" }),
-        el("ol", { class: "dd-next-list" },
-          ["Discovery & alignment", "Pilot / POV", "Roll-out", "Scale & optimize"].map(function (p) {
-            return el("li", { class: "dd-next-item", text: p });
-          })
-        ),
-      ];
+      return twoPanel({
+        left: leftQuote({
+          tag:   "Roadmap",
+          quote: "From discovery today to a connected customer experience in months — not years.",
+          stamp: customer.name ? customer.name + " · roadmap" : "Salesforce roadmap",
+        }),
+        right: el("div", { class: "dd-right" }, [
+          el("p", { class: "dd-eyebrow", text: "Roadmap & next steps" }),
+          el("h2", { class: "dd-display dd-display-mid", html: s.title || "From <em>today</em> to launch." }),
+          el("ol", { class: "dd-next-list" },
+            ["Discovery & alignment", "Pilot / POV", "Roll-out", "Scale & optimize"].map(function (p) {
+              return el("li", { class: "dd-next-item", text: p });
+            })
+          ),
+        ]),
+      });
     },
 
-    // Fallback for unknown layouts
+    // ─── Fallback for unknown layouts ──────────────────────────
     unknown: function (s) {
       return [
-        el("p", { class: "dd-title-eyebrow", text: "Slide" }),
-        el("h1", { class: "dd-title-headline", html: s.title || "Untitled slide" }),
-        el("p", { class: "dd-title-sub",
-          text: "Pick a specific layout in the Builder so this slide can render with full detail." }),
+        el("div", { class: "dd-hero" }, [
+          el("p", { class: "dd-eyebrow",  text: "Slide" }),
+          el("h1", { class: "dd-display", html: s.title || "Untitled slide" }),
+          el("p", { class: "dd-hero-sub",
+            text: "Pick a specific layout in the Builder so this slide can render with full detail." }),
+        ]),
       ];
     },
   };
 
-  // ─── Composers ────────────────────────────────────────────────
-  function profileField(label, value) {
-    return el("div", { class: "dd-profile-field" }, [
-      el("div", { class: "dd-profile-label", text: label }),
-      el("div", { class: "dd-profile-value", text: value }),
+  // ─── Common composers ───────────────────────────────────────
+  function twoPanel(parts) {
+    return [el("div", { class: "dd-twopanel" }, [parts.left, parts.right])];
+  }
+
+  function rightCopy(o) {
+    const right = el("div", { class: "dd-right" });
+    if (o.eyebrow)     right.appendChild(el("p", { class: "dd-eyebrow", text: o.eyebrow }));
+    if (o.headlineHtml) right.appendChild(el("h2", { class: "dd-display dd-display-mid", html: o.headlineHtml }));
+    else if (o.headline) right.appendChild(el("h2", { class: "dd-display dd-display-mid", html: o.headline }));
+    if (o.sub)         right.appendChild(el("p", { class: "dd-sub", text: o.sub }));
+    if (o.stats && o.stats.length) {
+      right.appendChild(el("div", { class: "dd-statchips" }, o.stats.map(function (st) {
+        return el("div", { class: "dd-statchip" }, [
+          el("div", { class: "dd-statchip-val", text: st.val }),
+          el("div", { class: "dd-statchip-lbl", text: st.label }),
+        ]);
+      })));
+    }
+    if (o.chips && o.chips.length) {
+      if (o.chipsLabel) right.appendChild(el("div", { class: "dd-chips-label", text: o.chipsLabel }));
+      right.appendChild(el("div", { class: "dd-chips" }, o.chips.map(function (c) {
+        return el("span", { class: "dd-chip dd-chip-" + (c.type||"blue"), text: c.label });
+      })));
+    }
+    if (o.quote) {
+      right.appendChild(el("div", { class: "dd-pullquote-mark", text: "”" }));
+      right.appendChild(el("div", { class: "dd-pullquote", text: o.quote }));
+    }
+    return right;
+  }
+
+  function leftQuote(o) {
+    return el("div", { class: "dd-left dd-left-quote" }, [
+      el("div", { class: "dd-quotecard" }, [
+        el("div", { class: "dd-quotecard-tag",  text: o.tag || "" }),
+        el("div", { class: "dd-quotecard-mark", text: "”" }),
+        el("div", { class: "dd-quotecard-body", text: o.quote || "" }),
+        o.stamp ? el("div", { class: "dd-quotecard-stamp", text: o.stamp }) : null,
+      ]),
     ]);
   }
 
-  function archLayer(title, items, tone) {
-    return el("div", { class: "dd-arch-layer" }, [
-      el("div", { class: "dd-arch-layer-h", text: title }),
-      el("div", { class: "dd-arch-layer-row" }, items.map(function (it) {
+  // Phone frame: rounded notch, side button silhouette.  The screen
+  // is a child slot so callers can fill it with chat / profile / cta.
+  function phoneFrame(child) {
+    const screen = el("div", { class: "dd-phone-screen" }, [
+      el("div", { class: "dd-phone-status" }, [
+        el("span", { class: "dd-phone-time", text: "10:06" }),
+        el("span", { class: "dd-phone-icons", text: "•••" }),
+      ]),
+      child,
+    ]);
+    const frame = el("div", { class: "dd-phone-frame" }, [
+      el("div", { class: "dd-phone-notch" }),
+      screen,
+    ]);
+    return el("div", { class: "dd-left dd-left-device" }, [frame]);
+  }
+
+  // Laptop frame: subtle bezel + camera dot, screen child slot.
+  function laptopFrame(child) {
+    const screen = el("div", { class: "dd-laptop-screen" }, [
+      el("div", { class: "dd-laptop-bar" }, [
+        el("span", { class: "dd-laptop-dot dd-dot-r" }),
+        el("span", { class: "dd-laptop-dot dd-dot-y" }),
+        el("span", { class: "dd-laptop-dot dd-dot-g" }),
+      ]),
+      child,
+    ]);
+    return el("div", { class: "dd-left dd-left-device" }, [
+      el("div", { class: "dd-laptop-frame" }, [screen]),
+      el("div", { class: "dd-laptop-base" }),
+    ]);
+  }
+
+  // Skeleton shimmer overlay — adds a moving highlight to whatever
+  // div it's parked in.  Keeps "unfilled" panels from looking dead.
+  function skeletonShimmer() {
+    return el("span", { class: "dd-skel-shimmer" });
+  }
+
+  function timelineNode(m) {
+    return el("div", { class: "dd-jt-node" + (m.hero ? " dd-jt-hero" : "") }, [
+      el("div", { class: "dd-jt-month", text: m.month }),
+      el("div", { class: "dd-jt-icon",  text: m.icon || "•" }),
+      el("div", { class: "dd-jt-dot" }),
+      el("div", { class: "dd-jt-label", text: m.label }),
+      m.sub ? el("div", { class: "dd-jt-sub", text: m.sub }) : null,
+    ]);
+  }
+
+  function affinityNode(top, left, color) {
+    const n = document.createElement("span");
+    n.className = "dd-cdp-aff-dot";
+    n.style.cssText = "top:" + top + "%;left:" + left + "%;background:" + color + ";";
+    return n;
+  }
+
+  function archTier(label, items, tone) {
+    return el("div", { class: "dd-arch-tier dd-arch-tier-" + tone }, [
+      el("div", { class: "dd-arch-tier-label", text: label }),
+      el("div", { class: "dd-arch-tier-row" }, items.slice(0,6).map(function (it) {
         return el("span", { class: "dd-arch-node dd-arch-" + tone, text: it });
       })),
     ]);
+  }
+
+  function renderCxIframe(c) {
+    const trusted = /aubreydemo\.com/i.test(c.url);
+    const wrap = el("div", { class: "dd-cx-iframe-wrap" });
+    const iframe = document.createElement("iframe");
+    iframe.src = c.url;
+    iframe.setAttribute("sandbox", trusted
+      ? "allow-scripts allow-same-origin allow-forms allow-popups"
+      : "allow-scripts allow-forms allow-popups");
+    iframe.setAttribute("loading", "lazy");
+    iframe.setAttribute("referrerpolicy", "no-referrer");
+    iframe.setAttribute("title", c.name || "CX component");
+    wrap.appendChild(iframe);
+    return wrap;
+  }
+
+  function channelIcon(channel) {
+    const c = String(channel || "").toLowerCase();
+    if (/sms|text|imessage/.test(c)) return "💬";
+    if (/email/.test(c))               return "📧";
+    if (/insta|social|facebook|tiktok/.test(c)) return "📸";
+    if (/store|pos|in-?person/.test(c)) return "🏪";
+    if (/web|site|browse/.test(c))     return "🖥️";
+    if (/mobile|app|phone/.test(c))    return "📱";
+    if (/cart|checkout|purch/.test(c)) return "🛒";
+    if (/agent|chat/.test(c))          return "🤖";
+    return "•";
+  }
+  function capsList(s) {
+    if (s && s.capabilities && s.capabilities.length) return s.capabilities.slice(0, 4);
+    return products.slice(0, 4);
   }
 
   function execCol(label, body) {
@@ -400,40 +764,6 @@
       el("div", { class: "dd-exec-label", text: label }),
       el("div", { class: "dd-exec-body",  text: body }),
     ]);
-  }
-
-  function renderEmbeddedCxCard(c) {
-    const card = el("div", { class: "dd-embedded-card" });
-    card.appendChild(el("div", { class: "dd-embedded-head" }, [
-      el("div", { class: "dd-embedded-name", text: c.name || "(unnamed)" }),
-      el("div", { class: "dd-embedded-type", text: (c.type || "web") + " · " + (c.deviceFrame || "desktop") }),
-    ]));
-    const url = c.url && /^https?:\/\//.test(c.url) ? c.url : "";
-    if (url) {
-      const trusted = /aubreydemo\.com/i.test(url);
-      const wrap = el("div", { class: "dd-embedded-frame dd-embedded-" + (c.deviceFrame || "desktop") });
-      const iframe = document.createElement("iframe");
-      iframe.src = url;
-      iframe.setAttribute("sandbox", trusted
-        ? "allow-scripts allow-same-origin allow-forms allow-popups"
-        : "allow-scripts allow-forms allow-popups");
-      iframe.setAttribute("loading", "lazy");
-      iframe.setAttribute("referrerpolicy", "no-referrer");
-      iframe.setAttribute("title", c.name || "CX component");
-      wrap.appendChild(iframe);
-      card.appendChild(wrap);
-      const open = document.createElement("a");
-      open.className = "dd-embedded-cta";
-      open.href = url;
-      open.target = "_blank";
-      open.rel = "noopener noreferrer";
-      open.textContent = "Open in new tab ↗";
-      card.appendChild(open);
-    } else {
-      card.appendChild(el("div", { class: "dd-embedded-empty",
-        text: "URL not added yet — fill in builderPlan.cxComponents[].url in holodeck.config.js" }));
-    }
-    return card;
   }
 
   // ─── Data derivers ────────────────────────────────────────────
@@ -450,18 +780,44 @@
     if (s && s.speakerNotes) return s.speakerNotes;
     return f.businessProblem || customer.heroSub || "";
   }
-  function capsBadges(s) {
-    const caps = (s && s.capabilities) || products;
-    return caps.slice(0, 5).map(function (c) {
-      return el("span", { class: "dd-badge dd-badge-blue", text: c });
-    });
+  // ─── Chapter-opener helpers ─────────────────────────────────
+  // Default headline / sub used when the SE hasn't customized them.
+  // Persona name (if known) anchors the line, otherwise falls back
+  // to the customer name.  Same general shape as the original
+  // "Every relationship begins with a single moment." opener.
+  function defaultOpenerHeadline() {
+    return "Every relationship begins<br/>with a single <em>moment.</em>";
   }
-  function dataCloudSourcesChips() {
-    const sources = ["Web", "Email", "POS", "App", "Service"];
-    return sources.map(function (s) {
-      return el("span", { class: "dd-chip", text: s });
-    });
+  function defaultOpenerSub() {
+    const who = (persona && persona.name) ? persona.name : (customer.name ? "your customer" : "her");
+    const when = (acts[0] && acts[0].timing) ? acts[0].timing : "December";
+    const place = customer.name ? customer.name + " store" : "this story";
+    return "<strong>" + escapeHtml(when) + ".</strong> A " + escapeHtml(place) + ". <strong>" + escapeHtml(who) + "'s</strong> story begins.";
   }
+  // 18 floating particle spans the CSS animates upward.
+  function openerParticles() {
+    const SHAPES = ["★","✦","●","■"];
+    const COLORS = [RED, BLUE, GOLD, "#2e7a50"];
+    const out = [];
+    for (let i = 0; i < 18; i++) {
+      const left = Math.round((i * 5.7) % 100);
+      const dur  = 7 + ((i * 3) % 9);
+      const delay = (i * 0.45) % 8;
+      const size = 10 + ((i * 7) % 14);
+      const sp = document.createElement("span");
+      sp.className = "dd-opener-particle";
+      sp.textContent = SHAPES[i % SHAPES.length];
+      sp.style.cssText =
+        "left:" + left + "%;" +
+        "font-size:" + size + "px;" +
+        "color:" + COLORS[i % COLORS.length] + ";" +
+        "animation-duration:" + dur + "s;" +
+        "animation-delay:" + delay.toFixed(2) + "s;";
+      out.push(sp);
+    }
+    return out;
+  }
+
   function deriveKpis() {
     if (CFG.bvs && CFG.bvs.metrics && CFG.bvs.metrics.length) {
       return CFG.bvs.metrics.map(function (m) {

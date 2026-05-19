@@ -67,13 +67,13 @@
 .site-nav-links a:hover,
 .site-nav-links button:hover {
   color: var(--navy);
-  border-color: rgba(13, 27, 46, 0.28);
-  background: rgba(13, 27, 46, 0.04);
+  border-color: rgba(var(--navy-rgb, 13,27,46), 0.28);
+  background: rgba(var(--navy-rgb, 13,27,46), 0.04);
 }
 
 .site-nav-links a.active,
 .site-nav-links button.active {
   color: var(--red);
-  border-color: rgba(178, 34, 52, 0.35);
-  background: rgba(178, 34, 52, 0.05);
+  border-color: rgba(var(--red-rgb, 178,34,52), 0.35);
+  background: rgba(var(--red-rgb, 178,34,52), 0.05);
 }

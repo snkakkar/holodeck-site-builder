@@ -29,7 +29,7 @@
 .brand-divider {
   width: 1px;
   height: 38px;
-  background: rgba(13, 27, 46, 0.15);
+  background: rgba(var(--navy-rgb, 13,27,46), 0.15);
 }
 
 .brand-lockup img.sf-icon {
@@ -47,7 +47,7 @@
   border: 1.5px solid var(--border-red-strong);
   border-radius: var(--radius-pill);
   padding: 7px 16px;
-  background: rgba(178, 34, 52, 0.04);
+  background: rgba(var(--red-rgb, 178,34,52), 0.04);
   cursor: pointer;
   font-family: var(--font-sans);
   text-decoration: none;
@@ -55,7 +55,7 @@
 }
 
 .cta-btn:hover {
-  background: rgba(178, 34, 52, 0.09);
+  background: rgba(var(--red-rgb, 178,34,52), 0.09);
 }
 
 /* Tag / badge pill */
@@ -65,9 +65,9 @@
   letter-spacing: 0.07em;
   padding: 3px 10px;
   border-radius: var(--radius-sm);
-  background: rgba(178, 34, 52, 0.08);
+  background: rgba(var(--red-rgb, 178,34,52), 0.08);
   color: var(--red);
-  border: 1px solid rgba(178, 34, 52, 0.2);
+  border: 1px solid rgba(var(--red-rgb, 178,34,52), 0.2);
   white-space: nowrap;
 }
 

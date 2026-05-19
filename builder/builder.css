@@ -29,7 +29,7 @@
   --bx-shadow-2: 0 14px 40px rgba(13, 27, 46, 0.18);
 
   --bx-font-sans:  'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --bx-font-serif: 'Playfair Display', Georgia, serif;
+  --bx-font-serif: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 
   --bx-topbar-h: 60px;
   --bx-stepper-w: 260px;

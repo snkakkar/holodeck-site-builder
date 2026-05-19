@@ -10,6 +10,20 @@
   if (!C) { console.error("HOLODECK_CONFIG not found"); return; }
 
   // ── 1. Brand CSS vars ──────────────────────────────────────
+  // Convert "#RRGGBB" / "#RGB" → "r,g,b" so rgba(var(--red-rgb), .25) works.
+  function hexToRgbTriplet(hex, fallback) {
+    if (typeof hex !== "string") return fallback;
+    var h = hex.trim().replace(/^#/, "");
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return fallback;
+    var n = parseInt(h, 16);
+    return ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255);
+  }
+  var redRgb  = hexToRgbTriplet(C.brand.primaryColor,   "178,34,52");
+  var blueRgb = hexToRgbTriplet(C.brand.secondaryColor, "26,95,160");
+  var goldRgb = hexToRgbTriplet(C.brand.accentColor,    "245,192,106");
+  var navyRgb = hexToRgbTriplet(C.brand.navyColor,      "13,27,46");
+
   var style = document.createElement("style");
   style.textContent = [
     ":root {",
@@ -17,6 +31,10 @@
     "  --blue: "      + C.brand.secondaryColor + ";",
     "  --gold: "      + C.brand.accentColor    + ";",
     "  --navy: "      + C.brand.navyColor      + ";",
+    "  --red-rgb: "   + redRgb  + ";",
+    "  --blue-rgb: "  + blueRgb + ";",
+    "  --gold-rgb: "  + goldRgb + ";",
+    "  --navy-rgb: "  + navyRgb + ";",
     "  --bg: "        + C.brand.bgColor        + ";",
     "  --font-sans: " + C.brand.fontBody       + ";",
     "  --font-serif: "+ C.brand.fontHeading    + ";",

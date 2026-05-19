@@ -723,7 +723,15 @@
     const canvas = document.getElementById('fireworks-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const COLORS = ['#b22234','#1a5fa0','#ffffff','#f5c06a','#e8f0ff','#f8d6d6'];
+    const B = (window.HOLODECK_CONFIG && window.HOLODECK_CONFIG.brand) || {};
+    const COLORS = [
+      B.primaryColor   || '#b22234',
+      B.secondaryColor || '#1a5fa0',
+      '#ffffff',
+      B.accentColor    || '#f5c06a',
+      '#e8f0ff',
+      '#f8d6d6'
+    ];
     let particles = [];
     let rafId = null;
     let running = false;
@@ -819,7 +827,13 @@
   (function initIntroParticles() {
     const slide = document.getElementById('vi-1');
     if (!slide) return;
-    const COLORS = ['#b22234','#1a5fa0','#f5c06a','#2e7a50'];
+    const B = (window.HOLODECK_CONFIG && window.HOLODECK_CONFIG.brand) || {};
+    const COLORS = [
+      B.primaryColor   || '#b22234',
+      B.secondaryColor || '#1a5fa0',
+      B.accentColor    || '#f5c06a',
+      '#2e7a50'
+    ];
     const SHAPES = ['★','✦','●','■'];
     const COUNT = 18;
     function makeParticle() {
