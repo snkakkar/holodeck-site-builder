@@ -348,6 +348,30 @@ button { font-family: inherit; }
 
 /* Color input */
 .bx-color-row { display: flex; align-items: center; gap: 8px; }
+.bx-color-row .bx-input { flex: 1 1 auto; min-width: 0; }
+
+/* File picker (sits inside .bx-color-row next to a text input) */
+.bx-file-input {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--bx-ink-2);
+  max-width: 200px;
+}
+.bx-file-input::-webkit-file-upload-button {
+  font: inherit;
+  font-weight: 600;
+  padding: 7px 12px;
+  border: 1.5px solid var(--bx-line-2);
+  border-radius: var(--bx-radius-s);
+  background: #fff;
+  color: var(--bx-ink-2);
+  cursor: pointer;
+  margin-right: 8px;
+}
+.bx-file-input::-webkit-file-upload-button:hover {
+  border-color: var(--bx-action);
+  color: var(--bx-action);
+}
 .bx-color-swatch {
   width: 36px; height: 36px;
   border: 1.5px solid var(--bx-line-2);
@@ -1420,13 +1444,148 @@ button { font-family: inherit; }
 .bx-section-count { font-size: 11px; font-weight: 700; color: var(--bx-ink-3); letter-spacing: 0.06em; text-transform: uppercase; }
 .bx-rec-row.bx-mt-6 { margin-top: 6px; }
 
+/* Per-section bulk actions ("Select all" / "Clear") */
+.bx-section-actions {
+  display: flex; gap: var(--bx-sp-3);
+  margin-bottom: var(--bx-sp-3);
+}
+.bx-section-link {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 4px 0;
+}
+
+/* ── Slide Selection: view-mode toolbar ─────────────────────── */
+.bx-recs-toolbar {
+  display: flex; justify-content: flex-end;
+  margin: 0 0 var(--bx-sp-3);
+}
+
+/* ── Slide Selection: GRID VIEW ─────────────────────────────── */
+.bx-rec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--bx-sp-4);
+}
+@media (max-width: 720px) {
+  .bx-rec-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .bx-rec-grid { grid-template-columns: 1fr; }
+}
+
+.bx-rec-gcard {
+  position: relative;
+  padding: var(--bx-sp-3);
+  display: flex; flex-direction: column;
+  gap: var(--bx-sp-2);
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+}
+.bx-rec-gcard:hover {
+  border-color: var(--bx-line-2);
+  box-shadow: var(--bx-shadow);
+  transform: translateY(-1px);
+}
+.bx-rec-gcard:focus-visible {
+  outline: 2px solid var(--bx-action);
+  outline-offset: 2px;
+}
+.bx-rec-gcard.is-on {
+  border-color: rgba(26, 95, 160, 0.45);
+  box-shadow: 0 0 0 1px rgba(26, 95, 160, 0.25), var(--bx-shadow);
+  background: var(--bx-action-soft);
+}
+
+/* Status pill sits in the top-right corner */
+.bx-rec-gcard > .bx-rec-pill {
+  position: absolute;
+  top: 10px; right: 10px;
+  z-index: 2;
+}
+
+/* Selection checkmark badge in top-left */
+.bx-rec-gcard-badge {
+  position: absolute;
+  top: 10px; left: 10px;
+  z-index: 2;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bx-line-2);
+  background: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800;
+  color: #fff;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.bx-rec-gcard-badge.is-on {
+  background: var(--bx-action);
+  border-color: var(--bx-action);
+}
+
+/* Thumbnail frame: scaled-down .hp preview clipped to fixed aspect */
+.bx-rec-gcard-thumb {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: var(--bx-radius-s);
+  background: var(--bx-bg);
+  border: 1px solid var(--bx-line);
+  margin-top: 28px;          /* clears badge + pill */
+  pointer-events: none;       /* taps fall through to card */
+}
+.bx-rec-gcard-thumb > .hp {
+  position: absolute;
+  top: 0; left: 0;
+  width: 480px;               /* design width before scale */
+  transform: scale(0.42);
+  transform-origin: top left;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 18px 22px;
+  pointer-events: none;
+}
+.bx-rec-gcard-fallback {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--bx-ink-3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+/* Editable title input on the card */
+.bx-rec-gcard-title {
+  width: 100%;
+  font-family: var(--bx-font-sans);
+  font-size: 13px; font-weight: 700;
+  color: var(--bx-navy);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--bx-radius-s);
+  padding: 4px 6px;
+  outline: none;
+}
+.bx-rec-gcard-title:hover { border-color: var(--bx-line); background: #fff; }
+.bx-rec-gcard-title:focus {
+  border-color: var(--bx-action);
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--bx-action-ring);
+}
+
+.bx-rec-gcard-meta {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--bx-ink-3);
+  padding: 0 6px;
+}
+
 /* ════════════════════════════════════════════════════════════════
    CX Components step
    ════════════════════════════════════════════════════════════════ */
 /* No new selectors needed — reuses bx-item, bx-grid-2, bx-rec-pill */
 
 /* ════════════════════════════════════════════════════════════════
-   Preview by section (Step 5)
+   Preview by section (Preview step)
    ════════════════════════════════════════════════════════════════ */
 .bx-preview-section { margin-bottom: 24px; }
 .bx-preview-section-head {

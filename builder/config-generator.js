@@ -137,41 +137,62 @@
       },
       // Builder-generated planning context — Claude reads this when
       // filling in Zone 2 (persona, journey, slides, etc.).
-      builderPlan: {
-        audience:   project.audience   || "",
-        salesStage: project.salesStage || "",
-        products:   project.products   || [],
-        tone:       project.tone       || "",
-        theme:      project.theme      || "",
-        story:            state.story            || {},
-        storyFoundations: state.storyFoundations || {},
-        personas:         state.personas         || [],
-        storyActs:        state.storyActs        || [],
-        cxComponents:     (state.cxComponents || []).map(function (c) {
-          return {
-            id: c.id, name: c.name, url: c.url, type: c.type, sectionId: c.sectionId,
-            linkedStoryActIds: c.linkedStoryActIds || [],
-            linkedSlideIds:    c.linkedSlideIds    || [],
-            deviceFrame: c.deviceFrame, iframeAllowed: c.iframeAllowed !== false,
-            fallbackMode: c.fallbackMode, status: c.status, notes: c.notes,
-          };
-        }),
-        slideSections:    state.slideSections || [],
-        slides:     (state.slides || []).map(function (s, i) {
-          return {
-            order: i + 1, id: s.id, title: s.title, layout: s.layout,
-            sectionId: s.sectionId || layoutSection(s.layout),
-            selectionStatus: s.selectionStatus || "",
-            selectionRationale: s.selectionRationale || "",
-            readinessStatus: s.readinessStatus || "",
-            capabilities: s.capabilities || [], persona: s.persona || null,
-            linkedCxComponentIds: s.linkedCxComponentIds || [],
-            deviceFrame: s.deviceFrame || "",
-            speakerNotes: s.speakerNotes || "",
-            missingInputs: s.missingInputs || [],
-          };
-        }),
-      },
+      builderPlan: (function () {
+        // Promotion: any slide explicitly linked from a CX component
+        // must export with layout "embeddedCxComponent" so the demo
+        // runtime renders the iframe. Mirrors holodeck-adapter so
+        // saved projects from before the promotion rule still ship
+        // a working iframe in the legacy fallback path too.
+        const cxAll = state.cxComponents || [];
+        const explicitBySlide = {};
+        cxAll.forEach(function (c) {
+          const sid = (c.linkedSlideIds && c.linkedSlideIds[0]) || "";
+          if (sid) {
+            explicitBySlide[sid] = explicitBySlide[sid] || [];
+            explicitBySlide[sid].push(c.id);
+          }
+        });
+        return {
+          audience:   project.audience   || "",
+          salesStage: project.salesStage || "",
+          products:   project.products   || [],
+          tone:       project.tone       || "",
+          theme:      project.theme      || "",
+          story:            state.story            || {},
+          storyFoundations: state.storyFoundations || {},
+          personas:         state.personas         || [],
+          storyActs:        state.storyActs        || [],
+          cxComponents:     cxAll.map(function (c) {
+            return {
+              id: c.id, name: c.name, url: c.url, type: c.type, sectionId: c.sectionId,
+              linkedStoryActIds: c.linkedStoryActIds || [],
+              linkedSlideIds:    c.linkedSlideIds    || [],
+              deviceFrame: c.deviceFrame, iframeAllowed: c.iframeAllowed !== false,
+              fallbackMode: c.fallbackMode, status: c.status, notes: c.notes,
+            };
+          }),
+          slideSections:    state.slideSections || [],
+          slides:     (state.slides || []).map(function (s, i) {
+            const explicitCx = explicitBySlide[s.id] || [];
+            const mergedCx = explicitCx.length ? explicitCx : (s.linkedCxComponentIds || []);
+            const promotedLayout = (explicitCx.length || s.layout === "embeddedCxComponent")
+              ? "embeddedCxComponent"
+              : s.layout;
+            return {
+              order: i + 1, id: s.id, title: s.title, layout: promotedLayout,
+              sectionId: s.sectionId || layoutSection(promotedLayout),
+              selectionStatus: s.selectionStatus || "",
+              selectionRationale: s.selectionRationale || "",
+              readinessStatus: s.readinessStatus || "",
+              capabilities: s.capabilities || [], persona: s.persona || null,
+              linkedCxComponentIds: mergedCx,
+              deviceFrame: s.deviceFrame || "",
+              speakerNotes: s.speakerNotes || "",
+              missingInputs: s.missingInputs || [],
+            };
+          }),
+        };
+      })(),
     };
   }
 

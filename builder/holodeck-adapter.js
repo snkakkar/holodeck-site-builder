@@ -260,11 +260,23 @@
   // ─── deckOutline (legacy Holodeck slide-types ordering) ─────
   function buildDeckOutline(state) {
     const layoutToType = (global.HOLO_RULES && global.HOLO_RULES.LAYOUT_TO_SLIDE_TYPE) || {};
+    const linkedSlideIds = explicitlyLinkedSlideIds(state);
     return (state.slides || []).map(function (s) {
-      const type = layoutToType[s.layout] || "two-panel";
+      // Same promotion as buildBuilderPlan — explicit CX link forces
+      // an embedded layout regardless of the saved slide.layout.
+      const layout = linkedSlideIds[s.id] ? "embeddedCxComponent" : s.layout;
+      const type = layoutToType[layout] || "two-panel";
       const note = s.title + (s.speakerNotes ? " — " + s.speakerNotes : "");
       return { type: type, note: note };
     });
+  }
+  function explicitlyLinkedSlideIds(state) {
+    const out = {};
+    (state.cxComponents || []).forEach(function (c) {
+      const sid = (c.linkedSlideIds && c.linkedSlideIds[0]) || "";
+      if (sid) out[sid] = true;
+    });
+    return out;
   }
 
   // ─── bvs ─────────────────────────────────────────────────────
@@ -524,9 +536,13 @@
         sub:      "[TODO: opening slide sub]",
       }];
     }
+    const linkedSlideIds = explicitlyLinkedSlideIds(state);
     return slides.map(function (sl, i) {
-      // Map builder layouts to /demo slide types
-      const type = builderLayoutToHolodeckSlideType(sl.layout);
+      // Map builder layouts to /demo slide types — promote any
+      // explicitly-linked slide to embeddedCxComponent so it renders
+      // as an iframe (consistent with buildBuilderPlan above).
+      const layout = linkedSlideIds[sl.id] ? "embeddedCxComponent" : sl.layout;
+      const type = builderLayoutToHolodeckSlideType(layout);
       const base = {
         type:     type,
         eyebrow:  capitalize(sl.sectionId || "demo").replace("-", " "),
@@ -808,6 +824,24 @@
   // ─── builderPlan (round-trip back to the builder) ────────────
   function buildBuilderPlan(state) {
     const project = state.project || {};
+
+    // Build a map of slide.id -> [cxComponentId] from the SE's explicit
+    // links. We need this at export time (not just inside the builder's
+    // buildSlidePlanFromSelections) so saved projects from before the
+    // promotion rule was added still export correctly. The demo runtime
+    // ONLY renders an iframe when slide.layout === "embeddedCxComponent",
+    // so any explicit link must promote the layout — otherwise the
+    // exported config has the link but no iframe slot to put it in.
+    const cxAll = state.cxComponents || [];
+    const explicitBySlide = {};
+    cxAll.forEach(function (c) {
+      const sid = (c.linkedSlideIds && c.linkedSlideIds[0]) || "";
+      if (sid) {
+        explicitBySlide[sid] = explicitBySlide[sid] || [];
+        explicitBySlide[sid].push(c.id);
+      }
+    });
+
     return {
       audience:   project.audience   || "",
       salesStage: project.salesStage || "",
@@ -818,17 +852,28 @@
       storyFoundations: state.storyFoundations || {},
       personas:         state.personas         || [],
       storyActs:        state.storyActs        || [],
-      cxComponents:     state.cxComponents     || [],
-      slideSections:    state.slideSections    || [],
+      cxComponents:     cxAll,
+      slideSections:    state.slideSections || [],
       slides:           (state.slides || []).map(function (s, i) {
+        const explicitCx = explicitBySlide[s.id] || [];
+        // Merge: explicit links win, but preserve any pre-existing
+        // linkedCxComponentIds (e.g. for native embeddedCxComponent
+        // slides whose links were stamped earlier without going
+        // through the explicit picker).
+        const mergedCx = explicitCx.length
+          ? explicitCx
+          : (s.linkedCxComponentIds || []);
+        const promotedLayout = (explicitCx.length || s.layout === "embeddedCxComponent")
+          ? "embeddedCxComponent"
+          : s.layout;
         return {
-          order: i + 1, id: s.id, title: s.title, layout: s.layout,
+          order: i + 1, id: s.id, title: s.title, layout: promotedLayout,
           sectionId: s.sectionId || "",
           selectionStatus: s.selectionStatus || "",
           selectionRationale: s.selectionRationale || "",
           capabilities: s.capabilities || [],
           persona: s.persona || null,
-          linkedCxComponentIds: s.linkedCxComponentIds || [],
+          linkedCxComponentIds: mergedCx,
           deviceFrame: s.deviceFrame || "",
           speakerNotes: s.speakerNotes || "",
         };

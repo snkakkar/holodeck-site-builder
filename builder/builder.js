@@ -35,8 +35,8 @@
     { id: "script",      num: "2", label: "Script & Story",        help: "Paste or upload your demo script" },
     { id: "foundations", num: "3", label: "Story Foundations",     help: "Review what was extracted" },
     { id: "narrative",   num: "4", label: "Recommended Narrative", help: "See the suggested story arc" },
-    { id: "cx",          num: "5", label: "CX Components",         help: "Embed live AubreyDemo screens (optional)" },
-    { id: "recs",        num: "6", label: "Slide Selection",       help: "Customize the slide plan by section" },
+    { id: "recs",        num: "5", label: "Slide Selection",       help: "Customize the slide plan by section" },
+    { id: "cx",          num: "6", label: "CX Components",         help: "Embed live AubreyDemo screens (optional)" },
     { id: "preview",     num: "7", label: "Preview",               help: "Review the full demo before exporting" },
     { id: "export",      num: "8", label: "Export",                help: "Download the complete demo ZIP" },
   ];
@@ -601,9 +601,43 @@
     grid3.appendChild(field({ label: "Accent color", type: "color", value: s.brand.accentColor,
       onInput: function (v) { s.brand.accentColor = v; commit(); } }));
     c3.appendChild(grid3);
-    c3.appendChild(field({ label: "Logo path", help: "(drop the file in demo/assets/ first)",
-      placeholder: "e.g. assets/acme-logo.png", value: s.brand.logoPath,
-      onInput: function (v) { s.brand.logoPath = v; commit(); } }));
+    // Logo: text path OR direct file upload (embedded as a data URL so it
+    // travels with the project — no need to drop a file in demo/assets/ first).
+    const logoWrap = el("div", { class: "bx-field" });
+    const logoLabel = el("label", { class: "bx-label", text: "Logo" });
+    logoLabel.appendChild(el("span", { class: "bx-help-inline",
+      text: "(upload a file or paste a path)" }));
+    logoWrap.appendChild(logoLabel);
+    const logoRow = el("div", { class: "bx-color-row" });
+    const logoText = el("input", { type: "text", class: "bx-input",
+      placeholder: "e.g. assets/acme-logo.png", value: s.brand.logoPath || "" });
+    logoText.addEventListener("input", function () {
+      s.brand.logoPath = logoText.value; commit();
+    });
+    const logoFile = el("input", { type: "file", accept: "image/*",
+      class: "bx-file-input", "aria-label": "Upload logo file" });
+    logoFile.addEventListener("change", function () {
+      const f = logoFile.files && logoFile.files[0];
+      if (!f) return;
+      if (f.size > 2 * 1024 * 1024) {
+        toast("Logo is over 2MB — pick a smaller file or paste a path instead");
+        logoFile.value = "";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function () {
+        s.brand.logoPath = String(reader.result || "");
+        logoText.value = s.brand.logoPath;
+        commit();
+        toast("Logo uploaded");
+      };
+      reader.onerror = function () { toast("Could not read that file"); };
+      reader.readAsDataURL(f);
+    });
+    logoRow.appendChild(logoText);
+    logoRow.appendChild(logoFile);
+    logoWrap.appendChild(logoRow);
+    c3.appendChild(logoWrap);
     wrap.appendChild(c3);
 
     // Presenter
@@ -1134,7 +1168,7 @@
   function viewCxComponents() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 5 · CX Component Links",
+      "Step 6 · CX Component Links",
       "Embed live demo screens (optional)",
       "Paste AubreyDemo component links here so the final holodeck can embed live demo moments in the Demo section. Skip this step if you don't have any yet — your demo will still work."
     ));
@@ -1154,7 +1188,7 @@
         btn("+ Add CX Component Link", "bx-btn-primary", function () { addCxComponent(); }),
         btn("Skip — I don't have CX links yet", "bx-btn-secondary", function () {
           s._cxSkipped = true; commit();
-          app.state.step = "recs"; renderShell();
+          app.state.step = "preview"; renderShell();
         }),
       ]));
       wrap.appendChild(empty);
@@ -1219,32 +1253,44 @@
         commit();
       } }));
     grid.appendChild(field({ label: "Type", type: "select",
-      options: ["web", "mobile", "agent", "commerce", "service", "marketing", "data", "other"],
+      options: ["web", "mobile", "agent", "commerce", "service", "marketing", "data", "ad", "other"],
       value: c.type, onInput: function (v) { c.type = v; commit(); } }));
     grid.appendChild(field({ label: "Device frame", type: "select",
       options: ["desktop", "mobile", "tablet", "none"],
       value: c.deviceFrame, onInput: function (v) { c.deviceFrame = v; commit(); } }));
     item.appendChild(grid);
 
-    // Linked story act
-    const acts = app.state.storyActs || [];
-    if (acts.length) {
+    // Linked slide — only the slides the SE put in the Demo section.
+    // CX components are screens that live inside the demo flow, so
+    // linking to a non-demo slide would never render correctly anyway.
+    const demoSlides = (app.state.slides || []).filter(function (sl) {
+      return sl.sectionId === "demo";
+    });
+    if (demoSlides.length) {
       const linkSel = el("select", { class: "bx-select" });
       linkSel.appendChild(el("option", { value: "", text: "(not linked)" }));
-      acts.forEach(function (a) {
-        const opt = el("option", { value: a.id, text: a.title || ("Act " + (acts.indexOf(a) + 1)) });
-        if ((c.linkedStoryActIds || []).indexOf(a.id) >= 0) opt.setAttribute("selected", "selected");
+
+      const currentLink = (c.linkedSlideIds && c.linkedSlideIds[0]) || "";
+      demoSlides.forEach(function (sl) {
+        const label = (sl.title || "Untitled") + " · " + layoutLabelShort(sl.layout || "");
+        const opt = el("option", { value: sl.id, text: label });
+        if (currentLink === sl.id) opt.setAttribute("selected", "selected");
         linkSel.appendChild(opt);
       });
       linkSel.addEventListener("change", function () {
-        c.linkedStoryActIds = linkSel.value ? [linkSel.value] : [];
+        c.linkedSlideIds = linkSel.value ? [linkSel.value] : [];
+        // Rebuild so the slide's linkedCxComponentIds reflects the change
+        buildSlidePlanFromSelections();
         commit();
       });
       item.appendChild(el("div", { class: "bx-field" }, [
-        el("label", { class: "bx-label", text: "Linked story act" },
+        el("label", { class: "bx-label", text: "Linked demo slide" },
           [el("span", { class: "bx-help-inline", text: "(optional)" })]),
         linkSel,
       ]));
+    } else {
+      item.appendChild(el("div", { class: "bx-help bx-mt-6",
+        html: "<strong>Tip:</strong> Pick demo slides in Step 5 first, then come back here to link this component to a specific demo screen." }));
     }
     item.appendChild(field({ label: "Notes", type: "textarea",
       value: c.notes, onInput: function (v) { c.notes = v; commit(); } }));
@@ -1262,10 +1308,23 @@
   }
 
   // ─── STEP 6: SLIDE SELECTION (section-grouped) ────────────────
+  // Two view modes: "grid" (card thumbnails, default) and "list"
+  // (vertical rows with full title + status pill). Persists per
+  // browser via localStorage so SEs don't have to re-pick each time.
+  function getRecsViewMode() {
+    try {
+      const v = localStorage.getItem("bx-recs-view");
+      return v === "list" ? "list" : "grid";
+    } catch (e) { return "grid"; }
+  }
+  function setRecsViewMode(mode) {
+    try { localStorage.setItem("bx-recs-view", mode); } catch (e) {}
+  }
+
   function viewRecommendations() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 6 · Slide Selection",
+      "Step 5 · Slide Selection",
       "Customize the story structure",
       "The recommended narrative is already applied. Toggle individual slides off, rename them inline, or expand a card for details. Slides are grouped by section."
     ));
@@ -1309,21 +1368,36 @@
       ]));
       wrap.appendChild(banner);
 
+      // View-mode toggle (Grid / List)
+      const mode = getRecsViewMode();
+      wrap.appendChild(viewModeToggle(mode));
+
       // Section-grouped recommendation cards
       plan.sections.forEach(function (sec) {
         const c = el("div", { class: "bx-card bx-section-card" });
+        const selectedCount = sec.slides.filter(function (r) { return s.selectedRecIds[r.id]; }).length;
         const head = el("div", { class: "bx-section-head" }, [
           el("div", { class: "bx-section-num", text: String(sec.order) }),
           el("div", { class: "bx-section-meta" }, [
             el("div", { class: "bx-section-label", text: sec.label }),
             sec.purpose ? el("div", { class: "bx-section-purpose", text: sec.purpose }) : null,
           ]),
-          el("div", { class: "bx-section-count", text: sec.slides.length + " options" }),
+          el("div", { class: "bx-section-count", text: selectedCount + " of " + sec.slides.length + " selected" }),
         ]);
         c.appendChild(head);
+
+        // Per-section bulk actions
+        if (sec.slides.length) {
+          c.appendChild(sectionBulkActions(sec));
+        }
+
         if (!sec.slides.length) {
           c.appendChild(el("div", { class: "bx-empty",
             html: "No suggestions for this section yet. Add inputs in earlier steps." }));
+        } else if (mode === "grid") {
+          const grid = el("div", { class: "bx-rec-grid" });
+          sec.slides.forEach(function (r) { grid.appendChild(recGridCard(r)); });
+          c.appendChild(grid);
         } else {
           sec.slides.forEach(function (r) { c.appendChild(recCard(r)); });
         }
@@ -1355,6 +1429,50 @@
 
     wrap.appendChild(stepFooter("recs"));
     return wrap;
+  }
+
+  // ─── View-mode segmented toggle (Grid / List) ────────────────
+  function viewModeToggle(active) {
+    const wrap = el("div", { class: "bx-recs-toolbar" });
+    const seg = el("div", { class: "bx-segmented" });
+    ["grid", "list"].forEach(function (mode) {
+      const b = el("button", {
+        type: "button",
+        class: "bx-seg-btn" + (mode === active ? " is-on" : ""),
+        text: mode === "grid" ? "Grid" : "List",
+      });
+      b.addEventListener("click", function () {
+        if (mode === active) return;
+        setRecsViewMode(mode);
+        renderMain();
+      });
+      seg.appendChild(b);
+    });
+    wrap.appendChild(seg);
+    return wrap;
+  }
+
+  // ─── Per-section "Select all / Clear" actions ───────────────
+  function sectionBulkActions(sec) {
+    const s = app.state;
+    const bar = el("div", { class: "bx-section-actions" });
+    const allLink = el("button", { type: "button", class: "bx-btn-link bx-section-link", text: "Select all" });
+    const noneLink = el("button", { type: "button", class: "bx-btn-link bx-section-link", text: "Clear" });
+    allLink.addEventListener("click", function () {
+      sec.slides.forEach(function (r) { s.selectedRecIds[r.id] = true; });
+      s.recommendations.forEach(function (r) { if (s.selectedRecIds[r.id]) r.selected = true; });
+      buildSlidePlanFromSelections();
+      renderMain(); renderSide(); commit();
+    });
+    noneLink.addEventListener("click", function () {
+      sec.slides.forEach(function (r) { delete s.selectedRecIds[r.id]; });
+      s.recommendations.forEach(function (r) { if (!s.selectedRecIds[r.id]) r.selected = false; });
+      buildSlidePlanFromSelections();
+      renderMain(); renderSide(); commit();
+    });
+    bar.appendChild(allLink);
+    bar.appendChild(noneLink);
+    return bar;
   }
 
   function recCard(r) {
@@ -1426,6 +1544,85 @@
     return card;
   }
 
+  // ─── Grid-mode card: thumbnail + title + corner select badge ──
+  // Stays state-compatible with recCard: same selectedRecIds key,
+  // same toggleRec call. The thumbnail uses the existing PREVIEW
+  // pipeline scaled inside a fixed-aspect frame so all cards align.
+  function recGridCard(r) {
+    const s = app.state;
+    const isOn = !!s.selectedRecIds[r.id];
+
+    // Build a transient "slide" shape so the preview renderer can
+    // run before the user has built the slide plan. This mirrors
+    // the real shape buildSlidePlanFromSelections would produce.
+    const transientSlide = {
+      id: r.id,
+      title: s.customRecTitles[r.id] || r.title,
+      layout: r.layout,
+      sectionId: r.sectionId || (RULES.layoutToSectionId ? RULES.layoutToSectionId(r.layout) : ""),
+      capabilities: r.capabilities ? r.capabilities.slice() : [],
+      assets: [],
+      contentBlocks: ((RULES.LAYOUTS && RULES.LAYOUTS[r.layout] && RULES.LAYOUTS[r.layout].blocks) || []).slice(),
+      persona: (s.personas && s.personas[0]) ? s.personas[0].name : null,
+      linkedCxComponentIds: [],
+      missingInputs: r.missingInputs || [],
+    };
+
+    const card = el("div", {
+      class: "bx-rec-gcard surface" + (isOn ? " is-on" : ""),
+      role: "button",
+      tabindex: "0",
+      "aria-pressed": isOn ? "true" : "false",
+    });
+
+    // Click anywhere on the card toggles selection (except inputs).
+    function toggle(e) { if (e) e.stopPropagation(); toggleRec(r.id); }
+    card.addEventListener("click", function (e) {
+      if (e.target.closest("input, button, summary, .bx-rec-gcard-title")) return;
+      toggle();
+    });
+    card.addEventListener("keydown", function (e) {
+      if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); }
+    });
+
+    // Corner select badge (acts as a visual checkbox)
+    const badge = el("span", { class: "bx-rec-gcard-badge" + (isOn ? " is-on" : ""), "aria-hidden": "true" });
+    if (isOn) badge.textContent = "✓";
+    card.appendChild(badge);
+
+    // Single status pill in top-right (re-uses existing styles)
+    card.appendChild(statusPill(r));
+
+    // Thumbnail frame holds a scaled-down .hp preview
+    const thumb = el("div", { class: "bx-rec-gcard-thumb" });
+    try {
+      const inner = PREVIEW.renderSlidePreview(transientSlide, s, "compact");
+      thumb.appendChild(inner);
+    } catch (err) {
+      thumb.appendChild(el("div", { class: "bx-rec-gcard-fallback", text: layoutLabelShort(r.layout) }));
+    }
+    card.appendChild(thumb);
+
+    // Editable title (same field as list mode)
+    const title = el("input", {
+      type: "text",
+      class: "bx-rec-gcard-title",
+      "aria-label": "Slide title",
+      value: s.customRecTitles[r.id] || r.title,
+    });
+    title.addEventListener("input", function () {
+      s.customRecTitles[r.id] = title.value;
+      commit();
+    });
+    title.addEventListener("click", function (e) { e.stopPropagation(); });
+    card.appendChild(title);
+
+    // Subline: layout label
+    card.appendChild(el("div", { class: "bx-rec-gcard-meta", text: layoutLabelShort(r.layout) }));
+
+    return card;
+  }
+
   // Single derived status badge. Order of precedence: missing-input >
   // needs-iframe > required > recommended > optional.
   function statusPill(r) {
@@ -1479,7 +1676,7 @@
     ));
     if (!app.state.slides.length) {
       wrap.appendChild(el("div", { class: "bx-empty",
-        html: "No slides yet. <strong>Go back to Step 6</strong>, customize the slide plan, then return to preview." }));
+        html: "No slides yet. <strong>Go back to Step 5</strong>, customize the slide plan, then return to preview." }));
       wrap.appendChild(stepFooter("preview"));
       return wrap;
     }
@@ -1633,19 +1830,70 @@
       return b.priority - a.priority;
     });
 
+    // Build map of slide.id -> [cxComponentId] from explicit user links.
+    // Components without a linkedSlideIds entry fall back to "first embedded slot".
+    const cxAll = s.cxComponents || [];
+    const explicitBySlide = {};
+    cxAll.forEach(function (c) {
+      const slideId = (c.linkedSlideIds && c.linkedSlideIds[0]) || "";
+      if (slideId) {
+        explicitBySlide[slideId] = explicitBySlide[slideId] || [];
+        explicitBySlide[slideId].push(c.id);
+      }
+    });
+    const unassignedCx = cxAll.filter(function (c) {
+      return !(c.linkedSlideIds && c.linkedSlideIds[0]);
+    });
+
     s.slides = ordered.map(function (r) {
       const id = r.id;
       const existing = existingById[id];
       const persona = (s.personas && s.personas[0]) ? s.personas[0].name : null;
-      // If this is an embedded CX slide, link the most relevant component
-      let linkedCx = [];
-      if (r.layout === "embeddedCxComponent" && (s.cxComponents || []).length) {
-        linkedCx = s.cxComponents.slice(0, 1).map(function (c) { return c.id; });
+      // Resolve linked CX components for this slide:
+      //   1) Honor explicit user links (cxComponent.linkedSlideIds[0] === slide.id).
+      //   2) For embeddedCxComponent slides with no explicit link, fall back
+      //      to the first unassigned component so we don't leave the slot empty.
+      let linkedCx = (explicitBySlide[id] || []).slice();
+      if (!linkedCx.length && r.layout === "embeddedCxComponent" && unassignedCx.length) {
+        linkedCx = [unassignedCx[0].id];
       }
-      return existing || {
+      const firstCx = linkedCx.length ? cxAll.find(function (c) { return c.id === linkedCx[0]; }) : null;
+      const deviceFrame = firstCx ? (firstCx.deviceFrame || "") : "";
+
+      // PROMOTION RULE: the demo runtime only renders an iframe when
+      // slide.layout === "embeddedCxComponent". So if the SE explicitly
+      // linked a CX component to this slide, promote the layout — the
+      // user's intent is "this slide should be the live screen". We
+      // remember the original layout so a later un-link can revert it.
+      let effectiveLayout = r.layout;
+      const wasExplicitlyLinked = !!(explicitBySlide[id] && explicitBySlide[id].length);
+      if (wasExplicitlyLinked && effectiveLayout !== "embeddedCxComponent") {
+        effectiveLayout = "embeddedCxComponent";
+      }
+
+      // Reuse existing slide so the user's edits (title, notes, assets) survive
+      // re-renders, but always refresh the CX wiring from the current links.
+      if (existing) {
+        existing.linkedCxComponentIds = linkedCx;
+        existing.deviceFrame = deviceFrame || existing.deviceFrame || "";
+        if (wasExplicitlyLinked) {
+          // Record the original layout once so we can revert if the SE
+          // later clears the link.
+          if (existing.layout !== "embeddedCxComponent" && !existing._originalLayout) {
+            existing._originalLayout = existing.layout;
+          }
+          existing.layout = "embeddedCxComponent";
+        } else if (existing._originalLayout && !linkedCx.length) {
+          // Link removed — revert to the original recommendation layout.
+          existing.layout = existing._originalLayout;
+          delete existing._originalLayout;
+        }
+        return existing;
+      }
+      return {
         id: id,
         title: s.customRecTitles[id] || r.title,
-        layout: r.layout,
+        layout: effectiveLayout,
         sectionId: r.sectionId || RULES.layoutToSectionId(r.layout),
         selectionStatus: r.selectionStatus || "",
         selectionRationale: r.rationale || "",
@@ -1656,8 +1904,9 @@
         speakerNotes: "",
         persona: persona,
         linkedCxComponentIds: linkedCx,
-        deviceFrame: linkedCx.length ? (s.cxComponents.find(function (c) { return c.id === linkedCx[0]; }).deviceFrame || "") : "",
+        deviceFrame: deviceFrame,
         missingInputs: r.missingInputs || [],
+        _originalLayout: (wasExplicitlyLinked && r.layout !== "embeddedCxComponent") ? r.layout : undefined,
       };
     });
 
@@ -1818,7 +2067,7 @@
       out.push({
         label: "Live CX scene URLs added",
         done: false,
-        hint: "Optional — paste AubreyDemo /frame URLs in Step 5 to embed live screens",
+        hint: "Optional — paste AubreyDemo /frame URLs in Step 6 to embed live screens",
       });
     } else if (cxUrls < cx.length) {
       out.push({
