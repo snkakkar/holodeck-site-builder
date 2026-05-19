@@ -188,7 +188,6 @@
     // Right-side nav
     [
       ["home",     "Home",      function () { goHome(); }],
-      ["aiPrompt", "AI Prompt", function () { goAiPrompt(); }],
     ].forEach(function (n) {
       const isActive = (app.view === n[0]);
       right.appendChild(el("button", {
@@ -198,16 +197,10 @@
       }));
     });
 
-    if (app.view === "home") {
-      right.appendChild(actionBtn("Import Config", "bx-btn-ghost", function () { openImportModal(null); }));
-      right.appendChild(actionBtn("+ New Project", "bx-btn-primary", function () { newProject(); }));
-    } else if (app.view === "builder") {
+    if (app.view === "builder") {
       right.appendChild(actionBtn("Import", "bx-btn-ghost", function () { openImportModal(app.state.id); }));
       right.appendChild(actionBtn("Save", "bx-btn-secondary", function () { saveActive(); toast("Saved"); }));
       right.appendChild(actionBtn("Export", "bx-btn-primary", function () { openExportModal(); }));
-    } else if (app.view === "aiPrompt") {
-      right.appendChild(actionBtn("Import Config", "bx-btn-ghost", function () { openImportModal(null); }));
-      right.appendChild(actionBtn("+ New Project", "bx-btn-primary", function () { newProject(); }));
     }
   }
 
@@ -231,7 +224,7 @@
       shell.appendChild(wrap);
       HOME.render(wrap, {
         onOpen:      function (id) { goBuilder(id); },
-        onNew:       function () { newProject(); },
+        onNew:       function () { openNewProjectChooser(); },
         onImport:    function () { openImportModal(null); },
         onAiPrompt:  function () { goAiPrompt(); },
         onDuplicate: function (id, done) { STORE.duplicateProject(id); done && done(); toast("Duplicated"); },
@@ -2942,8 +2935,7 @@
       btn("Reset prompt", "bx-btn-secondary", function () {
         promptArea.value = AI_PROMPT.getFullPrompt(); toast("Reset");
       }),
-      btn("Open ChatGPT", "bx-btn-ghost", function () { window.open("https://chat.openai.com/", "_blank"); }),
-      btn("Open Claude", "bx-btn-ghost", function () { window.open("https://claude.ai/", "_blank"); }),
+      btn("Import AI response", "bx-btn-primary", function () { openImportModal(null); }),
     ]));
     container.appendChild(promptCard);
 
@@ -2969,13 +2961,47 @@
     ]));
     container.appendChild(exCard);
 
-    const importCard = el("div", { class: "bx-card" });
-    importCard.appendChild(el("div", { class: "bx-card-title", text: "Got the AI's response?" }));
-    importCard.appendChild(el("div", { class: "bx-card-sub", text: "Bring it in here — we'll create a new project from it." }));
-    importCard.appendChild(el("div", { class: "bx-row" }, [
-      btn("Import config", "bx-btn-primary", function () { openImportModal(null); }),
-    ]));
-    container.appendChild(importCard);
+  }
+
+  // ─── New-project chooser ──────────────────────────────────────
+  // Two doors: build in the UI from scratch, or seed from an AI prompt.
+  function openNewProjectChooser() {
+    const wrap = el("div", { class: "bx-newproj-chooser" });
+    wrap.appendChild(el("p", { class: "bx-newproj-chooser-lede",
+      text: "How do you want to start this holodeck?" }));
+
+    const grid = el("div", { class: "bx-newproj-chooser-grid" });
+
+    function chooserCard(emoji, title, body, onClick) {
+      const card = el("button", { class: "bx-newproj-chooser-card", type: "button" }, [
+        el("div", { class: "bx-newproj-chooser-emoji", text: emoji }),
+        el("div", { class: "bx-newproj-chooser-title", text: title }),
+        el("div", { class: "bx-newproj-chooser-body", text: body }),
+      ]);
+      card.addEventListener("click", onClick);
+      return card;
+    }
+
+    grid.appendChild(chooserCard(
+      "🛠",
+      "Create from scratch in the builder",
+      "Open an empty project and fill in customer, products, and personas step by step.",
+      function () { closeModal(); newProject(); }
+    ));
+    grid.appendChild(chooserCard(
+      "✨",
+      "Generate with AI",
+      "Paste a demo script or prompt and let AI extract foundations, personas, and slides for you.",
+      function () { closeModal(); goAiPrompt(); }
+    ));
+
+    wrap.appendChild(grid);
+
+    const actions = el("div", { class: "bx-modal-actions" });
+    actions.appendChild(btn("Cancel", "bx-btn-secondary", closeModal));
+    wrap.appendChild(actions);
+
+    openModal("Start a new holodeck", wrap, "bx-modal-card-chooser");
   }
 
   // ─── Modals: Import / Export ──────────────────────────────────

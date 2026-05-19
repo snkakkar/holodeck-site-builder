@@ -110,7 +110,6 @@
 .pslide.active .bv-s4-metric:nth-child(5) { animation: popIn .45s ease both .88s; }
 .pslide.active .bv-s5-eyebrow  { animation: fadeUp .5s ease both .1s; }
 .pslide.active .bv-s5-headline { animation: fadeUp .5s ease both .3s; }
-.pslide.active .bv-s5-cta      { animation: fadeUp .5s ease both .55s, ctaPulse 2.5s ease-in-out 1.2s infinite; }
 
 /* ── Section E — Demo (instore) animation triggers ── */
 .pslide.active .is1-eyebrow  { animation: fadeUp .5s ease both .1s; }

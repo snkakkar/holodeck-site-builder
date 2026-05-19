@@ -1611,7 +1611,6 @@
       root.appendChild(el("div", { class: "hp-eyebrow",
         text: (data.customerName || "Customer") + " + Salesforce" }));
       root.appendChild(el("h2", { class: "hp-title", text: "”" + truncate(quote, 160) + "”" }));
-      root.appendChild(el("div", { class: "hp-cta-btn", text: "RETURN TO JOURNEY MAP →" }));
       return root;
     },
 

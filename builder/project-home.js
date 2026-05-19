@@ -48,8 +48,6 @@
       ]),
       el("div", { class: "bx-home-actions" }, [
         primaryBtn("+ New Holodeck Project", function () { handlers.onNew && handlers.onNew(); }),
-        ghostBtn("Import Config", function () { handlers.onImport && handlers.onImport(); }),
-        ghostBtn("Generate with AI", function () { handlers.onAiPrompt && handlers.onAiPrompt(); }),
       ]),
     ]);
     container.appendChild(header);
@@ -199,9 +197,7 @@
       el("p", { class: "bx-firstrun-sub",
         html: "Paste a demo script — the builder extracts the story, picks the right slides, and packages a ready-to-run demo folder. <strong>No code, no JSON, no slide editor.</strong>" }),
       el("div", { class: "bx-row bx-firstrun-ctas" }, [
-        primaryBtn("+ Create your first holodeck", function () { handlers.onNew && handlers.onNew(); }),
-        ghostBtn("Import an existing config", function () { handlers.onImport && handlers.onImport(); }),
-        ghostBtn("Generate with AI", function () { handlers.onAiPrompt && handlers.onAiPrompt(); }),
+        primaryBtn("+ New Holodeck Project", function () { handlers.onNew && handlers.onNew(); }),
       ]),
     ]));
 

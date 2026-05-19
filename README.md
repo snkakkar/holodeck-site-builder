@@ -1,12 +1,8 @@
 # DEMO-HOLODECK-TEMPLATE
 
-Reusable Salesforce Holodeck demo template for building customer-specific, browser-based demo stories with minimal manual coding.
+Reusable Salesforce Holodeck template for building customer-specific, browser-based demos with minimal manual coding.
 
-This repository is designed to let you build a polished demo quickly by editing one config file and swapping customer assets, instead of hand-authoring new HTML slides every time.
-
-## What is Holodeck?
-
-Holodeck is a static, presentation-style web experience with five sections:
+Holodeck is a static web presentation with five sections:
 
 1. Journey Map
 2. Intro / narrative framing
@@ -14,99 +10,106 @@ Holodeck is a static, presentation-style web experience with five sections:
 4. Demo slides
 5. Business Value close
 
-All sections are driven by `demo/holodeck.config.js` and rendered by shared HTML/CSS/JS.
-
-## Repository structure
-
-- `builder/index.html` - guided UI builder for non-technical SEs (exports `holodeck.config.js`)
-- `builder/builder.js`, `builder.css`, `recommendation-rules.js`, `preview-renderer.js`, `config-generator.js` - builder source
-- `demo/index.html` - local entry URL (redirects to the main experience)
-- `demo/demo-holodeck-unified.html` - unified presentation shell
-- `demo/holodeck.config.js` - primary content and configuration source
-- `demo/js/holodeck-render.js` - config-driven rendering logic
-- `demo/styles/` - theme, layout, and animation CSS
-- `demo/assets/` - logos, images, GIFs, and other media
-- `HOW_TO_BUILD_HOLODECK.md` - detailed step-by-step build playbook
+All content is config-driven and rendered by shared HTML/CSS/JS.
 
 ## Quick start
 
-1. Clone this repository locally.
-2. Start a static server from the `demo` folder:
-
 ```bash
-cd demo
-python3 -m http.server 8080
+python3 -m http.server 4173
 ```
 
-3. Open `http://localhost:8080` in your browser.
-4. Present from the loaded Holodeck experience.
+Then open:
+
+- Demo: `http://localhost:4173/demo/`
+- Builder: `http://localhost:4173/builder/`
 
 No npm install or build step is required.
 
-## Two ways to build a demo
+## Two ways to build
 
-**Option A — UI Builder (recommended for non-technical SEs).** Start here:
+- **Option A - UI Builder (recommended):** guided 9-step flow for non-technical SEs, ending in one-click ZIP export.
+- **Option B - direct config edit:** update `demo/holodeck.config.js` manually (see `HOW_TO_BUILD_HOLODECK.md`).
 
-```bash
-python3 -m http.server 8080
-```
+## Builder workflow (current)
 
-Open `http://localhost:8080/builder/`. Fill in customer/audience/products, paste a script, pick recommendations, preview slide cards, and click **Download Complete Demo ZIP**. The exported ZIP ships a verbatim copy of the polished `/demo` template — same HTML shell, same CSS, same JS — with your customer's content already filled into `holodeck.config.js`. Extract, run a local server inside the `demo/` folder, and you have a customer-ready Holodeck.
+The Builder now uses a 9-step flow:
 
-**Option B — Edit the config file directly.** Open `demo/holodeck.config.js` and update Zone 1 fields by hand. See `HOW_TO_BUILD_HOLODECK.md` for the playbook.
+1. Setup
+2. Script & Story
+3. Story Foundations
+4. Recommended Narrative
+5. Slide Selection
+6. CX Components (optional)
+7. Assets (optional uploads)
+8. Preview
+9. Export
 
-## Builder previews vs. final output — important
+### Key Builder features
 
-The Builder shows two different things:
+- Script-first default flow with extraction helpers and quality checks.
+- Section-based slide selection with richer controls (including bulk actions and view modes).
+- Explicit CX link handling that promotes linked slides to embedded CX layouts during export.
+- Dedicated **Assets** step with slot-based uploads (brand, persona, store/product/demo imagery).
+- Inline **Pending text editors** so SEs can fix unresolved copy without jumping between steps.
+- Persona enhancements: pronouns and wishlist/stat editing support.
+- BVS metric override editing persisted through round-trips.
+- Live preview improvements and shared rendering helpers for consistency.
 
-- **In-app slide previews** ([`builder/preview-renderer.js`](builder/preview-renderer.js)) — lightweight thumbnails the SE uses to scan their plan. They are **indicative only**; they are not the customer-facing output.
-- **Exported Holodeck** — the polished `/demo` template with the SE's content adapted in by [`builder/holodeck-adapter.js`](builder/holodeck-adapter.js). This is what the customer sees.
+## Export behavior
 
-The exporter ([`builder/zip-exporter.js`](builder/zip-exporter.js)) fetches `/demo` files at export time and ships them into the ZIP unchanged, so the visual reference and the final output never drift apart. To upgrade the visual quality of the output, edit `/demo` — the next export will pick the changes up automatically.
+The export step supports:
 
-## How customization works
+- **Download Complete Demo ZIP** (recommended): ships a ready-to-run `demo/` package with current content.
+- **Config only**: download `holodeck.config.js` or builder JSON for existing demo folders.
 
-Most edits happen in `demo/holodeck.config.js`.
+The ZIP exporter packages the polished `/demo` runtime so visual/output quality follows the live demo shell.
 
-That file is split into two zones:
+## Security behavior for embedded CX URLs
 
-- Zone 1 (you edit): customer-specific inputs (company, presenter, brand, scenes, outline, BVS values)
-- Zone 2 (generated/content-heavy): full narrative and slide payload used by the renderer
+Embedded iframes use trusted-origin sandbox rules:
 
-For a full walkthrough of every field, see `HOW_TO_BUILD_HOLODECK.md`.
+- Trusted host allowlist includes `aubreydemo.com`.
+- Off-allowlist URLs run with tightened sandboxing (drops `allow-same-origin`).
+- UI and exported output both surface an "Off-allowlist origin — sandbox tightened" indicator when relevant.
 
-## Customize a new customer demo
+## Builder preview vs final output
 
-1. Open `demo/holodeck.config.js`.
-2. Update Zone 1 values:
-   - Customer identity (`customer`)
-   - Presenter details (`presenter`)
-   - Brand colors/logo (`brand`)
-   - Live scene URLs (`scenes`)
-   - Slide plan (`deckOutline`)
-   - BVS metrics (`bvs.metrics`)
-3. Add customer media files to `demo/assets/`.
-4. Ensure file paths in config point to the right assets.
-5. Refresh your browser and click through each section to validate flow.
+- **Builder preview:** in-app scan/authoring preview (`builder/preview-renderer.js`).
+- **Final customer output:** polished runtime in `demo/`, with builder state adapted through `builder/holodeck-adapter.js`.
+
+The builder preview helps author content quickly, while the exported/presented Holodeck is the runtime source of truth.
+
+## Repository structure
+
+- `builder/index.html` - builder entry page
+- `builder/builder.js`, `builder.css` - core builder UI/logic
+- `builder/recommendation-rules.js` - slide recommendation engine
+- `builder/preview-renderer.js` - in-builder preview renderer
+- `builder/holodeck-adapter.js` - maps builder state to polished Holodeck config
+- `builder/holodeck-shared.js` - shared render/transform helpers
+- `builder/config-generator.js` - config generation utilities
+- `builder/zip-exporter.js` - complete ZIP export pipeline
+- `builder/import-validator.js`, `builder/project-store.js` - import validation and persisted project schema
+- `demo/index.html` - demo entry URL
+- `demo/demo-holodeck-unified.html` - unified presentation shell
+- `demo/holodeck.config.js` - primary content configuration
+- `demo/js/holodeck-render.js`, `demo/js/demo-deck-renderer.js` - runtime render logic
+- `demo/styles/` - theme/layout/animation styles
+- `demo/assets/` - logos, images, GIFs, and media
+- `HOW_TO_BUILD_HOLODECK.md` - detailed build playbook
 
 ## Recommended pre-demo checklist
 
-- Replace all placeholder metrics like `XX%`, `+$XX`, and similar values
-- Update presenter name/title before every session
-- Verify all live scene URLs load correctly
-- Confirm customer brand/logo usage is approved
-- Smoke-test navigation between all major sections
-- Validate on your presentation resolution/device
+- Replace all placeholder metrics (`XX%`, `+$XX`, etc.)
+- Update presenter identity fields
+- Verify live URLs and embedded moments
+- Confirm brand/logo approval
+- Run through all sections once in browser
+- Validate on target presentation device/resolution
 
 ## Common local issues
 
-- Blank/missing media: verify files exist in `demo/assets/` and config paths are correct
-- URL scene not loading: confirm the scene link is live and accessible
-- Changes not visible: hard refresh browser and re-check for typo/comma errors in config
-- Wrong landing page: open `http://localhost:8080` (not a file URL)
-
-## Notes
-
-- This project is static HTML/CSS/JS (no build step required).
-- Keep customer-sensitive content and metrics aligned with approved messaging.
-- Use `HOW_TO_BUILD_HOLODECK.md` as the source-of-truth playbook for end-to-end build flow.
+- Media missing: verify paths and file presence under `demo/assets/` (or upload through Builder assets step)
+- Live URL not loading: confirm the URL is reachable and embeddable
+- Changes not visible: hard refresh browser
+- Wrong page: use `http://localhost:4173/demo/` or `http://localhost:4173/builder/`

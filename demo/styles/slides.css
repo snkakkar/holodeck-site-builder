@@ -334,8 +334,6 @@
 
 .bv-s5-eyebrow  { font-size:12px; font-weight:700; letter-spacing:.22em; color:var(--red, #b22234); text-transform:uppercase; margin-bottom:24px; position:relative; }
 .bv-s5-headline { font-family:"Playfair Display",Georgia,serif; font-style:italic; font-size:54px; font-weight:400; color:var(--navy, #0d1b2e); line-height:1.2; text-align:center; margin-bottom:32px; max-width:860px; position:relative; }
-.bv-s5-cta { display:inline-flex; align-items:center; gap:10px; background:var(--red, #b22234); color:#fff; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:15px 34px; border-radius:50px; border:none; cursor:pointer; font-family:inherit; box-shadow:0 6px 28px rgba(var(--red-rgb, 178,34,52), .35); transition:transform .15s,box-shadow .15s; position:relative; }
-.bv-s5-cta:hover { transform:translateY(-2px); box-shadow:0 10px 36px rgba(var(--red-rgb, 178,34,52), .5); }
 
 /* ═══════════════════════════════════════
    SECTION E — DEMO (instore journey)
