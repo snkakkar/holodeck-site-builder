@@ -223,6 +223,7 @@
       commerceMoments: [], marketingMoments: [],
       serviceMoments: [], loyaltyMoments: [],
       valueDrivers: [], assumptions: [], openQuestions: [],
+      bvsMetrics: [],
     };
   }
 

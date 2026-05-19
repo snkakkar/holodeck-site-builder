@@ -411,6 +411,36 @@ button { font-family: inherit; }
   flex-shrink: 0;
 }
 .bx-asset-controls .bx-file-input { max-width: 180px; }
+
+/* Step 7 · Pending-text inline editors */
+.bx-pending-row {
+  padding: 14px 0;
+  border-top: 1px solid var(--bx-line);
+}
+.bx-pending-row:first-of-type { border-top: none; }
+.bx-pending-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 6px;
+}
+.bx-pending-label { font-weight: 600; font-size: 14px; color: var(--bx-ink); }
+.bx-pending-source {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bx-ink-2);
+  padding: 2px 8px;
+  border: 1px solid var(--bx-line-2);
+  border-radius: var(--bx-radius-pill);
+  background: var(--bx-surface-bg, #fafbfc);
+}
+.bx-pending-pill { margin-left: auto; }
+.bx-pending-hint {
+  font-size: 13px;
+  color: var(--bx-ink-2);
+  font-style: italic;
+}
+.bx-pending-row textarea.bx-textarea { min-height: 72px; }
 .bx-color-swatch {
   width: 36px; height: 36px;
   border: 1.5px solid var(--bx-line-2);
@@ -1190,7 +1220,8 @@ button { font-family: inherit; }
 }
 .hp-foot-label { font-size: 9px; font-weight: 800; letter-spacing: 0.10em; color: var(--bx-ink-3); text-transform: uppercase; }
 .hp-foot-value { font-size: 13px; font-weight: 700; color: var(--bx-navy); margin-top: 2px; }
-.hp-logo-tag   { position: absolute; top: 10px; right: 14px; font-size: 10px; color: var(--bx-ink-3); font-family: ui-monospace, monospace; }
+.hp-logo-tag   { position: absolute; top: 10px; right: 14px; font-size: 10px; color: var(--bx-ink-3); font-family: ui-monospace, monospace; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-logo-img   { position: absolute; top: 10px; right: 14px; max-height: 28px; max-width: 120px; object-fit: contain; }
 
 /* Timeline */
 .hp-rail {

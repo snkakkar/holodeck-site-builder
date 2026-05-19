@@ -629,17 +629,14 @@
     logoFile.addEventListener("change", function () {
       const f = logoFile.files && logoFile.files[0];
       if (!f) return;
-      if (f.size > 2 * 1024 * 1024) {
-        toast("Logo is over 2MB — pick a smaller file or paste a path instead");
-        logoFile.value = "";
-        return;
-      }
+      const mb = f.size / (1024 * 1024);
+      const sizeNote = mb > 8 ? " (" + mb.toFixed(1) + "MB — config will be larger)" : "";
       const reader = new FileReader();
       reader.onload = function () {
         s.brand.logoPath = String(reader.result || "");
         logoText.value = s.brand.logoPath;
         commit();
-        toast("Logo uploaded");
+        toast("Logo uploaded" + sizeNote);
       };
       reader.onerror = function () { toast("Could not read that file"); };
       reader.readAsDataURL(f);
@@ -1125,6 +1122,13 @@
     const grid = el("div", { class: "bx-grid-2" });
     grid.appendChild(field({ label: "Name", value: p.name, onInput: function (v) { p.name = v; recompute(); renderSide(); commit(); } }));
     grid.appendChild(field({ label: "Role", value: p.role, onInput: function (v) { p.role = v; commit(); } }));
+    grid.appendChild(field({
+      label: "Pronouns", help: "drives the wishlist headline (\"Her top 3\" vs. \"His top 3\")",
+      type: "select", value: p.pronouns || "",
+      placeholder: "she/her (default)",
+      options: ["she/her", "he/him", "they/them"],
+      onInput: function (v) { p.pronouns = v; commit(); },
+    }));
     item.appendChild(grid);
     item.appendChild(field({ label: "Goals", type: "textarea", value: p.goals, onInput: function (v) { p.goals = v; commit(); } }));
     item.appendChild(field({ label: "Pain points", type: "textarea", value: p.painPoints, onInput: function (v) { p.painPoints = v; commit(); } }));
@@ -1382,30 +1386,243 @@
     });
   }
 
-  // Pending text fields the SE should still tweak.  Surfaces fields
-  // that ship as defaults / [TODO:] strings so they're easy to find.
+  // ─── Persona stat / wishlist helpers ─────────────────────────
+  // Stats and wishlist are arrays. The adapter has [TODO] defaults
+  // for missing slots; the editors here read whatever the SE has
+  // typed and lazily allocate the slot on first edit so we don't
+  // serialize empty placeholders into state.
+  function statValue(p, idx) {
+    const row = (p.stats && p.stats[idx]) || {};
+    return row.value || "";
+  }
+  function statLabel(p, idx) {
+    const row = (p.stats && p.stats[idx]) || {};
+    return row.label || "";
+  }
+  function setStat(p, idx, key, v) {
+    p.stats = Array.isArray(p.stats) ? p.stats : [];
+    while (p.stats.length <= idx) p.stats.push({ value: "", label: "" });
+    p.stats[idx][key] = v;
+  }
+  function wishField(p, idx, key) {
+    const row = (p.wishlist && p.wishlist[idx]) || {};
+    return row[key] || "";
+  }
+  function setWish(p, idx, key, v) {
+    p.wishlist = Array.isArray(p.wishlist) ? p.wishlist : [];
+    while (p.wishlist.length <= idx) p.wishlist.push({ name: "", tag: "", detail: "", emoji: "" });
+    p.wishlist[idx][key] = v;
+  }
+
+  // BVS metric overrides — kept on storyFoundations.bvsMetrics so
+  // they round-trip through import/export alongside the rest of
+  // foundations. Same lazy-allocate pattern as persona stats.
+  function bvsField(f, idx, key) {
+    const arr = (f && Array.isArray(f.bvsMetrics)) ? f.bvsMetrics : [];
+    const row = arr[idx] || {};
+    return row[key] || "";
+  }
+  function setBvs(f, idx, key, v) {
+    f.bvsMetrics = Array.isArray(f.bvsMetrics) ? f.bvsMetrics : [];
+    while (f.bvsMetrics.length <= idx) f.bvsMetrics.push({ value: "", label: "" });
+    f.bvsMetrics[idx][key] = v;
+  }
+  // Mirror of the adapter's shortenLabel — kept local so we can show
+  // the SE the same source chip as the slide will use.
+  function shortenForUi(s) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    const m = s.match(/^(?:higher|increased|improved|reduced|faster)\s+([\w\s\/]+?)(\s+through|\s+via|\s+from|$)/i);
+    if (m) return m[1].trim().replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    return s.split(/[.;]/)[0].slice(0, 32);
+  }
+
+  // Pending text fields the SE should still tweak. Each entry is an
+  // editor descriptor: { label, source, type, get, set }. We render
+  // them as inline form fields on Step 7 so the SE can polish copy
+  // without bouncing back through canonical steps. `source` is just
+  // a hint label so SEs know where the value normally lives.
+  // Editors bind directly to the canonical state path, so edits show
+  // up identically on Step 1/3/4/5 — no duplication, no drift.
   function pendingTextItems(state) {
     const out = [];
     const personas = state.personas || [];
-    if (!state.project.presenterName) out.push("Presenter name (Step 1)");
-    if (!state.project.presenterTitle) out.push("Presenter title (Step 1)");
-    if (!personas.length) {
-      out.push("No personas added yet — needed for the persona slide");
-    } else {
-      personas.forEach(function (p, i) {
-        const tag = p.name ? "'" + p.name + "'" : "Persona " + (i + 1);
-        if (!p.name) out.push(tag + " is missing a name");
-        if (!p.role) out.push(tag + " is missing a role");
-        if (!p.painPoints && !p.goals) out.push(tag + " has no quote / pain points");
+    const f = state.storyFoundations = state.storyFoundations || {};
+
+    if (!state.project.presenterName) {
+      out.push({
+        label: "Presenter name", source: "Step 1 · Setup",
+        placeholder: "e.g. Jane Smith", type: "input",
+        get: function () { return state.project.presenterName || ""; },
+        set: function (v) { state.project.presenterName = v; },
       });
     }
-    const f = state.storyFoundations || {};
-    if (!f.executiveTakeaway) out.push("Executive takeaway (Step 3)");
-    if (!f.transformationThesis) out.push("Transformation thesis (Step 3)");
+    if (!state.project.presenterTitle) {
+      out.push({
+        label: "Presenter title", source: "Step 1 · Setup",
+        placeholder: "e.g. Senior Account Executive", type: "input",
+        get: function () { return state.project.presenterTitle || ""; },
+        set: function (v) { state.project.presenterTitle = v; },
+      });
+    }
+    if (!personas.length) {
+      out.push({
+        label: "No personas added", source: "Step 4 · Personas",
+        readonly: true, hint: "Personas are needed for the 'Meet the persona' slide. Add one on Step 4.",
+      });
+    } else {
+      personas.forEach(function (p, i) {
+        const tag = p.name ? p.name : "Persona " + (i + 1);
+        if (!p.name) {
+          out.push({
+            label: tag + " name", source: "Step 4 · Personas",
+            placeholder: "e.g. Rachel Chen", type: "input",
+            get: function () { return p.name || ""; },
+            set: function (v) { p.name = v; },
+          });
+        }
+        if (!p.role) {
+          out.push({
+            label: tag + " role", source: "Step 4 · Personas",
+            placeholder: "e.g. Loyalty member · Suburban mom", type: "input",
+            get: function () { return p.role || ""; },
+            set: function (v) { p.role = v; },
+          });
+        }
+        if (!p.painPoints && !p.goals) {
+          out.push({
+            label: tag + " quote / pain points", source: "Step 4 · Personas",
+            placeholder: "What's the unspoken thing on their mind?",
+            type: "textarea",
+            get: function () { return p.painPoints || ""; },
+            set: function (v) { p.painPoints = v; },
+          });
+        }
+        // Pronouns drive the wishlist headline ("Her top 3..."
+        // vs. "His top 3..."). We always surface this so the SE
+        // can change it from the she/her default — the slide
+        // emits hard-coded pronouns otherwise.
+        out.push({
+          label: tag + " pronouns", source: "Step 4 · Personas",
+          type: "select",
+          options: [
+            { value: "",          label: "she/her (default)" },
+            { value: "she/her",   label: "she/her" },
+            { value: "he/him",    label: "he/him" },
+            { value: "they/them", label: "they/them" },
+          ],
+          hint: "Used for the wishlist headline — \"Her top 3\" vs. \"His top 3\".",
+          get: function () { return p.pronouns || ""; },
+          set: function (v) { p.pronouns = v; },
+        });
+        // Persona stats — three slots that render above "Top
+        // Moment / Tradition / Signal" on the persona card. The
+        // adapter falls back to "[TODO]" when these are empty,
+        // so each blank slot is genuinely worth surfacing here.
+        ["Top Moment", "Tradition", "Signal"].forEach(function (defaultLabel, idx) {
+          out.push({
+            label: tag + " · stat #" + (idx + 1) + " value",
+            source: "Persona card · " + defaultLabel,
+            placeholder: "e.g. \"4th of July\"", type: "input",
+            hint: "Big text shown on the persona card stat tile.",
+            get: function () { return statValue(p, idx); },
+            set: function (v) { setStat(p, idx, "value", v); },
+          });
+          out.push({
+            label: tag + " · stat #" + (idx + 1) + " label",
+            source: "Persona card · " + defaultLabel,
+            placeholder: defaultLabel, type: "input",
+            hint: "Small caption under the stat value.",
+            get: function () { return statLabel(p, idx); },
+            set: function (v) { setStat(p, idx, "label", v); },
+          });
+        });
+        // Persona wishlist — three product slots. Each row has a
+        // name and a detail line (the tag/emoji are decoration
+        // and stay on their defaults).
+        ["Top product", "Companion", "Complete the look"].forEach(function (defaultLabel, idx) {
+          out.push({
+            label: tag + " · wishlist #" + (idx + 1) + " name",
+            source: "Persona card · " + defaultLabel,
+            placeholder: "e.g. Paloma Outdoor Set", type: "input",
+            get: function () { return wishField(p, idx, "name"); },
+            set: function (v) { setWish(p, idx, "name", v); },
+          });
+          out.push({
+            label: tag + " · wishlist #" + (idx + 1) + " detail",
+            source: "Persona card · " + defaultLabel,
+            placeholder: "e.g. Saved to cart · price-drop trigger", type: "input",
+            get: function () { return wishField(p, idx, "detail"); },
+            set: function (v) { setWish(p, idx, "detail", v); },
+          });
+        });
+      });
+    }
+    // BVS metrics — five tiles on the Business Value slide. The
+    // adapter falls back to "XX%" / "+$XX" / etc. when these are
+    // empty, which is the fastest way to spot them in the live demo.
+    // Default labels mirror the adapter so the source chip is honest
+    // even before the SE writes anything.
+    const bvsDefaults = [
+      { value: "XX%",  label: "Conversion Lift"      },
+      { value: "+$XX", label: "Average Order Value"  },
+      { value: "XX%",  label: "Loyalty Enrollment"   },
+      { value: "XXx",  label: "Repeat Purchase Rate" },
+      { value: "XX%",  label: "Service Efficiency"   },
+    ];
+    const drivers = (f.valueDrivers || []);
+    bvsDefaults.forEach(function (def, idx) {
+      const driverLabel = drivers[idx] ? shortenForUi(drivers[idx]) : "";
+      const sourceLabel = "Business Value tile · " + (driverLabel || def.label);
+      out.push({
+        label: "BVS metric #" + (idx + 1) + " value",
+        source: sourceLabel,
+        placeholder: def.value, type: "input",
+        hint: "Big number on the Business Value slide (e.g. \"23%\", \"+$340\").",
+        get: function () { return bvsField(f, idx, "value"); },
+        set: function (v) { setBvs(f, idx, "value", v); },
+      });
+      out.push({
+        label: "BVS metric #" + (idx + 1) + " label",
+        source: sourceLabel,
+        placeholder: driverLabel || def.label, type: "input",
+        hint: "Small caption under the metric.",
+        get: function () { return bvsField(f, idx, "label"); },
+        set: function (v) { setBvs(f, idx, "label", v); },
+      });
+    });
+
+    if (!f.executiveTakeaway) {
+      out.push({
+        label: "Executive takeaway", source: "Step 3 · Story Foundations",
+        placeholder: "One-line summary the executive should walk away with",
+        type: "textarea",
+        get: function () { return f.executiveTakeaway || ""; },
+        set: function (v) { f.executiveTakeaway = v; },
+      });
+    }
+    if (!f.transformationThesis) {
+      out.push({
+        label: "Transformation thesis", source: "Step 3 · Story Foundations",
+        placeholder: "From X today → to Y tomorrow",
+        type: "textarea",
+        get: function () { return f.transformationThesis || ""; },
+        set: function (v) { f.transformationThesis = v; },
+      });
+    }
     (state.slides || []).forEach(function (sl) {
       const customised = state.customRecTitles && state.customRecTitles[sl.id];
       if (!customised && /^Slide \d/.test(sl.title)) {
-        out.push("Slide '" + sl.title + "' still has its default title");
+        out.push({
+          label: "Title for '" + sl.title + "'", source: "Step 5 · Slide Selection",
+          placeholder: "Give this slide a real title",
+          type: "input",
+          get: function () { return sl.title || ""; },
+          set: function (v) {
+            sl.title = v;
+            state.customRecTitles = state.customRecTitles || {};
+            state.customRecTitles[sl.id] = v;
+          },
+        });
       }
     });
     return out;
@@ -1426,51 +1643,47 @@
       const empty = el("div", { class: "bx-card" });
       empty.appendChild(el("div", { class: "bx-card-title", text: "No image slots needed yet" }));
       empty.appendChild(el("div", { class: "bx-card-sub",
-        text: "Pick slides on Step 5 (Slide Selection) and we'll list out every image slot those slides can use." }));
+        text: "Pick slides on Step 5 (Slide Selection) and we'll list out every image slot those slides can use. You can still polish text below." }));
       wrap.appendChild(empty);
-      wrap.appendChild(stepFooter("assets"));
-      return wrap;
-    }
-
-    // Group items by their `group` property in catalog order.
-    const groups = [];
-    const groupIndex = {};
-    items.forEach(function (it) {
-      if (groupIndex[it.group] == null) {
-        groupIndex[it.group] = groups.length;
-        groups.push({ label: it.group, items: [] });
-      }
-      groups[groupIndex[it.group]].items.push(it);
-    });
-
-    groups.forEach(function (g) {
-      const card = el("div", { class: "bx-card" });
-      card.appendChild(el("div", { class: "bx-card-title", text: g.label }));
-      card.appendChild(el("div", { class: "bx-card-sub",
-        text: g.label === "Brand"
-          ? "Travels with the exported config — no need to drop into demo/assets/."
-          : "These flow into every slide in your deck that uses them." }));
-      g.items.forEach(function (it) { card.appendChild(assetRow(s, it)); });
-      wrap.appendChild(card);
-    });
-
-    // Pending text fields card — quick triage list, not blocking.
-    const pending = pendingTextItems(s);
-    if (pending.length) {
-      const card = el("div", { class: "bx-card" });
-      card.appendChild(el("div", { class: "bx-card-title", text: "Text still to update" }));
-      card.appendChild(el("div", { class: "bx-card-sub",
-        text: "Default copy you might want to replace before presenting. None of this blocks export — it's a polish list." }));
-      const ul = el("ul", { class: "bx-checklist" });
-      pending.forEach(function (line) {
-        ul.appendChild(el("li", { class: "bx-checklist-item is-pending" }, [
-          el("span", { class: "bx-checklist-icon", text: "○" }),
-          el("span", { class: "bx-checklist-label", text: line }),
-        ]));
+    } else {
+      // Group items by their `group` property in catalog order.
+      const groups = [];
+      const groupIndex = {};
+      items.forEach(function (it) {
+        if (groupIndex[it.group] == null) {
+          groupIndex[it.group] = groups.length;
+          groups.push({ label: it.group, items: [] });
+        }
+        groups[groupIndex[it.group]].items.push(it);
       });
-      card.appendChild(ul);
-      wrap.appendChild(card);
+
+      groups.forEach(function (g) {
+        const card = el("div", { class: "bx-card" });
+        card.appendChild(el("div", { class: "bx-card-title", text: g.label }));
+        card.appendChild(el("div", { class: "bx-card-sub",
+          text: g.label === "Brand"
+            ? "Travels with the exported config — no need to drop into demo/assets/."
+            : "These flow into every slide in your deck that uses them." }));
+        g.items.forEach(function (it) { card.appendChild(assetRow(s, it)); });
+        wrap.appendChild(card);
+      });
     }
+
+    // Pending text fields card — inline editors. None of these are
+    // required to export; they're surfaced here so the SE can polish
+    // default / empty copy in one place. Edits write straight to the
+    // canonical state path, so changes show up on the source step too.
+    const pending = pendingTextItems(s);
+    const card = el("div", { class: "bx-card" });
+    card.appendChild(el("div", { class: "bx-card-title", text: "Text still to update" }));
+    card.appendChild(el("div", { class: "bx-card-sub",
+      text: pending.length
+        ? "Default copy you might want to replace before presenting. Saved as you type — none of this blocks export."
+        : "Every default field has been filled in. You're good to go." }));
+    pending.forEach(function (item) {
+      card.appendChild(pendingTextRow(item));
+    });
+    wrap.appendChild(card);
 
     wrap.appendChild(stepFooter("assets"));
     return wrap;
@@ -1529,17 +1742,18 @@
     file.addEventListener("change", function () {
       const f = file.files && file.files[0];
       if (!f) return;
-      if (f.size > 4 * 1024 * 1024) {
-        toast("File is over 4MB — pick a smaller one (data URLs bloat the export).");
-        file.value = "";
-        return;
-      }
+      const mb = f.size / (1024 * 1024);
+      // Soft warning over 8MB — data URLs are base64, so config size
+      // grows ~33% on top of file size. We let SEs upload anyway since
+      // GIFs and persona videos can legitimately be large; we just
+      // surface that the export will be a chunky file.
+      const sizeNote = mb > 8 ? " (" + mb.toFixed(1) + "MB — heads up, the export config will be larger)" : "";
       const reader = new FileReader();
       reader.onload = function () {
         write(String(reader.result || ""));
         refreshThumb(); refreshStatus();
         commit();
-        toast(item.label + " uploaded");
+        toast(item.label + " uploaded" + sizeNote);
       };
       reader.onerror = function () { toast("Could not read that file"); };
       reader.readAsDataURL(f);
@@ -1555,6 +1769,62 @@
     controls.appendChild(clear);
 
     wrap.appendChild(controls);
+    return wrap;
+  }
+
+  // Single pending-text row: label + source chip + inline editor.
+  // Read-only items just show a hint (e.g. "no personas added yet").
+  function pendingTextRow(item) {
+    const wrap = el("div", { class: "bx-pending-row" });
+    const head = el("div", { class: "bx-pending-head" }, [
+      el("div", { class: "bx-pending-label", text: item.label }),
+      item.source ? el("span", { class: "bx-pending-source", text: item.source }) : null,
+    ]);
+    wrap.appendChild(head);
+
+    if (item.readonly) {
+      wrap.appendChild(el("div", { class: "bx-pending-hint", text: item.hint || "" }));
+      return wrap;
+    }
+
+    let input;
+    if (item.type === "textarea") {
+      input = el("textarea", { class: "bx-textarea", placeholder: item.placeholder || "" });
+      input.value = item.get();
+    } else if (item.type === "select") {
+      input = el("select", { class: "bx-input" });
+      (item.options || []).forEach(function (opt) {
+        const o = el("option", { value: opt.value, text: opt.label });
+        input.appendChild(o);
+      });
+      input.value = item.get();
+    } else {
+      input = el("input", { type: "text", class: "bx-input",
+        placeholder: item.placeholder || "", value: item.get() });
+    }
+    const status = el("span", { class: "bx-rec-pill tone-gold bx-pending-pill", text: "Empty" });
+    function refreshStatus() {
+      const filled = !!String(input.value || "").trim();
+      // Selects with a sensible blank default ("she/her") shouldn't
+      // read as "Empty" — they read as "Default" instead.
+      if (item.type === "select" && !filled) {
+        status.textContent = "Default";
+        status.className = "bx-rec-pill bx-pending-pill tone-gold";
+        return;
+      }
+      status.textContent = filled ? "Saved" : "Empty";
+      status.className = "bx-rec-pill bx-pending-pill " + (filled ? "tone-good" : "tone-gold");
+    }
+    refreshStatus();
+    const evt = (item.type === "select") ? "change" : "input";
+    input.addEventListener(evt, function () {
+      item.set(input.value);
+      refreshStatus();
+      commit();
+    });
+    head.appendChild(status);
+    wrap.appendChild(input);
+    if (item.hint) wrap.appendChild(el("div", { class: "bx-pending-hint", text: item.hint }));
     return wrap;
   }
 

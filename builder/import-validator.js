@@ -115,13 +115,34 @@
       || (parsed.builderPlan && parsed.builderPlan.personas)
       || [];
     state.personas = ensureArray(personasSrc).map(function (p) {
+      // Stats/wishlist sometimes import as the polished
+      // `persona.stats[]` / `persona.wishlist[]` arrays from a
+      // generated config. Pass them through as-is when present so
+      // the Step 7 editor can reopen them and the adapter can
+      // re-emit them on the next export.
+      const stats = ensureArray(p && p.stats).map(function (r) {
+        return { value: strOr(r && r.value, ""), label: strOr(r && r.label, "") };
+      });
+      const wishlist = ensureArray(p && p.wishlist).map(function (r) {
+        return {
+          name:   strOr(r && r.name, ""),
+          tag:    strOr(r && r.tag, ""),
+          detail: strOr(r && r.detail, ""),
+          emoji:  strOr(r && r.emoji, ""),
+        };
+      });
       return {
         id:            strOr(p && p.id, uid("persona_")),
         name:          strOr(p && p.name, ""),
         role:          strOr(p && p.role, p && p.jobTitle, ""),
+        pronouns:      strOr(p && p.pronouns, ""),
         goals:         strOr(p && p.goals, ""),
         painPoints:    strOr(p && p.painPoints, ""),
         demoRelevance: strOr(p && p.demoRelevance, ""),
+        stats:         stats,
+        wishlist:      wishlist,
+        wishlistHeadline: strOr(p && p.wishlistHeadline, ""),
+        wishlistLabel:    strOr(p && p.wishlistLabel, ""),
       };
     });
 
@@ -299,6 +320,9 @@
         valueDrivers:           arrOr(fSrc.valueDrivers, []),
         assumptions:            arrOr(fSrc.assumptions, []),
         openQuestions:          arrOr(fSrc.openQuestions, []),
+        bvsMetrics:             ensureArray(fSrc.bvsMetrics).map(function (m) {
+          return { value: strOr(m && m.value, ""), label: strOr(m && m.label, "") };
+        }),
       };
     }
 

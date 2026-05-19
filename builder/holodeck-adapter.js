@@ -292,20 +292,31 @@
   }
 
   // ─── bvs ─────────────────────────────────────────────────────
+  // Three layers, last-wins:
+  //   1. Hardcoded defaults (XX% / +$XX) — so the slide always renders.
+  //   2. Driver-derived label (from storyFoundations.valueDrivers).
+  //   3. SE overrides (storyFoundations.bvsMetrics[i].{value,label})
+  //      — set via Step 7's pending-text editor.
   function buildBvs(state, f) {
-    const drivers = (f.valueDrivers || []).slice(0, 5);
-    const metrics = drivers.length
-      ? drivers.map(function (d, i) {
-          const icons = ["↑", "💳", "★", "🔄", "⚡"];
-          return { icon: icons[i] || "→", value: "[TODO: %]", label: shortenLabel(d) };
-        })
-      : [
-          { icon: "↑",  value: "XX%",  label: "Conversion Lift" },
-          { icon: "💳", value: "+$XX", label: "Average Order Value" },
-          { icon: "★",  value: "XX%",  label: "Loyalty Enrollment" },
-          { icon: "🔄", value: "XXx",  label: "Repeat Purchase Rate" },
-          { icon: "⚡", value: "XX%",  label: "Service Efficiency" },
-        ];
+    const icons    = ["↑", "💳", "★", "🔄", "⚡"];
+    const drivers  = (f.valueDrivers || []).slice(0, 5);
+    const overrides = Array.isArray(f.bvsMetrics) ? f.bvsMetrics : [];
+    const fallback = [
+      { value: "XX%",  label: "Conversion Lift"      },
+      { value: "+$XX", label: "Average Order Value"  },
+      { value: "XX%",  label: "Loyalty Enrollment"   },
+      { value: "XXx",  label: "Repeat Purchase Rate" },
+      { value: "XX%",  label: "Service Efficiency"   },
+    ];
+    const metrics = fallback.map(function (def, i) {
+      const driverLabel = drivers[i] ? shortenLabel(drivers[i]) : "";
+      const ov = overrides[i] || {};
+      return {
+        icon:  icons[i] || "→",
+        value: (ov.value && String(ov.value).trim()) || (drivers[i] ? "[TODO: %]" : def.value),
+        label: (ov.label && String(ov.label).trim()) || driverLabel || def.label,
+      };
+    });
     return {
       disclaimer: "Replace placeholders with BVS-approved values before presenting externally.",
       metrics: metrics,
@@ -325,6 +336,7 @@
   // ─── persona ─────────────────────────────────────────────────
   function buildPersona(p, project, state) {
     if (!p) {
+      const fallbackPron = pronounsFor("");
       return {
         name:        "[TODO: persona first name]",
         fullName:    "[TODO: persona full name]",
@@ -335,7 +347,7 @@
         quote:       "[TODO: persona quote in their own voice]",
         stats:       defaultPersonaStats(),
         wishlist:    defaultPersonaWishlist(),
-        wishlistHeadline: "[TODO: wishlist headline]",
+        wishlistHeadline: wishlistHeadlineFor(fallbackPron),
         wishlistLabel:    "[TODO: wishlist section label]",
         ctaLabel:         "BEGIN THE JOURNEY &nbsp;→",
         ctaHeadline:      "[TODO: closing CTA headline]",
@@ -348,6 +360,9 @@
     }
     const first = (p.name || "").trim().split(/\s+/)[0] || "[TODO: persona]";
     const full  = p.name || "[TODO: persona full name]";
+    const pron  = pronounsFor(p.pronouns);
+    const stats = personaStatsFrom(p);
+    const wish  = personaWishlistFrom(p);
     return {
       name:        first,
       fullName:    full,
@@ -358,10 +373,17 @@
       quote:       p.painPoints
                      ? cleanQuote(p.painPoints)
                      : (p.goals ? cleanQuote(p.goals) : "[TODO: persona quote]"),
-      stats:       defaultPersonaStats(),
-      wishlist:    defaultPersonaWishlist(),
-      wishlistHeadline: "Her top 3. <strong>Picked just for her.</strong>",
-      wishlistLabel:    first + "'s Wishlist",
+      stats:       stats,
+      wishlist:    wish,
+      // Skip a stored wishlistHeadline that's just the old hardcoded
+      // "Her top 3..." string — those round-tripped in from earlier
+      // exports before the pronoun feature, and would otherwise stomp
+      // on the new pronoun-aware default. Treat any custom phrasing
+      // (the SE wrote their own) as authoritative.
+      wishlistHeadline: (p.wishlistHeadline && !isLegacyWishlistHeadline(p.wishlistHeadline))
+                          ? p.wishlistHeadline
+                          : wishlistHeadlineFor(pron),
+      wishlistLabel:    p.wishlistLabel    ? p.wishlistLabel    : (first + "'s Wishlist"),
       ctaLabel:         "BEGIN THE JOURNEY &nbsp;→",
       ctaHeadline:      "Let's follow " + first + "'s journey.",
       ctaSub:           truncate(p.demoRelevance || "From inspiration to purchase to loyalty.", 110),
@@ -374,6 +396,52 @@
       phoneGif:         asset(state, "persona.phoneGif"),
       portrait:         asset(state, "persona.portrait"),
     };
+  }
+  // Map the SE's pronoun selection (or empty) into the words we
+  // splice into wishlistHeadline. Default to she/her for legacy
+  // back-compat — the SE picks he/him or they/them on Step 4 / 7
+  // when it doesn't fit the persona.
+  function pronounsFor(value) {
+    const v = String(value || "").toLowerCase();
+    if (v === "he/him")     return { subj: "His",   obj: "him"  };
+    if (v === "they/them")  return { subj: "Their", obj: "them" };
+    return                         { subj: "Her",   obj: "her"  };
+  }
+  function wishlistHeadlineFor(pron) {
+    return pron.subj + " top 3. <strong>Picked just for " + pron.obj + ".</strong>";
+  }
+  function isLegacyWishlistHeadline(s) {
+    // Match the old hardcoded "Her top 3. Picked just for her." pattern
+    // (or its his/their variants) so round-tripped exports don't lock
+    // in pronouns that no longer match the persona.
+    return /^(?:Her|His|Their) top 3\.\s*<strong>Picked just for (?:her|him|them)\.<\/strong>$/i.test(String(s || "").trim());
+  }
+  // Pull stats/wishlist from the persona itself when the SE has
+  // filled them in on Step 7's pending-text editor. Otherwise fall
+  // back to the [TODO] defaults so the slide still renders.
+  function personaStatsFrom(p) {
+    const arr = Array.isArray(p.stats) ? p.stats : [];
+    const def = defaultPersonaStats();
+    return def.map(function (d, i) {
+      const row = arr[i] || {};
+      return {
+        value: (row.value && String(row.value).trim()) || d.value,
+        label: (row.label && String(row.label).trim()) || d.label,
+      };
+    });
+  }
+  function personaWishlistFrom(p) {
+    const arr = Array.isArray(p.wishlist) ? p.wishlist : [];
+    const def = defaultPersonaWishlist();
+    return def.map(function (d, i) {
+      const row = arr[i] || {};
+      return {
+        name:   (row.name   && String(row.name).trim())   || d.name,
+        tag:    (row.tag    && String(row.tag).trim())    || d.tag,
+        detail: (row.detail && String(row.detail).trim()) || d.detail,
+        emoji:  (row.emoji  && String(row.emoji).trim())  || d.emoji,
+      };
+    });
   }
   function defaultPersonaStats() {
     return [

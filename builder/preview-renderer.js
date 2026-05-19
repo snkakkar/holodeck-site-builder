@@ -393,7 +393,16 @@
         root.appendChild(foot);
       }
       if (data.brand.logoPath) {
-        root.appendChild(el("div", { class: "hp-logo-tag", text: data.brand.logoPath }));
+        // Logos uploaded via Step 1 are data URLs (base64 strings
+        // hundreds of KB long). Don't dump that into the corner tag —
+        // render a small thumbnail when it's a data URL, and the
+        // pathname when it's a real asset path.
+        const isDataUrl = /^data:/i.test(data.brand.logoPath);
+        if (isDataUrl) {
+          root.appendChild(el("img", { class: "hp-logo-img", src: data.brand.logoPath, alt: "Customer logo" }));
+        } else {
+          root.appendChild(el("div", { class: "hp-logo-tag", text: data.brand.logoPath }));
+        }
       }
       return root;
     },
