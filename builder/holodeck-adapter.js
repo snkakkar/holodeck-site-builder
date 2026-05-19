@@ -34,6 +34,18 @@
 
   const TODO = "[TODO: confirm with customer]";
 
+  // ─── Asset library lookup ────────────────────────────────────
+  // Step 7's "Assets" panel writes uploads (data URLs) into
+  // state.assetLibrary keyed by slot name. The adapter looks up
+  // each slot here so anything the SE uploaded flows into the
+  // exported config. Slots without an upload fall back to the
+  // legacy empty-string default — same as before this feature.
+  function asset(state, slot) {
+    const lib = (state && state.assetLibrary) || {};
+    const v = lib[slot];
+    return (typeof v === "string" && v) ? v : "";
+  }
+
   // ─── Public entry ────────────────────────────────────────────
   function toPolishedHolodeckConfig(state) {
     state = state || {};
@@ -52,7 +64,7 @@
       scenes:            buildScenes(state),
       deckOutline:       buildDeckOutline(state),
       bvs:               buildBvs(state, f),
-      persona:           buildPersona(persona, project),
+      persona:           buildPersona(persona, project, state),
       journey:           buildJourney(state, f, products, acts),
       customer_narrative: buildCustomerNarrative(project, f),
       demoStructure:     buildDemoStructure(state, f),
@@ -311,7 +323,7 @@
   }
 
   // ─── persona ─────────────────────────────────────────────────
-  function buildPersona(p, project) {
+  function buildPersona(p, project, state) {
     if (!p) {
       return {
         name:        "[TODO: persona first name]",
@@ -328,9 +340,10 @@
         ctaLabel:         "BEGIN THE JOURNEY &nbsp;→",
         ctaHeadline:      "[TODO: closing CTA headline]",
         ctaSub:           "[TODO: closing CTA sub]",
-        heroBackground:   "",
-        heroGif:          "",
-        phoneGif:         "",
+        heroBackground:   asset(state, "persona.heroBackground"),
+        heroGif:          asset(state, "persona.heroGif"),
+        phoneGif:         asset(state, "persona.phoneGif"),
+        portrait:         asset(state, "persona.portrait"),
       };
     }
     const first = (p.name || "").trim().split(/\s+/)[0] || "[TODO: persona]";
@@ -353,11 +366,13 @@
       ctaHeadline:      "Let's follow " + first + "'s journey.",
       ctaSub:           truncate(p.demoRelevance || "From inspiration to purchase to loyalty.", 110),
       // Empty strings (not literal "[TODO:]" paths) so the browser
-      // skips fetching a broken image. SE replaces these in the
-      // exported holodeck.config.js after dropping files into assets/.
-      heroBackground:   "",
-      heroGif:          "",
-      phoneGif:         "",
+      // skips fetching a broken image. Step 7's Assets panel writes
+      // any uploads into state.assetLibrary, which we read here so
+      // the SE doesn't have to drop files into demo/assets/ post-export.
+      heroBackground:   asset(state, "persona.heroBackground"),
+      heroGif:          asset(state, "persona.heroGif"),
+      phoneGif:         asset(state, "persona.phoneGif"),
+      portrait:         asset(state, "persona.portrait"),
     };
   }
   function defaultPersonaStats() {
@@ -797,12 +812,12 @@
   // broken.  Device-frame PNGs (which we *do* ship) keep their paths.
   function buildDemoAssets(state) {
     return {
-      storeExterior:     "",
-      storeInterior:     "",
-      productHero:       "",
-      iPhoneRec:         "",
-      webBrowseGif:      "",
-      laptopBrowsingGif: "",
+      storeExterior:     asset(state, "storeExterior"),
+      storeInterior:     asset(state, "storeInterior"),
+      productHero:       asset(state, "productHero"),
+      iPhoneRec:         asset(state, "iPhoneRec"),
+      webBrowseGif:      asset(state, "webBrowseGif"),
+      laptopBrowsingGif: asset(state, "laptopBrowsingGif"),
       macbookFrame:      "assets/macbook-transparent.png",
       iPhoneFrame:       "assets/iPhone16Pro_FRAME.png",
     };
@@ -853,6 +868,7 @@
       personas:         state.personas         || [],
       storyActs:        state.storyActs        || [],
       cxComponents:     cxAll,
+      assetLibrary:     state.assetLibrary || {},
       slideSections:    state.slideSections || [],
       slides:           (state.slides || []).map(function (s, i) {
         const explicitCx = explicitBySlide[s.id] || [];

@@ -170,6 +170,16 @@
         notes:          strOr(a && a.notes, ""),
       };
     });
+    // Step 7 asset library: a flat key → value (data URL or path) map.
+    // Either at the top level or inside builderPlan from older exports.
+    const libSrc = (parsed.assetLibrary && typeof parsed.assetLibrary === "object")
+      ? parsed.assetLibrary
+      : (parsed.builderPlan && parsed.builderPlan.assetLibrary) || {};
+    state.assetLibrary = {};
+    Object.keys(libSrc || {}).forEach(function (k) {
+      const v = libSrc[k];
+      if (typeof v === "string") state.assetLibrary[k] = v;
+    });
 
     // ── Recommendations ────────────────────────────────────────
     state.recommendations = ensureArray(parsed.recommendations).map(function (r) {
@@ -411,7 +421,7 @@
       brand: { logoPath: "", primaryColor: "#b22234", secondaryColor: "#1a5fa0", accentColor: "#f5c06a", visualDirection: "", notes: "" },
       story: { bigProblem: "", currentPain: "", futureVision: "", keyCustomerMoments: "", operationalMoments: "", agentforceMoments: "", dataCloudMoments: "", businessValueMoments: "", executiveTakeaway: "" },
       personas: [], storyActs: [], scriptText: "", storyMode: "manual",
-      scenes: [], assets: [], recommendations: [],
+      scenes: [], assets: [], assetLibrary: {}, recommendations: [],
       selectedRecIds: {}, customRecTitles: {}, slides: [], buildNotes: [],
     };
   }

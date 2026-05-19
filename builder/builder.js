@@ -37,8 +37,9 @@
     { id: "narrative",   num: "4", label: "Recommended Narrative", help: "See the suggested story arc" },
     { id: "recs",        num: "5", label: "Slide Selection",       help: "Customize the slide plan by section" },
     { id: "cx",          num: "6", label: "CX Components",         help: "Embed live AubreyDemo screens (optional)" },
-    { id: "preview",     num: "7", label: "Preview",               help: "Review the full demo before exporting" },
-    { id: "export",      num: "8", label: "Export",                help: "Download the complete demo ZIP" },
+    { id: "assets",      num: "7", label: "Assets",                help: "Upload images for the slides you selected (optional)" },
+    { id: "preview",     num: "8", label: "Preview",               help: "Review the full demo before exporting" },
+    { id: "export",      num: "9", label: "Export",                help: "Download the complete demo ZIP" },
   ];
   const INDUSTRIES = ["Retail","Consumer Goods","Hospitality","Travel","Financial Services","Healthcare","Other"];
   const AUDIENCES  = ["Executive","IT","Marketing","Sales","Service","Store Ops","Field Ops","Mixed"];
@@ -437,6 +438,7 @@
     else if (step === "narrative")   main.appendChild(viewNarrative());
     else if (step === "cx")          main.appendChild(viewCxComponents());
     else if (step === "recs")        main.appendChild(viewRecommendations());
+    else if (step === "assets")      main.appendChild(viewAssets());
     else if (step === "preview")     main.appendChild(viewPreview());
     else if (step === "export")      main.appendChild(viewExport());
     else                             main.appendChild(viewSetup());
@@ -464,6 +466,14 @@
       title.textContent = "CX Components";
       sub.textContent = ((app.state.cxComponents || []).length) + " linked so far";
       sideCxSummary(body);
+    } else if (step === "assets") {
+      const lib = app.state.assetLibrary || {};
+      const filled = Object.keys(lib).filter(function (k) { return lib[k]; }).length;
+      title.textContent = "Assets";
+      sub.textContent = filled
+        ? filled + " uploaded so far"
+        : "Upload anything you want to ship with the demo";
+      sideAssetSummary(body);
     } else {
       title.textContent = "Ready to export";
       sub.textContent = "Snapshot of what you've built";
@@ -1188,7 +1198,7 @@
         btn("+ Add CX Component Link", "bx-btn-primary", function () { addCxComponent(); }),
         btn("Skip — I don't have CX links yet", "bx-btn-secondary", function () {
           s._cxSkipped = true; commit();
-          app.state.step = "preview"; renderShell();
+          app.state.step = "assets"; renderShell();
         }),
       ]));
       wrap.appendChild(empty);
@@ -1305,6 +1315,269 @@
     item.appendChild(status);
 
     return item;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  STEP 7: ASSETS — uploads keyed by slot, scoped to selected slides
+  // ═══════════════════════════════════════════════════════════════
+  // Catalog of every shared asset slot the polished template /demo
+  // can consume.  Keys MUST match what holodeck-adapter.asset(state, slot)
+  // looks up.  layouts[] = which slide layouts make this slot visible
+  // (so SEs only see what's relevant to the deck they built).
+  // Persona slots auto-show whenever a persona exists OR a persona-
+  // related slide is selected.
+  const ASSET_CATALOG = [
+    // Brand
+    { slot: "brand.logoPath", group: "Brand", label: "Customer logo",
+      help: "Shown in the top-left navigation and on the title slide.",
+      always: true, accept: "image/*" },
+    // Persona — surfaces whenever a persona card is in the deck.
+    { slot: "persona.portrait", group: "Persona", label: "Persona portrait",
+      help: "Square photo used on the persona card.",
+      layouts: ["personaCard"], accept: "image/*" },
+    { slot: "persona.heroBackground", group: "Persona", label: "Persona hero background",
+      help: "Full-bleed environment shot behind the persona on the 'Meet the persona' page.",
+      layouts: ["personaCard"], accept: "image/*" },
+    { slot: "persona.heroGif", group: "Persona", label: "Persona hero GIF",
+      help: "Looping moment of the persona — overlays the hero background.",
+      layouts: ["personaCard"], accept: "image/*,video/mp4" },
+    { slot: "persona.phoneGif", group: "Persona", label: "Persona phone GIF",
+      help: "Animated screen shown inside the iPhone frame on persona slides.",
+      layouts: ["personaCard", "deviceMoment"], accept: "image/*,video/mp4" },
+    // Demo library — used by the polished demo Section's slide library.
+    { slot: "storeExterior", group: "Demo backdrops", label: "Store exterior",
+      help: "Photo of the customer's location / storefront.",
+      layouts: ["deviceMoment", "embeddedCxComponent", "currentFutureState"], accept: "image/*" },
+    { slot: "storeInterior", group: "Demo backdrops", label: "Store interior",
+      help: "In-store moment used as a background panel.",
+      layouts: ["deviceMoment", "embeddedCxComponent"], accept: "image/*" },
+    { slot: "productHero", group: "Demo backdrops", label: "Product hero image",
+      help: "The featured product / SKU shown on the right-rail card.",
+      layouts: ["deviceMoment", "unifiedProfile", "embeddedCxComponent"], accept: "image/*" },
+    { slot: "iPhoneRec", group: "Demo screens", label: "iPhone recommendation screen",
+      help: "Static screenshot for the 'app recommends' moment.",
+      layouts: ["deviceMoment", "agentConversation"], accept: "image/*" },
+    { slot: "webBrowseGif", group: "Demo screens", label: "Web browse GIF",
+      help: "Looping browse session for the storefront moment.",
+      layouts: ["deviceMoment", "embeddedCxComponent"], accept: "image/*,video/mp4" },
+    { slot: "laptopBrowsingGif", group: "Demo screens", label: "Laptop browsing GIF",
+      help: "Looping desktop browse for laptop-frame slides.",
+      layouts: ["deviceMoment", "embeddedCxComponent"], accept: "image/*,video/mp4" },
+  ];
+
+  // Compute which assets should show given the current slide plan.
+  // We always surface "Brand" and (if any persona exists or any
+  // selected slide is persona-related) the Persona group.  The rest
+  // is derived from the layouts present in the deck.
+  function relevantAssetItems(state) {
+    const slides = state.slides || [];
+    const layoutsInDeck = {};
+    slides.forEach(function (sl) { if (sl.layout) layoutsInDeck[sl.layout] = true; });
+    const hasPersona = (state.personas || []).length > 0;
+    return ASSET_CATALOG.filter(function (item) {
+      if (item.always) return true;
+      if (item.group === "Persona" && hasPersona) return true;
+      if (!item.layouts) return false;
+      return item.layouts.some(function (l) { return layoutsInDeck[l]; });
+    });
+  }
+
+  // Pending text fields the SE should still tweak.  Surfaces fields
+  // that ship as defaults / [TODO:] strings so they're easy to find.
+  function pendingTextItems(state) {
+    const out = [];
+    const personas = state.personas || [];
+    if (!state.project.presenterName) out.push("Presenter name (Step 1)");
+    if (!state.project.presenterTitle) out.push("Presenter title (Step 1)");
+    if (!personas.length) {
+      out.push("No personas added yet — needed for the persona slide");
+    } else {
+      personas.forEach(function (p, i) {
+        const tag = p.name ? "'" + p.name + "'" : "Persona " + (i + 1);
+        if (!p.name) out.push(tag + " is missing a name");
+        if (!p.role) out.push(tag + " is missing a role");
+        if (!p.painPoints && !p.goals) out.push(tag + " has no quote / pain points");
+      });
+    }
+    const f = state.storyFoundations || {};
+    if (!f.executiveTakeaway) out.push("Executive takeaway (Step 3)");
+    if (!f.transformationThesis) out.push("Transformation thesis (Step 3)");
+    (state.slides || []).forEach(function (sl) {
+      const customised = state.customRecTitles && state.customRecTitles[sl.id];
+      if (!customised && /^Slide \d/.test(sl.title)) {
+        out.push("Slide '" + sl.title + "' still has its default title");
+      }
+    });
+    return out;
+  }
+
+  function viewAssets() {
+    const wrap = el("div");
+    wrap.appendChild(stepHeader(
+      "Step 7 · Assets",
+      "Upload images for your deck (optional)",
+      "We only show the slots that the slides you picked actually use. Anything you skip leaves a clean placeholder in the demo — you can still export and present without uploading anything."
+    ));
+    const s = app.state;
+    s.assetLibrary = s.assetLibrary || {};
+
+    const items = relevantAssetItems(s);
+    if (!items.length) {
+      const empty = el("div", { class: "bx-card" });
+      empty.appendChild(el("div", { class: "bx-card-title", text: "No image slots needed yet" }));
+      empty.appendChild(el("div", { class: "bx-card-sub",
+        text: "Pick slides on Step 5 (Slide Selection) and we'll list out every image slot those slides can use." }));
+      wrap.appendChild(empty);
+      wrap.appendChild(stepFooter("assets"));
+      return wrap;
+    }
+
+    // Group items by their `group` property in catalog order.
+    const groups = [];
+    const groupIndex = {};
+    items.forEach(function (it) {
+      if (groupIndex[it.group] == null) {
+        groupIndex[it.group] = groups.length;
+        groups.push({ label: it.group, items: [] });
+      }
+      groups[groupIndex[it.group]].items.push(it);
+    });
+
+    groups.forEach(function (g) {
+      const card = el("div", { class: "bx-card" });
+      card.appendChild(el("div", { class: "bx-card-title", text: g.label }));
+      card.appendChild(el("div", { class: "bx-card-sub",
+        text: g.label === "Brand"
+          ? "Travels with the exported config — no need to drop into demo/assets/."
+          : "These flow into every slide in your deck that uses them." }));
+      g.items.forEach(function (it) { card.appendChild(assetRow(s, it)); });
+      wrap.appendChild(card);
+    });
+
+    // Pending text fields card — quick triage list, not blocking.
+    const pending = pendingTextItems(s);
+    if (pending.length) {
+      const card = el("div", { class: "bx-card" });
+      card.appendChild(el("div", { class: "bx-card-title", text: "Text still to update" }));
+      card.appendChild(el("div", { class: "bx-card-sub",
+        text: "Default copy you might want to replace before presenting. None of this blocks export — it's a polish list." }));
+      const ul = el("ul", { class: "bx-checklist" });
+      pending.forEach(function (line) {
+        ul.appendChild(el("li", { class: "bx-checklist-item is-pending" }, [
+          el("span", { class: "bx-checklist-icon", text: "○" }),
+          el("span", { class: "bx-checklist-label", text: line }),
+        ]));
+      });
+      card.appendChild(ul);
+      wrap.appendChild(card);
+    }
+
+    wrap.appendChild(stepFooter("assets"));
+    return wrap;
+  }
+
+  // Single asset slot row: thumbnail + filename + file picker + clear.
+  function assetRow(s, item) {
+    // Brand assets live on state.brand.* for back-compat with the
+    // Step 1 logo picker — everything else lives on assetLibrary.
+    function read() {
+      if (item.slot === "brand.logoPath") return s.brand.logoPath || "";
+      return (s.assetLibrary && s.assetLibrary[item.slot]) || "";
+    }
+    function write(value) {
+      if (item.slot === "brand.logoPath") { s.brand.logoPath = value; }
+      else { s.assetLibrary[item.slot] = value; }
+    }
+
+    const wrap = el("div", { class: "bx-asset-row" });
+    const thumb = el("div", { class: "bx-asset-thumb" });
+    function refreshThumb() {
+      thumb.innerHTML = "";
+      const v = read();
+      if (v) {
+        const img = el("img", { src: v, alt: item.label, class: "bx-asset-img" });
+        thumb.appendChild(img);
+      } else {
+        thumb.appendChild(el("div", { class: "bx-asset-thumb-placeholder", text: "No file" }));
+      }
+    }
+    refreshThumb();
+    wrap.appendChild(thumb);
+
+    const meta = el("div", { class: "bx-asset-meta" });
+    meta.appendChild(el("div", { class: "bx-asset-label", text: item.label }));
+    meta.appendChild(el("div", { class: "bx-asset-help", text: item.help }));
+    const status = el("div", { class: "bx-asset-status" });
+    function refreshStatus() {
+      status.innerHTML = "";
+      const v = read();
+      if (!v) {
+        status.appendChild(el("span", { class: "bx-rec-pill tone-gold", text: "Empty" }));
+      } else if (/^data:/i.test(v)) {
+        status.appendChild(el("span", { class: "bx-rec-pill tone-good", text: "Uploaded" }));
+      } else {
+        status.appendChild(el("span", { class: "bx-rec-pill tone-good", text: "Path set" }));
+      }
+    }
+    refreshStatus();
+    meta.appendChild(status);
+    wrap.appendChild(meta);
+
+    const controls = el("div", { class: "bx-asset-controls" });
+    const file = el("input", { type: "file", accept: item.accept || "image/*",
+      class: "bx-file-input", "aria-label": "Upload " + item.label });
+    file.addEventListener("change", function () {
+      const f = file.files && file.files[0];
+      if (!f) return;
+      if (f.size > 4 * 1024 * 1024) {
+        toast("File is over 4MB — pick a smaller one (data URLs bloat the export).");
+        file.value = "";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function () {
+        write(String(reader.result || ""));
+        refreshThumb(); refreshStatus();
+        commit();
+        toast(item.label + " uploaded");
+      };
+      reader.onerror = function () { toast("Could not read that file"); };
+      reader.readAsDataURL(f);
+    });
+    controls.appendChild(file);
+
+    const clear = el("button", { class: "bx-mini-btn is-danger",
+      type: "button", "aria-label": "Clear", text: "Clear" });
+    clear.addEventListener("click", function () {
+      write(""); file.value = "";
+      refreshThumb(); refreshStatus(); commit();
+    });
+    controls.appendChild(clear);
+
+    wrap.appendChild(controls);
+    return wrap;
+  }
+
+  // Side panel for Step 7: short progress summary.
+  function sideAssetSummary(body) {
+    const s = app.state;
+    const items = relevantAssetItems(s);
+    if (!items.length) {
+      body.appendChild(el("div", { class: "bx-side-empty",
+        text: "Pick slides on Step 5 — we'll surface every image slot they use." }));
+      return;
+    }
+    const filled = items.filter(function (it) {
+      if (it.slot === "brand.logoPath") return !!(s.brand && s.brand.logoPath);
+      return !!(s.assetLibrary && s.assetLibrary[it.slot]);
+    }).length;
+    body.appendChild(el("div", { class: "bx-side-card" }, [
+      el("div", { class: "bx-side-card-title", text: filled + " of " + items.length + " uploaded" }),
+      el("div", { class: "bx-side-card-sub",
+        text: filled === items.length
+          ? "Every relevant slot has an asset. You're ready to preview."
+          : "Anything left empty stays as a clean placeholder in the demo." }),
+    ]));
   }
 
   // ─── STEP 6: SLIDE SELECTION (section-grouped) ────────────────
@@ -1670,7 +1943,7 @@
   function viewPreview() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 7 · Preview",
+      "Step 8 · Preview",
       "Preview the holodeck",
       "Review how the story will feel before downloading the complete demo package. What you see here is what the exported demo will render."
     ));
@@ -1929,7 +2202,7 @@
   function viewExport() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 8 · Export",
+      "Step 9 · Export",
       "Download your demo",
       "Use Complete Demo ZIP for a ready-to-run package. Use Config only when you want to update an existing demo folder."
     ));
@@ -2050,18 +2323,23 @@
     out.push({ label: "Slide plan reviewed", done: (s.slides || []).length >= 5,
                hint: ((s.slides || []).length >= 5) ? "" : "5+ slides recommended" });
 
-    // Asset readiness — the polished demo's image-left/text-right
-    // slides have visible PLACEHOLDER panels until the SE drops real
-    // assets in.  Always surface this so the SE knows what to do
-    // before presenting externally.
-    const personaImages = (s.personas || []).length > 0
-      ? "persona portrait, hero GIF, phone GIF"
-      : "no personas yet";
+    // Asset readiness — derived from the Step 7 Assets panel. We
+    // count how many of the SLOTS THAT MATTER for this deck have an
+    // upload, so a deck with no persona doesn't get penalised for an
+    // empty persona image. "Done" when at least one of the relevant
+    // slots is filled (the rest stay as clean placeholders).
     const cxUrls = cx.filter(function (c) { return c.url; }).length;
+    const relevantAssets = relevantAssetItems(s);
+    const filledAssets = relevantAssets.filter(function (it) {
+      if (it.slot === "brand.logoPath") return !!(s.brand && s.brand.logoPath);
+      return !!(s.assetLibrary && s.assetLibrary[it.slot]);
+    }).length;
     out.push({
       label: "Demo assets uploaded",
-      done: false,
-      hint: "Drop logo, " + personaImages + ", store/product photos into demo/assets/ after extracting the ZIP",
+      done: relevantAssets.length === 0 || filledAssets > 0,
+      hint: relevantAssets.length === 0
+        ? "No image slots needed for this deck."
+        : filledAssets + " of " + relevantAssets.length + " uploaded · upload more on Step 7",
     });
     if (cx.length === 0) {
       out.push({

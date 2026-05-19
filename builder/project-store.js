@@ -193,6 +193,11 @@
       }, seed.story || {}),
       personas:        seed.personas        || [],
       storyActs:       seed.storyActs       || [],
+      // Step 7 asset library — keyed by adapter slot name, each value
+      // is a string (data URL or file path). Empty string means "use
+      // the template default / leave blank". Persona slots use
+      // "persona.<slot>" so the adapter can route them.
+      assetLibrary:    seed.assetLibrary    || {},
       scriptText:      seed.scriptText      || "",
       storyMode:       seed.storyMode       || "script",
       scenes:          seed.scenes          || [],
