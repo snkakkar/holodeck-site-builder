@@ -328,7 +328,7 @@
 .bv-s4-metric   { width:190px; background:#ffffff; border:1.5px solid rgba(var(--navy-rgb, 13,27,46), .09); border-radius:18px; padding:28px 20px 22px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px; box-shadow:0 4px 20px rgba(var(--navy-rgb, 13,27,46), .06); transition:box-shadow .2s,transform .2s; }
 .bv-s4-metric:hover { box-shadow:0 8px 32px rgba(var(--red-rgb, 178,34,52), .12); transform:translateY(-2px); }
 .bv-s4-metric-icon  { font-size:26px; line-height:1; }
-.bv-s4-metric-val   { font-family:"Playfair Display",Georgia,serif; font-size:48px; font-weight:700; color:var(--red, #b22234); line-height:1; }
+.bv-s4-metric-val   { font-family: var(--font-sans, "Inter", -apple-system, BlinkMacSystemFont, sans-serif); font-size:48px; font-weight:800; color:var(--red, #b22234); line-height:1; letter-spacing:-.025em; font-variant-numeric: tabular-nums; }
 .bv-s4-metric-label { font-size:12px; font-weight:600; color:#6a7a8a; line-height:1.3; }
 .bv-s4-metric-todo  { font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:rgba(var(--red-rgb, 178,34,52), .5); }
 
@@ -482,12 +482,13 @@
   color:var(--red, #b22234); text-transform:uppercase; margin:0;
 }
 .dd-display {
-  font-family: var(--font-serif, "Playfair Display", Georgia, serif);
-  font-size:64px; line-height:1.04; letter-spacing:-.02em;
+  font-family: var(--font-sans, "Inter", -apple-system, BlinkMacSystemFont, sans-serif);
+  font-size:64px; line-height:1.04; letter-spacing:-.025em;
   color:var(--navy, #0d1b2e); margin:0; font-weight:800;
 }
 .dd-display em {
-  font-style:italic; color:var(--red, #b22234); font-weight:700;
+  font-family: var(--font-serif, "Playfair Display", Georgia, serif);
+  font-style:italic; color:var(--red, #b22234); font-weight:600;
 }
 .dd-display-mid { font-size:54px; }
 .dd-sub {
@@ -563,7 +564,7 @@
 /* ── Stat chips (used on right copy panels) ──────────────────── */
 .dd-statchips { display:flex; gap:24px; margin-top:8px; }
 .dd-statchip { display:flex; flex-direction:column; gap:4px; }
-.dd-statchip-val { font-family: var(--font-serif, "Playfair Display", Georgia, serif); font-size:30px; font-weight:800; color:var(--red, #b22234); line-height:1; letter-spacing:-.01em; }
+.dd-statchip-val { font-family: var(--font-sans, "Inter", -apple-system, BlinkMacSystemFont, sans-serif); font-size:30px; font-weight:800; color:var(--red, #b22234); line-height:1; letter-spacing:-.02em; font-variant-numeric: tabular-nums; }
 .dd-statchip-lbl { font-size:11px; font-weight:700; letter-spacing:.16em; color:#7a8696; text-transform:uppercase; }
 
 /* ── Pull quote (block under stats) ──────────────────────────── */
@@ -715,7 +716,7 @@
   display:flex; align-items:center; justify-content:center;
   box-shadow:0 12px 28px rgba(var(--red-rgb, 178,34,52), .28);
 }
-.dd-persona-pname { font-family: var(--font-serif, "Playfair Display", Georgia, serif); font-size:24px; font-weight:800; color:var(--navy, #0d1b2e); margin-top:8px; }
+.dd-persona-pname { font-family: var(--font-sans, "Inter", -apple-system, BlinkMacSystemFont, sans-serif); font-size:24px; font-weight:800; color:var(--navy, #0d1b2e); letter-spacing:-.02em; margin-top:8px; }
 .dd-persona-prole { font-size:12px; color:var(--blue, #1a5fa0); font-weight:700; letter-spacing:.04em; text-align:center; padding:0 10px; }
 .dd-persona-pmeta { font-size:11px; color:#7a8696; letter-spacing:.06em; }
 
@@ -893,7 +894,7 @@
   position:relative;
 }
 .dd-kpi-icon  { font-size:26px; }
-.dd-kpi-value { font-family: var(--font-serif, "Playfair Display", Georgia, serif); font-size:42px; font-weight:800; color:var(--red, #b22234); letter-spacing:-.02em; line-height:1; }
+.dd-kpi-value { font-family: var(--font-sans, "Inter", -apple-system, BlinkMacSystemFont, sans-serif); font-size:42px; font-weight:800; color:var(--red, #b22234); letter-spacing:-.025em; line-height:1; font-variant-numeric: tabular-nums; }
 .dd-kpi-label { font-size:11px; font-weight:800; letter-spacing:.16em; color:#34526f; text-transform:uppercase; }
 .dd-kpi-todo  { position:absolute; top:14px; right:14px; font-size:9px; font-weight:800; letter-spacing:.18em; color:#fff; background:var(--gold, #f5c06a); padding:3px 6px; border-radius:4px; }
 
