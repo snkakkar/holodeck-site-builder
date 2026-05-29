@@ -172,7 +172,7 @@
     return {
       id: id,
       name: seed.name || (seed.project && seed.project.customerName) || "Untitled project",
-      step: "setup",
+      step: "connect",
       createdAt: seed.createdAt || now,
       updatedAt: now,
       project: Object.assign({

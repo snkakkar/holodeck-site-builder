@@ -1,0 +1,288 @@
+// ════════════════════════════════════════════════════════════════
+//  AUBREY CLIENT — three-API wrapper for the Aubrey demo ecosystem
+//
+//  Surfaces three independent data sources, each driven by its own
+//  API key. Keys live in localStorage under "holodeck.aubrey.creds"
+//  so they never ride along inside project state (and therefore
+//  never appear in exported ZIPs / shared project JSON).
+//
+//  • DemoForge  — brand catalog (colors, logo, persona, industry)
+//  • Scriptwriter — structured demo scripts (script_data.rows[])
+//  • Pocket SIC — iframable CX scenes per channel
+//
+//  Every method returns a promise; failures throw with a friendly
+//  message that the caller can pipe into toast()/alert UI.
+// ════════════════════════════════════════════════════════════════
+(function () {
+  "use strict";
+
+  const CREDS_KEY = "holodeck.aubrey.creds";
+
+  const DEMOFORGE_BASE   = "https://demoforge.aubreydemo.com";
+  const SCRIPTWRITER_BASE = "https://scriptwriter.aubreydemo.com";
+  const POCKETSIC_BASE   = "https://pocketsic.aubreydemo.com";
+
+  // ─── Credentials store ───────────────────────────────────────
+  // Persisted separately from project state so keys never end up
+  // inside an exported holodeck.config.js or shared JSON.
+  function loadCreds() {
+    try {
+      const raw = localStorage.getItem(CREDS_KEY);
+      if (!raw) return blankCreds();
+      const parsed = JSON.parse(raw);
+      return Object.assign(blankCreds(), parsed);
+    } catch (_) {
+      return blankCreds();
+    }
+  }
+  function saveCreds(creds) {
+    const safe = Object.assign(blankCreds(), creds || {});
+    localStorage.setItem(CREDS_KEY, JSON.stringify(safe));
+    return safe;
+  }
+  function blankCreds() {
+    return { email: "", demoforgeKey: "", scriptwriterKey: "", pocketsicKey: "" };
+  }
+
+  // ─── Low-level fetch helper ──────────────────────────────────
+  // Builds the request, tries to surface the API's own error text
+  // when the response isn't JSON or returns an error envelope.
+  // A "Failed to fetch" / TypeError out of fetch() in the browser
+  // almost always means CORS — the API didn't return an
+  // access-control-allow-origin header, so the browser dropped
+  // the response. We re-label that case explicitly because the
+  // raw "Failed to fetch" message tells the user nothing.
+  function apiGet(url, key) {
+    return fetch(url, { headers: { "X-API-Key": key } })
+      .catch(function (err) {
+        // Network-level / CORS-level failure — re-throw with a
+        // message that points at the likely cause.
+        const host = (function () { try { return new URL(url).host; } catch (_) { return url; } })();
+        throw new Error(
+          "Could not reach " + host + " — likely a CORS or network issue. " +
+          "If the same curl request works from the terminal, the API may not be returning " +
+          "access-control-allow-origin headers for browser calls. " +
+          "(Underlying: " + (err && err.message || err) + ")"
+        );
+      })
+      .then(function (res) {
+        return res.text().then(function (body) {
+          let parsed;
+          try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
+          if (!res.ok) {
+            const msg = (parsed && parsed.error) || ("HTTP " + res.status);
+            throw new Error(msg);
+          }
+          if (parsed && parsed.error) throw new Error(parsed.error);
+          if (!parsed) throw new Error("Unexpected non-JSON response — check the API key");
+          return parsed;
+        });
+      });
+  }
+
+  function withEmail(url, email) {
+    if (!email) return url;
+    const sep = url.indexOf("?") >= 0 ? "&" : "?";
+    return url + sep + "email=" + encodeURIComponent(email);
+  }
+
+  // ─── DemoForge ───────────────────────────────────────────────
+  // /api/brands and /api/brands/{id} both require ?email= in
+  // addition to the X-API-Key header (the example as documented
+  // returns "Email required" without it).
+  function demoforgeListBrands(opts) {
+    const email = opts && opts.email; const key = opts && opts.key;
+    if (!key) return Promise.reject(new Error("DemoForge API key not set"));
+    if (!email) return Promise.reject(new Error("Email is required for DemoForge"));
+    return apiGet(withEmail(DEMOFORGE_BASE + "/api/brands", email), key)
+      .then(function (d) { return d.brands || []; });
+  }
+  function demoforgeGetBrand(id, opts) {
+    const email = opts && opts.email; const key = opts && opts.key;
+    if (!key) return Promise.reject(new Error("DemoForge API key not set"));
+    if (!email) return Promise.reject(new Error("Email is required for DemoForge"));
+    return apiGet(withEmail(DEMOFORGE_BASE + "/api/brands/" + encodeURIComponent(id), email), key)
+      .then(function (d) {
+        // Returns { brand, generations: [{ app_slug, remote_id, result_url, status }] }
+        return { brand: d.brand || null, generations: d.generations || [] };
+      });
+  }
+
+  // ─── Scriptwriter ────────────────────────────────────────────
+  // Both list and detail require ?email= alongside the X-API-Key.
+  function scriptwriterListScripts(opts) {
+    const email = opts && opts.email; const key = opts && opts.key;
+    if (!key) return Promise.reject(new Error("Scriptwriter API key not set"));
+    if (!email) return Promise.reject(new Error("Email is required for Scriptwriter"));
+    return apiGet(withEmail(SCRIPTWRITER_BASE + "/api/scripts", email), key)
+      .then(function (d) { return d.scripts || []; });
+  }
+  function scriptwriterGetScript(id, opts) {
+    const email = opts && opts.email; const key = opts && opts.key;
+    if (!key) return Promise.reject(new Error("Scriptwriter API key not set"));
+    if (!email) return Promise.reject(new Error("Email is required for Scriptwriter"));
+    return apiGet(withEmail(SCRIPTWRITER_BASE + "/api/scripts/" + encodeURIComponent(id), email), key)
+      .then(function (d) { return d.script || null; });
+  }
+
+  // ─── Pocket SIC ──────────────────────────────────────────────
+  // Project list works without email. Scenes list works with the
+  // key alone too (verified during discovery).
+  function pocketsicListProjects(opts) {
+    const key = opts && opts.key;
+    if (!key) return Promise.reject(new Error("Pocket SIC API key not set"));
+    return apiGet(POCKETSIC_BASE + "/api/projects", key)
+      .then(function (d) { return d.projects || []; });
+  }
+  function pocketsicGetScenes(projectId, opts) {
+    const key = opts && opts.key;
+    if (!key) return Promise.reject(new Error("Pocket SIC API key not set"));
+    return apiGet(POCKETSIC_BASE + "/api/projects/" + encodeURIComponent(projectId) + "/scenes", key)
+      .then(function (d) { return d.scenes || []; });
+  }
+
+  // Public iframable scene URL — verified no X-Frame-Options /
+  // CSP frame-ancestors restriction at discovery time.
+  function pocketsicSceneUrl(sceneId) {
+    return POCKETSIC_BASE + "/scene/" + encodeURIComponent(sceneId);
+  }
+
+  // ─── Image inlining ──────────────────────────────────────────
+  // Mirrors the FileReader.readAsDataURL flow used by the manual
+  // logo / asset pickers in builder.js. The result is a self-
+  // contained data: URL so exported ZIPs work offline regardless
+  // of the R2 bucket staying online.
+  function inlineImageAsDataUrl(url) {
+    if (!url) return Promise.resolve("");
+    if (/^data:/i.test(url)) return Promise.resolve(url);
+    return fetch(url, { mode: "cors" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("Image fetch failed: HTTP " + res.status);
+        return res.blob();
+      })
+      .then(function (blob) {
+        return new Promise(function (resolve, reject) {
+          const reader = new FileReader();
+          reader.onload = function () { resolve(String(reader.result || "")); };
+          reader.onerror = function () { reject(new Error("Could not read image")); };
+          reader.readAsDataURL(blob);
+        });
+      });
+  }
+
+  // ─── Script renderer ─────────────────────────────────────────
+  // Turns a Scriptwriter script_data.rows[] structure into the
+  // Synopsis / CX Summary / Persona Description / numbered-step
+  // text shape that HOLO_PARSER.parseDemoScript was designed for.
+  // The parser keys off "Script Synopsis:", "CX Summary:",
+  // "Persona Description:", and numbered list items — so we
+  // emit exactly those headers.
+  function renderScriptRows(script) {
+    if (!script) return "";
+    const data = script.script_data || {};
+    const rows = data.rows || [];
+    const lines = [];
+
+    // Use the script's own meta when present, otherwise fall back
+    // to script_data's copies — Scriptwriter populates both.
+    const synopsis = script.synopsis || data.synopsis || "";
+    const cxSummary = script.cx_summary || data.cx_summary || "";
+    const personaSummary = script.persona_summary || data.persona_summary || script.persona || "";
+
+    if (synopsis)        lines.push("Script Synopsis: " + synopsis, "");
+    if (cxSummary)       lines.push("CX Summary: " + cxSummary, "");
+    if (personaSummary)  lines.push("Persona Description: " + personaSummary, "");
+
+    rows.forEach(function (r) {
+      if (!r) return;
+      if (r.type === "section") {
+        lines.push("", String(r.text || "").trim(), "");
+      } else if (r.type === "chapter") {
+        lines.push(String(r.text || "").trim());
+      } else if (r.type === "channel") {
+        lines.push("  " + String(r.text || "").trim());
+      } else if (r.type === "script") {
+        const num = r.num != null ? (r.num + ". ") : "";
+        const talk = String(r.talk || "").trim();
+        if (!talk) return;
+        const meta = [];
+        if (r.device) meta.push("device: " + r.device);
+        if (r.visual) meta.push("visual: " + r.visual);
+        if (r.click)  meta.push("click: " + String(r.click).replace(/\s+/g, " ").trim());
+        const suffix = meta.length ? "    [" + meta.join(" · ") + "]" : "";
+        lines.push("    " + num + talk + suffix);
+      }
+    });
+
+    return lines.join("\n").trim();
+  }
+
+  // ─── Pocket SIC scene → CX component shape ───────────────────
+  // Maps the channel taxonomy onto the type / deviceFrame fields
+  // the existing builder.js cxComponents[] entries use, so the
+  // downstream holodeck-adapter routing (instagramAd / agenticSms /
+  // shopperAgent) lights up automatically.
+  const CHANNEL_TO_CX = {
+    site:        { type: "commerce", deviceFrame: "desktop" },
+    retailcloud: { type: "service",  deviceFrame: "desktop" },
+    imessage:    { type: "agent",    deviceFrame: "mobile"  },
+    insta:       { type: "ad",       deviceFrame: "mobile"  },
+  };
+  function sceneToCxComponent(scene) {
+    const fallback = { type: "web", deviceFrame: "desktop" };
+    const map = CHANNEL_TO_CX[scene.channel] || fallback;
+    return {
+      // id is added by the caller via uid("cx_") so it stays
+      // consistent with the manual + Add path.
+      name: scene.name || ("Scene " + scene.id),
+      url: pocketsicSceneUrl(scene.id),
+      type: map.type,
+      sectionId: "demo",
+      linkedStoryActIds: [],
+      linkedSlideIds: [],
+      deviceFrame: map.deviceFrame,
+      iframeAllowed: true,
+      fallbackMode: "link-card",
+      status: "ready",
+      notes: "Pulled from Pocket SIC project " + (scene.project_id || "?") +
+             " (channel: " + (scene.channel || "?") + ")",
+      _aubreyChannel: scene.channel || "",
+      _aubreySceneId: scene.id,
+    };
+  }
+
+  // Look at an array of scenes and return the first hero image we
+  // find on a `site` channel scene. Used for productHero seeding.
+  function pickProductHeroImage(scenes) {
+    if (!Array.isArray(scenes)) return "";
+    for (let i = 0; i < scenes.length; i++) {
+      const s = scenes[i];
+      if (!s || s.channel !== "site") continue;
+      const heroes = s.config && s.config.content && s.config.content.site && s.config.content.site.heroImages;
+      if (heroes && heroes.length) return heroes[0];
+    }
+    return "";
+  }
+
+  // ─── Public surface ──────────────────────────────────────────
+  window.HOLO_AUBREY = {
+    creds: { load: loadCreds, save: saveCreds, blank: blankCreds },
+    demoforge: {
+      listBrands: demoforgeListBrands,
+      getBrand: demoforgeGetBrand,
+    },
+    scriptwriter: {
+      listScripts: scriptwriterListScripts,
+      getScript: scriptwriterGetScript,
+    },
+    pocketsic: {
+      listProjects: pocketsicListProjects,
+      getScenes: pocketsicGetScenes,
+      sceneUrl: pocketsicSceneUrl,
+    },
+    inlineImageAsDataUrl: inlineImageAsDataUrl,
+    renderScriptRows: renderScriptRows,
+    sceneToCxComponent: sceneToCxComponent,
+    pickProductHeroImage: pickProductHeroImage,
+  };
+})();

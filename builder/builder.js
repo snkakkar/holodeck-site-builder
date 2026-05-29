@@ -24,6 +24,7 @@
   const PARSER    = window.HOLO_PARSER;
   const VALIDATE_STORY = window.HOLO_VALIDATE_STORY;
   const ZIP       = window.HOLO_ZIP;
+  const AUBREY    = window.HOLO_AUBREY;
 
   // ─── App-level constants ──────────────────────────────────────
   // 8-step guided flow. Story used to be one step doing three things
@@ -31,15 +32,16 @@
   // Foundations / Narrative makes each user decision its own surface
   // with one obvious next action.
   const STEPS = [
-    { id: "setup",       num: "1", label: "Setup",                 help: "Customer, audience, products" },
-    { id: "script",      num: "2", label: "Script & Story",        help: "Paste or upload your demo script" },
-    { id: "foundations", num: "3", label: "Story Foundations",     help: "Review what was extracted" },
-    { id: "narrative",   num: "4", label: "Recommended Narrative", help: "See the suggested story arc" },
-    { id: "recs",        num: "5", label: "Slide Selection",       help: "Customize the slide plan by section" },
-    { id: "cx",          num: "6", label: "CX Components",         help: "Embed live AubreyDemo screens (optional)" },
-    { id: "assets",      num: "7", label: "Assets",                help: "Upload images for the slides you selected (optional)" },
-    { id: "preview",     num: "8", label: "Preview",               help: "Review the full demo before exporting" },
-    { id: "export",      num: "9", label: "Export",                help: "Download the complete demo ZIP" },
+    { id: "connect",     num: "1",  label: "Connect Aubrey",        help: "Add API keys (optional) to pull content directly" },
+    { id: "script",      num: "2",  label: "Script & Story",        help: "Pull from Aubrey or paste/upload your demo script" },
+    { id: "setup",       num: "3",  label: "Setup",                 help: "Customer, audience, products" },
+    { id: "foundations", num: "4",  label: "Story Foundations",     help: "Review what was extracted" },
+    { id: "narrative",   num: "5",  label: "Recommended Narrative", help: "See the suggested story arc" },
+    { id: "recs",        num: "6",  label: "Slide Selection",       help: "Customize the slide plan by section" },
+    { id: "cx",          num: "7",  label: "CX Components",         help: "Embed live AubreyDemo screens (optional)" },
+    { id: "assets",      num: "8",  label: "Assets",                help: "Upload images for the slides you selected (optional)" },
+    { id: "preview",     num: "9",  label: "Preview",               help: "Review the full demo before exporting" },
+    { id: "export",      num: "10", label: "Export",                help: "Download the complete demo ZIP" },
   ];
   const INDUSTRIES = ["Retail","Consumer Goods","Hospitality","Travel","Financial Services","Healthcare","Other"];
   const AUDIENCES  = ["Executive","IT","Marketing","Sales","Service","Store Ops","Field Ops","Mixed"];
@@ -198,6 +200,12 @@
     });
 
     if (app.view === "builder") {
+      // Aubrey keys live in localStorage, not in project state.
+      // The topbar button is the canonical, always-visible entry
+      // point for managing them so the user can swap keys mid-build
+      // without navigating back to Step 1.
+      const aubreyBtn = aubreyKeysTopbarButton();
+      if (aubreyBtn) right.appendChild(aubreyBtn);
       right.appendChild(actionBtn("Import", "bx-btn-ghost", function () { openImportModal(app.state.id); }));
       right.appendChild(actionBtn("Save", "bx-btn-secondary", function () { saveActive(); toast("Saved"); }));
       right.appendChild(actionBtn("Export", "bx-btn-primary", function () { openExportModal(); }));
@@ -350,13 +358,21 @@
     const hasCx          = (s.cxComponents || []).length > 0;
     const hasSelections  = Object.keys(s.selectedRecIds || {}).filter(function (k) { return s.selectedRecIds[k]; }).length > 0;
 
+    if (id === "connect") {
+      const creds = (AUBREY && AUBREY.creds.load()) || {};
+      const haveAny = !!(creds.demoforgeKey || creds.scriptwriterKey || creds.pocketsicKey);
+      if (haveAny) return st("complete", "Connected");
+      return st("optional", "Optional");
+    }
     if (id === "setup") {
       if (!s.project.customerName) return st("needs-input", "Add customer details");
       if (!setupReady)              return st("needs-input", "Needs input");
       return st("complete", "Complete");
     }
     if (id === "script") {
-      if (!setupReady) return locked("Finish Setup first");
+      // Script step is unlocked from the start now — Aubrey-driven
+      // projects can land here directly from Connect without filling
+      // out Setup first. (Setup still gates downstream recommendations.)
       if (!s.scriptText) return st("not-started", "Not started");
       if (!hasScript)    return st("needs-input", "Script too short");
       return st("complete", "Script captured");
@@ -425,7 +441,8 @@
     // Migrate any legacy state.step values (older projects had "story").
     if (app.state.step === "story") app.state.step = "script";
     const step = app.state.step;
-    if      (step === "setup")       main.appendChild(viewSetup());
+    if      (step === "connect")     main.appendChild(viewConnect());
+    else if (step === "setup")       main.appendChild(viewSetup());
     else if (step === "script")      main.appendChild(viewScript());
     else if (step === "foundations") main.appendChild(viewFoundations());
     else if (step === "narrative")   main.appendChild(viewNarrative());
@@ -443,6 +460,12 @@
     const body  = $("#bxSideBody");
     body.innerHTML = "";
     const step = app.state.step;
+    if (step === "connect") {
+      title.textContent = "Quick start";
+      sub.textContent = "Aubrey-driven projects need almost no typing";
+      sideConnectHint(body);
+      return;
+    }
     if (step === "setup" || step === "script" || step === "foundations") {
       title.textContent = "Live Suggestions";
       sub.textContent = "We'll keep this updated as you fill things in";
@@ -590,12 +613,28 @@
         recompute(); renderShell(); commit();
       },
     }));
+    // Show a hint when products were auto-ticked from a script pull.
+    // Only shows ones still ticked (so a manual uncheck makes it disappear).
+    const autoTicked = (s._aubreyAutoTickedProducts || []).filter(function (p) {
+      return (s.project.products || []).indexOf(p) !== -1;
+    });
+    if (autoTicked.length) {
+      c2.appendChild(el("div", { class: "bx-help bx-mt-12",
+        text: "✨ Auto-detected from Aubrey script: " + autoTicked.join(", ") +
+              ". Uncheck anything that doesn't fit." }));
+    }
     wrap.appendChild(c2);
 
     // Brand
     const c3 = el("div", { class: "bx-card" });
-    c3.appendChild(el("div", { class: "bx-card-title", text: "Brand" }));
-    c3.appendChild(el("div", { class: "bx-card-sub", text: "These flow into the generated config's brand block." }));
+    const c3Head = el("div", { class: "bx-row bx-row-between" });
+    const c3HeadL = el("div");
+    c3HeadL.appendChild(el("div", { class: "bx-card-title", text: "Brand" }));
+    c3HeadL.appendChild(el("div", { class: "bx-card-sub", text: "These flow into the generated config's brand block." }));
+    c3Head.appendChild(c3HeadL);
+    c3Head.appendChild(btn("✨ Pull brand from Aubrey", "bx-btn-secondary",
+      function () { openAubreyBrandPicker(); }));
+    c3.appendChild(c3Head);
     const grid3 = el("div", { class: "bx-grid-3" });
     grid3.appendChild(field({ label: "Primary color", type: "color", value: s.brand.primaryColor,
       onInput: function (v) { s.brand.primaryColor = v; commit(); } }));
@@ -755,6 +794,8 @@
     });
     fileLabel.appendChild(fileInput);
     uploadRow.appendChild(fileLabel);
+    uploadRow.appendChild(btn("✨ Pull script from Aubrey", "bx-btn-secondary",
+      function () { openAubreyScriptPicker(); }));
     uploadRow.appendChild(el("div", { class: "bx-help bx-help-inline", text: "or drop in any .txt, .md, or .json file" }));
     c.appendChild(uploadRow);
 
@@ -801,12 +842,16 @@
     }
     s.personas.forEach(function (p, idx) { personaList.appendChild(personaItem(p, idx)); });
     personasCard.appendChild(personaList);
+    const personaActions = el("div", { class: "bx-row bx-mt-12" });
     const addPersona = el("button", { class: "bx-add-btn", text: "+ Add persona" });
     addPersona.addEventListener("click", function () {
       s.personas.push({ id: uid("persona_"), name: "", role: "", goals: "", painPoints: "", demoRelevance: "" });
       recompute(); renderMain(); commit();
     });
-    personasCard.appendChild(addPersona);
+    personaActions.appendChild(addPersona);
+    personaActions.appendChild(btn("✨ Pull persona from Aubrey", "bx-btn-secondary",
+      function () { openAubreyPersonaPicker(); }));
+    personasCard.appendChild(personaActions);
     wrap.appendChild(personasCard);
 
     // ── Story acts ─────────────────────────────────────────
@@ -1193,6 +1238,8 @@
         html: "<strong>How it works:</strong> Paste a /scene/.../frame URL → it shows up as an iframe slide in the Demo section. If a site blocks embedding, we'll show an open-in-new-tab fallback automatically." }));
       empty.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
         btn("+ Add CX Component Link", "bx-btn-primary", function () { addCxComponent(); }),
+        btn("✨ Pull CX components from Aubrey", "bx-btn-secondary",
+          function () { openAubreyCxPicker(); }),
         btn("Skip — I don't have CX links yet", "bx-btn-secondary", function () {
           s._cxSkipped = true; commit();
           app.state.step = "assets"; renderShell();
@@ -1208,9 +1255,13 @@
     components.forEach(function (c, i) { list.appendChild(cxItem(c, i)); });
     wrap.appendChild(list);
 
+    const addRow = el("div", { class: "bx-row bx-mt-12" });
     const addBtn = el("button", { class: "bx-add-btn", text: "+ Add CX Component Link" });
     addBtn.addEventListener("click", function () { addCxComponent(); });
-    wrap.appendChild(addBtn);
+    addRow.appendChild(addBtn);
+    addRow.appendChild(btn("✨ Pull CX components from Aubrey", "bx-btn-secondary",
+      function () { openAubreyCxPicker(); }));
+    wrap.appendChild(addRow);
 
     // Inline note about iframe behavior — sets expectations
     wrap.appendChild(el("div", { class: "bx-help bx-mt-18",
@@ -1724,6 +1775,12 @@
       } else {
         status.appendChild(el("span", { class: "bx-rec-pill tone-good", text: "Path set" }));
       }
+      // Surface the Aubrey origin if this slot was seeded by a CX pull
+      // and the user hasn't replaced it. Cleared once the slot is empty
+      // or has a different value than what Aubrey provided.
+      if (item.slot === "productHero" && v && s._aubreySeededProductHero) {
+        status.appendChild(el("span", { class: "bx-rec-pill tone-blue", text: "✨ Seeded from Aubrey" }));
+      }
     }
     refreshStatus();
     meta.appendChild(status);
@@ -1744,6 +1801,7 @@
       const reader = new FileReader();
       reader.onload = function () {
         write(String(reader.result || ""));
+        if (item.slot === "productHero") s._aubreySeededProductHero = false;
         refreshThumb(); refreshStatus();
         commit();
         toast(item.label + " uploaded" + sizeNote);
@@ -1757,6 +1815,7 @@
       type: "button", "aria-label": "Clear", text: "Clear" });
     clear.addEventListener("click", function () {
       write(""); file.value = "";
+      if (item.slot === "productHero") s._aubreySeededProductHero = false;
       refreshThumb(); refreshStatus(); commit();
     });
     controls.appendChild(clear);
@@ -3194,6 +3253,890 @@
 
     openModal("Preview Full Demo", wrap, "is-fulldemo");
     go(0);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  AUBREY DEMO INTEGRATION
+  //  Additive — every existing manual control on Steps 1, 2, 6 is
+  //  untouched. These helpers add a "Pull from Aubrey" affordance
+  //  next to each, backed by aubrey-client.js. Credentials live in
+  //  localStorage["holodeck.aubrey.creds"], NEVER inside state.
+  // ═══════════════════════════════════════════════════════════════
+
+  // Maps the keywords HOLO_PARSER detects in script_data.rows[].talk
+  // onto the PRODUCTS chip labels in Step 1. We use the parser's
+  // capability buckets — not raw keyword scans — so the mapping
+  // stays consistent with the rest of the recommendation engine.
+  const AUBREY_CAPABILITY_TO_PRODUCT = {
+    agentforce: "Agentforce",
+    datacloud:  "Data Cloud",
+    commerce:   "Commerce",
+    marketing:  "Marketing Cloud",
+    service:    "Service Cloud",
+    loyalty:    "Loyalty",
+  };
+
+  // ── STEP 1 (Connect): credentials + jump-start CTAs ────────
+  // Goal of this step: get content flowing in with as little
+  // typing as possible. If the user has Aubrey keys, they can
+  // pull a script (which then auto-populates brand, persona,
+  // products, foundations) and skip straight to Foundations
+  // review. If they don't, they can skip to Setup and stay
+  // 100% manual. Either path is valid.
+  function viewConnect() {
+    const wrap = el("div");
+    wrap.appendChild(stepHeader(
+      "Step 1 · Connect Aubrey",
+      "Pull from Aubrey, or skip to manual setup",
+      "Optional. Add API keys to pull brand identity, demo scripts, personas, and CX components directly from the Aubrey ecosystem. With keys set, an Aubrey-driven project takes ~5 typed fields total."
+    ));
+
+    // Thin status banner that opens the same modal as the topbar
+    // button. Keeping one source of truth for credentials means
+    // the user can review or swap keys from here OR from any
+    // other step via the topbar.
+    wrap.appendChild(aubreyKeysBanner());
+
+    // ── Quick start: pull a script as the foundation ─────────
+    // The fastest path: pick a Scriptwriter script, which (with
+    // the brand auto-fill side-effect) populates customer name,
+    // industry, brand colors, persona, products, and foundations
+    // in one go. Drops the user on Step 3 (Foundations review).
+    const quick = el("div", { class: "bx-card bx-card-feature" });
+    quick.appendChild(el("div", { class: "bx-card-title", text: "Start with an Aubrey demo script" }));
+    quick.appendChild(el("div", { class: "bx-card-sub",
+      text: "Recommended for Aubrey-driven projects. Pulling a script also fills customer name, industry, brand colors, persona, and Salesforce products by following the script's brand and persona links. You can change anything afterward." }));
+    const quickRow = el("div", { class: "bx-row bx-mt-12" });
+    quickRow.appendChild(btn("✨ Pull script from Aubrey →", "bx-btn-primary",
+      function () { openAubreyScriptPicker(); }));
+    quickRow.appendChild(btn("Or just pull a brand", "bx-btn-secondary",
+      function () { openAubreyBrandPicker(); }));
+    quick.appendChild(quickRow);
+    wrap.appendChild(quick);
+
+    // ── Manual path ──────────────────────────────────────────
+    const manual = el("div", { class: "bx-card" });
+    manual.appendChild(el("div", { class: "bx-card-title", text: "Building without Aubrey?" }));
+    manual.appendChild(el("div", { class: "bx-card-sub",
+      text: "No problem — every step has its own manual entry. Skip ahead to Setup and fill things in by hand. You can come back to this step any time to add API keys later." }));
+    manual.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+      btn("Skip to Setup →", "bx-btn-primary", function () {
+        app.state.step = "setup"; renderShell(); commit();
+      }),
+    ]));
+    wrap.appendChild(manual);
+
+    wrap.appendChild(stepFooter("connect"));
+    return wrap;
+  }
+
+  function sideConnectHint(body) {
+    const c = (AUBREY && AUBREY.creds.load()) || {};
+    const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"].filter(function (k) { return !!c[k]; }).length;
+    const card = el("div", { class: "bx-side-card" });
+    card.appendChild(el("div", { class: "bx-side-card-t",
+      text: filled === 4 ? "All four set — you're good to pull" :
+            filled > 0   ? "Partial setup — pull what you can" :
+                           "No keys yet" }));
+    card.appendChild(el("div", { style: "margin-top: 6px; color: var(--bx-ink-2); font-size: 11px; line-height: 1.6;",
+      text: filled === 4
+        ? "Pull a script to land on Foundations with brand + persona + products already filled in."
+        : "You can build entirely by hand — every step has its own manual entry." }));
+    const manage = el("button", { class: "bx-btn-link", style: "margin-top: 8px; font-size: 11px;",
+      type: "button", text: "Manage keys →" });
+    manage.addEventListener("click", openAubreyKeysModal);
+    card.appendChild(manage);
+    body.appendChild(card);
+  }
+
+  // ── Connections card on Step 1 ─────────────────────────────
+  // mode:
+  //   "inline" — used inside Step 1 Connect view (legacy callsite,
+  //              still supported but the Connect step now collapses
+  //              this to a thin status banner instead).
+  //   "modal"  — used by the topbar "Aubrey Keys" modal. Adds masked
+  //              previews, per-key Clear, and a "Test connections"
+  //              row. The modal is the canonical edit surface — the
+  //              topbar button is reachable from every builder step
+  //              so mid-project key swaps don't require navigation.
+  function aubreyConnectionsCard(mode) {
+    mode = mode || "inline";
+    if (!AUBREY) {
+      const ph = el("div", { class: "bx-card" });
+      ph.appendChild(el("div", { class: "bx-card-title", text: "Aubrey Demo connections" }));
+      ph.appendChild(el("div", { class: "bx-card-sub", text: "Aubrey client failed to load." }));
+      return ph;
+    }
+    const card = el("div", { class: "bx-card" });
+    const head = el("div", { class: "bx-row bx-row-between" });
+    const headL = el("div");
+    headL.appendChild(el("div", { class: "bx-card-title", text: "Aubrey Demo connections" }));
+    headL.appendChild(el("div", { class: "bx-card-sub",
+      text: "Optional. Add API keys to pull brands, personas, scripts, and CX components from the Aubrey ecosystem. Keys are stored in this browser only — they never enter project files or exports." }));
+    head.appendChild(headL);
+    head.appendChild(aubreyConnectionStatusPill());
+    card.appendChild(head);
+
+    const creds = AUBREY.creds.load();
+    const grid = el("div", { class: "bx-grid-2 bx-mt-12" });
+
+    // Email is treated like any other field but never masked.
+    grid.appendChild(credRow({
+      mode: mode, name: "email",
+      label: "Email", help: "(required by DemoForge & Scriptwriter)",
+      placeholder: "you@salesforce.com", value: creds.email, mask: false,
+    }));
+    grid.appendChild(credRow({
+      mode: mode, name: "demoforgeKey",
+      label: "DemoForge API key", help: "(starts with dmfg…)",
+      placeholder: "dmfg…", value: creds.demoforgeKey, mask: true,
+    }));
+    grid.appendChild(credRow({
+      mode: mode, name: "scriptwriterKey",
+      label: "Scriptwriter API key", help: "(starts with dsw_…)",
+      placeholder: "dsw_…", value: creds.scriptwriterKey, mask: true,
+    }));
+    grid.appendChild(credRow({
+      mode: mode, name: "pocketsicKey",
+      label: "Pocket SIC API key", help: "(starts with psk_…)",
+      placeholder: "psk_…", value: creds.pocketsicKey, mask: true,
+    }));
+    card.appendChild(grid);
+
+    if (mode === "modal") {
+      // Test-connections strip — fires one read against each
+      // configured API and shows a coloured pill per row.
+      const testWrap = el("div", { class: "bx-card bx-mt-12", style: "padding: 12px;" });
+      const testHead = el("div", { class: "bx-row bx-row-between" });
+      testHead.appendChild(el("div", { class: "bx-card-title", text: "Test connections" }));
+      const testBtn = btn("Run test", "bx-btn-secondary", function () { runConnectionTests(testResults); });
+      testHead.appendChild(testBtn);
+      testWrap.appendChild(testHead);
+      const testResults = el("div", { id: "bxAubreyTestResults", class: "bx-row bx-mt-12" });
+      testResults.appendChild(connectionTestPill("demoforge",   "DemoForge",   "idle"));
+      testResults.appendChild(connectionTestPill("scriptwriter","Scriptwriter","idle"));
+      testResults.appendChild(connectionTestPill("pocketsic",   "Pocket SIC",  "idle"));
+      testWrap.appendChild(testResults);
+      card.appendChild(testWrap);
+    }
+
+    card.appendChild(el("div", { class: "bx-help bx-mt-12",
+      html: "Each key is independently optional. With all four set, every Aubrey-derived field on Steps 1, 2, and 6 can be pulled with one click — no typing for content Aubrey already produces." }));
+    return card;
+  }
+
+  // Single credential row. In "inline" mode it's just a plain
+  // `field()` like before. In "modal" mode it adds: masked preview
+  // by default, Show/Hide toggle, and per-key Clear button.
+  function credRow(opts) {
+    if (opts.mode !== "modal") {
+      return field({
+        label: opts.label, help: opts.help,
+        placeholder: opts.placeholder, value: opts.value,
+        onInput: function (v) { saveAubreyField(opts.name, v); },
+      });
+    }
+    const wrap = el("div", { class: "bx-field" });
+    const labelEl = el("label", { class: "bx-label", text: opts.label });
+    if (opts.help) labelEl.appendChild(el("span", { class: "bx-help-inline", text: opts.help }));
+    wrap.appendChild(labelEl);
+
+    // State local to this row — whether the value is currently
+    // masked (only meaningful for `mask: true` rows that have a value).
+    let revealed = !opts.mask || !opts.value;
+
+    const row = el("div", { class: "bx-color-row" });
+    const input = el("input", { type: "text", class: "bx-input",
+      placeholder: opts.placeholder, value: maskValue(opts.value, opts.mask, revealed) });
+    // Clicking into the field enters edit mode and shows the
+    // full value so the user can edit it without copying out the
+    // mask placeholders.
+    input.addEventListener("focus", function () {
+      if (revealed) return;
+      revealed = true;
+      input.value = AUBREY.creds.load()[opts.name] || "";
+    });
+    input.addEventListener("input", function () {
+      saveAubreyField(opts.name, input.value);
+    });
+    input.addEventListener("blur", function () {
+      // If the value is non-empty and the user typed (so it's
+      // already saved), re-mask after blur — but only for keys.
+      const stored = AUBREY.creds.load()[opts.name] || "";
+      if (opts.mask && stored) {
+        revealed = false;
+        input.value = maskValue(stored, true, false);
+      }
+    });
+    row.appendChild(input);
+
+    if (opts.mask) {
+      const showHide = el("button", { type: "button", class: "bx-mini-btn",
+        text: revealed && opts.value ? "Hide" : "Show",
+        title: "Toggle visibility" });
+      showHide.addEventListener("click", function () {
+        const stored = AUBREY.creds.load()[opts.name] || "";
+        revealed = !revealed;
+        input.value = revealed ? stored : maskValue(stored, true, false);
+        showHide.textContent = revealed && stored ? "Hide" : "Show";
+      });
+      row.appendChild(showHide);
+    }
+
+    const clear = el("button", { type: "button", class: "bx-mini-btn is-danger",
+      text: "Clear", title: "Clear this credential" });
+    clear.addEventListener("click", function () {
+      saveAubreyField(opts.name, "");
+      input.value = "";
+      revealed = true;
+      // Reset Show/Hide label if present.
+      const sh = row.querySelector("button.bx-mini-btn:not(.is-danger)");
+      if (sh) sh.textContent = "Show";
+    });
+    row.appendChild(clear);
+
+    wrap.appendChild(row);
+    return wrap;
+  }
+
+  function maskValue(value, isMaskable, revealed) {
+    if (!value) return "";
+    if (!isMaskable || revealed) return value;
+    // Show first 4 + last 5 characters, masked middle. Keys are
+    // long enough (~70 chars) that this is unambiguous; for shorter
+    // values (like an email, though we don't mask those) we fall
+    // back to all-bullets.
+    if (value.length <= 12) return "•".repeat(value.length);
+    return value.slice(0, 4) + "…" + value.slice(-5);
+  }
+
+  function connectionTestPill(name, label, state) {
+    const tone = ({ idle: "", ok: "tone-good", fail: "tone-red", skipped: "tone-gold" })[state] || "";
+    const text = ({ idle: label + " — not tested", ok: label + " ✓ ok",
+                    fail: label + " ✗ failed", skipped: label + " — no key" })[state] || label;
+    return el("span", { class: "bx-rec-pill " + tone,
+      "data-aubrey-test": name, text: text });
+  }
+  function setConnectionTestPill(container, name, state, msg) {
+    const old = container.querySelector('[data-aubrey-test="' + name + '"]');
+    if (!old) return;
+    const labelMap = { demoforge: "DemoForge", scriptwriter: "Scriptwriter", pocketsic: "Pocket SIC" };
+    const fresh = connectionTestPill(name, labelMap[name], state);
+    if (state === "fail" && msg) fresh.textContent = labelMap[name] + " ✗ " + msg;
+    old.parentNode.replaceChild(fresh, old);
+  }
+  function runConnectionTests(container) {
+    const c = AUBREY.creds.load();
+    // Reset pills to "testing"
+    ["demoforge","scriptwriter","pocketsic"].forEach(function (n) {
+      setConnectionTestPill(container, n, "idle");
+      const old = container.querySelector('[data-aubrey-test="' + n + '"]');
+      if (old) old.textContent = ({demoforge:"DemoForge",scriptwriter:"Scriptwriter",pocketsic:"Pocket SIC"})[n] + " · testing…";
+    });
+
+    // DemoForge
+    if (!c.demoforgeKey || !c.email) setConnectionTestPill(container, "demoforge", "skipped");
+    else AUBREY.demoforge.listBrands({ email: c.email, key: c.demoforgeKey })
+      .then(function () { setConnectionTestPill(container, "demoforge", "ok"); })
+      .catch(function (e) { setConnectionTestPill(container, "demoforge", "fail", e.message); });
+
+    // Scriptwriter
+    if (!c.scriptwriterKey || !c.email) setConnectionTestPill(container, "scriptwriter", "skipped");
+    else AUBREY.scriptwriter.listScripts({ email: c.email, key: c.scriptwriterKey })
+      .then(function () { setConnectionTestPill(container, "scriptwriter", "ok"); })
+      .catch(function (e) { setConnectionTestPill(container, "scriptwriter", "fail", e.message); });
+
+    // Pocket SIC
+    if (!c.pocketsicKey) setConnectionTestPill(container, "pocketsic", "skipped");
+    else AUBREY.pocketsic.listProjects({ key: c.pocketsicKey })
+      .then(function () { setConnectionTestPill(container, "pocketsic", "ok"); })
+      .catch(function (e) { setConnectionTestPill(container, "pocketsic", "fail", e.message); });
+  }
+
+  // The canonical credentials modal — accessible from the topbar
+  // (every builder step) and from the Connect step's status banner.
+  function openAubreyKeysModal() {
+    const wrap = el("div");
+    wrap.appendChild(aubreyConnectionsCard("modal"));
+    const actions = el("div", { class: "bx-modal-actions" });
+    actions.appendChild(btn("Close", "bx-btn-primary", function () {
+      closeModal();
+      // Refresh whichever surface might be showing the count
+      // (topbar pill, Connect step banner, side panel hint).
+      renderTopbar();
+      if (app.state && app.state.step === "connect") renderShell();
+    }));
+    wrap.appendChild(actions);
+    openModal("Aubrey Demo keys", wrap);
+  }
+
+  // Thin status banner used inside the Step 1 Connect view.
+  // Mirrors the topbar pill but lives in the page so first-run
+  // users see it before they think to look at the topbar.
+  function aubreyKeysBanner() {
+    const card = el("div", { class: "bx-card" });
+    const head = el("div", { class: "bx-row bx-row-between" });
+    const headL = el("div");
+    headL.appendChild(el("div", { class: "bx-card-title", text: "🔑 Aubrey Demo keys" }));
+    if (AUBREY) {
+      const c = AUBREY.creds.load();
+      const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"]
+        .filter(function (k) { return !!c[k]; }).length;
+      headL.appendChild(el("div", { class: "bx-card-sub",
+        text: filled === 4
+          ? "All four set — every Pull-from-Aubrey button on Steps 2 and 6 is ready to go."
+          : filled > 0
+            ? (filled + " of 4 set — fill in the rest to unlock more pulls.")
+            : "No keys yet. Add them once and they'll be available from every step (top-right corner)." }));
+    }
+    head.appendChild(headL);
+    head.appendChild(btn("Manage keys", "bx-btn-secondary", openAubreyKeysModal));
+    card.appendChild(head);
+    return card;
+  }
+
+  // Topbar button. Lives next to Import / Save / Export so it's
+  // always one click away while the user is building.
+  function aubreyKeysTopbarButton() {
+    if (!AUBREY) return null;
+    const c = AUBREY.creds.load();
+    const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"]
+      .filter(function (k) { return !!c[k]; }).length;
+    const label = "🔑 Aubrey Keys · " + filled + "/4";
+    return actionBtn(label, "bx-btn-ghost", openAubreyKeysModal);
+  }
+  function saveAubreyField(field, value) {
+    const c = AUBREY.creds.load();
+    c[field] = value;
+    AUBREY.creds.save(c);
+    // Refresh just the status pill so the user sees the chip
+    // turn green/grey as they type — no full re-render.
+    const pill = $("#bxAubreyStatusPill");
+    if (pill && pill.parentNode) {
+      pill.parentNode.replaceChild(aubreyConnectionStatusPill(), pill);
+    }
+  }
+  function aubreyConnectionStatusPill() {
+    const c = AUBREY.creds.load();
+    const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"].filter(function (k) { return !!c[k]; }).length;
+    const tone = filled === 4 ? "tone-good" : filled > 0 ? "tone-gold" : "";
+    return el("span", { id: "bxAubreyStatusPill",
+      class: "bx-rec-pill " + tone,
+      text: filled === 4 ? "All 4 connected" : (filled + " of 4 set") });
+  }
+
+  // ── Shared pre-flight: is the right key present? ───────────
+  function ensureAubreyKey(which) {
+    const c = AUBREY.creds.load();
+    const need = {
+      demoforge:    { key: "demoforgeKey",    label: "DemoForge",    needsEmail: true  },
+      scriptwriter: { key: "scriptwriterKey", label: "Scriptwriter", needsEmail: true  },
+      pocketsic:    { key: "pocketsicKey",    label: "Pocket SIC",   needsEmail: false },
+    }[which];
+    if (!need) return c;
+    if (!c[need.key]) {
+      toast("Add your " + need.label + " API key under Setup → Aubrey Demo connections");
+      app.state.step = "setup"; renderShell();
+      return null;
+    }
+    if (need.needsEmail && !c.email) {
+      toast("Add your email under Setup → Aubrey Demo connections (required by " + need.label + ")");
+      app.state.step = "setup"; renderShell();
+      return null;
+    }
+    return c;
+  }
+
+  // ── Brand picker (DemoForge) ───────────────────────────────
+  function openAubreyBrandPicker() {
+    const creds = ensureAubreyKey("demoforge");
+    if (!creds) return;
+    const wrap = el("div");
+    wrap.appendChild(el("p", { style: "margin: 0 0 12px; font-size: 13px; color: var(--bx-ink-2);",
+      text: "Pick a brand from DemoForge. Customer name, industry, tone, primary + secondary color, and logo will be filled in. Existing values get overwritten — manual edits will be replaced." }));
+    const status = el("div", { class: "bx-mt-12" });
+    const list = el("div", { class: "bx-list bx-mt-12" });
+    list.appendChild(el("div", { class: "bx-empty", text: "Loading brands…" }));
+    wrap.appendChild(status); wrap.appendChild(list);
+    const actions = el("div", { class: "bx-modal-actions" });
+    actions.appendChild(btn("Cancel", "bx-btn-secondary", closeModal));
+    wrap.appendChild(actions);
+    openModal("Pull brand from Aubrey", wrap);
+
+    AUBREY.demoforge.listBrands({ email: creds.email, key: creds.demoforgeKey })
+      .then(function (brands) {
+        list.innerHTML = "";
+        if (!brands.length) {
+          list.appendChild(el("div", { class: "bx-empty", text: "No brands found for this account." }));
+          return;
+        }
+        brands.forEach(function (b) { list.appendChild(brandRow(b, creds)); });
+      })
+      .catch(function (e) {
+        list.innerHTML = "";
+        status.appendChild(el("div", { class: "bx-alert is-error", text: "DemoForge: " + e.message }));
+      });
+  }
+  function brandRow(b, creds) {
+    const item = el("div", { class: "bx-item" });
+    const head = el("div", { class: "bx-item-head" }, [
+      el("div", { class: "bx-item-handle", text: b.brand_name || b.name || ("Brand " + b.id) }),
+      el("div", { class: "bx-item-actions" }, [
+        btn("Use this brand", "bx-btn-primary", function () {
+          importBrandFromAubrey(b.id, creds);
+        }),
+      ]),
+    ]);
+    item.appendChild(head);
+    const meta = [];
+    if (b.industry)    meta.push("Industry: " + b.industry);
+    if (b.demo_type)   meta.push("Type: " + b.demo_type);
+    if (b.persona_name) meta.push("Persona: " + b.persona_name);
+    if (meta.length) item.appendChild(el("div", { class: "bx-help", text: meta.join(" · ") }));
+    if (b.description) item.appendChild(el("div", { class: "bx-help bx-mt-6",
+      text: String(b.description).slice(0, 180) + (b.description.length > 180 ? "…" : "") }));
+    return item;
+  }
+  function importBrandFromAubrey(brandId, creds) {
+    const s = app.state;
+    toast("Loading brand from DemoForge…");
+    AUBREY.demoforge.getBrand(brandId, { email: creds.email, key: creds.demoforgeKey })
+      .then(function (resp) {
+        const b = resp.brand;
+        if (!b) throw new Error("Brand not found");
+        // Fill brand-only fields. Project name is left untouched
+        // because it's the user's internal label.
+        if (b.brand_name)     s.project.customerName = b.brand_name;
+        if (b.website_url)    s.project.website = b.website_url;
+        if (b.industry)       s.project.industry = b.industry;
+        if (b.tone)           s.project.tone = matchTone(b.tone);
+        if (b.color_primary)   s.brand.primaryColor   = b.color_primary;
+        if (b.color_secondary) s.brand.secondaryColor = b.color_secondary;
+        const logoUrl = b.logo_url;
+        const inlineLogo = logoUrl
+          ? AUBREY.inlineImageAsDataUrl(logoUrl).catch(function () { return logoUrl; })
+          : Promise.resolve("");
+        return inlineLogo.then(function (logo) {
+          if (logo) s.brand.logoPath = logo;
+          // From the Connect step, advance to Setup so the user
+          // can fill in the few fields Aubrey doesn't know about
+          // (audience, sales stage, presenter, accent color).
+          if (s.step === "connect") s.step = "setup";
+          recompute(); renderShell(); commit();
+          closeModal();
+          toast("Brand imported from Aubrey: " + (b.brand_name || ""));
+        });
+      })
+      .catch(function (e) {
+        toast("Couldn't import brand: " + e.message);
+      });
+  }
+  // The TONES dropdown only allows a fixed set — Aubrey returns
+  // freeform paragraphs, so we softly snap to the closest option
+  // by keyword and fall back to leaving it empty.
+  function matchTone(text) {
+    const t = String(text || "").toLowerCase();
+    if (/exec|board|c-suite/.test(t))                       return "Executive";
+    if (/vision|inspir/.test(t))                            return "Visionary";
+    if (/technic|engineer|developer/.test(t))               return "Technical";
+    if (/playful|fun|relax|friendly|casual/.test(t))        return "Playful";
+    if (/premium|luxury|sophisticat|refined/.test(t))       return "Premium";
+    if (/tactic|practical|how-to|operational/.test(t))      return "Tactical";
+    return "";
+  }
+
+  // ── Persona picker (DemoForge) ─────────────────────────────
+  // Adds (does not replace) a persona derived from the chosen
+  // brand's persona_name + persona, and inlines persona_image_url
+  // into assetLibrary["persona.portrait"] only if that slot is empty.
+  function openAubreyPersonaPicker() {
+    const creds = ensureAubreyKey("demoforge");
+    if (!creds) return;
+    const wrap = el("div");
+    wrap.appendChild(el("p", { style: "margin: 0 0 12px; font-size: 13px; color: var(--bx-ink-2);",
+      text: "Pick a brand — its persona will be added to your project (existing personas are kept). The persona portrait will be set on Step 7 if that slot is currently empty." }));
+    const status = el("div", { class: "bx-mt-12" });
+    const list = el("div", { class: "bx-list bx-mt-12" });
+    list.appendChild(el("div", { class: "bx-empty", text: "Loading brands…" }));
+    wrap.appendChild(status); wrap.appendChild(list);
+    const actions = el("div", { class: "bx-modal-actions" });
+    actions.appendChild(btn("Cancel", "bx-btn-secondary", closeModal));
+    wrap.appendChild(actions);
+    openModal("Pull persona from Aubrey", wrap);
+
+    AUBREY.demoforge.listBrands({ email: creds.email, key: creds.demoforgeKey })
+      .then(function (brands) {
+        list.innerHTML = "";
+        if (!brands.length) {
+          list.appendChild(el("div", { class: "bx-empty", text: "No brands found." }));
+          return;
+        }
+        brands.forEach(function (b) {
+          if (!b.persona_name && !b.persona) return;
+          list.appendChild(personaBrandRow(b, creds));
+        });
+        if (!list.children.length) {
+          list.appendChild(el("div", { class: "bx-empty", text: "No brands with personas in this catalog." }));
+        }
+      })
+      .catch(function (e) {
+        list.innerHTML = "";
+        status.appendChild(el("div", { class: "bx-alert is-error", text: "DemoForge: " + e.message }));
+      });
+  }
+  function personaBrandRow(b, creds) {
+    const item = el("div", { class: "bx-item" });
+    item.appendChild(el("div", { class: "bx-item-head" }, [
+      el("div", { class: "bx-item-handle", text: (b.persona_name || "Persona") + " · " + (b.brand_name || "") }),
+      el("div", { class: "bx-item-actions" }, [
+        btn("Add this persona", "bx-btn-primary", function () {
+          importPersonaFromAubrey(b, creds);
+        }),
+      ]),
+    ]));
+    if (b.persona) {
+      item.appendChild(el("div", { class: "bx-help",
+        text: String(b.persona).slice(0, 220) + (b.persona.length > 220 ? "…" : "") }));
+    }
+    return item;
+  }
+  function importPersonaFromAubrey(b, creds) {
+    const s = app.state;
+    s.personas = s.personas || [];
+    s.assetLibrary = s.assetLibrary || {};
+    s.personas.push({
+      id: uid("persona_"),
+      name: b.persona_name || "",
+      role: "",
+      goals: "",
+      painPoints: "",
+      demoRelevance: b.persona || "",
+    });
+    const portraitTarget = "persona.portrait";
+    const slotEmpty = !s.assetLibrary[portraitTarget];
+    const portraitJob = (slotEmpty && b.persona_image_url)
+      ? AUBREY.inlineImageAsDataUrl(b.persona_image_url)
+          .then(function (dataUrl) { if (dataUrl) s.assetLibrary[portraitTarget] = dataUrl; })
+          .catch(function () { /* leave slot empty on failure */ })
+      : Promise.resolve();
+    portraitJob.then(function () {
+      recompute(); renderShell(); commit();
+      closeModal();
+      toast("Persona added: " + (b.persona_name || "(unnamed)"));
+    });
+  }
+
+  // ── Script picker (Scriptwriter) ───────────────────────────
+  // Replaces state.scriptText (matching the manual paste/upload
+  // behavior) and auto-runs the existing extraction pipeline.
+  // Side-effect: products checkboxes auto-tick from parser output.
+  function openAubreyScriptPicker() {
+    const creds = ensureAubreyKey("scriptwriter");
+    if (!creds) return;
+    const s = app.state;
+    const wrap = el("div");
+    wrap.appendChild(el("p", { style: "margin: 0 0 12px; font-size: 13px; color: var(--bx-ink-2);",
+      text: "Pick a script from Scriptwriter. The Synopsis, CX Summary, persona description, and numbered script lines will replace the current Step 2 textarea, then the extractor runs automatically." }));
+    if (s.scriptText && s.scriptText.trim()) {
+      wrap.appendChild(el("div", { class: "bx-alert is-warn",
+        text: "Heads up — your current script text will be replaced." }));
+    }
+    const status = el("div", { class: "bx-mt-12" });
+    const list = el("div", { class: "bx-list bx-mt-12" });
+    list.appendChild(el("div", { class: "bx-empty", text: "Loading scripts…" }));
+    wrap.appendChild(status); wrap.appendChild(list);
+    const actions = el("div", { class: "bx-modal-actions" });
+    actions.appendChild(btn("Cancel", "bx-btn-secondary", closeModal));
+    wrap.appendChild(actions);
+    openModal("Pull script from Aubrey", wrap);
+
+    AUBREY.scriptwriter.listScripts({ email: creds.email, key: creds.scriptwriterKey })
+      .then(function (scripts) {
+        list.innerHTML = "";
+        if (!scripts.length) {
+          list.appendChild(el("div", { class: "bx-empty", text: "No scripts found." }));
+          return;
+        }
+        scripts.forEach(function (sc) { list.appendChild(scriptRow(sc, creds)); });
+      })
+      .catch(function (e) {
+        list.innerHTML = "";
+        status.appendChild(el("div", { class: "bx-alert is-error", text: "Scriptwriter: " + e.message }));
+      });
+  }
+  function scriptRow(sc, creds) {
+    const item = el("div", { class: "bx-item" });
+    item.appendChild(el("div", { class: "bx-item-head" }, [
+      el("div", { class: "bx-item-handle", text: sc.script_name || ("Script " + sc.id) }),
+      el("div", { class: "bx-item-actions" }, [
+        btn("Use this script", "bx-btn-primary", function () {
+          importScriptFromAubrey(sc.id, creds);
+        }),
+      ]),
+    ]));
+    const meta = [];
+    if (sc.brand_name)   meta.push("Brand: " + sc.brand_name);
+    if (sc.industry)     meta.push("Industry: " + sc.industry);
+    if (sc.demo_type)    meta.push("Type: " + sc.demo_type);
+    if (sc.persona_name) meta.push("Persona: " + sc.persona_name);
+    if (meta.length) item.appendChild(el("div", { class: "bx-help", text: meta.join(" · ") }));
+    return item;
+  }
+  function importScriptFromAubrey(scriptId, creds) {
+    const s = app.state;
+    toast("Loading script from Scriptwriter…");
+    AUBREY.scriptwriter.getScript(scriptId, { email: creds.email, key: creds.scriptwriterKey })
+      .then(function (sc) {
+        if (!sc) throw new Error("Script not found");
+        const text = AUBREY.renderScriptRows(sc);
+        if (!text) throw new Error("Script has no rows to render");
+        s.scriptText = text;
+
+        // Run the existing parser path so foundations + acts +
+        // (if missing) personas populate.
+        const ok = runScriptExtraction();
+        if (ok) autoTickProductsFromScript(s);
+
+        // Fill empty brand / customer / persona fields from the
+        // script's brand metadata. We never overwrite a value the
+        // user has already set. Color lookup goes through DemoForge
+        // since Scriptwriter only carries name + logo, not hexes.
+        seedBrandFromScript(sc, creds);
+
+        // If we pulled from Connect (Step 1), jump straight to
+        // Foundations review — that's the point of the Aubrey
+        // happy path. From Step 2, stay on Script so the user can
+        // tweak personas/acts before moving on.
+        if (s.step === "connect" && ok) s.step = "foundations";
+
+        closeModal();
+        recompute(); renderShell(); commit();
+      })
+      .catch(function (e) {
+        toast("Couldn't import script: " + e.message);
+      });
+  }
+
+  // Fills any empty Setup / brand / persona field from a Scriptwriter
+  // script payload. Then, if DemoForge creds are present, looks up
+  // the matching brand (by brand_name) and fills color_primary /
+  // color_secondary if those slots are still at their defaults.
+  // Existing user values are preserved everywhere.
+  function seedBrandFromScript(sc, creds) {
+    const s = app.state;
+    if (!s.project.customerName && sc.brand_name)   s.project.customerName = sc.brand_name;
+    if (!s.project.website      && sc.website_url)  s.project.website      = sc.website_url;
+    if (!s.project.industry     && sc.industry)     s.project.industry     = sc.industry;
+
+    // Persona — only if there's no persona at all, or the existing
+    // first persona is empty. The script-extraction path may have
+    // already added one from the persona description; this step
+    // just makes sure the name + paragraph are filled in.
+    s.personas = s.personas || [];
+    if (sc.persona_name || sc.persona) {
+      let persona = s.personas[0];
+      if (!persona) {
+        persona = { id: uid("persona_"), name: "", role: "", goals: "", painPoints: "", demoRelevance: "" };
+        s.personas.push(persona);
+      }
+      if (!persona.name && sc.persona_name)   persona.name = sc.persona_name;
+      if (!persona.demoRelevance && sc.persona) persona.demoRelevance = sc.persona;
+    }
+
+    // Brand colors live in DemoForge, not Scriptwriter. If the user
+    // has a DemoForge key + email, look up the matching brand by
+    // name and fill primary/secondary if still default. Default
+    // values come from project-store newBlankState().
+    const DEFAULT_PRIMARY = "#b22234";
+    const DEFAULT_SECONDARY = "#1a5fa0";
+    const stillDefaultColors =
+      (s.brand.primaryColor || DEFAULT_PRIMARY) === DEFAULT_PRIMARY &&
+      (s.brand.secondaryColor || DEFAULT_SECONDARY) === DEFAULT_SECONDARY;
+    const noLogoYet = !s.brand.logoPath;
+
+    if (creds.demoforgeKey && creds.email && (stillDefaultColors || noLogoYet)) {
+      AUBREY.demoforge.listBrands({ email: creds.email, key: creds.demoforgeKey })
+        .then(function (brands) {
+          const target = (sc.brand_name || "").trim().toLowerCase();
+          const match = brands.find(function (b) {
+            return (b.brand_name || "").trim().toLowerCase() === target;
+          });
+          if (!match) return;
+          if (stillDefaultColors) {
+            if (match.color_primary)   s.brand.primaryColor   = match.color_primary;
+            if (match.color_secondary) s.brand.secondaryColor = match.color_secondary;
+          }
+          // Inline the logo so exports stay self-contained.
+          const logoUrl = match.logo_url || sc.logo_url;
+          if (noLogoYet && logoUrl) {
+            return AUBREY.inlineImageAsDataUrl(logoUrl)
+              .then(function (data) { if (data) s.brand.logoPath = data; })
+              .catch(function () { s.brand.logoPath = logoUrl; });
+          }
+        })
+        .then(function () {
+          renderShell(); commit();
+        })
+        .catch(function () { /* silent — colors stay at defaults */ });
+    } else if (noLogoYet && sc.logo_url) {
+      // No DemoForge creds but Scriptwriter gave us a logo URL — use it.
+      AUBREY.inlineImageAsDataUrl(sc.logo_url)
+        .then(function (data) { if (data) { s.brand.logoPath = data; renderShell(); commit(); } })
+        .catch(function () { /* leave empty */ });
+    }
+  }
+  function autoTickProductsFromScript(s) {
+    if (!PARSER || !PARSER.extractCapabilityMoments) return [];
+    const buckets = PARSER.extractCapabilityMoments(s.scriptText || "");
+    const detected = [];
+    Object.keys(AUBREY_CAPABILITY_TO_PRODUCT).forEach(function (k) {
+      if ((buckets[k] || []).length) detected.push(AUBREY_CAPABILITY_TO_PRODUCT[k]);
+    });
+    if (!detected.length) return [];
+    s.project.products = s.project.products || [];
+    const added = [];
+    detected.forEach(function (p) {
+      if (s.project.products.indexOf(p) === -1) {
+        s.project.products.push(p); added.push(p);
+      }
+    });
+    s._aubreyAutoTickedProducts = (s._aubreyAutoTickedProducts || []).concat(added);
+    if (added.length) {
+      toast("Auto-ticked from script: " + added.join(", "));
+    }
+    return added;
+  }
+
+  // ── CX components picker (Pocket SIC) ──────────────────────
+  function openAubreyCxPicker() {
+    const creds = ensureAubreyKey("pocketsic");
+    if (!creds) return;
+    const wrap = el("div");
+    wrap.appendChild(el("p", { style: "margin: 0 0 12px; font-size: 13px; color: var(--bx-ink-2);",
+      text: "Pick a Pocket SIC project. Each scene becomes a CX component (iframable scene URL), with type and device frame auto-mapped from channel. Existing CX components are kept." }));
+    const status = el("div", { class: "bx-mt-12" });
+    const list = el("div", { class: "bx-list bx-mt-12" });
+    list.appendChild(el("div", { class: "bx-empty", text: "Loading projects…" }));
+    wrap.appendChild(status); wrap.appendChild(list);
+    const actions = el("div", { class: "bx-modal-actions" });
+    actions.appendChild(btn("Cancel", "bx-btn-secondary", closeModal));
+    wrap.appendChild(actions);
+    openModal("Pull CX components from Aubrey", wrap);
+
+    AUBREY.pocketsic.listProjects({ key: creds.pocketsicKey })
+      .then(function (projects) {
+        list.innerHTML = "";
+        if (!projects.length) {
+          list.appendChild(el("div", { class: "bx-empty", text: "No Pocket SIC projects found." }));
+          return;
+        }
+        projects.forEach(function (p) { list.appendChild(pocketProjectRow(p, creds)); });
+      })
+      .catch(function (e) {
+        list.innerHTML = "";
+        status.appendChild(el("div", { class: "bx-alert is-error", text: "Pocket SIC: " + e.message }));
+      });
+  }
+  function pocketProjectRow(p, creds) {
+    const item = el("div", { class: "bx-item" });
+    item.appendChild(el("div", { class: "bx-item-head" }, [
+      el("div", { class: "bx-item-handle", text: p.name || ("Project " + p.id) }),
+      el("div", { class: "bx-item-actions" }, [
+        btn("Browse scenes →", "bx-btn-secondary", function () {
+          openAubreyCxScenePicker(p, creds);
+        }),
+      ]),
+    ]));
+    const meta = [];
+    if (p.brand_name)   meta.push("Brand: " + p.brand_name);
+    if (p.industry)     meta.push("Industry: " + p.industry);
+    if (p.persona_name) meta.push("Persona: " + p.persona_name);
+    if (meta.length) item.appendChild(el("div", { class: "bx-help", text: meta.join(" · ") }));
+    return item;
+  }
+  function openAubreyCxScenePicker(project, creds) {
+    const wrap = el("div");
+    wrap.appendChild(el("p", { style: "margin: 0 0 12px; font-size: 13px; color: var(--bx-ink-2);",
+      text: "Pick the scenes you want to import as CX components. The first 'site' scene's hero image will be inlined into Step 7's productHero slot if that slot is empty." }));
+    const status = el("div", { class: "bx-mt-12" });
+    const list = el("div", { class: "bx-list bx-mt-12" });
+    list.appendChild(el("div", { class: "bx-empty", text: "Loading scenes…" }));
+    wrap.appendChild(status); wrap.appendChild(list);
+    const actions = el("div", { class: "bx-modal-actions" });
+    const importBtn = btn("Import selected", "bx-btn-primary", function () { /* set after load */ });
+    importBtn.disabled = true;
+    actions.appendChild(importBtn);
+    actions.appendChild(btn("Back", "bx-btn-secondary", function () { openAubreyCxPicker(); }));
+    actions.appendChild(btn("Cancel", "bx-btn-secondary", closeModal));
+    wrap.appendChild(actions);
+    openModal("Pocket SIC · " + (project.name || "Project " + project.id), wrap);
+
+    AUBREY.pocketsic.getScenes(project.id, { key: creds.pocketsicKey })
+      .then(function (scenes) {
+        list.innerHTML = "";
+        if (!scenes.length) {
+          list.appendChild(el("div", { class: "bx-empty", text: "This project has no scenes." }));
+          return;
+        }
+        const checkboxes = [];
+        scenes.forEach(function (sc) {
+          const row = el("div", { class: "bx-item" });
+          const cb = el("input", { type: "checkbox", style: "margin-right: 10px;" });
+          cb.checked = true; checkboxes.push({ cb: cb, scene: sc });
+          const label = el("label", { class: "bx-row" });
+          label.appendChild(cb);
+          label.appendChild(el("div", {}, [
+            el("div", { class: "bx-item-handle", text: sc.name || ("Scene " + sc.id) }),
+            el("div", { class: "bx-help", text: "Channel: " + (sc.channel || "?") +
+              " · URL: " + AUBREY.pocketsic.sceneUrl(sc.id) }),
+          ]));
+          row.appendChild(label);
+          list.appendChild(row);
+        });
+        importBtn.disabled = false;
+        importBtn.onclick = function () {
+          const picked = checkboxes.filter(function (x) { return x.cb.checked; }).map(function (x) { return x.scene; });
+          importScenesFromAubrey(picked);
+        };
+      })
+      .catch(function (e) {
+        list.innerHTML = "";
+        status.appendChild(el("div", { class: "bx-alert is-error", text: "Pocket SIC: " + e.message }));
+      });
+  }
+  function importScenesFromAubrey(scenes) {
+    if (!scenes.length) { toast("Nothing selected"); return; }
+    const s = app.state;
+    s.cxComponents = s.cxComponents || [];
+    s.assetLibrary = s.assetLibrary || {};
+    scenes.forEach(function (sc) {
+      const cx = AUBREY.sceneToCxComponent(sc);
+      cx.id = uid("cx_");
+      s.cxComponents.push(cx);
+    });
+    s._cxSkipped = false;
+
+    // Side-effect: seed productHero from the first site scene's
+    // hero image — only if the slot is currently empty (no
+    // overwriting manual uploads).
+    const heroUrl = AUBREY.pickProductHeroImage(scenes);
+    const seedJob = (heroUrl && !s.assetLibrary["productHero"])
+      ? AUBREY.inlineImageAsDataUrl(heroUrl)
+          .then(function (dataUrl) {
+            if (dataUrl) {
+              s.assetLibrary["productHero"] = dataUrl;
+              s._aubreySeededProductHero = true;
+              toast("productHero seeded from Aubrey site scene");
+            }
+          })
+          .catch(function () { /* ignore — user can upload manually */ })
+      : Promise.resolve();
+
+    seedJob.then(function () {
+      closeModal();
+      recompute(); renderShell(); commit();
+      toast("Imported " + scenes.length + " CX component" + (scenes.length === 1 ? "" : "s"));
+    });
   }
 
   // ─── Boot ─────────────────────────────────────────────────────
