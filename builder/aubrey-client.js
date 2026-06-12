@@ -2,7 +2,8 @@
 //  AUBREY CLIENT — three-API wrapper for the Aubrey demo ecosystem
 //
 //  Surfaces three independent data sources, each driven by its own
-//  API key. Keys live in localStorage under "holodeck.aubrey.creds"
+//  API key. Keys live in a global localStorage repository under
+//  "holodeck.aubrey.creds" (shared across all builder projects)
 //  so they never ride along inside project state (and therefore
 //  never appear in exported ZIPs / shared project JSON).
 //
@@ -17,6 +18,7 @@
   "use strict";
 
   const CREDS_KEY = "holodeck.aubrey.creds";
+  const CREDS_SCHEMA_VERSION = 1;
 
   const DEMOFORGE_BASE   = "https://demoforge.aubreydemo.com";
   const SCRIPTWRITER_BASE = "https://scriptwriter.aubreydemo.com";
@@ -25,23 +27,76 @@
   // ─── Credentials store ───────────────────────────────────────
   // Persisted separately from project state so keys never end up
   // inside an exported holodeck.config.js or shared JSON.
-  function loadCreds() {
-    try {
-      const raw = localStorage.getItem(CREDS_KEY);
-      if (!raw) return blankCreds();
-      const parsed = JSON.parse(raw);
-      return Object.assign(blankCreds(), parsed);
-    } catch (_) {
-      return blankCreds();
-    }
-  }
-  function saveCreds(creds) {
-    const safe = Object.assign(blankCreds(), creds || {});
-    localStorage.setItem(CREDS_KEY, JSON.stringify(safe));
-    return safe;
-  }
   function blankCreds() {
     return { email: "", demoforgeKey: "", scriptwriterKey: "", pocketsicKey: "" };
+  }
+  function sanitizeCreds(creds) {
+    const safe = Object.assign(blankCreds(), creds || {});
+    return {
+      email: String(safe.email || ""),
+      demoforgeKey: String(safe.demoforgeKey || ""),
+      scriptwriterKey: String(safe.scriptwriterKey || ""),
+      pocketsicKey: String(safe.pocketsicKey || ""),
+    };
+  }
+  function readStoredCredEnvelope() {
+    try {
+      const raw = localStorage.getItem(CREDS_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+  function credsFromEnvelope(envelope) {
+    if (!envelope) return blankCreds();
+    // Legacy shape: plain creds object directly at top-level.
+    if (envelope.email != null || envelope.demoforgeKey != null ||
+        envelope.scriptwriterKey != null || envelope.pocketsicKey != null) {
+      return sanitizeCreds(envelope);
+    }
+    // Versioned shape for future migration flexibility.
+    if (envelope.version === CREDS_SCHEMA_VERSION && envelope.globalKeys) {
+      return sanitizeCreds(envelope.globalKeys);
+    }
+    return blankCreds();
+  }
+  function writeCredEnvelope(creds) {
+    const safe = sanitizeCreds(creds);
+    const envelope = {
+      version: CREDS_SCHEMA_VERSION,
+      globalKeys: safe,
+    };
+    localStorage.setItem(CREDS_KEY, JSON.stringify(envelope));
+    return safe;
+  }
+  function getGlobalKeys() {
+    return credsFromEnvelope(readStoredCredEnvelope());
+  }
+  function setGlobalKeys(partialOrFull) {
+    const merged = Object.assign(getGlobalKeys(), partialOrFull || {});
+    return writeCredEnvelope(merged);
+  }
+  function clearGlobalKey(field) {
+    if (!Object.prototype.hasOwnProperty.call(blankCreds(), field)) return getGlobalKeys();
+    const next = getGlobalKeys();
+    next[field] = "";
+    return writeCredEnvelope(next);
+  }
+  function clearAllGlobalKeys() {
+    return writeCredEnvelope(blankCreds());
+  }
+  function hasRequiredGlobalKey(service) {
+    const creds = getGlobalKeys();
+    const need = {
+      demoforge:    { key: "demoforgeKey", needsEmail: true  },
+      scriptwriter: { key: "scriptwriterKey", needsEmail: true  },
+      pocketsic:    { key: "pocketsicKey", needsEmail: false },
+    }[service];
+    if (!need) return true;
+    if (!creds[need.key]) return false;
+    if (need.needsEmail && !creds.email) return false;
+    return true;
   }
 
   // ─── Low-level fetch helper ──────────────────────────────────
@@ -266,7 +321,15 @@
 
   // ─── Public surface ──────────────────────────────────────────
   window.HOLO_AUBREY = {
-    creds: { load: loadCreds, save: saveCreds, blank: blankCreds },
+    creds: { load: getGlobalKeys, save: setGlobalKeys, blank: blankCreds },
+    globalKeys: {
+      get: getGlobalKeys,
+      set: setGlobalKeys,
+      clear: clearGlobalKey,
+      clearAll: clearAllGlobalKeys,
+      hasRequired: hasRequiredGlobalKey,
+      blank: blankCreds,
+    },
     demoforge: {
       listBrands: demoforgeListBrands,
       getBrand: demoforgeGetBrand,

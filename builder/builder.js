@@ -359,7 +359,7 @@
     const hasSelections  = Object.keys(s.selectedRecIds || {}).filter(function (k) { return s.selectedRecIds[k]; }).length > 0;
 
     if (id === "connect") {
-      const creds = (AUBREY && AUBREY.creds.load()) || {};
+      const creds = getAubreyGlobalKeys();
       const haveAny = !!(creds.demoforgeKey || creds.scriptwriterKey || creds.pocketsicKey);
       if (haveAny) return st("complete", "Connected");
       return st("optional", "Optional");
@@ -3260,7 +3260,8 @@
   //  Additive — every existing manual control on Steps 1, 2, 6 is
   //  untouched. These helpers add a "Pull from Aubrey" affordance
   //  next to each, backed by aubrey-client.js. Credentials live in
-  //  localStorage["holodeck.aubrey.creds"], NEVER inside state.
+  //  a global browser key repository shared by all projects in this
+  //  builder, NEVER inside state.
   // ═══════════════════════════════════════════════════════════════
 
   // Maps the keywords HOLO_PARSER detects in script_data.rows[].talk
@@ -3330,8 +3331,26 @@
     return wrap;
   }
 
+  function getAubreyGlobalKeys() {
+    if (!AUBREY) return {};
+    if (AUBREY.globalKeys && typeof AUBREY.globalKeys.get === "function") {
+      return AUBREY.globalKeys.get();
+    }
+    // Backward compatibility for older aubrey-client.js payloads.
+    return (AUBREY.creds && typeof AUBREY.creds.load === "function") ? AUBREY.creds.load() : {};
+  }
+  function setAubreyGlobalKeys(partial) {
+    if (!AUBREY) return {};
+    if (AUBREY.globalKeys && typeof AUBREY.globalKeys.set === "function") {
+      return AUBREY.globalKeys.set(partial || {});
+    }
+    return (AUBREY.creds && typeof AUBREY.creds.save === "function")
+      ? AUBREY.creds.save(partial || {})
+      : {};
+  }
+
   function sideConnectHint(body) {
-    const c = (AUBREY && AUBREY.creds.load()) || {};
+    const c = getAubreyGlobalKeys();
     const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"].filter(function (k) { return !!c[k]; }).length;
     const card = el("div", { class: "bx-side-card" });
     card.appendChild(el("div", { class: "bx-side-card-t",
@@ -3372,12 +3391,12 @@
     const headL = el("div");
     headL.appendChild(el("div", { class: "bx-card-title", text: "Aubrey Demo connections" }));
     headL.appendChild(el("div", { class: "bx-card-sub",
-      text: "Optional. Add API keys to pull brands, personas, scripts, and CX components from the Aubrey ecosystem. Keys are stored in this browser only — they never enter project files or exports." }));
+      text: "Optional. Add API keys to pull brands, personas, scripts, and CX components from the Aubrey ecosystem. Keys are global across all projects in this browser and never enter project files or exports." }));
     head.appendChild(headL);
     head.appendChild(aubreyConnectionStatusPill());
     card.appendChild(head);
 
-    const creds = AUBREY.creds.load();
+    const creds = getAubreyGlobalKeys();
     const grid = el("div", { class: "bx-grid-2 bx-mt-12" });
 
     // Email is treated like any other field but never masked.
@@ -3454,7 +3473,7 @@
     input.addEventListener("focus", function () {
       if (revealed) return;
       revealed = true;
-      input.value = AUBREY.creds.load()[opts.name] || "";
+      input.value = getAubreyGlobalKeys()[opts.name] || "";
     });
     input.addEventListener("input", function () {
       saveAubreyField(opts.name, input.value);
@@ -3462,7 +3481,7 @@
     input.addEventListener("blur", function () {
       // If the value is non-empty and the user typed (so it's
       // already saved), re-mask after blur — but only for keys.
-      const stored = AUBREY.creds.load()[opts.name] || "";
+      const stored = getAubreyGlobalKeys()[opts.name] || "";
       if (opts.mask && stored) {
         revealed = false;
         input.value = maskValue(stored, true, false);
@@ -3475,7 +3494,7 @@
         text: revealed && opts.value ? "Hide" : "Show",
         title: "Toggle visibility" });
       showHide.addEventListener("click", function () {
-        const stored = AUBREY.creds.load()[opts.name] || "";
+        const stored = getAubreyGlobalKeys()[opts.name] || "";
         revealed = !revealed;
         input.value = revealed ? stored : maskValue(stored, true, false);
         showHide.textContent = revealed && stored ? "Hide" : "Show";
@@ -3526,7 +3545,7 @@
     old.parentNode.replaceChild(fresh, old);
   }
   function runConnectionTests(container) {
-    const c = AUBREY.creds.load();
+    const c = getAubreyGlobalKeys();
     // Reset pills to "testing"
     ["demoforge","scriptwriter","pocketsic"].forEach(function (n) {
       setConnectionTestPill(container, n, "idle");
@@ -3579,7 +3598,7 @@
     const headL = el("div");
     headL.appendChild(el("div", { class: "bx-card-title", text: "🔑 Aubrey Demo keys" }));
     if (AUBREY) {
-      const c = AUBREY.creds.load();
+      const c = getAubreyGlobalKeys();
       const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"]
         .filter(function (k) { return !!c[k]; }).length;
       headL.appendChild(el("div", { class: "bx-card-sub",
@@ -3599,16 +3618,16 @@
   // always one click away while the user is building.
   function aubreyKeysTopbarButton() {
     if (!AUBREY) return null;
-    const c = AUBREY.creds.load();
+    const c = getAubreyGlobalKeys();
     const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"]
       .filter(function (k) { return !!c[k]; }).length;
     const label = "🔑 Aubrey Keys · " + filled + "/4";
     return actionBtn(label, "bx-btn-ghost", openAubreyKeysModal);
   }
   function saveAubreyField(field, value) {
-    const c = AUBREY.creds.load();
+    const c = getAubreyGlobalKeys();
     c[field] = value;
-    AUBREY.creds.save(c);
+    setAubreyGlobalKeys(c);
     // Refresh just the status pill so the user sees the chip
     // turn green/grey as they type — no full re-render.
     const pill = $("#bxAubreyStatusPill");
@@ -3617,7 +3636,7 @@
     }
   }
   function aubreyConnectionStatusPill() {
-    const c = AUBREY.creds.load();
+    const c = getAubreyGlobalKeys();
     const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"].filter(function (k) { return !!c[k]; }).length;
     const tone = filled === 4 ? "tone-good" : filled > 0 ? "tone-gold" : "";
     return el("span", { id: "bxAubreyStatusPill",
@@ -3627,19 +3646,22 @@
 
   // ── Shared pre-flight: is the right key present? ───────────
   function ensureAubreyKey(which) {
-    const c = AUBREY.creds.load();
+    const c = getAubreyGlobalKeys();
     const need = {
       demoforge:    { key: "demoforgeKey",    label: "DemoForge",    needsEmail: true  },
       scriptwriter: { key: "scriptwriterKey", label: "Scriptwriter", needsEmail: true  },
       pocketsic:    { key: "pocketsicKey",    label: "Pocket SIC",   needsEmail: false },
     }[which];
     if (!need) return c;
-    if (!c[need.key]) {
+    const hasRequired = (AUBREY && AUBREY.globalKeys && typeof AUBREY.globalKeys.hasRequired === "function")
+      ? AUBREY.globalKeys.hasRequired(which)
+      : (!!c[need.key] && (!need.needsEmail || !!c.email));
+    if (!hasRequired && !c[need.key]) {
       toast("Add your " + need.label + " API key under Setup → Aubrey Demo connections");
       app.state.step = "setup"; renderShell();
       return null;
     }
-    if (need.needsEmail && !c.email) {
+    if (!hasRequired && need.needsEmail && !c.email) {
       toast("Add your email under Setup → Aubrey Demo connections (required by " + need.label + ")");
       app.state.step = "setup"; renderShell();
       return null;
