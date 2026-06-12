@@ -199,13 +199,16 @@
       }));
     });
 
-    if (app.view === "builder") {
+    if (app.view === "home" || app.view === "builder") {
       // Aubrey keys live in localStorage, not in project state.
       // The topbar button is the canonical, always-visible entry
       // point for managing them so the user can swap keys mid-build
       // without navigating back to Step 1.
       const aubreyBtn = aubreyKeysTopbarButton();
       if (aubreyBtn) right.appendChild(aubreyBtn);
+    }
+
+    if (app.view === "builder") {
       right.appendChild(actionBtn("Import", "bx-btn-ghost", function () { openImportModal(app.state.id); }));
       right.appendChild(actionBtn("Save", "bx-btn-secondary", function () { saveActive(); toast("Saved"); }));
       right.appendChild(actionBtn("Export", "bx-btn-primary", function () { openExportModal(); }));
