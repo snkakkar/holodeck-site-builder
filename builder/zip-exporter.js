@@ -44,6 +44,10 @@
     { src: "../demo/styles/demo-theme.css",              dest: "demo/styles/demo-theme.css",              kind: "text" },
 
     // Runtime JS
+    // Shared copy generators — the builder's single source (HOLO_SHARED).
+    // Bundled so the exported deck derives slide copy the same way the
+    // Step 8 preview does. Loaded before demo-deck-renderer.js.
+    { src: "holodeck-shared.js",                         dest: "demo/js/holodeck-shared.js",              kind: "text" },
     { src: "../demo/js/holodeck-render.js",              dest: "demo/js/holodeck-render.js",              kind: "text" },
     { src: "../demo/js/demo-deck-renderer.js",           dest: "demo/js/demo-deck-renderer.js",           kind: "text" },
     { src: "../demo/js/dom-utils.js",                    dest: "demo/js/dom-utils.js",                    kind: "text", optional: true },

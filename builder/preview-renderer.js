@@ -396,7 +396,14 @@
     if (!slide) return [];
     if (slide.editorPaths) {
       return Object.keys(slide.editorPaths).map(function (label) {
-        return { label: label, path: slide.editorPaths[label], kind: kindForPath(slide.editorPaths[label], label) };
+        // An editorPaths value is either a plain path string, or
+        // { path, placeholder } where placeholder is a string or a
+        // (slide, state) => string fn (used to show the auto-derived
+        // default for override fields without persisting it).
+        const raw = slide.editorPaths[label];
+        const path = (raw && typeof raw === "object") ? raw.path : raw;
+        const placeholder = (raw && typeof raw === "object") ? raw.placeholder : undefined;
+        return { label: label, path: path, placeholder: placeholder, kind: kindForPath(path, label) };
       });
     }
     // Synthetic runtime slides without editorPaths (e.g. bvOpener,
@@ -432,10 +439,12 @@
           "Big problem":     "story.bigProblem",
           "Audience":        "project.audience",
           "Sales stage":     "project.salesStage",
+          "Products":        "project.products",  // rendered as badges
         };
       case "storyFoundation":
       case "storyFoundations":
         return {
+          "Customer name":         "project.customerName",  // drives the h3
           "Business problem":      "storyFoundations.businessProblem",
           "Current-state pain":    "storyFoundations.currentStatePain",
           "Future-state vision":   "storyFoundations.futureStateVision",
@@ -446,9 +455,11 @@
         return {
           "Current-state pain":  "storyFoundations.currentStatePain",
           "Future-state vision": "storyFoundations.futureStateVision",
+          "Products":            "project.products",  // rendered as bridge badges
         };
       case "futureState":
         return {
+          "Customer name":       "project.customerName",  // drives the h3
           "Future-state vision": "storyFoundations.futureStateVision",
           "Value drivers":       "storyFoundations.valueDrivers",
         };
@@ -469,6 +480,7 @@
       case "agentConversation":
         return {
           "Customer name": "project.customerName",
+          "Products":      "project.products",  // gates capability badges
         };
       case "kpiScorecard":
         return {
@@ -476,24 +488,36 @@
         };
       case "executiveSummary":
         return {
+          "Customer name":       "project.customerName",  // drives the h3
           "Big problem":         "story.bigProblem",
           "Current pain":        "story.currentPain",
           "Future vision":       "story.futureVision",
+          "Products":            "project.products",  // rendered as the Capabilities column
           "Executive takeaway":  "storyFoundations.executiveTakeaway",
+        };
+      case "architecture":
+        return {
+          "Customer name": "project.customerName",  // drives the h3
+          "Products":      "project.products",      // rendered as the platform layer
         };
       case "deviceMoment":
       case "journeyTimeline":
       case "demoMap":
-      case "architecture":
       case "embeddedCxComponent":
       case "nextSteps":
       default:
         // These pull entirely from arrays the SE manages elsewhere
-        // (storyActs, products, cxComponents) — exposing them as a
-        // single editorPath here would be duplicative.
+        // (storyActs, cxComponents) — exposing them as a single
+        // editorPath here would be duplicative. The popover surfaces a
+        // note (see buildEditorPopover) pointing the SE at Step 2.
         return {};
     }
   }
+
+  // Layouts whose visible body is driven by state.storyActs (managed in
+  // the Step 2 planner, not field-by-field). The popover shows a note so
+  // the SE knows the per-act content is edited there, not here.
+  const STORYACTS_LAYOUTS = ["deviceMoment", "journeyTimeline", "demoMap", "journeyMapMatrix"];
   function kindForPath(path, label) {
     const p = String(path || "");
     // Heuristic: any path ending in [n] / a known list field is treated as a list.
@@ -508,7 +532,7 @@
     if (/wishlist$/.test(p) || /\.stats$/.test(p) || /bvsMetrics$/.test(p)
         || /orbitNodes$/.test(p) || /capabilities$/.test(p)) return "list-objects";
     if (/Notes$/.test(p) || /narrative$/i.test(p) || /takeaway$/i.test(p) || /vision$/i.test(p)
-        || /problem$/i.test(p) || /pain$/i.test(p) || /goals$/i.test(p)
+        || /problem$/i.test(p) || /pain$/i.test(p) || /painPoints$/i.test(p) || /goals$/i.test(p)
         || /demoRelevance$/i.test(p) || /relevance$/i.test(p) || /thesis$/i.test(p)
         || label === "Speaker notes") return "textarea";
     return "text";
@@ -544,6 +568,14 @@
     fields.forEach(function (f) {
       body.appendChild(buildEditorField(f, slide, state, onChange));
     });
+    // storyActs-driven layouts: the slide title is editable above, but the
+    // per-step content (channels, summaries, capabilities) comes from the
+    // Step 2 planner. Say so, so the SE isn't left wondering why those
+    // strings can't be changed here.
+    if (slide && STORYACTS_LAYOUTS.indexOf(slide.layout) >= 0) {
+      body.appendChild(el("div", { class: "bx-pop-edit-empty",
+        text: "The journey steps shown on this slide are edited in Step 2 (story planner)." }));
+    }
     pop.appendChild(body);
 
     pop.appendChild(el("div", { class: "bx-pop-edit-foot",
@@ -614,6 +646,15 @@
 
     // text / textarea
     const v = get();
+    // Optional placeholder — string, or a (slide, state) => string fn.
+    // Used for override fields to show the auto-derived default (e.g. the
+    // composed hero headline) without persisting it: blank = auto.
+    let ph = "";
+    if (typeof f.placeholder === "function") {
+      try { ph = f.placeholder(slide, state) || ""; } catch (e) { ph = ""; }
+    } else if (typeof f.placeholder === "string") {
+      ph = f.placeholder;
+    }
     let inp;
     if (f.kind === "textarea") {
       inp = el("textarea", { class: "bx-textarea", rows: "3" });
@@ -622,6 +663,7 @@
       inp = el("input", { type: "text", class: "bx-input" });
       inp.value = (v == null ? "" : String(v));
     }
+    if (ph) inp.setAttribute("placeholder", ph);
     inp.addEventListener("input", function () { set(inp.value); onChange(); });
     row.appendChild(inp);
     return row;
@@ -730,6 +772,27 @@
     return root;
   }
 
+  // SE-authored slides always expose a "Slide title" editor field
+  // (editorFieldsForSlide). Layouts whose headline would otherwise be
+  // hardcoded/derived call this so editing that field is honored in the
+  // preview (and matches the export, which already uses sl.title). Pass
+  // the layout's previous hardcoded/derived headline as `fallback`.
+  // Reads the RAW slide title (data.title carries an "Untitled" default).
+  function slideTitleOr(data, fallback) {
+    const t = data && data.slide && data.slide.title;
+    return (t && String(t).trim()) || fallback;
+  }
+
+  // Synthetic intro/persona/journey/bv slides have no slide.title; their
+  // editable eyebrow/headline/CTA overrides live in storyFoundations.*.
+  // fOr() returns the SE override for `key` if set, else the literal
+  // fallback. The matching editorPaths in buildSlideManifest expose these.
+  function fOr(data, key, fallback) {
+    const f = (data && data.foundations) || {};
+    const v = f[key];
+    return (v != null && String(v).trim()) ? String(v) : fallback;
+  }
+
   // ═══════════════════════════════════════════════════════════════
   //  LAYOUT RENDERERS
   //  Each returns an HTMLElement. They use REAL data from `data`
@@ -792,7 +855,7 @@
     journeyTimeline: function (data, mode) {
       const root = el("div", { class: "hp hp-timeline" });
       root.appendChild(el("div", { class: "hp-eyebrow", text: data.eyebrow || "Customer journey" }));
-      root.appendChild(el("h3", { class: "hp-h3", text: data.customerName ? "How " + data.customerName + " moves through the journey" : "Customer journey" }));
+      root.appendChild(el("h3", { class: "hp-h3", text: slideTitleOr(data, data.customerName ? "How " + data.customerName + " moves through the journey" : "Customer journey") }));
 
       if (!data.acts.length) {
         root.appendChild(el("div", { class: "hp-empty",
@@ -827,7 +890,7 @@
     demoMap: function (data, mode) {
       const root = el("div", { class: "hp hp-demomap" });
       root.appendChild(el("div", { class: "hp-eyebrow", text: data.eyebrow || "Demo map" }));
-      root.appendChild(el("h3", { class: "hp-h3", text: "End-to-end demo flow" }));
+      root.appendChild(el("h3", { class: "hp-h3", text: slideTitleOr(data, "End-to-end demo flow") }));
 
       if (!data.acts.length) {
         root.appendChild(el("div", { class: "hp-empty",
@@ -848,6 +911,9 @@
         grid.appendChild(card);
       });
       root.appendChild(grid);
+      if (data.acts.length > max) {
+        root.appendChild(el("div", { class: "hp-more", text: "+ " + (data.acts.length - max) + " more steps" }));
+      }
       return root;
     },
 
@@ -862,7 +928,7 @@
     personaCard: function (data, mode) {
       const root = el("div", { class: "hp hp-persona" });
       const p = data.persona;
-      root.appendChild(el("div", { class: "hp-eyebrow", text: "Meet the persona" }));
+      root.appendChild(el("div", { class: "hp-eyebrow", text: slideTitleOr(data, "Meet the persona") }));
       if (!p) {
         root.appendChild(el("div", { class: "hp-empty",
           html: "Add a persona in <strong>Step 2</strong> — name, role, job title, stats, and a quote." }));
@@ -985,9 +1051,15 @@
       const segs = el("div", { class: "hp-profile-segs" });
       segs.appendChild(el("div", { class: "hp-profile-label", text: "Segments & signals" }));
       const segChips = el("div", { class: "hp-chiprow" });
-      const sources = data.story.dataCloudMoments
-        ? data.story.dataCloudMoments.split(/[,;\n]/).map(function (s) { return s.trim(); }).filter(Boolean)
-        : ["Web", "Email", "POS", "App"];
+      // Editor writes storyFoundations.dataCloudMoments (array, same field
+      // the intro vi-3/4-6 slides use). Read that first; fall back to the
+      // legacy story.dataCloudMoments string, then to defaults.
+      const fdMoments = (data.foundations && data.foundations.dataCloudMoments) || null;
+      const sources = (Array.isArray(fdMoments) && fdMoments.length)
+        ? fdMoments.map(function (s) { return String(s).trim(); }).filter(Boolean)
+        : (data.story.dataCloudMoments
+            ? data.story.dataCloudMoments.split(/[,;\n]/).map(function (s) { return s.trim(); }).filter(Boolean)
+            : ["Web", "Email", "POS", "App"]);
       sources.slice(0, 6).forEach(function (s) {
         segChips.appendChild(el("span", { class: "hp-chip tone-gold", text: s }));
       });
@@ -1014,7 +1086,7 @@
     architecture: function (data, mode) {
       const root = el("div", { class: "hp hp-arch" });
       root.appendChild(el("div", { class: "hp-eyebrow", text: "Solution architecture" }));
-      root.appendChild(el("h3", { class: "hp-h3", text: data.customerName ? data.customerName + " · platform map" : "Platform map" }));
+      root.appendChild(el("h3", { class: "hp-h3", text: slideTitleOr(data, data.customerName ? data.customerName + " · platform map" : "Platform map") }));
 
       if (!data.products.length) {
         root.appendChild(el("div", { class: "hp-empty",
@@ -1075,7 +1147,7 @@
 
       const right = el("div", { class: "hp-device-narr" }, [
         el("div", { class: "hp-eyebrow", text: act && act.salesforceCapabilities ? act.salesforceCapabilities : data.products.slice(0, 2).join(" · ") }),
-        el("h3", { class: "hp-h3", text: act && act.title ? act.title : "Live moment" }),
+        el("h3", { class: "hp-h3", text: slideTitleOr(data, act && act.title ? act.title : "Live moment") }),
         el("p", { class: "hp-sub",
           text: (act && act.summary) || data.story.bigProblem || "Walk through the channel moment using real customer context." }),
       ]);
@@ -1106,13 +1178,16 @@
     // storyFoundations.bvsMetrics).
     kpiScorecard: function (data, mode) {
       const root = el("div", { class: "hp hp-kpi" });
-      root.appendChild(el("div", { class: "hp-eyebrow", text: "BVS Benchmarks" }));
-      root.appendChild(el("h3", { class: "hp-h3", text: "The numbers that matter." }));
+      root.appendChild(el("div", { class: "hp-eyebrow", text: fOr(data, "bvScorecardEyebrow", "BVS Benchmarks") }));
+      // SE slide.title wins (SE layout); else bv-4 override; else literal.
+      root.appendChild(el("h3", { class: "hp-h3", text: slideTitleOr(data, fOr(data, "bvScorecardHeadline", "The numbers that matter.")) }));
       const metrics = SHARED.buildBvsMetrics
         ? SHARED.buildBvsMetrics(data.foundations)
         : [];
       const grid = el("div", { class: "hp-kpi-grid" });
-      metrics.slice(0, mode === "expanded" ? 5 : 4).forEach(function (k) {
+      // Render all metrics (buildBvsMetrics yields up to 5) so an edited
+      // 5th metric isn't invisible in compact mode.
+      metrics.forEach(function (k) {
         grid.appendChild(el("div", { class: "hp-kpi-card" }, [
           el("div", { class: "hp-kpi-value", text: k.value }),
           el("div", { class: "hp-kpi-label", text: k.label }),
@@ -1120,7 +1195,7 @@
       });
       root.appendChild(grid);
       root.appendChild(el("div", { class: "hp-disclaimer",
-        text: "⚠️ Replace placeholder values with real BVS benchmarks before presenting." }));
+        text: fOr(data, "bvScorecardDisclaimer", "⚠️ Replace placeholder values with real BVS benchmarks before presenting.") }));
       return root;
     },
 
@@ -1129,7 +1204,7 @@
       const root = el("div", { class: "hp hp-exec" });
       root.appendChild(el("div", { class: "hp-eyebrow", text: "Executive view" }));
       root.appendChild(el("h3", { class: "hp-h3",
-        text: data.customerName ? data.customerName + " — the takeaway" : "The takeaway" }));
+        text: slideTitleOr(data, data.customerName ? data.customerName + " — the takeaway" : "The takeaway") }));
 
       const cols = el("div", { class: "hp-exec-cols" });
       cols.appendChild(execCol("Challenge",
@@ -1144,7 +1219,10 @@
       root.appendChild(cols);
 
       if (mode === "expanded") {
-        const impact = data.story.executiveTakeaway || data.story.businessValueMoments;
+        // Editor writes storyFoundations.executiveTakeaway; read that first,
+        // then fall back to the legacy story.* values.
+        const impact = (data.foundations && data.foundations.executiveTakeaway)
+          || data.story.executiveTakeaway || data.story.businessValueMoments;
         if (impact) {
           root.appendChild(el("div", { class: "hp-callout", text: "Impact: " + truncate(impact, 240) }));
         }
@@ -1175,7 +1253,7 @@
       const root = el("div", { class: "hp hp-foundation" });
       root.appendChild(el("div", { class: "hp-eyebrow", text: data.eyebrow || "Story foundation" }));
       root.appendChild(el("h3", { class: "hp-h3",
-        text: data.customerName ? "Why " + data.customerName + " — and why now" : "Why this matters" }));
+        text: slideTitleOr(data, data.customerName ? "Why " + data.customerName + " — and why now" : "Why this matters") }));
       const grid = el("div", { class: "hp-foundation-grid" });
       grid.appendChild(pillar("Business problem",        problem, !problem));
       grid.appendChild(pillar("Current-state pain",      current, !current));
@@ -1202,7 +1280,7 @@
       const future  = f.futureStateVision || data.story.futureVision || "";
       const root = el("div", { class: "hp hp-twostate" });
       root.appendChild(el("div", { class: "hp-eyebrow", text: data.eyebrow || "Before / After" }));
-      root.appendChild(el("h3", { class: "hp-h3", text: "From today to a connected future" }));
+      root.appendChild(el("h3", { class: "hp-h3", text: slideTitleOr(data, "From today to a connected future") }));
       const cols = el("div", { class: "hp-twostate-cols" });
       cols.appendChild(side("Today",  current || "Add the current-state pain.", !current, "hp-side-current"));
       cols.appendChild(side("Tomorrow", future  || "Add the future-state vision.", !future, "hp-side-future"));
@@ -1213,6 +1291,9 @@
         const badges = el("div", { class: "hp-badges" });
         data.products.slice(0, 6).forEach(function (p) { badges.appendChild(el("span", { class: "hp-badge tone-red", text: p })); });
         bridge.appendChild(badges);
+        if (data.products.length > 6) {
+          bridge.appendChild(el("div", { class: "hp-more", text: "+ " + (data.products.length - 6) + " more products" }));
+        }
         root.appendChild(bridge);
       }
       return root;
@@ -1231,13 +1312,17 @@
       const root = el("div", { class: "hp hp-future" });
       root.appendChild(el("div", { class: "hp-eyebrow", text: "Future-state vision" }));
       root.appendChild(el("h3", { class: "hp-h3",
-        text: data.customerName ? data.customerName + " — the future state" : "What good looks like" }));
+        text: slideTitleOr(data, data.customerName ? data.customerName + " — the future state" : "What good looks like") }));
       root.appendChild(el("p", { class: "hp-sub", text: truncate(future || "Add the future-state vision in Step 2.", mode === "expanded" ? 360 : 200) }));
       const outcomes = el("div", { class: "hp-future-outs" });
-      (data.foundations.valueDrivers || []).slice(0, 4).forEach(function (v) {
+      const drivers = data.foundations.valueDrivers || [];
+      drivers.slice(0, 4).forEach(function (v) {
         outcomes.appendChild(el("div", { class: "hp-future-out", text: v }));
       });
       if (outcomes.children.length) root.appendChild(outcomes);
+      if (drivers.length > 4) {
+        root.appendChild(el("div", { class: "hp-more", text: "+ " + (drivers.length - 4) + " more value drivers" }));
+      }
       return root;
     },
 
@@ -1250,7 +1335,7 @@
         ? data.cxComponents.slice(0, 1) : linked;
       const items = fallback.length ? fallback : [];
       root.appendChild(el("h3", { class: "hp-h3",
-        text: items.length === 1 ? items[0].name : (data.title || "Embedded demo moment") }));
+        text: slideTitleOr(data, items.length === 1 ? items[0].name : "Embedded demo moment") }));
 
       if (!items.length) {
         root.appendChild(el("div", { class: "hp-empty",
@@ -1259,10 +1344,14 @@
       }
 
       const list = el("div", { class: "hp-embedded-list" });
-      items.slice(0, mode === "expanded" ? 3 : 2).forEach(function (c) {
+      const cap = mode === "expanded" ? 3 : 2;
+      items.slice(0, cap).forEach(function (c) {
         list.appendChild(componentCard(c, mode));
       });
       root.appendChild(list);
+      if (items.length > cap) {
+        root.appendChild(el("div", { class: "hp-more", text: "+ " + (items.length - cap) + " more components" }));
+      }
       return root;
 
       function componentCard(c, mode) {
@@ -1319,8 +1408,11 @@
     nextSteps: function (data, mode) {
       const root = el("div", { class: "hp hp-next" });
       root.appendChild(el("div", { class: "hp-eyebrow", text: "Roadmap & next steps" }));
-      root.appendChild(el("h3", { class: "hp-h3", text: "From today to launch" }));
-      const phases = ["Discovery & alignment", "Pilot / POV", "Roll-out", "Scale & optimize"];
+      root.appendChild(el("h3", { class: "hp-h3", text: slideTitleOr(data, "From today to launch") }));
+      // Shared with the export so the phase list can't drift.
+      const phases = SHARED.nextStepsPhases
+        ? SHARED.nextStepsPhases()
+        : ["Discovery & alignment", "Pilot / POV", "Roll-out", "Scale & optimize"];
       const list = el("ol", { class: "hp-next-list" });
       phases.slice(0, mode === "expanded" ? 4 : 3).forEach(function (p) {
         list.appendChild(el("li", { class: "hp-next-item", text: p }));
@@ -1353,7 +1445,7 @@
         ? truncate(f.transformationThesis, 70)
         : "A connected journey";
       root.appendChild(el("div", { class: "hp-eyebrow",
-        text: data.customerName ? data.customerName + " · journey" : "Customer journey" }));
+        text: fOr(data, "journeyEyebrow", data.customerName ? data.customerName + " · journey" : "Customer journey") }));
       root.appendChild(el("h3", { class: "hp-h3", text: headline }));
       const row = el("div", { class: "hp-jmatrix-row" });
       phases.forEach(function (p) {
@@ -1371,6 +1463,9 @@
         tags.appendChild(el("span", { class: "hp-badge tone-red", text: p }));
       });
       root.appendChild(tags);
+      if (caps.length > 6) {
+        root.appendChild(el("div", { class: "hp-more", text: "+ " + (caps.length - 6) + " more products" }));
+      }
       return root;
     },
 
@@ -1384,10 +1479,12 @@
       const name = data.customerName || "Customer";
       const parts = SHARED.heroHeadlineParts
         ? SHARED.heroHeadlineParts(name, data.foundations)
-        : { name: name, before: "a", accent: "connected", after: "customer journey" };
+        : { name: name, before: "a", accent: "connected", after: "customer journey", override: "" };
+      const heroHeadline = (parts.override && parts.override.trim())
+        ? parts.override
+        : (parts.name + ", " + parts.before + " " + parts.accent + " " + parts.after + ".");
       root.appendChild(el("div", { class: "hp-eyebrow", text: theme }));
-      root.appendChild(el("h2", { class: "hp-title",
-        text: parts.name + ", " + parts.before + " " + parts.accent + " " + parts.after + "." }));
+      root.appendChild(el("h2", { class: "hp-title", text: heroHeadline }));
       root.appendChild(el("p", { class: "hp-sub", text: name + " + Salesforce" }));
       return root;
     },
@@ -1404,9 +1501,11 @@
         : "Connected customer experience";
       const h = SHARED.storyHookParts
         ? SHARED.storyHookParts(f)
-        : { lead: "From a single moment", emph: "lifetime", tail: "to a", suffix: "of relevance." };
+        : { lead: "From a single moment", emph: "lifetime", tail: "to a", suffix: "of relevance.", override: "" };
       const tail = h.tail ? h.tail + " " : "";
-      const hook = h.lead + " " + tail + h.emph + " " + h.suffix;
+      const hook = (h.override && h.override.trim())
+        ? h.override
+        : (h.lead + " " + tail + h.emph + " " + h.suffix);
       const subText = SHARED.storyHookSubText
         ? SHARED.storyHookSubText(f)
         : "Every interaction builds context. Every context makes the next experience more personal.";
@@ -1422,8 +1521,8 @@
     introThreeActs: function (data, mode) {
       const acts = SHARED.threeActsFor ? SHARED.threeActsFor(data.foundations) : [];
       const root = el("div", { class: "hp hp-three-acts" });
-      root.appendChild(el("div", { class: "hp-eyebrow", text: "What you'll see today" }));
-      root.appendChild(el("h3", { class: "hp-h3", text: "Three acts. One agentic journey." }));
+      root.appendChild(el("div", { class: "hp-eyebrow", text: fOr(data, "threeActsEyebrow", "What you'll see today") }));
+      root.appendChild(el("h3", { class: "hp-h3", text: fOr(data, "threeActsHeadline", "Three acts. One agentic journey.") }));
       const grid = el("div", { class: "hp-three-grid" });
       acts.forEach(function (a, i) {
         grid.appendChild(el("div", { class: "hp-three-card" }, [
@@ -1459,7 +1558,7 @@
       const p = data.persona || {};
       const first = (SHARED.personaFirstName ? SHARED.personaFirstName(p) : "") || "your persona";
       const root = el("div", { class: "hp hp-persona-intro" });
-      root.appendChild(el("div", { class: "hp-eyebrow", text: "Customer Spotlight" }));
+      root.appendChild(el("div", { class: "hp-eyebrow", text: fOr(data, "personaIntroEyebrow", "Customer Spotlight") }));
       root.appendChild(el("h2", { class: "hp-title", text: "Meet " + first + "." }));
       root.appendChild(el("p", { class: "hp-sub",
         text: SHARED.personaIntroSub
@@ -1487,17 +1586,28 @@
         ? stored
         : wishlistHeadlineFor(pron);
       const headlineClean = String(headline).replace(/<\/?[^>]+>/g, "");
-      root.appendChild(el("div", { class: "hp-eyebrow", text: p.wishlistLabel || "Wishlist" }));
+      // Empty-state default matches the export (buildPersona): "<First>'s
+      // Wishlist" when no label set, else the literal "Wishlist".
+      const first = (SHARED.personaFirstName ? SHARED.personaFirstName(p) : "") || "";
+      const wishLabelDefault = first ? (first + "'s Wishlist") : "Wishlist";
+      root.appendChild(el("div", { class: "hp-eyebrow", text: p.wishlistLabel || wishLabelDefault }));
       root.appendChild(el("h3", { class: "hp-h3", text: headlineClean }));
       const cards = el("div", { class: "hp-wish-cards" });
-      wish.slice(0, 3).forEach(function (item, i) {
+      // Render up to 4 rows (matches the export cap) and show the emoji
+      // subfield the polished deck renders, so editing a 4th row / emoji
+      // shows here too.
+      wish.slice(0, 4).forEach(function (item, i) {
         cards.appendChild(el("div", { class: "hp-wish-card" + (i === 0 ? " is-featured" : "") }, [
+          item.emoji ? el("div", { class: "hp-wish-emoji", text: item.emoji }) : null,
           el("div", { class: "hp-wish-tag",    text: item.tag || "PICK" }),
           el("div", { class: "hp-wish-name",   text: item.name || "—" }),
           el("div", { class: "hp-wish-detail", text: truncate(item.detail || "", mode === "expanded" ? 90 : 50) }),
-        ]));
+        ].filter(Boolean)));
       });
       root.appendChild(cards);
+      if (wish.length > 4) {
+        root.appendChild(el("div", { class: "hp-more", text: "+ " + (wish.length - 4) + " more items" }));
+      }
       return root;
     },
 
@@ -1510,16 +1620,17 @@
     // this preview tile exactly.
     personaCta: function (data, mode) {
       const cta = SHARED.personaCtaCopy
-        ? SHARED.personaCtaCopy(data.persona || {}, data.story || {})
+        ? SHARED.personaCtaCopy(data.persona || {}, data.story || {}, data.foundations || {})
         : { label: "BEGIN THE JOURNEY →", headline: "Let's follow the journey.", sub: "" };
       const root = el("div", { class: "hp hp-persona-cta" });
-      root.appendChild(el("div", { class: "hp-eyebrow", text: "The Customer Journey" }));
+      root.appendChild(el("div", { class: "hp-eyebrow", text: fOr(data, "personaCtaEyebrow", "The Customer Journey") }));
       root.appendChild(el("h2", { class: "hp-title", text: cta.headline }));
       root.appendChild(el("p", { class: "hp-sub", text: cta.sub }));
       // Strip the &nbsp; that the export keeps (HTML context); preview
-      // renders text nodes so we want a plain space + arrow.
+      // renders text nodes so we want a plain space + arrow. CTA label is
+      // SE-overridable (personaCtaLabel) — fall back to the shared default.
       root.appendChild(el("div", { class: "hp-cta-btn",
-        text: String(cta.label).replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim() }));
+        text: String(fOr(data, "personaCtaLabel", cta.label)).replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim() }));
       return root;
     },
 
@@ -1548,23 +1659,26 @@
     // ── BV · Outcome opener (bv-1) ──
     bvOpener: function (data, mode) {
       const root = el("div", { class: "hp hp-bv-opener" });
-      root.appendChild(el("div", { class: "hp-eyebrow", text: "The Business Outcome" }));
+      root.appendChild(el("div", { class: "hp-eyebrow", text: fOr(data, "bvOpenerEyebrow", "The Business Outcome") }));
       root.appendChild(el("h2", { class: "hp-title",
-        text: "A completely connected journey. Driven by AI." }));
+        text: fOr(data, "bvOpenerHeadline", "A completely connected journey. Driven by AI.") }));
       root.appendChild(el("p", { class: "hp-sub",
-        text: "Higher conversion. Increased AOV. Lifelong loyalty." }));
+        text: fOr(data, "bvOpenerSub", "Higher conversion. Increased AOV. Lifelong loyalty.") }));
       return root;
     },
 
     // ── BV · Orbit (bv-2) ──
     bvOrbit: function (data, mode) {
       const root = el("div", { class: "hp hp-bv-orbit" });
-      root.appendChild(el("div", { class: "hp-eyebrow", text: "How it all connects" }));
+      root.appendChild(el("div", { class: "hp-eyebrow", text: fOr(data, "bvOrbitEyebrow", "How it all connects") }));
       root.appendChild(el("h3", { class: "hp-h3",
-        text: data.customerName ? data.customerName + " · the orbit" : "One platform. Every moment." }));
+        text: fOr(data, "bvOrbitHeadline", data.customerName ? data.customerName + " · the orbit" : "One platform. Every moment.") }));
       const orbit = el("div", { class: "hp-orbit-vis" });
+      // Match the export's orbit center (buildOrbitCenter): industry emoji
+      // prefix + name, so preview = export.
+      const centerEmoji = SHARED.emojiForIndustry ? SHARED.emojiForIndustry(data.industry) : "";
       orbit.appendChild(el("div", { class: "hp-orbit-center",
-        text: (data.customerName || "BRAND").slice(0, 14).toUpperCase() }));
+        text: (centerEmoji ? centerEmoji + " " : "") + (data.customerName || "BRAND").slice(0, 14).toUpperCase() }));
       // Same 6-slot list the adapter writes into HOLODECK_CONFIG.orbitNodes
       // (defaults → product-derived → storyFoundations.orbitNodes overrides).
       const nodes = SHARED.buildOrbitNodes
@@ -1585,8 +1699,8 @@
     // and export.
     bvCapabilities: function (data, mode) {
       const root = el("div", { class: "hp hp-bv-caps" });
-      root.appendChild(el("div", { class: "hp-eyebrow", text: "Key Capabilities Shown Today" }));
-      root.appendChild(el("h3", { class: "hp-h3", text: "Personalize. Search. Convert." }));
+      root.appendChild(el("div", { class: "hp-eyebrow", text: fOr(data, "bvCapsEyebrow", "Key Capabilities Shown Today") }));
+      root.appendChild(el("h3", { class: "hp-h3", text: fOr(data, "bvCapsHeadline", "Personalize. Search. Convert.") }));
       const grid = el("div", { class: "hp-bv-caps-grid" });
       const caps = SHARED.buildCapabilities
         ? SHARED.buildCapabilities(data.foundations, data.products || [])
@@ -1599,6 +1713,9 @@
         ]));
       });
       root.appendChild(grid);
+      if (caps.length > limit) {
+        root.appendChild(el("div", { class: "hp-more", text: "+ " + (caps.length - limit) + " more capabilities" }));
+      }
       return root;
     },
 
@@ -1609,8 +1726,10 @@
       const quote = f.executiveTakeaway || data.story.executiveTakeaway
         || "[TODO: closing executive quote]";
       root.appendChild(el("div", { class: "hp-eyebrow",
-        text: (data.customerName || "Customer") + " + Salesforce" }));
-      root.appendChild(el("h2", { class: "hp-title", text: "”" + truncate(quote, 160) + "”" }));
+        text: fOr(data, "bvClosingEyebrow", (data.customerName || "Customer") + " + Salesforce") }));
+      // Truncate to 120 to match the export (oneSentence/120) so the same
+      // takeaway reads identically in preview and the polished deck.
+      root.appendChild(el("h2", { class: "hp-title", text: "”" + truncate(quote, 120) + "”" }));
       return root;
     },
 
@@ -1650,20 +1769,20 @@
   }
 
   // ─── Helpers used by multiple layouts ─────────────────────────
-  function pickUserMessage(data) {
-    if (data.story.agentforceMoments) {
-      const t = String(data.story.agentforceMoments).split(/[.!?\n]/)[0];
-      if (t && t.trim().length > 8) return t.trim() + "?";
-    }
-    const personaPain = data.persona && data.persona.painPoints;
-    if (personaPain) return truncate(personaPain, 80);
-    return "I need help with " + (data.industry ? data.industry.toLowerCase() : "this") + ". Where do I start?";
+  // Delegate to HOLO_SHARED.agentChat so the agentConversation preview and
+  // the exported iframe-phone slide show identical chat copy. Reconstruct
+  // the minimal state shape the shared helper reads from `data`.
+  function agentChatFromData(data) {
+    const st = {
+      story:    data.story || {},
+      personas: data.persona ? [data.persona] : [],
+      project:  { industry: data.industry || "" },
+    };
+    if (SHARED.agentChat) return SHARED.agentChat(st);
+    return { user: "How can you help me?", agent: "Here's what I'd recommend." };
   }
-  function pickAgentMessage(data) {
-    if (data.story.futureVision) return truncate(data.story.futureVision, 140);
-    if (data.story.businessValueMoments) return truncate(data.story.businessValueMoments, 140);
-    return "Here's what I'd recommend, grounded in your unified profile and your last interaction.";
-  }
+  function pickUserMessage(data)  { return agentChatFromData(data).user; }
+  function pickAgentMessage(data) { return agentChatFromData(data).agent; }
   // Delegate to HOLO_SHARED so adapter and preview produce identical
   // truncation (same ellipsis behavior, same whitespace handling).
   function truncate(s, max) {

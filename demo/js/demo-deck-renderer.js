@@ -35,6 +35,11 @@
   // ─── Read the slide plan ──────────────────────────────────────
   const CFG  = window.HOLODECK_CONFIG || {};
   const plan = CFG.builderPlan || {};
+  // Shared copy generators — same module the builder's Step 8 preview
+  // (preview-renderer.js) uses, so the exported deck and the preview derive
+  // SE-layout copy (agent chat, demo-flow steps, next-steps phases) from one
+  // source and can't drift. Loaded via <script src="js/holodeck-shared.js">.
+  const SHARED = window.HOLO_SHARED || {};
   const allSlides = plan.slides || [];
   // Demo deck = slides assigned to the "demo" section.  If nothing
   // tagged, treat all of them as demo (legacy configs).
@@ -248,8 +253,13 @@
     // 3-up grid of mini "moment" cards. Each card ⇒ device-frame
     // skeleton + caption.  Acts as the demo's table of contents.
     demoMap: function (s) {
-      const items = (acts.length ? acts : Array.from({length:6},function(_,i){return{title:"Moment "+(i+1)};}))
+      // Demo-flow steps from HOLO_SHARED so the exported map and the Step 8
+      // preview derive the same numbered steps from storyActs.
+      const steps = (SHARED.demoFlowSteps ? SHARED.demoFlowSteps(acts) : [])
         .slice(0, 6);
+      const items = steps.length
+        ? steps
+        : Array.from({ length: 6 }, function (_, i) { return { num: String(i+1).padStart(2,"0"), title: "Moment " + (i+1), channel: "" }; });
       return [
         el("div", { class: "dd-stack-center" }, [
           el("p", { class: "dd-eyebrow", text: "Demo Map" }),
@@ -257,7 +267,7 @@
         ]),
         el("div", { class: "dd-mapgrid" }, items.map(function (a, i) {
           return el("div", { class: "dd-mapcard" }, [
-            el("div", { class: "dd-mapcard-num", text: String(i+1).padStart(2,"0") }),
+            el("div", { class: "dd-mapcard-num", text: a.num || String(i+1).padStart(2,"0") }),
             el("div", { class: "dd-skel dd-skel-mini" }, [skeletonShimmer()]),
             el("div", { class: "dd-mapcard-title", text: a.title || ("Moment " + (i+1)) }),
             a.channel ? el("div", { class: "dd-mapcard-meta", text: channelIcon(a.channel) + " " + a.channel }) : null,
@@ -305,12 +315,18 @@
     // in the original deck.
     agentConversation: function (s) {
       const personaName = (persona && persona.name) || customer.name || "Customer";
-      const userMsg = (persona && persona.painPoints)
-        ? truncate(persona.painPoints, 80)
-        : "Can you help me find what I left behind?";
-      const agentMsg = (acts[0] && acts[0].businessValue)
-        ? truncate(acts[0].businessValue, 100)
-        : (f.futureStateVision ? truncate(f.futureStateVision, 100) : "Here's a recommendation grounded in your unified profile.");
+      // Derive the chat from HOLO_SHARED.agentChat so the exported slide and
+      // the Step 8 preview show identical copy (single source of truth).
+      // Reconstruct the state shape the shared helper reads.
+      const chat = SHARED.agentChat
+        ? SHARED.agentChat({ story: plan.story || {}, personas: plan.personas || [], project: { industry: customer.industry || "" } })
+        : {
+            user:  (persona && persona.painPoints) ? truncate(persona.painPoints, 80) : "Can you help me find what I left behind?",
+            agent: (acts[0] && acts[0].businessValue) ? truncate(acts[0].businessValue, 100)
+                   : (f.futureStateVision ? truncate(f.futureStateVision, 100) : "Here's a recommendation grounded in your unified profile."),
+          };
+      const userMsg  = chat.user;
+      const agentMsg = chat.agent;
       return twoPanel({
         left: phoneFrame(
           el("div", { class: "dd-chat-thread" }, [
@@ -598,7 +614,10 @@
           el("p", { class: "dd-eyebrow", text: "Roadmap & next steps" }),
           el("h2", { class: "dd-display dd-display-mid", html: s.title || "From <em>today</em> to launch." }),
           el("ol", { class: "dd-next-list" },
-            ["Discovery & alignment", "Pilot / POV", "Roll-out", "Scale & optimize"].map(function (p) {
+            (SHARED.nextStepsPhases
+              ? SHARED.nextStepsPhases()
+              : ["Discovery & alignment", "Pilot / POV", "Roll-out", "Scale & optimize"]
+            ).map(function (p) {
               return el("li", { class: "dd-next-item", text: p });
             })
           ),

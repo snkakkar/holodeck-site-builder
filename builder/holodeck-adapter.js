@@ -81,6 +81,7 @@
       orbitNodes:        buildOrbitNodes(state, products),
       orbitCenter:       buildOrbitCenter(project),
       orbitCopy:         buildOrbitCopy(state, f, products),
+      bvCopy:            buildBvCopy(f),
       timeline:          buildTimeline(state, f, acts),
       demoAssets:        buildDemoAssets(state),
       demoSlideText:     buildDemoSlideText(state, persona, project, f),
@@ -159,7 +160,9 @@
   function shortHeroHeadline(name, project, f) {
     const parts = SHARED.heroHeadlineParts
       ? SHARED.heroHeadlineParts(name, f)
-      : { name: name, before: "a", accent: "connected", after: "customer journey" };
+      : { name: name, before: "a", accent: "connected", after: "customer journey", override: "" };
+    // SE override (vi-1 "Headline") wins — verbatim, no <em> composition.
+    if (parts.override && parts.override.trim()) return parts.override;
     return parts.name + ",<br/>" + parts.before + " <em>" + parts.accent + "</em> " + parts.after + ".";
   }
   function heroSubLine(name) {
@@ -168,7 +171,9 @@
   function shortStoryHook(name, f) {
     const h = SHARED.storyHookParts
       ? SHARED.storyHookParts(f)
-      : { lead: "From a single moment", emph: "lifetime", tail: "to a", suffix: "of relevance." };
+      : { lead: "From a single moment", emph: "lifetime", tail: "to a", suffix: "of relevance.", override: "" };
+    // SE override (vi-2 "Headline") wins — verbatim.
+    if (h.override && h.override.trim()) return h.override;
     // Adapter slot is display-type — line-break before the accent and
     // wrap it in <em>. Order: "<lead><br/>[<tail> ]<em>emph</em> <suffix>"
     const tail = h.tail ? h.tail + " " : "";
@@ -321,7 +326,9 @@
       name:        first,
       fullName:    full,
       role:        p.role || "[TODO: persona role]",
-      jobTitle:    p.role || "[TODO: persona job title]",
+      // Honor an explicit jobTitle (the personaCard editor field) before
+      // falling back to role — mirrors the preview renderer (p.jobTitle || p.role).
+      jobTitle:    p.jobTitle || p.role || "[TODO: persona job title]",
       customerOf:  project.customerName || "",
       journeyArc:  truncate(p.demoRelevance || p.goals || "[TODO: one-line journey arc]", 110),
       quote:       p.painPoints
@@ -341,9 +348,9 @@
       // CTA copy comes from SHARED so the mr-4 preview tile and the
       // exported slide stay in lock-step. Story passed through so the
       // sub falls back to story.futureVision when demoRelevance is empty.
-      ctaLabel:         (SHARED.personaCtaCopy ? SHARED.personaCtaCopy(p, state.story).label    : "BEGIN THE JOURNEY &nbsp;→"),
-      ctaHeadline:      (SHARED.personaCtaCopy ? SHARED.personaCtaCopy(p, state.story).headline : "Let's follow " + first + "'s journey."),
-      ctaSub:           (SHARED.personaCtaCopy ? SHARED.personaCtaCopy(p, state.story).sub      : truncate(p.demoRelevance || "From inspiration to purchase to loyalty.", 110)),
+      ctaLabel:         (SHARED.personaCtaCopy ? SHARED.personaCtaCopy(p, state.story, state.storyFoundations).label    : "BEGIN THE JOURNEY &nbsp;→"),
+      ctaHeadline:      (SHARED.personaCtaCopy ? SHARED.personaCtaCopy(p, state.story, state.storyFoundations).headline : "Let's follow " + first + "'s journey."),
+      ctaSub:           (SHARED.personaCtaCopy ? SHARED.personaCtaCopy(p, state.story, state.storyFoundations).sub      : truncate(p.demoRelevance || "From inspiration to purchase to loyalty.", 110)),
       // Empty strings (not literal "[TODO:]" paths) so the browser
       // skips fetching a broken image. Step 7's Assets panel writes
       // any uploads into state.assetLibrary, which we read here so
@@ -352,6 +359,9 @@
       heroGif:          asset(state, "persona.heroGif"),
       phoneGif:         asset(state, "persona.phoneGif"),
       portrait:         asset(state, "persona.portrait"),
+      // Step 8 eyebrow overrides (mr-1 / mr-4) — blank = template default.
+      introEyebrow:     (state.storyFoundations && state.storyFoundations.personaIntroEyebrow) || "",
+      ctaEyebrow:       (state.storyFoundations && state.storyFoundations.personaCtaEyebrow) || "",
     };
   }
   // Pronoun helpers live in HOLO_SHARED so changes propagate to the
@@ -388,15 +398,21 @@
   function personaWishlistFrom(p) {
     const arr = Array.isArray(p.wishlist) ? p.wishlist : [];
     const def = defaultPersonaWishlist();
-    return def.map(function (d, i) {
+    // Render every SE row, not just the first 3 — previously this mapped
+    // over `def` (length 3) and silently dropped a 4th+ wishlist item.
+    const n = Math.max(arr.length, def.length);
+    const out = [];
+    for (let i = 0; i < n; i++) {
       const row = arr[i] || {};
-      return {
+      const d   = def[i] || { name: "", tag: "", detail: "", emoji: "" };
+      out.push({
         name:   (row.name   && String(row.name).trim())   || d.name,
         tag:    (row.tag    && String(row.tag).trim())    || d.tag,
         detail: (row.detail && String(row.detail).trim()) || d.detail,
         emoji:  (row.emoji  && String(row.emoji).trim())  || d.emoji,
-      };
-    });
+      });
+    }
+    return out;
   }
   function defaultPersonaStats() {
     return [
@@ -504,37 +520,74 @@
       // as an iframe (consistent with buildBuilderPlan above).
       const layout = linkedSlideIds[sl.id] ? "embeddedCxComponent" : sl.layout;
       const type = builderLayoutToHolodeckSlideType(layout);
+      // First content-bearing story act — the same source the preview
+      // renderers (demoMap/deviceMoment) use, so export = preview.
+      const act = firstContentAct(acts);
       const base = {
         type:     type,
         eyebrow:  capitalize(sl.sectionId || "demo").replace("-", " "),
         headline: sl.title || ("Slide " + (i + 1)),
-        sub:      sl.speakerNotes || "[TODO: slide narration]",
+        sub:      sl.speakerNotes || (act && act.summary ? truncate(act.summary, 200) : "[TODO: slide narration]"),
       };
       if (type === "two-panel") {
+        // demoMap (and other two-panel SE layouts) render a numbered
+        // demo-flow in the preview. Carry the real story-act content into
+        // the export's right panel instead of a TODO placeholder.
         base.left  = { imagePath: "assets/[TODO: " + slug(sl.title) + ".jpg]", tag: sl.title };
         base.right = {
           eyebrow:  base.eyebrow,
-          headline: sl.title || "",
-          sub:      "[TODO: slide narrative]",
+          headline: sl.title || (act && act.title ? act.title : ""),
+          sub:      (act && act.summary) ? truncate(act.summary, 200) : "[TODO: slide narrative]",
           stats:    [],
           quote:    "",
         };
+        if (layout === "demoMap") {
+          base.right.steps = SHARED.demoFlowSteps ? SHARED.demoFlowSteps(acts) : demoFlowStepsLocal(acts);
+        }
       }
       if (type === "iframe-phone" || type === "iframe-laptop") {
+        // deviceMoment / agentConversation render real channel + narrative
+        // content in the preview; mirror it here rather than a TODO.
         base.left = {
           backgroundPath: "assets/[TODO: scene-bg.jpg]",
           iframeSrc:      "{{scenes." + (sl.linkedCxComponentIds && sl.linkedCxComponentIds[0] || "instagramAd") + "}}",
-          tag:            sl.title || "",
+          tag:            (act && act.channel) || sl.title || "",
         };
         base.right = {
-          eyebrow:  base.eyebrow,
-          headline: sl.title || "",
-          sub:      "[TODO: scene narration]",
+          eyebrow:  (act && act.salesforceCapabilities) || base.eyebrow,
+          headline: sl.title || (act && act.title ? act.title : ""),
+          sub:      (act && act.summary) ? truncate(act.summary, 200) : (sl.speakerNotes || "[TODO: scene narration]"),
           stats:    [],
           quote:    "",
         };
+        if (layout === "agentConversation") {
+          base.right.chat = SHARED.agentChat
+            ? SHARED.agentChat(state)
+            : { user: "[TODO: customer message]", agent: "[TODO: Agentforce reply]" };
+        }
+      }
+      if (type === "title" && layout === "nextSteps") {
+        // nextSteps preview shows a roadmap phase list — carry it through.
+        base.phases = SHARED.nextStepsPhases ? SHARED.nextStepsPhases() : NEXT_STEPS_PHASES;
       }
       return base;
+    });
+  }
+  // Local fallbacks (used when HOLO_SHARED isn't loaded) — kept in sync
+  // with the shared helpers so a degraded export still carries content.
+  const NEXT_STEPS_PHASES = ["Discovery & alignment", "Pilot / POV", "Roll-out", "Scale & optimize"];
+  function firstContentAct(acts) {
+    function isGeneric(t) { return !t || /^(intro|opening|open|chapter\s|section\s|close|closing)/i.test(t); }
+    return (acts || []).find(function (a) { return a && a.summary && !isGeneric(a.title); }) || (acts || [])[0] || null;
+  }
+  function demoFlowStepsLocal(acts) {
+    return (acts || []).filter(function (a) { return a && a.title; }).slice(0, 8).map(function (a, i) {
+      return {
+        num:     String(i + 1).padStart(2, "0"),
+        title:   a.title || "",
+        channel: a.channel || "",
+        cap:     a.salesforceCapabilities || "",
+      };
     });
   }
   function builderLayoutToHolodeckSlideType(layout) {
@@ -592,7 +645,28 @@
       label: (project.customerName || "CUSTOMER").toUpperCase(),
     };
   }
+  // bv-1..5 eyebrows/headlines the SE can override in Step 8 (the polished
+  // template's static HTML reads these, falling back to its literals). Only
+  // emit keys the SE actually set so blank = the template default.
+  function buildBvCopy(f) {
+    f = f || {};
+    const keys = [
+      "bvOpenerEyebrow", "bvOpenerHeadline", "bvOpenerSub",
+      "bvOrbitEyebrow", "bvOrbitHeadline",
+      "bvCapsEyebrow", "bvCapsHeadline",
+      "bvScorecardEyebrow", "bvScorecardHeadline", "bvScorecardDisclaimer",
+      "bvClosingEyebrow",
+    ];
+    const out = {};
+    keys.forEach(function (k) {
+      if (f[k] != null && String(f[k]).trim()) out[k] = String(f[k]);
+    });
+    return out;
+  }
   function emojiForIndustry(industry) {
+    // Single source in HOLO_SHARED so the bv-2 preview orbit center and
+    // this exported center use the same mapping.
+    if (SHARED.emojiForIndustry) return SHARED.emojiForIndustry(industry);
     return ({
       "Retail":             "🛍️",
       "Consumer Goods":     "🧺",

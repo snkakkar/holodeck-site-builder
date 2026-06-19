@@ -103,7 +103,7 @@
     <div class="slides-wrap" id="rachel-wrap">
 
       <div class="pslide active" id="mr-1">
-        <p class="mr-s1-eyebrow">Customer Spotlight</p>
+        <p class="mr-s1-eyebrow" id="mr-s1-eyebrow">Customer Spotlight</p>
         <h1 class="mr-s1-title" id="mr-s1-title"></h1>
         <p class="mr-s1-sub" id="mr-s1-sub"></p>
       </div>
@@ -135,7 +135,7 @@
       </div>
 
       <div class="pslide" id="mr-4">
-        <p class="mr-s4-eyebrow">The Customer Journey</p>
+        <p class="mr-s4-eyebrow" id="mr-s4-eyebrow">The Customer Journey</p>
         <h2 class="mr-s4-headline" id="mr-s4-headline"></h2>
         <p class="mr-s4-sub" id="mr-s4-sub"></p>
         <button class="mr-s4-cta" id="rachel-journey-cta" id="mr-s4-cta-btn"></button>
@@ -170,9 +170,9 @@
     <div class="slides-wrap" id="bv-wrap">
 
       <div class="pslide active" id="bv-1">
-        <p class="bv-s1-eyebrow">The Business Outcome</p>
-        <h2 class="bv-s1-headline">A completely connected journey.<br/><em>Driven by AI.</em></h2>
-        <p class="bv-s1-sub">Higher conversion. Increased AOV. Lifelong loyalty.</p>
+        <p class="bv-s1-eyebrow" id="bv-s1-eyebrow">The Business Outcome</p>
+        <h2 class="bv-s1-headline" id="bv-s1-headline">A completely connected journey.<br/><em>Driven by AI.</em></h2>
+        <p class="bv-s1-sub" id="bv-s1-sub">Higher conversion. Increased AOV. Lifelong loyalty.</p>
       </div>
 
       <div class="pslide" id="bv-2">
@@ -191,15 +191,15 @@
       </div>
 
       <div class="pslide" id="bv-3">
-        <p class="bv-s3-eyebrow">Key Capabilities Shown Today</p>
-        <h2 class="bv-s3-headline">Personalize. Search. <span class="accent">Convert.</span></h2>
+        <p class="bv-s3-eyebrow" id="bv-s3-eyebrow">Key Capabilities Shown Today</p>
+        <h2 class="bv-s3-headline" id="bv-s3-headline">Personalize. Search. <span class="accent">Convert.</span></h2>
         <div class="bv-s3-caps" id="bv-caps"></div>
       </div>
 
       <div class="pslide" id="bv-4">
-        <p class="bv-s4-eyebrow">BVS Benchmarks</p>
-        <h2 class="bv-s4-headline">The numbers that matter.</h2>
-        <div class="bv-s4-todo">⚠️ Replace placeholder values with real BVS benchmarks — update the <strong>bvsMetrics</strong> array in the JS below</div>
+        <p class="bv-s4-eyebrow" id="bv-s4-eyebrow">BVS Benchmarks</p>
+        <h2 class="bv-s4-headline" id="bv-s4-headline">The numbers that matter.</h2>
+        <div class="bv-s4-todo" id="bv-s4-disclaimer">⚠️ Replace placeholder values with real BVS benchmarks — update the <strong>bvsMetrics</strong> array in the JS below</div>
         <div class="bv-s4-metrics" id="bv-metrics"></div>
       </div>
 
@@ -215,6 +215,10 @@
   </div>
 
   <script src="holodeck.config.js"></script>
+  <!-- Shared copy generators (HOLO_SHARED) — same module the builder's
+       Step 8 preview uses, so the exported deck and the preview derive
+       slide copy from one source. Must load before demo-deck-renderer.js. -->
+  <script src="js/holodeck-shared.js"></script>
   <script src="js/holodeck-render.js"></script>
   <script src="js/dom-utils.js"></script>
   <script src="js/navigation.js"></script>
@@ -253,6 +257,9 @@
     // Meet Persona slide 1
     document.getElementById('mr-s1-title').innerHTML    = 'Meet <strong>' + C.persona.name + '.</strong>';
     document.getElementById('mr-s1-sub').textContent    = C.customer.name + ' · ' + C.persona.journeyArc;
+    // mr-1 / mr-4 eyebrow overrides (Step 8) — blank keeps the default.
+    if (C.persona.introEyebrow) document.getElementById('mr-s1-eyebrow').textContent = C.persona.introEyebrow;
+    if (C.persona.ctaEyebrow)   document.getElementById('mr-s4-eyebrow').textContent = C.persona.ctaEyebrow;
     // Meet Persona slide 2
     document.getElementById('mr-s2-role').textContent   = C.persona.role;
     var nameParts = C.persona.fullName.split(' ');
@@ -282,6 +289,23 @@
       div.innerHTML = '<div class="bv-oc-stat-val">' + s.val + '</div><div class="bv-oc-stat-label">' + s.label + '</div>';
       statsEl.appendChild(div);
     });
+    // BV eyebrow/headline overrides (Step 8 edits) — apply only when set,
+    // so blank keeps the static template default. Keeps preview = export.
+    (function applyBvCopy() {
+      var bc = C.bvCopy || {};
+      function setText(id, v) { var el = document.getElementById(id); if (el && v != null && String(v).trim()) el.textContent = String(v); }
+      setText('bv-s1-eyebrow',     bc.bvOpenerEyebrow);
+      setText('bv-s1-headline',    bc.bvOpenerHeadline);
+      setText('bv-s1-sub',         bc.bvOpenerSub);
+      setText('bv-oc-eyebrow',     bc.bvOrbitEyebrow);
+      if (bc.bvOrbitHeadline) { var h = document.getElementById('bv-oc-headline'); if (h) h.textContent = bc.bvOrbitHeadline; }
+      setText('bv-s3-eyebrow',     bc.bvCapsEyebrow);
+      setText('bv-s3-headline',    bc.bvCapsHeadline);
+      setText('bv-s4-eyebrow',     bc.bvScorecardEyebrow);
+      setText('bv-s4-headline',    bc.bvScorecardHeadline);
+      setText('bv-s4-disclaimer',  bc.bvScorecardDisclaimer);
+      // bv-s5 eyebrow is handled in the BV close-slide block below.
+    })();
     // BV close slide
     // Nav persona button label
     document.getElementById('nav-rachel').textContent = 'Meet ' + C.persona.name;
@@ -300,8 +324,10 @@
       });
     })(document.body);
 
-    // BV close slide copy
-    document.getElementById('bv-s5-eyebrow').textContent = C.customer.name + ' + Salesforce';
+    // BV close slide copy — eyebrow honors the Step 8 override (bvCopy)
+    // before the default "<Customer> + Salesforce".
+    document.getElementById('bv-s5-eyebrow').textContent =
+      ((C.bvCopy && C.bvCopy.bvClosingEyebrow) || (C.customer.name + ' + Salesforce'));
     document.getElementById('bv-s5-headline').innerHTML  = '”' + C.customer.closingQuote + '”';
     } catch (err) {
       // A missing config field (e.g. an older config without
@@ -598,11 +624,18 @@
   // ═══════════════════════════════════════
   (function buildBV() {
     const capsEl = document.getElementById('bv-caps');
-    STORY.platform.capabilities.forEach(cap => {
-      const tech = STORY.technologies.find(t => t.label === cap);
+    // Render the capabilities list directly (label + description, with any
+    // SE overrides already applied by SHARED.buildCapabilities → C.technologies).
+    // Previously this iterated platform.capabilities (raw product names) and
+    // joined to descriptions by string-equality, which broke whenever an SE
+    // overrode a capability label and dropped the description.
+    const capsList = (STORY.technologies && STORY.technologies.length)
+      ? STORY.technologies
+      : (STORY.platform.capabilities || []).map(c => ({ label: c, description: '' }));
+    capsList.forEach(cap => {
       const div = document.createElement('div');
       div.className = 'bv-s3-cap';
-      div.innerHTML = `<div class="bv-s3-cap-title">${cap}</div><div class="bv-s3-cap-desc">${tech ? tech.description : ''}</div>`;
+      div.innerHTML = `<div class="bv-s3-cap-title">${cap.label || ''}</div><div class="bv-s3-cap-desc">${cap.description || ''}</div>`;
       capsEl.appendChild(div);
     });
     const metricsEl = document.getElementById('bv-metrics');
