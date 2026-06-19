@@ -424,7 +424,18 @@
   function buildSlideManifest(state) {
     state = state || {};
     const out = [];
+    // Selection gate: a synthetic slide is emitted unless the SE explicitly
+    // de-selected it in Step 5. selectedRecIds maps id → bool; an id ABSENT
+    // from the map means "default on" (so legacy state / first run is
+    // unchanged), an id present and falsy means "turned off".
+    const sel = state.selectedRecIds || {};
+    function isEnabled(id) {
+      if (!id) return true;
+      return !(id in sel) || !!sel[id];
+    }
     function add(entry) {
+      // Skip synthetic slides the SE de-selected; non-synthetic always added.
+      if (entry && entry.synthetic && entry.id && !isEnabled(entry.id)) return;
       out.push(Object.assign({ assets: [], capabilities: [] }, entry));
     }
 
@@ -652,6 +663,19 @@
   const NEXT_STEPS_PHASES = ["Discovery & alignment", "Pilot / POV", "Roll-out", "Scale & optimize"];
   function nextStepsPhases() { return NEXT_STEPS_PHASES.slice(); }
 
+  // mr-3 wishlist empty-state defaults — shared so the preview tile and the
+  // exported deck show identical placeholder rows (name, tag, detail, emoji).
+  // `pron` (from pronounsFor) is optional; when present the first row's tag
+  // reads "FOR <obj>", else the canonical "PRIMARY CONSIDERATION".
+  function defaultWishlist(pron) {
+    const firstTag = pron && pron.obj ? ("FOR " + String(pron.obj).toUpperCase()) : "PRIMARY CONSIDERATION";
+    return [
+      { name: "[TODO: top product]",       tag: firstTag,           detail: "[TODO]", emoji: "🛍️" },
+      { name: "[TODO: companion]",         tag: "AI MATCH",         detail: "[TODO]", emoji: "✨" },
+      { name: "[TODO: complete-the-look]", tag: "COMPLETE THE LOOK", detail: "[TODO]", emoji: "🎁" },
+    ];
+  }
+
   // Industry → emoji for the bv-2 orbit center. Shared so the preview's
   // orbit center matches the exported buildOrbitCenter.
   function emojiForIndustry(industry) {
@@ -708,6 +732,7 @@
     demoFlowSteps:           demoFlowSteps,
     agentChat:               agentChat,
     nextStepsPhases:         nextStepsPhases,
+    defaultWishlist:         defaultWishlist,
     emojiForIndustry:        emojiForIndustry,
     // slide manifest
     buildSlideManifest:      buildSlideManifest,

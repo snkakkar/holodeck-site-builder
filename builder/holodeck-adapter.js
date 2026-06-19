@@ -82,6 +82,7 @@
       orbitCenter:       buildOrbitCenter(project),
       orbitCopy:         buildOrbitCopy(state, f, products),
       bvCopy:            buildBvCopy(f),
+      enabledSlides:     buildEnabledSlides(state),
       timeline:          buildTimeline(state, f, acts),
       demoAssets:        buildDemoAssets(state),
       demoSlideText:     buildDemoSlideText(state, persona, project, f),
@@ -422,6 +423,8 @@
     ];
   }
   function defaultPersonaWishlist() {
+    // Single source in HOLO_SHARED so the mr-3 preview empty-state matches.
+    if (SHARED.defaultWishlist) return SHARED.defaultWishlist();
     return [
       { name: "[TODO: top product]",    tag: "PRIMARY CONSIDERATION", detail: "[TODO]", emoji: "🛍️" },
       { name: "[TODO: companion]",      tag: "AI MATCH",              detail: "[TODO]", emoji: "✨" },
@@ -645,6 +648,44 @@
       label: (project.customerName || "CUSTOMER").toUpperCase(),
     };
   }
+  // Which fixed-section slides are enabled (Step 5 selection). Keyed by the
+  // polished template's DOM slide id so demo-holodeck-unified.html can skip
+  // de-selected slides in its section build/nav. A synthetic manifest id
+  // ABSENT from selectedRecIds means "default on".
+  //   manifest id            → template DOM id
+  //   _rt_intro_hero         → vi-1
+  //   _rt_intro_hook         → vi-2
+  //   _rt_intro_three        → vi-3
+  //   _rt_intro_vig_0/1/2    → vi-4 / vi-5 / vi-6
+  //   _rt_journey_matrix     → sec-map (whole journey section)
+  //   _rt_persona_intro      → mr-1
+  //   _rt_persona_card       → mr-2
+  //   _rt_persona_wishlist   → mr-3
+  //   _rt_persona_cta        → mr-4
+  //   _rt_bv_opener/orbit/caps/scorecard/closing → bv-1..5
+  function buildEnabledSlides(state) {
+    const sel = (state && state.selectedRecIds) || {};
+    function on(id) { return !(id in sel) || !!sel[id]; }
+    return {
+      "vi-1":  on("_rt_intro_hero"),
+      "vi-2":  on("_rt_intro_hook"),
+      "vi-3":  on("_rt_intro_three"),
+      "vi-4":  on("_rt_intro_vig_0"),
+      "vi-5":  on("_rt_intro_vig_1"),
+      "vi-6":  on("_rt_intro_vig_2"),
+      "sec-map": on("_rt_journey_matrix"),
+      "mr-1":  on("_rt_persona_intro"),
+      "mr-2":  on("_rt_persona_card"),
+      "mr-3":  on("_rt_persona_wishlist"),
+      "mr-4":  on("_rt_persona_cta"),
+      "bv-1":  on("_rt_bv_opener"),
+      "bv-2":  on("_rt_bv_orbit"),
+      "bv-3":  on("_rt_bv_caps"),
+      "bv-4":  on("_rt_bv_scorecard"),
+      "bv-5":  on("_rt_bv_closing"),
+    };
+  }
+
   // bv-1..5 eyebrows/headlines the SE can override in Step 8 (the polished
   // template's static HTML reads these, falling back to its literals). Only
   // emit keys the SE actually set so blank = the template default.

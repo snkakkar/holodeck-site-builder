@@ -1571,12 +1571,15 @@
     personaWishlist: function (data, mode) {
       const p = data.persona || {};
       const pron = pronounsFor(p.pronouns);
-      const tagFor = "FOR " + pron.obj.toUpperCase();
-      const wish = (p.wishlist && p.wishlist.length) ? p.wishlist : [
-        { name: "Item one",   detail: "[TODO: wishlist item one detail]",   tag: tagFor },
-        { name: "Item two",   detail: "[TODO: wishlist item two detail]",   tag: "ALSO LIKED" },
-        { name: "Item three", detail: "[TODO: wishlist item three detail]", tag: "EXPLORE" },
-      ];
+      // Empty-state defaults come from HOLO_SHARED.defaultWishlist so the
+      // preview matches the exported deck (same names, tags, emoji).
+      const wish = (p.wishlist && p.wishlist.length)
+        ? p.wishlist
+        : (SHARED.defaultWishlist ? SHARED.defaultWishlist(pron) : [
+            { name: "[TODO: top product]",       tag: "FOR " + pron.obj.toUpperCase(), detail: "[TODO]", emoji: "🛍️" },
+            { name: "[TODO: companion]",         tag: "AI MATCH",                      detail: "[TODO]", emoji: "✨" },
+            { name: "[TODO: complete-the-look]", tag: "COMPLETE THE LOOK",             detail: "[TODO]", emoji: "🎁" },
+          ]);
       const root = el("div", { class: "hp hp-wishlist" });
       // If the SE hasn't customized the headline (or has only the
       // legacy "Her top 3..." default), synthesize from pronouns so

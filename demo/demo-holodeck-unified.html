@@ -228,6 +228,26 @@
   const STORY = window.STORY;
   const CFG   = window.HOLODECK_CONFIG;
 
+  // ── Step 5 slide selection ──────────────────────────────────
+  // CFG.enabledSlides maps a slide DOM id → bool. A slide ABSENT from the
+  // map (or true) is shown; false means the SE de-selected it in the
+  // builder, so we drop it here (and the section's nav skips it).
+  const ENABLED = (CFG && CFG.enabledSlides) || {};
+  function slideEnabled(id) { return !(id in ENABLED) || !!ENABLED[id]; }
+  // Remove de-selected .pslide nodes from a wrap and return the surviving
+  // ids in document order. Carousels build their nav from this list so
+  // counts / dots / paging stay correct with any slide removed.
+  function enabledSlideIds(wrapId) {
+    const wrap = document.getElementById(wrapId);
+    if (!wrap) return [];
+    const ids = [];
+    Array.prototype.slice.call(wrap.querySelectorAll('.pslide')).forEach(function (el) {
+      if (el.id && !slideEnabled(el.id)) { el.parentNode.removeChild(el); return; }
+      if (el.id) ids.push(el.id);
+    });
+    return ids;
+  }
+
   // ═══════════════════════════════════════
   //  POPULATE CONFIG-DRIVEN DOM NODES
   //  Wrapped in a try/catch so a missing field in the config
@@ -397,6 +417,15 @@
   document.getElementById('nav-demo').addEventListener('click', () => showSection('demo'));
   document.getElementById('nav-bv').addEventListener('click', () => showSection('bv'));
 
+  // Journey Map is a whole section (one synthetic slide). If de-selected in
+  // Step 5, hide the section and its nav button so it's absent from export.
+  if (!slideEnabled('sec-map')) {
+    const secMap = document.getElementById('sec-map');
+    const navMap = document.getElementById('nav-map');
+    if (secMap) secMap.parentNode.removeChild(secMap);
+    if (navMap) navMap.parentNode.removeChild(navMap);
+  }
+
   // ═══════════════════════════════════════
   //  JOURNEY MAP BUILD — verbatim from at-home-demo-map.html
   // ═══════════════════════════════════════
@@ -489,14 +518,19 @@
       wrap.appendChild(div);
     });
 
-    const total = 3 + STORY.vignetteSections.length;
-    const thumbTitles = ["The CX Vision →","Three-Act Journey →","Know & Reach →","Engage & Recover →","Convert →",null];
+    // Enabled slides in order (de-selected ones removed from the DOM). Map
+    // thumb titles by the slide's original id so they survive removal.
+    const thumbById = { 'vi-1':"The CX Vision →", 'vi-2':"Three-Act Journey →",
+      'vi-3':"Know & Reach →", 'vi-4':"Engage & Recover →", 'vi-5':"Convert →", 'vi-6':null };
+    const ids = enabledSlideIds('intro-wrap');
+    const total = ids.length;
     const dotsEl = document.getElementById('intro-dots');
     const ctaEl  = document.getElementById('intro-cta');
     const thumbEl = document.getElementById('intro-thumb');
     const thumbTitleEl = document.getElementById('intro-thumb-title');
     let current = 1;
 
+    if (total) document.getElementById(ids[0]).classList.add('active');
     for (let i = 1; i <= total; i++) {
       const dot = document.createElement('div');
       dot.className = 'pdot' + (i === 1 ? ' active' : '');
@@ -505,9 +539,10 @@
     }
 
     function updateThumb() {
-      if (current < total && thumbTitles[current-1]) {
+      const t = thumbById[ids[current-1]];
+      if (current < total && t) {
         thumbEl.classList.add('visible');
-        thumbTitleEl.innerHTML = thumbTitles[current-1];
+        thumbTitleEl.innerHTML = t;
       } else {
         thumbEl.classList.remove('visible');
       }
@@ -517,13 +552,13 @@
     function goTo(n) {
       const next = Math.max(1, Math.min(total, n));
       if (next === current) return;
-      const oldSlide = document.getElementById('vi-' + current);
+      const oldSlide = document.getElementById(ids[current-1]);
       oldSlide.classList.add('exit');
       dotsEl.children[current-1].classList.remove('active');
       current = next;
       setTimeout(() => {
         oldSlide.classList.remove('active','exit');
-        document.getElementById('vi-' + current).classList.add('active');
+        document.getElementById(ids[current-1]).classList.add('active');
       }, 300);
       const dot = dotsEl.children[current-1];
       dot.classList.remove('pulse'); void dot.offsetWidth;
@@ -561,14 +596,17 @@
       cardsEl.appendChild(div);
     });
 
-    const total = 4;
-    const thumbTitles = ["Meet " + STORY.persona.name + " →","Her Wishlist →","Begin the Journey →",null];
+    const thumbById = { 'mr-1':"Meet " + STORY.persona.name + " →", 'mr-2':"Her Wishlist →",
+      'mr-3':"Begin the Journey →", 'mr-4':null };
+    const ids = enabledSlideIds('rachel-wrap');
+    const total = ids.length;
     const dotsEl = document.getElementById('rachel-dots');
     const ctaEl  = document.getElementById('rachel-cta');
     const thumbEl = document.getElementById('rachel-thumb');
     const thumbTitleEl = document.getElementById('rachel-thumb-title');
     let current = 1;
 
+    if (total) document.getElementById(ids[0]).classList.add('active');
     for (let i = 1; i <= total; i++) {
       const dot = document.createElement('div');
       dot.className = 'pdot' + (i===1?' active':'');
@@ -578,8 +616,9 @@
     dotsEl.style.display = 'none'; ctaEl.style.display = 'none';
 
     function updateThumb() {
-      if (current < total && thumbTitles[current-1]) {
-        thumbEl.classList.add('visible'); thumbTitleEl.textContent = thumbTitles[current-1];
+      const t = thumbById[ids[current-1]];
+      if (current < total && t) {
+        thumbEl.classList.add('visible'); thumbTitleEl.textContent = t;
       } else { thumbEl.classList.remove('visible'); }
       ctaEl.style.display = current===total ? 'none' : (activeSection==='rachel' ? 'flex' : 'none');
     }
@@ -587,13 +626,13 @@
     function goTo(n) {
       const next = Math.max(1, Math.min(total, n));
       if (next === current) return;
-      const oldSlide = document.getElementById('mr-'+current);
+      const oldSlide = document.getElementById(ids[current-1]);
       oldSlide.classList.add('exit');
       dotsEl.children[current-1].classList.remove('active');
       current = next;
       setTimeout(() => {
         oldSlide.classList.remove('active','exit');
-        document.getElementById('mr-'+current).classList.add('active');
+        document.getElementById(ids[current-1]).classList.add('active');
       }, 300);
       const dot = dotsEl.children[current-1];
       dot.classList.remove('pulse'); void dot.offsetWidth;
@@ -646,11 +685,13 @@
       metricsEl.appendChild(div);
     });
 
-    const total = 5;
+    const ids = enabledSlideIds('bv-wrap');
+    const total = ids.length;
     const dotsEl = document.getElementById('bv-dots');
     const ctaEl  = document.getElementById('bv-cta');
     let current = 1;
 
+    if (total) document.getElementById(ids[0]).classList.add('active');
     for (let i = 1; i <= total; i++) {
       const dot = document.createElement('div');
       dot.className = 'pdot' + (i===1?' active':'');
@@ -662,13 +703,13 @@
     function goTo(n) {
       const next = Math.max(1, Math.min(total, n));
       if (next === current) return;
-      const oldSlide = document.getElementById('bv-'+current);
+      const oldSlide = document.getElementById(ids[current-1]);
       oldSlide.classList.add('exit');
       dotsEl.children[current-1].classList.remove('active');
       current = next;
       setTimeout(() => {
         oldSlide.classList.remove('active','exit');
-        document.getElementById('bv-'+current).classList.add('active');
+        document.getElementById(ids[current-1]).classList.add('active');
       }, 300);
       const dot = dotsEl.children[current-1];
       dot.classList.remove('pulse'); void dot.offsetWidth;

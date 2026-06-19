@@ -989,16 +989,62 @@
   //  every demo should probably have (anchor), which to keep
   //  optional, and the "Why this sequence?" explanation.
   // ═══════════════════════════════════════════════════════════════
+  // The four "fixed" sections whose slides are defined by the runtime
+  // manifest (buildSlideManifest in holodeck-shared.js) — NOT by RULES.
+  // Their selector cards are synthesized from the manifest so the selector
+  // is 1:1 with what actually gets generated/exported. The demo section
+  // keeps coming from RULES (its cards map to real state.slides).
+  const MANIFEST_SECTIONS = ["intro", "journey-map", "meet-persona", "business-value"];
+
+  // Turn the synthetic manifest slides (everything except the demo section)
+  // into selector recommendation entries with the SAME id/layout/section the
+  // generator/export use. selectionStatus "required" so they default on.
+  function manifestRecommendations(state) {
+    const SH = global.HOLO_SHARED;
+    if (!SH || !SH.buildSlideManifest) return [];
+    const manifest = SH.buildSlideManifest(state) || [];
+    return manifest
+      .filter(function (sl) {
+        return sl && sl.synthetic && MANIFEST_SECTIONS.indexOf(sl.sectionId) >= 0;
+      })
+      .map(function (sl) {
+        return {
+          id: sl.id,
+          title: sl.title || sl.layout,
+          type: "slide",
+          layout: sl.layout,
+          sectionId: sl.sectionId,
+          selectionStatus: "required",
+          audienceTags: [],
+          capabilities: [],
+          priority: 100,
+          rationale: "Always rendered by the polished template for this section.",
+          sourceSignals: [],
+          missingInputs: [],
+          synthetic: true,
+        };
+      });
+  }
+
   function generateRecommendedNarrativePlan(state) {
     if (!state) state = {};
     const ctx = stateToCtx(state);
     const res = recommend(ctx);
 
-    // Group recommendations by section
+    // Group recommendations by section. The four fixed sections are sourced
+    // from the manifest (1:1 with generation); only the demo section uses
+    // the RULES recommendations.
     const bySection = {};
     SLIDE_SECTIONS.forEach(function (s) { bySection[s.id] = []; });
+    manifestRecommendations(state).forEach(function (r) {
+      if (!bySection[r.sectionId]) bySection[r.sectionId] = [];
+      bySection[r.sectionId].push(r);
+    });
     res.recommendations.forEach(function (r) {
       const sid = r.sectionId || "demo";
+      // Skip RULES entries for the four manifest-owned sections — those
+      // cards never actually render (the export uses the synthetic slides).
+      if (MANIFEST_SECTIONS.indexOf(sid) >= 0) return;
       if (!bySection[sid]) bySection[sid] = [];
       bySection[sid].push(r);
     });
@@ -1029,115 +1075,20 @@
       };
     });
 
-    // Anchor / required slides
-    const anchorIds = collectAnchorSlideIds(sections, state);
-
-    // Why-this-sequence narrative
-    const reasoning = buildSequenceReasoning(state, ctx, res.signals, sections);
+    // Every slide is selectable and on by default — no anchor auto-trim,
+    // no "why this sequence" narrative (the Recommended Narrative feature
+    // was removed). allSlideIds lets the caller pre-select everything.
+    const allSlideIds = [];
+    sections.forEach(function (s) { s.slides.forEach(function (r) { allSlideIds.push(r.id); }); });
 
     return {
       sections: sections,
-      anchorSlideIds: anchorIds,
-      reasoning: reasoning,
+      allSlideIds: allSlideIds,
       signals: res.signals,
     };
   }
 
   function byPriorityDesc(a, b) { return b.priority - a.priority; }
-
-  // Audience-aware anchor caps. Total slides should land in this range.
-  // Executive readouts must stay short (8–9). Technical audiences can
-  // tolerate more depth (up to ~12).
-  const ANCHOR_BUDGETS = {
-    "Executive":     { total: 8,  perDemo: 2 },
-    "IT":            { total: 12, perDemo: 4 },
-    "Marketing":     { total: 10, perDemo: 3 },
-    "Sales":         { total: 9,  perDemo: 3 },
-    "Service":       { total: 10, perDemo: 3 },
-    "Store Ops":     { total: 9,  perDemo: 3 },
-    "Field Ops":     { total: 9,  perDemo: 3 },
-    "Mixed":         { total: 10, perDemo: 3 },
-    "":              { total: 9,  perDemo: 3 },
-  };
-
-  function collectAnchorSlideIds(sections, state) {
-    const audience = (state.project && state.project.audience) || "";
-    const budget = ANCHOR_BUDGETS[audience] || ANCHOR_BUDGETS[""];
-    const hasCx = (state.cxComponents || []).length > 0;
-
-    // Per section: how many slides we want as anchors.
-    // Executive demos lean very thin in Demo, very rich in Business Value.
-    const perSection = {
-      "intro":          audience === "Executive" ? 2 : 2,
-      "journey-map":    1,
-      "meet-persona":   1,
-      "demo":           budget.perDemo,
-      "business-value": audience === "Executive" ? 2 : 2,
-    };
-
-    const anchors = [];
-    sections.forEach(function (s) {
-      const cap = perSection[s.id] || 1;
-
-      // Required rules always count toward the cap (but never exceed it).
-      const required = s.slides.filter(function (r) { return r.selectionStatus === "required"; });
-      const recommended = s.slides.filter(function (r) { return r.selectionStatus === "recommended"; });
-
-      // Take required first (sorted by priority).
-      required.slice(0, cap).forEach(function (r) { anchors.push(r.id); });
-
-      // Fill remaining slots with the highest-priority recommended rules.
-      const remaining = cap - Math.min(required.length, cap);
-      recommended.slice(0, remaining).forEach(function (r) { anchors.push(r.id); });
-
-      // Special case: if the SE has CX components, force one
-      // embeddedCxComponent slide into the Demo section even if it
-      // wasn't going to make the cap (it's the most differentiated content).
-      if (s.id === "demo" && hasCx) {
-        const cx = s.slides.find(function (r) { return r.layout === "embeddedCxComponent"; });
-        if (cx && anchors.indexOf(cx.id) < 0) anchors.push(cx.id);
-      }
-    });
-
-    // Hard cap on the total (drop the lowest-priority extras if we overshot
-    // because of the CX special case).
-    const ranked = uniqIds(anchors);
-    if (ranked.length <= budget.total) return ranked;
-
-    // Build a quick priority lookup from sections.
-    const priById = {};
-    sections.forEach(function (s) { s.slides.forEach(function (r) { priById[r.id] = r.priority; }); });
-    ranked.sort(function (a, b) { return (priById[b] || 0) - (priById[a] || 0); });
-    return ranked.slice(0, budget.total);
-  }
-
-  function uniqIds(a) {
-    const seen = {};
-    return a.filter(function (id) { if (seen[id]) return false; seen[id] = true; return true; });
-  }
-
-  function buildSequenceReasoning(state, ctx, sig, sections) {
-    const out = [];
-    out.push("Open with Hero + Story Foundation so the customer sees the problem and vision before any product.");
-    if ((state.storyActs || []).length >= 3) {
-      out.push("Show the Journey Timeline next — your story has " + state.storyActs.length + " acts that map cleanly to a flow.");
-    } else {
-      out.push("Use a Journey Map so the audience sees the end-to-end before any screens.");
-    }
-    if ((state.personas || []).length >= 1) {
-      out.push("Introduce " + state.personas[0].name + " so every demo moment lands on a real human.");
-    } else {
-      out.push("Add a persona — the Meet section anchors the demo emotionally.");
-    }
-    const prods = (state.project && state.project.products) || [];
-    if (prods.indexOf("Agentforce") >= 0) out.push("Lead the Demo section with the Agent moment — Agentforce is your headline product.");
-    if (prods.indexOf("Data Cloud") >= 0) out.push("Include a Unified Profile slide so Data Cloud isn't abstract.");
-    if ((state.cxComponents || []).length) out.push("Drop the live AubreyDemo CX components inline in the Demo so the story stays grounded in real screens.");
-    if (ctx.audience === "Executive") out.push("Skip deep architecture; close on KPI Scorecard + Executive Takeaway.");
-    if (ctx.audience === "IT" || ctx.salesStage === "Technical Validation") out.push("Add Architecture and Identity Resolution so technical buyers see the stack.");
-    out.push("End with KPI Scorecard + Executive Takeaway so the value is the last thing they see.");
-    return out;
-  }
 
   // Convert state → ctx for recommend()
   function stateToCtx(state) {
@@ -1175,6 +1126,8 @@
     layoutToSectionId: layoutToSectionId,
     sectionLabelFor: sectionLabelFor,
     generateRecommendedNarrativePlan: generateRecommendedNarrativePlan,
+    manifestRecommendations: manifestRecommendations,
+    MANIFEST_SECTIONS: MANIFEST_SECTIONS,
     stateToCtx: stateToCtx,
   };
 })(window);

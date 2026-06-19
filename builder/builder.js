@@ -36,12 +36,11 @@
     { id: "script",      num: "2",  label: "Script & Story",        help: "Pull from Aubrey or paste/upload your demo script" },
     { id: "setup",       num: "3",  label: "Setup",                 help: "Customer, audience, products" },
     { id: "foundations", num: "4",  label: "Story Foundations",     help: "Review what was extracted" },
-    { id: "narrative",   num: "5",  label: "Recommended Narrative", help: "See the suggested story arc" },
-    { id: "recs",        num: "6",  label: "Slide Selection",       help: "Customize the slide plan by section" },
-    { id: "cx",          num: "7",  label: "CX Components",         help: "Embed live AubreyDemo screens (optional)" },
-    { id: "assets",      num: "8",  label: "Assets",                help: "Upload images for the slides you selected (optional)" },
-    { id: "preview",     num: "9",  label: "Preview",               help: "Review the full demo before exporting" },
-    { id: "export",      num: "10", label: "Export",                help: "Download the complete demo ZIP" },
+    { id: "recs",        num: "5",  label: "Slide Selection",       help: "Customize the slide plan by section" },
+    { id: "cx",          num: "6",  label: "CX Components",         help: "Embed live AubreyDemo screens (optional)" },
+    { id: "assets",      num: "7",  label: "Assets",                help: "Upload images for the slides you selected (optional)" },
+    { id: "preview",     num: "8",  label: "Preview",               help: "Review the full demo before exporting" },
+    { id: "export",      num: "9",  label: "Export",                help: "Download the complete demo ZIP" },
   ];
   const INDUSTRIES = ["Retail","Consumer Goods","Hospitality","Travel","Financial Services","Healthcare","Other"];
   const AUDIENCES  = ["Executive","IT","Marketing","Sales","Service","Store Ops","Field Ops","Mixed"];
@@ -385,11 +384,6 @@
       if (!foundationsHaveContent) return st("review-needed", "Run extract to populate");
       return st("generated", "Extracted from script");
     }
-    if (id === "narrative") {
-      if (!foundationsHaveContent) return locked("Review Story Foundations first");
-      if (!hasSelections) return st("ready", "Ready to generate");
-      return st("generated", "Narrative applied");
-    }
     if (id === "cx") {
       // Treated as optional — never locks downstream.
       if (hasCx)            return st("complete", (s.cxComponents.length) + " linked");
@@ -397,7 +391,7 @@
       return st("optional", "Optional");
     }
     if (id === "recs") {
-      if (!hasSelections && !slideCount) return locked("Generate the recommended narrative first");
+      if (!foundationsHaveContent && !hasSelections && !slideCount) return locked("Review Story Foundations first");
       if (!slideCount) return st("review-needed", "Build slide plan");
       return st("complete", slideCount + " slides selected");
     }
@@ -441,14 +435,15 @@
   function renderMain() {
     const main = $("#bxMain");
     main.innerHTML = "";
-    // Migrate any legacy state.step values (older projects had "story").
+    // Migrate any legacy state.step values (older projects had "story";
+    // "narrative" was removed when Recommended Narrative was retired).
     if (app.state.step === "story") app.state.step = "script";
+    if (app.state.step === "narrative") app.state.step = "recs";
     const step = app.state.step;
     if      (step === "connect")     main.appendChild(viewConnect());
     else if (step === "setup")       main.appendChild(viewSetup());
     else if (step === "script")      main.appendChild(viewScript());
     else if (step === "foundations") main.appendChild(viewFoundations());
-    else if (step === "narrative")   main.appendChild(viewNarrative());
     else if (step === "cx")          main.appendChild(viewCxComponents());
     else if (step === "recs")        main.appendChild(viewRecommendations());
     else if (step === "assets")      main.appendChild(viewAssets());
@@ -473,7 +468,7 @@
       title.textContent = "Live Suggestions";
       sub.textContent = "We'll keep this updated as you fill things in";
       sideSuggestions(body);
-    } else if (step === "narrative" || step === "recs") {
+    } else if (step === "recs") {
       title.textContent = "Selected so far";
       sub.textContent = countSelected() + " slides included";
       sideSelectedSummary(body);
@@ -904,7 +899,7 @@
       text: hasContent ? "Story Foundations are ready" : "Run extraction to populate this step" }));
     actionBar.appendChild(el("div", { class: "bx-card-sub",
       text: hasContent
-        ? "Looks good. You can edit fields below, or move on to generate the Recommended Narrative."
+        ? "Looks good. You can edit fields below, or move on to Slide Selection."
         : "Paste a script in Step 2 and click Extract to populate the foundations." }));
     actionBar.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
       hasContent
@@ -1036,119 +1031,8 @@
     if (map[key]) s.story[map[key]] = value;
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  //  STEP 4: RECOMMENDED NARRATIVE
-  //  A standalone view that walks the SE through the suggested
-  //  story arc + section breakdown + reasoning + audience fit.
-  //  One CTA: "Use Recommended Narrative".
-  // ═══════════════════════════════════════════════════════════════
-  function viewNarrative() {
-    const wrap = el("div");
-    wrap.appendChild(stepHeader(
-      "Step 4 · Recommended Narrative",
-      "We've drafted the story arc",
-      "An opinionated demo flow based on your customer, audience, and extracted foundations. Apply it as-is or customize in the next step."
-    ));
-    const s = app.state;
-    const plan = RULES.generateRecommendedNarrativePlan ? RULES.generateRecommendedNarrativePlan(s) : null;
-
-    if (!plan) {
-      wrap.appendChild(el("div", { class: "bx-empty",
-        html: "<strong>Couldn't generate a plan.</strong> Make sure Setup is complete and Story Foundations are extracted." }));
-      wrap.appendChild(stepFooter("narrative"));
-      return wrap;
-    }
-
-    const audience = (s.project.audience || "—");
-    const stage    = (s.project.salesStage || "—");
-    const products = (s.project.products || []);
-    const slidesInPlan = plan.anchorSlideIds.length;
-
-    // ── Hero card: applied? + one big CTA ───────────────────
-    const hasSlides = (s.slides || []).length > 0;
-    const hero = el("div", { class: "bx-card bx-card-feature" });
-    hero.appendChild(el("div", { class: "bx-card-title",
-      text: hasSlides ? "Narrative applied" : "Apply the recommended narrative" }));
-    hero.appendChild(el("div", { class: "bx-card-sub",
-      text: hasSlides
-        ? "You've already applied a narrative. Re-apply to refresh, or move on to customize slide-by-slide."
-        : "Click below to drop in a coherent " + slidesInPlan + "-slide demo plan tuned for " + audience + " · " + stage + ". You can customize anything in the next step." }));
-    const heroRow = el("div", { class: "bx-row bx-mt-12" });
-    heroRow.appendChild(btn(hasSlides ? "Re-apply recommended narrative" : "Use Recommended Narrative",
-      "bx-btn-primary", function () {
-      const ids = new Set(plan.anchorSlideIds);
-      s.selectedRecIds = {};
-      Array.from(ids).forEach(function (id) { s.selectedRecIds[id] = true; });
-      s.recommendations.forEach(function (r) { r.selected = !!s.selectedRecIds[r.id]; });
-      buildSlidePlanFromSelections();
-      commit();
-      toast("Narrative applied — " + ids.size + " slides");
-      app.state.step = "recs"; renderShell();
-    }));
-    if (hasSlides) {
-      heroRow.appendChild(btn("Continue to customize →", "bx-btn-secondary", function () {
-        app.state.step = "recs"; renderShell();
-      }));
-    }
-    hero.appendChild(heroRow);
-    wrap.appendChild(hero);
-
-    // ── Audience fit + product summary ───────────────────────
-    const fitCard = el("div", { class: "bx-card" });
-    fitCard.appendChild(el("div", { class: "bx-card-title", text: "Why this sequence?" }));
-    fitCard.appendChild(el("div", { class: "bx-card-sub",
-      text: "Optimized for an " + audience + " audience at the " + stage + " stage."
-            + (products.length ? " Featuring " + products.slice(0, 4).join(", ") + (products.length > 4 ? ", and others." : ".") : "") }));
-    const why = el("ul", { class: "bx-numlist" });
-    (plan.reasoning || []).slice(0, 5).forEach(function (r) { why.appendChild(el("li", { text: r })); });
-    fitCard.appendChild(why);
-    if ((plan.reasoning || []).length > 5) {
-      const moreDetails = el("details", { class: "bx-rec-details" });
-      const summary = el("summary", { class: "bx-rec-details-summary",
-        text: "Show " + (plan.reasoning.length - 5) + " more reasons" });
-      moreDetails.appendChild(summary);
-      const ul = el("ul", { class: "bx-numlist", style: "margin-top: 8px;" });
-      plan.reasoning.slice(5).forEach(function (r) { ul.appendChild(el("li", { text: r })); });
-      moreDetails.appendChild(ul);
-      fitCard.appendChild(moreDetails);
-    }
-    wrap.appendChild(fitCard);
-
-    // ── Section preview cards: what'll be in each section ──
-    plan.sections.forEach(function (sec) {
-      const slidesInSec = sec.slides.filter(function (r) { return plan.anchorSlideIds.indexOf(r.id) >= 0; });
-      const card = el("div", { class: "bx-card bx-narrative-section" });
-      const head = el("div", { class: "bx-section-head" }, [
-        el("div", { class: "bx-section-num", text: String(sec.order) }),
-        el("div", { class: "bx-section-meta" }, [
-          el("div", { class: "bx-section-label", text: sec.label }),
-          el("div", { class: "bx-section-purpose", text: sec.purpose }),
-        ]),
-        el("div", { class: "bx-section-count",
-          text: slidesInSec.length + " slide" + (slidesInSec.length === 1 ? "" : "s") }),
-      ]);
-      card.appendChild(head);
-
-      if (!slidesInSec.length) {
-        card.appendChild(el("div", { class: "bx-empty",
-          html: "No slides in this section yet. Add inputs in earlier steps to unlock more options." }));
-      } else {
-        const list = el("ul", { class: "bx-narrative-slides" });
-        slidesInSec.forEach(function (r) {
-          const li = el("li", { class: "bx-narrative-slide" }, [
-            el("div", { class: "bx-narrative-slide-title", text: r.title }),
-            el("div", { class: "bx-narrative-slide-why", text: r.rationale || "" }),
-          ]);
-          list.appendChild(li);
-        });
-        card.appendChild(list);
-      }
-      wrap.appendChild(card);
-    });
-
-    wrap.appendChild(stepFooter("narrative"));
-    return wrap;
-  }
+  // (The standalone "Recommended Narrative" step was removed — every slide
+  //  is now selectable and on by default in Step 5 · Slide Selection.)
 
   function personaItem(p, idx) {
     const item = el("div", { class: "bx-item" });
@@ -1923,8 +1807,8 @@
     const wrap = el("div");
     wrap.appendChild(stepHeader(
       "Step 5 · Slide Selection",
-      "Customize the story structure",
-      "The recommended narrative is already applied. Toggle individual slides off, rename them inline, or expand a card for details. Slides are grouped by section."
+      "Every slide in your demo — toggle any off",
+      "These are the exact slides that will be generated, grouped by section, all on by default. Turn off anything you don't want, rename inline, or expand a card for details."
     ));
     const s = app.state;
 
@@ -1935,30 +1819,15 @@
       return wrap;
     }
 
-    // Recommended Narrative banner — opinionated default plan
+    // Section-grouped plan (fixed sections from the manifest + demo from RULES).
     const plan = RULES.generateRecommendedNarrativePlan ? RULES.generateRecommendedNarrativePlan(s) : null;
 
     if (plan) {
-      const banner = el("div", { class: "bx-card bx-narrative-card" });
-      banner.appendChild(el("div", { class: "bx-card-title", text: "Recommended Narrative" }));
-      banner.appendChild(el("div", { class: "bx-card-sub", text: "We've picked an opinionated demo flow based on your inputs. You don't need to know which slides to choose — start here, then customize." }));
-      const why = el("ul", { class: "bx-numlist", style: "margin-left: 20px;" });
-      (plan.reasoning || []).forEach(function (r) { why.appendChild(el("li", { text: r })); });
-      banner.appendChild(why);
+      const banner = el("div", { class: "bx-card" });
+      banner.appendChild(el("div", { class: "bx-card-title", text: "Your slide plan" }));
+      banner.appendChild(el("div", { class: "bx-card-sub", text: "Every generated slide appears below, pre-selected. De-select any to drop it from the preview and the exported deck." }));
       banner.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
-        btn("Use Recommended Narrative", "bx-btn-primary", function () {
-          // Auto-select ONLY the anchors the engine picked. The cap is
-          // audience-aware (8–10 typical, 12 for technical) and the
-          // engine already enforces it in collectAnchorSlideIds.
-          const ids = new Set(plan.anchorSlideIds);
-          s.selectedRecIds = {};
-          Array.from(ids).forEach(function (id) { s.selectedRecIds[id] = true; });
-          s.recommendations.forEach(function (r) { r.selected = !!s.selectedRecIds[r.id]; });
-          buildSlidePlanFromSelections();
-          renderMain(); renderSide(); commit();
-          toast("Recommended narrative applied (" + ids.size + " slides)");
-        }),
-        btn("Build slide plan from selections →", "bx-btn-secondary", function () {
+        btn("Build slide plan from selections →", "bx-btn-primary", function () {
           buildSlidePlanFromSelections();
           app.state.step = "preview"; renderShell(); commit();
         }),
@@ -2257,9 +2126,8 @@
     app.state.recommendations.forEach(function (r) { if (r.id === id) r.selected = app.state.selectedRecIds[id]; });
     // Rebuild the slide plan from the current selections so Preview
     // and Export see exactly what the SE picked.  Without this, the
-    // stored state.slides stays frozen at whatever was last built
-    // (typically the 8-slide Recommended Narrative) and additional
-    // selections never reach the preview / ZIP.
+    // stored state.slides stays frozen at whatever was last built and
+    // additional selections never reach the preview / ZIP.
     buildSlidePlanFromSelections();
     renderMain(); renderSide(); commit();
   }
@@ -2488,7 +2356,14 @@
     const s = app.state;
     const existingById = {};
     (s.slides || []).forEach(function (sl) { existingById[sl.id] = sl; });
-    const selectedRecs = s.recommendations.filter(function (r) { return s.selectedRecIds[r.id]; });
+    // Only DEMO-section recommendations become state.slides. The synthetic
+    // intro/journey/persona/bv slides are rendered by buildSlideManifest from
+    // the selection directly (they must NOT be pushed into state.slides, or
+    // they'd be treated as authored demo slides and double-render).
+    const fixedSections = RULES.MANIFEST_SECTIONS || ["intro", "journey-map", "meet-persona", "business-value"];
+    const selectedRecs = s.recommendations.filter(function (r) {
+      return s.selectedRecIds[r.id] && !r.synthetic && fixedSections.indexOf(r.sectionId || "demo") < 0;
+    });
 
     // Sort: first by section order, then by priority within section.
     const ordered = selectedRecs.slice().sort(function (a, b) {
@@ -2957,9 +2832,22 @@
       scenes:       s.scenes,
     };
     const res = RULES.recommend(ctx);
-    s.recommendations = res.recommendations;
+    // Merge the synthetic manifest slides (intro/journey/persona/bv) into the
+    // recommendation list so the selector is 1:1 with what gets generated.
+    // RULES entries for those four fixed sections never render (the export
+    // uses the synthetic slides), so drop them to avoid phantom cards.
+    const manifestRecs = RULES.manifestRecommendations ? RULES.manifestRecommendations(s) : [];
+    const fixedSections = RULES.MANIFEST_SECTIONS || ["intro", "journey-map", "meet-persona", "business-value"];
+    const demoRules = res.recommendations.filter(function (r) {
+      return fixedSections.indexOf(r.sectionId || "demo") < 0;
+    });
+    s.recommendations = manifestRecs.concat(demoRules);
     s.recommendations.forEach(function (r) {
-      if (s.selectedRecIds[r.id] == null && r.priority >= 80) s.selectedRecIds[r.id] = true;
+      // Synthetic slides default ON (everything generated is selected);
+      // demo recommendations keep the priority>=80 auto-select heuristic.
+      if (s.selectedRecIds[r.id] == null) {
+        if (r.synthetic || r.priority >= 80) s.selectedRecIds[r.id] = true;
+      }
       r.selected = !!s.selectedRecIds[r.id];
     });
   }
