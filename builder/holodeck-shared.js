@@ -362,6 +362,153 @@
     });
   }
 
+  // ─── Branding tokens (theme 1) ────────────────────────────────
+  // Resolve the active palette + which logo(s) to show from the
+  // brand mode. Pure — both the demo shell and the builder preview
+  // call this so a "customer-branded" demo looks identical in both.
+  //   mode "salesforce" (default): Salesforce mark, brand palette.
+  //   mode "customer":  lead with the customer logo.
+  //   mode "cobrand":   show both marks side by side.
+  // Back-compat: a brand object with no `mode` resolves to salesforce.
+  function brandTokens(brand) {
+    brand = brand || {};
+    const mode = brand.mode || "salesforce";
+    const sfLogo  = brand.logoPath || "";          // Salesforce-side / primary
+    const custLogo = brand.customerLogoPath || "";  // customer mark
+    return {
+      mode: mode,
+      primary:   brand.primaryColor   || "#b22234",
+      secondary: brand.secondaryColor || "#1a5fa0",
+      accent:    brand.accentColor    || "#f5c06a",
+      // Which marks to render, in lockup order.
+      showSalesforce: mode !== "customer",
+      showCustomer:   mode !== "salesforce" && !!custLogo,
+      // Primary lockup logo: customer leads in customer/cobrand when present.
+      leadLogo: (mode !== "salesforce" && custLogo) ? custLogo : sfLogo,
+      salesforceLogo: sfLogo,
+      customerLogo: custLogo,
+    };
+  }
+
+  // ─── Powered-by attribution (theme 4) ─────────────────────────
+  // Derive an ordered, deduped "Powered by Salesforce" product list
+  // from what the SE selected PLUS what the story actually exercises
+  // (capability moments → product labels). This makes the attribution
+  // evidence-driven instead of a single static chip.
+  //   - SE-selected products always lead (their explicit intent).
+  //   - Capability buckets that have moments add their product.
+  //   - If the SE pinned the list (poweredBy.auto === false), respect it.
+  // Pure + deterministic; never returns empty (falls back to Data Cloud).
+  function poweredByProducts(input) {
+    input = input || {};
+    const pinned = input.poweredBy && input.poweredBy.auto === false
+      ? (input.poweredBy.products || []) : null;
+    if (pinned && pinned.length) return uniqStrings(pinned);
+
+    const selected = (input.products || []).filter(Boolean);
+    const f = input.storyFoundations || {};
+    // capability bucket (storyFoundations.<key>Moments) → product label
+    const bucketProduct = {
+      agentforceMoments: "Agentforce",
+      dataCloudMoments:  "Data Cloud",
+      commerceMoments:   "Commerce",
+      marketingMoments:  "Marketing Cloud",
+      serviceMoments:    "Service Cloud",
+      loyaltyMoments:    "Loyalty",
+    };
+    const fromStory = [];
+    Object.keys(bucketProduct).forEach(function (k) {
+      const arr = f[k];
+      if (Array.isArray(arr) && arr.length) fromStory.push(bucketProduct[k]);
+    });
+    const merged = uniqStrings(selected.concat(fromStory));
+    return merged.length ? merged : ["Data Cloud"];
+  }
+  function uniqStrings(arr) {
+    const seen = {}; const out = [];
+    (arr || []).forEach(function (v) {
+      const s = String(v || "").trim();
+      if (!s) return;
+      const key = s.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = true; out.push(s);
+    });
+    return out;
+  }
+
+  // ─── Unified-profile facets (theme 3) ─────────────────────────
+  // The unified-profile slide used to be one shallow card. Data Cloud
+  // really unifies several FACETS, so return an ordered set of them for
+  // an in-slide carousel. Every facet is derived/defaulted so none is
+  // ever empty. Consumed by both the demo renderer and preview.
+  //   { key, label, eyebrow, rows: [{ label, value }] }
+  function profileFacets(input) {
+    input = input || {};
+    const p = input.persona || {};
+    const prods = (input.products || []).filter(Boolean);
+    const f = input.storyFoundations || {};
+    const first = personaFirstName(p) || (p.name || "the customer");
+    const pron = pronounsFor(p.pronouns);
+
+    const facets = [];
+
+    // 1. Identity — who Data Cloud resolved this person to be.
+    facets.push({
+      key: "identity", label: "Identity", eyebrow: "Resolved profile",
+      rows: [
+        { label: "Name",     value: p.name || p.fullName || "[TODO: persona name]" },
+        { label: "Role",     value: p.role || p.jobTitle || "[TODO: persona role]" },
+        { label: "Segment",  value: p.customerOf || (input.industry ? input.industry + " customer" : "Known customer") },
+        { label: "Lifetime", value: "[TODO: LTV]" },
+      ],
+    });
+
+    // 2. Affinities — what the behavioral data says they care about.
+    const affinitySource = Array.isArray(p.wishlist) && p.wishlist.length
+      ? p.wishlist
+      : (Array.isArray(f.valueDrivers) ? f.valueDrivers : []);
+    const affinityRows = affinitySource.slice(0, 4).map(function (w, i) {
+      const label = typeof w === "string" ? w : (w && (w.title || w.label)) || ("Affinity " + (i + 1));
+      return { label: shortenTitle(label) || ("Affinity " + (i + 1)), value: "High" };
+    });
+    facets.push({
+      key: "affinities", label: "Affinities", eyebrow: "Behavioral signals",
+      rows: affinityRows.length ? affinityRows : [
+        { label: "Category interest", value: "High" },
+        { label: "Price sensitivity", value: "Medium" },
+        { label: "Channel: mobile",   value: "High" },
+      ],
+    });
+
+    // 3. Real-time signals — recent moments that drive the next action.
+    const moments = []
+      .concat(Array.isArray(f.customerMoments) ? f.customerMoments : [])
+      .concat(Array.isArray(f.dataCloudMoments) ? f.dataCloudMoments : []);
+    const signalRows = moments.slice(0, 4).map(function (m, i) {
+      return { label: "Signal " + (i + 1), value: truncate(typeof m === "string" ? m : (m && m.summary) || "", 40) };
+    });
+    facets.push({
+      key: "signals", label: "Real-time signals", eyebrow: "Live activity",
+      rows: signalRows.length ? signalRows : [
+        { label: "Last seen",   value: "Browsing on mobile" },
+        { label: "Cart",        value: "1 item, not purchased" },
+        { label: "Engagement",  value: "Opened last 3 emails" },
+      ],
+    });
+
+    // 4. Predicted needs — the "so what" Agentforce can act on.
+    facets.push({
+      key: "predicted", label: "Predicted needs", eyebrow: "AI propensity",
+      rows: [
+        { label: "Next best action", value: prods.indexOf("Agentforce") >= 0 ? "Proactive agent outreach" : "Personalized offer" },
+        { label: "Propensity to buy", value: "[TODO: %]" },
+        { label: "Recommended for " + first, value: pron.poss + " top affinity" },
+      ],
+    });
+
+    return facets;
+  }
+
   // ─── Persona CTA / intro (mr-1, mr-4) ─────────────────────────
   function personaFirstName(p) {
     if (!p) return "";
@@ -722,6 +869,10 @@
     buildBvsMetrics:         buildBvsMetrics,
     buildOrbitNodes:         buildOrbitNodes,
     buildCapabilities:       buildCapabilities,
+    // branding + attribution + profile depth
+    brandTokens:             brandTokens,
+    poweredByProducts:       poweredByProducts,
+    profileFacets:           profileFacets,
     // persona
     personaFirstName:        personaFirstName,
     personaCtaCopy:          personaCtaCopy,

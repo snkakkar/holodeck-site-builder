@@ -25,6 +25,7 @@
   const VALIDATE_STORY = window.HOLO_VALIDATE_STORY;
   const ZIP       = window.HOLO_ZIP;
   const AUBREY    = window.HOLO_AUBREY;
+  const AUTH      = window.HOLO_AUTH;
 
   // ─── App-level constants ──────────────────────────────────────
   // 8-step guided flow. Story used to be one step doing three things
@@ -91,9 +92,14 @@
 
   // ─── Persistence ──────────────────────────────────────────────
   function saveActive() {
-    if (app.view !== "builder" || !app.state) return;
-    STORE.saveProject(app.state);
+    if (app.view !== "builder" || !app.state) return Promise.resolve();
+    // The store writes the local cache synchronously inside saveProject,
+    // so the indicator can flip to "Autosaved" immediately; the returned
+    // Promise resolves when the Neon write-through completes (or falls
+    // back to the dirty queue). Callers that tear down state await it.
+    const p = STORE.saveProject(app.state);
     setSaveIndicator(false);
+    return p;
   }
   let saveTimer = null;
   function commit() {
@@ -115,38 +121,47 @@
 
   // ─── Navigation between views ─────────────────────────────────
   function goHome() {
-    if (app.view === "builder" && app.state) saveActive();
-    app.view = "home";
-    app.state = null;
-    STORE.setActiveProjectId(null);
-    render();
+    // Save BEFORE tearing down state. The cache write is synchronous so
+    // data is safe instantly; we still chain so a slow Neon write can't
+    // be cancelled by the teardown.
+    const save = (app.view === "builder" && app.state) ? saveActive() : Promise.resolve();
+    save.then(function () {
+      app.view = "home";
+      app.state = null;
+      STORE.setActiveProjectId(null);
+      render();
+    });
   }
   function goBuilder(projectId) {
-    const state = STORE.loadProject(projectId);
-    if (!state) {
-      STORE.reconcile();
-      toast("That project couldn't be opened.");
-      goHome();
-      return;
-    }
-    app.state = state;
-    app.view = "builder";
-    STORE.setActiveProjectId(projectId);
-    recompute();
-    render();
+    STORE.loadProject(projectId).then(function (state) {
+      if (!state) {
+        STORE.reconcile();
+        toast("That project couldn't be opened.");
+        goHome();
+        return;
+      }
+      app.state = state;
+      app.view = "builder";
+      STORE.setActiveProjectId(projectId);
+      recompute();
+      render();
+    });
   }
   function goAiPrompt() {
-    if (app.view === "builder" && app.state) saveActive();
-    app.view = "aiPrompt";
-    render();
+    const save = (app.view === "builder" && app.state) ? saveActive() : Promise.resolve();
+    save.then(function () {
+      app.view = "aiPrompt";
+      render();
+    });
   }
   function newProject() {
-    const state = STORE.createProject({});
-    app.state = state;
-    app.view = "builder";
-    STORE.setActiveProjectId(state.id);
-    recompute();
-    render();
+    STORE.createProject({}).then(function (state) {
+      app.state = state;
+      app.view = "builder";
+      STORE.setActiveProjectId(state.id);
+      recompute();
+      render();
+    });
   }
 
   // ─── Top-level render ─────────────────────────────────────────
@@ -209,8 +224,18 @@
 
     if (app.view === "builder") {
       right.appendChild(actionBtn("Import", "bx-btn-ghost", function () { openImportModal(app.state.id); }));
-      right.appendChild(actionBtn("Save", "bx-btn-secondary", function () { saveActive(); toast("Saved"); }));
+      right.appendChild(actionBtn("Save", "bx-btn-secondary", function () { saveActive().then(function () { toast("Saved"); }); }));
       right.appendChild(actionBtn("Export", "bx-btn-primary", function () { openExportModal(); }));
+    }
+
+    // Sign-out is always available once authenticated (any non-login view).
+    if (AUTH && AUTH.isAuthed() && app.view !== "login") {
+      const u = AUTH.currentUser();
+      if (u && u.email) {
+        right.appendChild(el("span", { class: "bx-nav-user", title: u.email,
+          text: u.email, style: "opacity:.7;font-size:12px;align-self:center;margin:0 4px;" }));
+      }
+      right.appendChild(actionBtn("Sign out", "bx-btn-ghost", function () { signOut(); }));
     }
   }
 
@@ -228,6 +253,15 @@
     const stale = $("#bxQualityFooter");
     if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
 
+    if (app.view === "login") {
+      shell.classList.add("is-single");
+      const wrap = el("section", { class: "bx-page", id: "bxPage" });
+      shell.appendChild(wrap);
+      renderLoginPage(wrap);
+      setSaveIndicator(false);
+      return;
+    }
+
     if (app.view === "home") {
       shell.classList.add("is-single");
       const wrap = el("section", { class: "bx-page", id: "bxPage" });
@@ -237,9 +271,9 @@
         onNew:       function () { openNewProjectChooser(); },
         onImport:    function () { openImportModal(null); },
         onAiPrompt:  function () { goAiPrompt(); },
-        onDuplicate: function (id, done) { STORE.duplicateProject(id); done && done(); toast("Duplicated"); },
-        onRename:    function (id, name, done) { STORE.renameProject(id, name); done && done(); toast("Renamed"); },
-        onDelete:    function (id, done) { STORE.deleteProject(id); done && done(); toast("Deleted"); },
+        onDuplicate: function (id, done) { STORE.duplicateProject(id).then(function () { done && done(); toast("Duplicated"); }); },
+        onRename:    function (id, name, done) { STORE.renameProject(id, name).then(function () { done && done(); toast("Renamed"); }); },
+        onDelete:    function (id, done) { STORE.deleteProject(id).then(function () { done && done(); toast("Deleted"); }); },
       });
       setSaveIndicator(false);
       return;
@@ -3007,13 +3041,14 @@
       } else {
         imported.id = STORE.uid();
       }
-      STORE.saveProject(imported);
-      (result.warnings || []).forEach(function (msg) {
-        status.appendChild(el("div", { class: "bx-alert is-warn", text: msg }));
+      STORE.saveProject(imported).then(function () {
+        (result.warnings || []).forEach(function (msg) {
+          status.appendChild(el("div", { class: "bx-alert is-warn", text: msg }));
+        });
+        closeModal();
+        goBuilder(imported.id);
+        toast(targetProjectId ? "Project replaced from import" : "New project created from import");
       });
-      closeModal();
-      goBuilder(imported.id);
-      toast(targetProjectId ? "Project replaced from import" : "New project created from import");
     }));
     actions.appendChild(btn("Cancel", "bx-btn-secondary", closeModal));
     wrap.appendChild(actions);
@@ -4052,11 +4087,121 @@
     });
   }
 
+  // ─── Auth: login view ─────────────────────────────────────────
+  // Passwordless: enter @salesforce.com email → emailed 6-digit code →
+  // in. Same path for new and returning users (OTP sign-in auto-creates
+  // the account). @salesforce.com is enforced client-side here (UX) and
+  // authoritatively server-side via RLS on the verified JWT email claim.
+  function renderLoginPage(wrap) {
+    // step: "email" → enter address, "code" → enter the emailed OTP.
+    const ui = { step: "email", email: "", otp: "", busy: false, error: "", notice: "" };
+
+    function field(labelText, type, getKey) {
+      const input = el("input", { class: "bx-input", type: type, value: ui[getKey] || "" });
+      input.addEventListener("input", function () { ui[getKey] = input.value; });
+      return { wrap: el("label", { class: "bx-field" }, [
+        el("span", { class: "bx-field-label", text: labelText }), input,
+      ]), input: input };
+    }
+
+    function paint() {
+      wrap.innerHTML = "";
+      const card = el("div", { class: "bx-login-card",
+        style: "max-width:420px;margin:64px auto;display:flex;flex-direction:column;gap:14px;" });
+
+      card.appendChild(el("div", { class: "bx-firstrun-mark", text: "🪐" }));
+      card.appendChild(el("h1", { class: "bx-main-title",
+        text: ui.step === "code" ? "Check your email" : "Holodeck Builder" }));
+      card.appendChild(el("p", { class: "bx-main-sub", text:
+        ui.step === "code"
+          ? ("We sent a 6-digit code to " + ui.email + ". Enter it to sign in.")
+          : "Enter your Salesforce email and we'll send you a sign-in code." }));
+
+      if (ui.error)  card.appendChild(el("div", { class: "bx-alert is-error", text: ui.error }));
+      if (ui.notice) card.appendChild(el("div", { class: "bx-alert is-warn", text: ui.notice }));
+
+      if (ui.step === "code") {
+        const otp = field("Sign-in code", "text", "otp");
+        otp.input.setAttribute("inputmode", "numeric");
+        otp.input.setAttribute("autocomplete", "one-time-code");
+        card.appendChild(otp.wrap);
+        card.appendChild(actionBtn(ui.busy ? "Verifying…" : "Verify & continue", "bx-btn-primary is-block", doVerify));
+        card.appendChild(el("button", { class: "bx-link",
+          on: { click: function () { if (!ui.busy) doResend(); } },
+          text: "Resend code" }));
+        card.appendChild(el("button", { class: "bx-link",
+          on: { click: function () { if (!ui.busy) { ui.step = "email"; ui.otp = ""; ui.error = ""; ui.notice = ""; paint(); } } },
+          text: "← Use a different email" }));
+        wrap.appendChild(card);
+        return;
+      }
+
+      const emailF = field("Salesforce email", "email", "email");
+      emailF.input.setAttribute("autocomplete", "username");
+      emailF.input.setAttribute("placeholder", "you@salesforce.com");
+      card.appendChild(emailF.wrap);
+
+      card.appendChild(actionBtn(ui.busy ? "Sending…" : "Email me a code", "bx-btn-primary is-block", doRequestCode));
+
+      wrap.appendChild(card);
+    }
+
+    function guardEmail() {
+      if (!AUTH.isSalesforceEmail(ui.email)) {
+        ui.error = "Use your @salesforce.com email.";
+        paint();
+        return false;
+      }
+      return true;
+    }
+
+    function doRequestCode() {
+      if (ui.busy || !guardEmail()) return;
+      ui.busy = true; ui.error = ""; paint();
+      AUTH.requestCode(ui.email)
+        .then(function () { ui.busy = false; ui.step = "code"; ui.notice = ""; paint(); })
+        .catch(function (err) { ui.busy = false; ui.error = (err && err.message) || "Could not send a code."; paint(); });
+    }
+
+    function doResend() {
+      ui.busy = true; ui.error = ""; paint();
+      AUTH.requestCode(ui.email)
+        .then(function () { ui.busy = false; ui.notice = "A new code is on its way."; ui.error = ""; paint(); })
+        .catch(function (err) { ui.busy = false; ui.error = (err && err.message) || "Could not resend the code."; paint(); });
+    }
+
+    function doVerify() {
+      if (ui.busy) return;
+      ui.busy = true; ui.error = ""; paint();
+      AUTH.verifyOtp(ui.email, ui.otp)
+        .then(function () { onAuthenticated(); })
+        .catch(function (err) { ui.busy = false; ui.error = (err && err.message) || "That code didn't work."; paint(); });
+    }
+
+    paint();
+  }
+
+  // Transition from the login view into the authenticated app: migrate
+  // any local work into the account, then land on home.
+  function onAuthenticated() {
+    return STORE.migrateLegacyIfPresent()
+      .then(function () { return STORE.migrateLocalToAccount(); })
+      .then(function () { return STORE.flushDirty(); })
+      .then(function () { goHome(); });
+  }
+
+  function signOut() {
+    AUTH.signOut()
+      .then(function () { return STORE.clearCache(); })
+      .then(function () {
+        app.view = "login";
+        app.state = null;
+        render();
+      });
+  }
+
   // ─── Boot ─────────────────────────────────────────────────────
   function boot() {
-    const migratedId = STORE.migrateLegacyIfPresent();
-    STORE.reconcile();
-
     $("#bxModal").addEventListener("click", function (e) {
       if (e.target === $("#bxModal")) closeModal();
     });
@@ -4065,12 +4210,16 @@
       if (action === "close-modal") closeModal();
     });
 
-    if (migratedId) {
-      goBuilder(migratedId);
-      toast("Your earlier draft is saved as a project.");
-      return;
-    }
-    goHome();
+    // Auth gate: no Data API calls until we have a verified session.
+    AUTH.init().then(function (user) {
+      if (!user) {
+        app.view = "login";
+        render();
+        return;
+      }
+      // Authenticated: lift legacy/local work, retry any dirty rows, land home.
+      onAuthenticated();
+    });
   }
 
   boot();

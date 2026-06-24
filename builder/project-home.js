@@ -44,7 +44,7 @@
         el("div", { class: "bx-main-eyebrow", text: "Your Projects" }),
         el("h1", { class: "bx-main-title", text: "Holodeck Builder" }),
         el("p", { class: "bx-main-sub",
-          text: "Create, reopen, duplicate, or rename your customer-specific demos. Everything saves locally in this browser." }),
+          text: "Create, reopen, duplicate, or rename your customer-specific demos. Everything saves to your account and syncs across devices." }),
       ]),
       el("div", { class: "bx-home-actions" }, [
         primaryBtn("+ New Holodeck Project", function () { handlers.onNew && handlers.onNew(); }),
@@ -52,7 +52,11 @@
     ]);
     container.appendChild(header);
 
-    const projects = STORE.listProjects();
+    // Projects load asynchronously (online-first). We render the toolbar
+    // immediately and fill the grid + industry filter once they resolve.
+    // `loaded` holds the resolved list so re-renders (search/sort/filter)
+    // run client-side over it with no extra round-trips.
+    let loaded = [];
 
     // Toolbar — search + sort + filter
     const toolbar = el("div", { class: "bx-home-toolbar" });
@@ -70,12 +74,15 @@
     });
     sortSelect.value = state.sortKey;
     const filterSelect = el("select", { class: "bx-select" });
-    const industries = uniqueValues(projects, "industry");
-    [["", "All industries"]].concat(industries.map(function (i) { return [i, i]; })).forEach(function (o) {
-      const opt = el("option", { value: o[0], text: o[1] });
-      filterSelect.appendChild(opt);
-    });
-    filterSelect.value = state.filterIndustry;
+    function refreshIndustryOptions() {
+      filterSelect.innerHTML = "";
+      const industries = uniqueValues(loaded, "industry");
+      [["", "All industries"]].concat(industries.map(function (i) { return [i, i]; })).forEach(function (o) {
+        filterSelect.appendChild(el("option", { value: o[0], text: o[1] }));
+      });
+      filterSelect.value = state.filterIndustry;
+    }
+    refreshIndustryOptions();
 
     searchInput.value = state.search;
     searchInput.addEventListener("input",   function () { state.search = searchInput.value; renderGrid(); });
@@ -91,11 +98,18 @@
 
     const gridWrap = el("div");
     container.appendChild(gridWrap);
-    renderGrid();
+
+    // Initial skeleton, then fetch + paint.
+    gridWrap.appendChild(el("div", { class: "bx-empty", text: "Loading your projects…" }));
+    STORE.listProjects().then(function (all) {
+      loaded = all || [];
+      refreshIndustryOptions();
+      renderGrid();
+    });
 
     function renderGrid() {
       gridWrap.innerHTML = "";
-      const all = STORE.listProjects();
+      const all = loaded;
       if (!all.length) {
         gridWrap.appendChild(emptyState(handlers));
         return;
@@ -113,9 +127,19 @@
 
       const grid = el("div", { class: "bx-proj-grid" });
       filtered.forEach(function (p) {
-        grid.appendChild(projectCard(p, handlers, function () { renderGrid(); handlers.onChange && handlers.onChange(); }));
+        grid.appendChild(projectCard(p, handlers, function () { reloadAndRender(); handlers.onChange && handlers.onChange(); }));
       });
       gridWrap.appendChild(grid);
+    }
+
+    // After a mutating action (duplicate/rename/delete) refetch so the
+    // grid reflects the server, then repaint.
+    function reloadAndRender() {
+      STORE.listProjects().then(function (all) {
+        loaded = all || [];
+        refreshIndustryOptions();
+        renderGrid();
+      });
     }
   }
 

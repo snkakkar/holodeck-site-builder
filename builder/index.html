@@ -38,6 +38,8 @@
   <script src="preview-renderer.js"></script>
   <script src="config-generator.js"></script>
   <script src="ai-config-prompt.js"></script>
+  <!-- Auth must load before the store so the store can read the JWT -->
+  <script src="auth.js"></script>
   <script src="project-store.js"></script>
   <script src="story-parser.js"></script>
   <script src="story-validator.js"></script>
