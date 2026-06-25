@@ -41,6 +41,25 @@
     { key: "hospitality",label: "Hospitality",re: /\b(guest|booking|reservation|trip|property|concierge|on[\s-]property|pre[\s-]arrival|post[\s-]trip)\b/i },
   ];
 
+  // ─── Product-name detection ───────────────────────────────────
+  // Maps inline product mentions to canonical PRODUCTS labels (the
+  // builder's setup chips). Used to auto-tick products a labeled
+  // script names explicitly (e.g. TopGolf: "Agentforce, Salesforce
+  // Service and Marketing clouds, and Data Cloud").
+  const PRODUCT_RULES = [
+    { label: "Agentforce",      re: /\bagentforce\b/i },
+    { label: "Data Cloud",      re: /\bdata\s*cloud\b/i },
+    { label: "Service Cloud",   re: /\bservice\s*cloud\b/i },
+    { label: "Marketing Cloud", re: /\bmarketing\s*cloud\b/i },
+    { label: "Sales Cloud",     re: /\bsales\s*cloud\b/i },
+    { label: "Commerce",        re: /\b(b2c\s+commerce|commerce\s+cloud|storefront)\b/i },
+    { label: "Loyalty",         re: /\bloyalty\s+(management|cloud|program)\b/i },
+    { label: "MuleSoft",        re: /\bmulesoft\b/i },
+    { label: "Tableau",         re: /\btableau\b/i },
+    { label: "Slack",           re: /\bslack(bot)?\b/i },
+    { label: "Einstein",        re: /\beinstein\b/i },
+  ];
+
   // ─── Channel + device detection ───────────────────────────────
   const CHANNEL_PATTERNS = [
     /\binstagram\b/i, /\bfacebook\b/i, /\blinkedin\b/i, /\btiktok\b/i,
@@ -94,17 +113,31 @@
     const parsed = parseDemoScript(text);
     const f = blankFoundations();
 
+    // Labeled-script narrative blocks (TopGolf-style) — first-class
+    // sources, preferred over keyword inference when present.
+    const problemBlock = extractProblemBlock(text);
+    const plotBlock    = extractPlotBlock(text);
+    // Labeled ACT blocks (preferred over numbered-step acts for titles
+    // and value drivers).
+    const scriptActs   = extractScriptActs(text);
+
     // ── Narrative & vision ──────────────────────────────────
-    f.primaryNarrative = parsed.synopsis || parsed.cxSummary
+    f.primaryNarrative = parsed.synopsis || parsed.cxSummary || plotBlock
       || firstNSentences(text, 2);
     f.transformationThesis = parsed.synopsis
       ? distill(parsed.synopsis, "transformation")
-      : (parsed.cxSummary ? distill(parsed.cxSummary, "transformation") : "");
+      : (parsed.cxSummary ? distill(parsed.cxSummary, "transformation")
+        : (plotBlock ? distill(plotBlock, "transformation") : ""));
 
-    f.businessProblem    = inferBusinessProblem(parsed, text);
-    f.currentStatePain   = inferCurrentStatePain(parsed, text);
-    f.futureStateVision  = inferFutureStateVision(parsed, text);
+    f.businessProblem    = problemBlock ? cleanBlock(firstNSentences(problemBlock, 2)) : inferBusinessProblem(parsed, text);
+    f.currentStatePain   = inferCurrentStatePain(parsed, text) || (problemBlock ? cleanBlock(problemBlock) : "");
+    f.futureStateVision  = plotBlock ? cleanBlock(plotBlock) : inferFutureStateVision(parsed, text);
     f.executiveTakeaway  = inferExecutiveTakeaway(parsed, text);
+
+    // Three-act titles from labeled ACTs (first 3); left [] otherwise so
+    // the renderer's threeActsFor defaults apply.
+    const actTitles = scriptActs.slice(0, 3).map(function (a) { return a.title; }).filter(Boolean);
+    if (actTitles.length) f.threeActTitles = actTitles;
 
     // ── Customer / operational moments ──────────────────────
     f.customerMoments      = uniq(parsed.capabilityMoments.commerce
@@ -124,8 +157,13 @@
     f.serviceMoments       = uniq(parsed.capabilityMoments.service).slice(0, 10);
     f.loyaltyMoments       = uniq(parsed.capabilityMoments.loyalty).slice(0, 10);
 
-    f.valueDrivers         = parsed.valueDrivers.length
-      ? parsed.valueDrivers.slice(0, 8)
+    // Value drivers: prefer the labeled "Business Value Drive #N: <name>"
+    // from ACT themes, then any "Business Value:"-block / keyword drivers,
+    // then synthesized defaults.
+    const actDrives = uniq(scriptActs.map(function (a) { return a._valueDrive; }).filter(Boolean));
+    const merged    = uniq(actDrives.concat(parsed.valueDrivers));
+    f.valueDrivers         = merged.length
+      ? merged.slice(0, 8)
       : defaultValueDrivers(parsed, existingState);
 
     f.assumptions          = collectAssumptions(parsed, text);
@@ -138,6 +176,7 @@
     return {
       businessProblem: "", currentStatePain: "", futureStateVision: "",
       primaryNarrative: "", transformationThesis: "", executiveTakeaway: "",
+      threeActTitles: [],
       customerMoments: [], operationalMoments: [],
       agentforceMoments: [], dataCloudMoments: [],
       commerceMoments: [], marketingMoments: [],
@@ -150,6 +189,183 @@
   function extractScriptSynopsis(text)    { return blockAfter(text, /script\s*synopsis\s*:?/i); }
   function extractCxSummary(text)         { return blockAfter(text, /cx\s*summary\s*:?/i); }
   function extractPersonaDescription(text){ return blockAfter(text, /persona\s*description\s*:?/i); }
+
+  // Labeled-script narrative blocks (TopGolf-style). These complement the
+  // Synopsis/CX-Summary headers above — when present they are first-class
+  // sources for businessProblem / futureStateVision / narrative.
+  function extractProblemBlock(text)      { return trimAtSectionMarker(blockAfter(text, /the\s+problem\s*:?/i)); }
+  function extractPlotBlock(text)         { return trimAtSectionMarker(blockAfter(text, /the\s+plot\s*:?/i)); }
+
+  // PDF/text extraction sometimes joins a block onto the next section
+  // header on one line ("…relationship. ACT 1: INITIATION…"). Cut at the
+  // first inline section marker so a narrative block stays clean.
+  function trimAtSectionMarker(s) {
+    return cleanBlock(String(s || "").split(/\s(?=ACT\s+\d|THE\s+(?:PLOT|PROBLEM)\b|Theme\s*:|Goal\s*:|The\s+Persona\s*:)/)[0]);
+  }
+
+  // ─── Customer name ────────────────────────────────────────────
+  // Heuristics, in priority order. Returns "" when nothing confident.
+  const STOPWORD_NAMES = /^(the|this|that|today|our|their|salesforce|holodeck|agentforce|einstein|slack|data|cloud)$/i;
+  function extractCustomerName(text, personaName) {
+    const raw = String(text || "");
+    // 1. Title line: "HOLODECK SCRIPT: TOPGOLF'S UNIFIED EVENT REVENUE ENGINE"
+    let m = raw.match(/^\s*holodeck\s+script\s*:\s*(.+)$/im);
+    if (m) {
+      const headline = m[1].trim();
+      // Possessive form → take the owner up to the apostrophe-s.
+      const poss = headline.match(/^([A-Za-z][A-Za-z0-9&.\- ]*?)['’]s\b/);
+      if (poss) return properName(poss[1].trim());
+      // Else take the first 1–3 capitalized tokens.
+      const lead = headline.match(/^([A-Z][\w&.\-]+(?:\s+[A-Z][\w&.\-]+){0,2})/);
+      if (lead) return properName(lead[1].trim());
+    }
+    // 2. Most frequent proper-noun possessive in PROBLEM / PLOT blocks.
+    const scope = (extractProblemBlock(raw) + " " + extractPlotBlock(raw)) || raw.slice(0, 1200);
+    const counts = {};
+    const pRe = /\b([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)?)['’]s\b/g;
+    let pm;
+    while ((pm = pRe.exec(scope))) {
+      const cand = pm[1].trim();
+      if (STOPWORD_NAMES.test(cand)) continue;
+      if (personaName && cand.toLowerCase() === String(personaName).toLowerCase()) continue;
+      counts[cand] = (counts[cand] || 0) + 1;
+    }
+    const best = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; })[0];
+    return best ? properName(best) : "";
+  }
+
+  // ─── Products ─────────────────────────────────────────────────
+  function extractProducts(text) {
+    const raw = String(text || "");
+    const out = [];
+    PRODUCT_RULES.forEach(function (r) { if (r.re.test(raw)) out.push(r.label); });
+    // Combined phrasing: "Salesforce Service and Marketing clouds" names
+    // both even if the bare "service cloud"/"marketing cloud" forms didn't fire.
+    if (/\bservice\b[^.]*\band\b[^.]*\bmarketing\b[^.]*\bclouds?\b/i.test(raw)) {
+      if (out.indexOf("Service Cloud") === -1)   out.push("Service Cloud");
+      if (out.indexOf("Marketing Cloud") === -1) out.push("Marketing Cloud");
+    }
+    return uniq(out);
+  }
+
+  // ─── Persona(s) from a labeled script ─────────────────────────
+  // Returns the PRIMARY human persona only (decision: protagonist first;
+  // secondary people and AI/system actors are skipped). Shape matches the
+  // builder's persona object.
+  const SYSTEM_ACTOR = /\b(agentforce|einstein|slack(bot)?|ai\s+agent|bot|platform|marketing\s+team|sales\s+platform)\b/i;
+  function extractPersonasFromScript(text) {
+    const raw = String(text || "");
+    const plot = extractPlotBlock(raw);
+    const problem = extractProblemBlock(raw);
+
+    let name = "", role = "";
+
+    // 1. THE PLOT named form: "…an event planner named Sarah." Capture the
+    //    immediate noun phrase (last 1–4 words) before "named" as the role.
+    let m = raw.match(/\b(?:an?\s+)?((?:[a-z]+\s+){0,3}[a-z]+)\s+named\s+([A-Z][a-z]+)\b/);
+    if (m) {
+      const phrase = stripPunct(m[1]).trim().split(/\s+/);
+      // Trim leading filler/verbs so "are following the holistic journey of an
+      // event planner" collapses toward "event planner".
+      const FILLER = /^(we|are|is|was|were|will|be|been|being|following|watch|the|of|a|an|this|that|their|our|holistic|journey|complex)$/i;
+      while (phrase.length > 2 && FILLER.test(phrase[0])) phrase.shift();
+      role = titleCase(phrase.join(" "));
+      name = m[2].trim();
+    }
+
+    // 2. Else first "The Persona: Name (role)" naming a human.
+    if (!name) {
+      const lineRe = /^the\s+persona\s*:\s*(.+)$/gim;
+      let lm;
+      while ((lm = lineRe.exec(raw))) {
+        const chunk = lm[1];
+        const nm = chunk.match(/([A-Z][a-zA-Z]+)\s*\(([^)]+)\)/);
+        if (nm && !SYSTEM_ACTOR.test(nm[1]) && !SYSTEM_ACTOR.test(nm[2])) {
+          name = nm[1].trim(); role = titleCase(nm[2].trim()); break;
+        }
+      }
+    }
+    if (!name) return [];
+
+    // Goal: the Goal line of the act where the persona first appears.
+    let goals = "";
+    const idx = raw.toLowerCase().indexOf(name.toLowerCase());
+    if (idx >= 0) {
+      const after = raw.slice(Math.max(0, idx - 400), idx + 600);
+      const gm = after.match(/^\s*goal\s*:\s*(.+)$/im);
+      if (gm) goals = cleanBlock(gm[1]);
+    }
+
+    return [{
+      name: name,
+      role: role,
+      goals: goals,
+      painPoints: cleanBlock(firstNSentences(problem, 2)),
+      demoRelevance: cleanBlock(plot || firstNSentences(raw, 2)),
+    }];
+  }
+
+  // ─── Screen captions ("Screen 1: '…'") ────────────────────────
+  function extractScreenCaptions(blockText) {
+    const out = [];
+    const re = /^\s*(?:split-?)?screen\s*\d*\s*\d*\s*:\s*[‘’“”'"]([^‘’“”'"\n]+)[‘’“”'"]/gim;
+    let m;
+    while ((m = re.exec(String(blockText || "")))) out.push(cleanBlock(m[1]));
+    return uniq(out).slice(0, 8);
+  }
+
+  // ─── ACT N blocks (labeled-script acts) ───────────────────────
+  // Distinct from extractStoryActsFromScript (numbered-step format), which
+  // stays the fallback. Recognizes "ACT 1: TITLE" with Theme/Goal/The
+  // Persona/What's Happening/What to Showcase sub-fields.
+  function extractScriptActs(text) {
+    const raw = String(text || "");
+    const headerRe = /^\s*act\s+(\d+)([a-z]?)\s*[:\-—]\s*(.+)$/gim;
+    const heads = [];
+    let m;
+    while ((m = headerRe.exec(raw))) {
+      heads.push({ order: Number(m[1]), suffix: (m[2] || "").trim(), title: cleanActTitle(m[3]), start: m.index, headEnd: headerRe.lastIndex });
+    }
+    if (!heads.length) return [];
+
+    return heads.map(function (h, i) {
+      const bodyEnd = (i + 1 < heads.length) ? heads[i + 1].start : raw.length;
+      const body = raw.slice(h.headEnd, bodyEnd);
+
+      const themeM = body.match(/^\s*theme\s*:\s*(.+)$/im);
+      const theme = themeM ? cleanBlock(themeM[1]) : "";
+      const driveM = theme.match(/business\s+value\s+drives?\s*#?\d*\s*:?\s*(.+?)\.?\s*$/i);
+      const valueDrive = driveM ? cleanBlock(driveM[1]) : "";
+
+      const goalM = body.match(/^\s*goal\s*:\s*(.+)$/im);
+      const goal = goalM ? cleanBlock(goalM[1]) : "";
+
+      const persM = body.match(/^\s*the\s+persona\s*:\s*(.+)$/im);
+      const persona = persM ? cleanBlock(persM[1]) : "";
+
+      const summary = cleanBlock(blockAfter(body, /what['’]?s?\s+happening[^\n]*/i));
+      const showcase = blockAfter(body, /what\s+to\s+showcase[^\n]*/i);
+      const screens = extractScreenCaptions(showcase || body);
+
+      const capsText = body + " " + theme;
+      return {
+        order: i,
+        title: h.title || ("Act " + (h.order || i + 1) + h.suffix),
+        chapter: "",
+        section: "",
+        persona: persona,
+        channel: "",
+        device: "",
+        summary: summary || goal,
+        demoMoment: goal,
+        salesforceCapabilities: capabilityLabelsFor(capsText).join(", "),
+        businessValue: valueDrive,
+        requiredAssets: screens.join("; "),
+        notes: theme,
+        _valueDrive: valueDrive,
+      };
+    });
+  }
 
   // Pulls the lines after a header until the next header / blank gap.
   function blockAfter(text, headerRe) {
@@ -171,6 +387,10 @@
       if (!l) { if (collected.length) break; continue; }
       // Stop at the next header-ish line ("Word:" or "Chapter N" or "Section -")
       if (/^(chapter\s+\d|section\s*-|channel\s*-|device\s*-)/i.test(l)) break;
+      // Labeled-script headers ("ACT 1: …", "THE PLOT:", "Theme:", "Goal:",
+      // "The Persona:"). These carry trailing content so the bare "Word:$"
+      // rule below misses them — stop on them explicitly.
+      if (/^(act\s+\d|the\s+(plot|problem)\b|theme\s*:|goal\s*:|the\s+persona\s*:|what['’]?s?\s+(happening|to\s+showcase))/i.test(l)) break;
       if (/^[a-z][\w \-/]{0,48}:\s*$/i.test(l) && !/^talk track:/i.test(l)) break;
       collected.push(l);
       if (collected.join(" ").length > 800) break;
@@ -550,6 +770,34 @@
       seen[key] = true; return true;
     });
   }
+  // Normalize a proper noun for display: lowercases ALL-CAPS source
+  // ("TOPGOLF" → "Topgolf") while leaving mixed-case names ("MuleSoft",
+  // "Topgolf") untouched. Used for customer + persona names. Distinct from
+  // titleCase (which preserves acronyms like POS/SMS for channels/devices).
+  function properName(s) {
+    return String(s || "").trim().replace(/[A-Za-z][A-Za-z0-9&.\-']*/g, function (w) {
+      if (/[a-z]/.test(w)) return w;                         // already mixed-case → keep
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    });
+  }
+  // Tidy an ACT title for the deck: drop a trailing dangling open-paren
+  // fragment from line-wrap ("… (THE HOSPITALITY" → "…"), close a
+  // balanced parenthetical, and convert SCREAMING CAPS to Title Case.
+  function cleanActTitle(s) {
+    let t = cleanBlock(s);
+    // Drop an unmatched trailing "(...":  count parens.
+    const opens = (t.match(/\(/g) || []).length;
+    const closes = (t.match(/\)/g) || []).length;
+    if (opens > closes) t = t.replace(/\s*\([^)]*$/, "").trim();
+    // ALL-CAPS (no lowercase letters) → Title Case for readability.
+    if (!/[a-z]/.test(t)) {
+      t = t.toLowerCase().replace(/\b([a-z])/g, function (m, c) { return c.toUpperCase(); })
+           .replace(/\b(And|The|Of|A|An|To|In|For)\b/g, function (m) { return m.toLowerCase(); });
+      // Re-capitalize the start of the title and the first word inside any "(".
+      t = t.replace(/(^|\()\s*([a-z])/g, function (m, pre, c) { return pre + c.toUpperCase(); });
+    }
+    return t;
+  }
   function cleanBlock(s) {
     return String(s || "").replace(/\s+/g, " ").trim();
   }
@@ -608,6 +856,14 @@
     extractScriptSynopsis: extractScriptSynopsis,
     extractCxSummary: extractCxSummary,
     extractPersonaDescription: extractPersonaDescription,
+    extractProblemBlock: extractProblemBlock,
+    extractPlotBlock: extractPlotBlock,
+    extractCustomerName: extractCustomerName,
+    extractProducts: extractProducts,
+    extractPersonasFromScript: extractPersonasFromScript,
+    extractScriptActs: extractScriptActs,
+    extractScreenCaptions: extractScreenCaptions,
+    PRODUCT_RULES: PRODUCT_RULES,
     extractJourneySections: extractJourneySections,
     extractChannelsAndDevices: extractChannelsAndDevices,
     extractNumberedSteps: extractNumberedSteps,

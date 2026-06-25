@@ -175,38 +175,29 @@
   }
 
   // ─── Intro vignettes (vi-4..6) ────────────────────────────────
-  // Each vignette's subtitle comes 1:1 from ONE moments field (matching
-  // the runtimeIndex). Eyebrow/title are overridable via
-  // storyFoundations.vignetteEyebrows[i] / vignetteTitles[i]. vi-5 eyebrow
-  // fixed to "MARKETING CLOUD" so it matches its source (marketingMoments).
+  // Vignette N mirrors Act N: title + subtitle are derived from the same
+  // three-act objects (threeActsFor) so the intro vignettes and the
+  // three-acts overview can never describe different things. Title and
+  // eyebrow stay overridable via storyFoundations.vignetteTitles[i] /
+  // vignetteEyebrows[i]; the default eyebrow comes from the act's product
+  // tags so it reflects the act's actual products.
   function vignettesFor(f) {
     f = f || {};
+    const acts = threeActsFor(f);
     const eOv = Array.isArray(f.vignetteEyebrows) ? f.vignetteEyebrows : [];
     const vtOv = Array.isArray(f.vignetteTitles) ? f.vignetteTitles : [];
     function ov(arr, i, def) { return (arr[i] && String(arr[i]).trim()) || def; }
-    return [
-      {
-        eyebrow:  ov(eOv, 0, "DATA CLOUD · MARKETING CLOUD"),
-        title:    ov(vtOv, 0, "Know & Reach"),
-        subtitle: f.dataCloudMoments && f.dataCloudMoments.length
-          ? truncate(f.dataCloudMoments[0], 220)
-          : "Identity, signals, and segments power every downstream touchpoint.",
-      },
-      {
-        eyebrow:  ov(eOv, 1, "MARKETING CLOUD"),
-        title:    ov(vtOv, 1, "Engage & Recover"),
-        subtitle: f.marketingMoments && f.marketingMoments.length
-          ? truncate(f.marketingMoments[0], 220)
-          : "Personalized engagement, then proactive recovery when the customer drops off.",
-      },
-      {
-        eyebrow:  ov(eOv, 2, "AGENTFORCE"),
-        title:    ov(vtOv, 2, "Convert"),
-        subtitle: f.agentforceMoments && f.agentforceMoments.length
-          ? truncate(f.agentforceMoments[0], 220)
-          : "One conversation. Full cart. Closed loop. Then post-purchase nurture extends the relationship.",
-      },
-    ];
+    function eyebrowFromTags(tags) {
+      const t = Array.isArray(tags) ? tags.slice(0, 2) : [];
+      return t.length ? t.join(" · ").toUpperCase() : "SALESFORCE";
+    }
+    return acts.map(function (act, i) {
+      return {
+        eyebrow:  ov(eOv, i, eyebrowFromTags(act.tags)),
+        title:    ov(vtOv, i, act.title),
+        subtitle: truncate(act.description, 220),
+      };
+    });
   }
 
   // ─── Journey map (5-phase bucket) ─────────────────────────────
@@ -230,7 +221,10 @@
       return a && a.summary && !isHeaderTitle(a.title);
     });
     const out = [];
-    for (let i = 0; i < 5; i++) {
+    // Adaptive count: at least 3 circles, at most 5, never padded beyond the
+    // real milestone count once we're above the floor of 3.
+    const count = Math.max(3, Math.min(5, milestones.length || 0)) || 3;
+    for (let i = 0; i < count; i++) {
       const a = milestones[i];
       out.push({
         index:        i,

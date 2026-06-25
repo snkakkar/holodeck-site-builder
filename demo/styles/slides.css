@@ -460,6 +460,7 @@
 }
 .dd-left {
   position:relative;
+  height:100%; min-height:0;          /* fill the panel so devices size from it, not content */
   background:
     radial-gradient(ellipse at 30% 60%, rgba(var(--red-rgb, 178,34,52), .06), transparent 60%),
     linear-gradient(155deg, #2c3441 0%, #0d1320 100%);
@@ -646,7 +647,7 @@
 .dd-scene-photo .dd-skel-media { position:absolute; inset:0; min-height:100%; border-radius:0; }
 
 /* ── Phone frame (used by personaCard, agentConversation, deviceMoment) */
-.dd-left-device { padding:32px; }
+.dd-left-device { padding:32px; flex-direction:column; gap:0; }
 .dd-phone-frame {
   width:280px; aspect-ratio: 9/19;
   background:#1a232f;
@@ -674,10 +675,12 @@
   padding:10px 24px 6px; font-size:11px; font-weight:700; color:var(--navy, #0d1b2e);
 }
 
-/* ── Laptop frame (used by unifiedProfile, deviceMoment, embedded) */
+/* ── Laptop frame (synthetic mock screens: unifiedProfile, deviceMoment) */
 .dd-laptop-frame {
-  width:520px; max-width:100%;
+  height:min(100%, 460px);            /* height-driven: never overflow a short panel */
   aspect-ratio: 16/10;
+  width:auto; max-width:100%;         /* width follows from height; cap on narrow panels */
+  flex:0 0 auto;                      /* don't let the column flex stretch/shrink it */
   background:#1a232f;
   border-radius:14px 14px 4px 4px;
   padding:14px 14px 22px;
@@ -826,6 +829,51 @@
 .dd-cdp-tab.is-active { background:var(--blue, #1a5fa0); color:#fff; border-color:var(--blue, #1a5fa0); }
 .dd-cdp-screen-host { flex:1; min-height:0; display:flex; }
 .dd-cdp-screen-host > .dd-cdp-body { flex:1; }
+
+/* ── Salesforce-console carousel (unified-profile, large laptop frame) ── */
+.dd-cdp-console { grid-template-columns: 240px 1fr; }
+.dd-cdp-rail {
+  background:linear-gradient(180deg,#f7f9fc 0%,#eef2f8 100%);
+  border-right:1px solid #e1e6ef; padding:18px 16px;
+  display:flex; flex-direction:column; gap:10px; min-height:0;
+}
+.dd-cdp-avatar {
+  width:64px; height:64px; border-radius:50%;
+  background:linear-gradient(135deg,var(--red,#b22234) 0%,var(--blue,#1a5fa0) 100%);
+  color:#fff; font-size:26px; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 8px 20px rgba(var(--blue-rgb,26,95,160),.25);
+}
+.dd-cdp-rail-name { font-size:17px; font-weight:800; color:var(--navy,#0d1b2e); letter-spacing:-.01em; }
+.dd-cdp-rail-role { font-size:11px; font-weight:700; color:var(--blue,#1a5fa0); letter-spacing:.04em; }
+.dd-cdp-rail-seg  { font-size:10px; font-weight:700; letter-spacing:.08em; color:#7a8696; text-transform:uppercase; }
+.dd-cdp-kpis { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px; }
+.dd-cdp-kpi { background:#fff; border:1px solid #e5e9f0; border-radius:8px; padding:8px 10px; }
+.dd-cdp-kpi-val { font-size:16px; font-weight:800; color:var(--red,#b22234); line-height:1; }
+.dd-cdp-kpi-lbl { font-size:8.5px; font-weight:700; letter-spacing:.08em; color:#7a8696; text-transform:uppercase; margin-top:3px; }
+
+.dd-cdp-pane { padding:16px 18px; display:flex; flex-direction:column; gap:12px; min-height:0; overflow:hidden; }
+.dd-cdp-pane-head { border-bottom:1px solid #eef1f6; padding-bottom:8px; }
+.dd-cdp-pane-eyebrow { font-size:9.5px; font-weight:800; letter-spacing:.18em; color:var(--blue,#1a5fa0); text-transform:uppercase; }
+.dd-cdp-pane-title { font-size:18px; font-weight:800; color:var(--navy,#0d1b2e); letter-spacing:-.01em; margin-top:2px; }
+.dd-cdp-pane-flow { display:flex; flex-direction:column; gap:10px; }
+
+.dd-cdp-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.dd-cdp-field { background:#f7f9fc; border:1px solid #eef1f6; border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
+.dd-cdp-field-lbl { font-size:9px; font-weight:700; letter-spacing:.06em; color:#7a8696; text-transform:uppercase; }
+.dd-cdp-field-val { font-size:13px; font-weight:800; color:var(--navy,#0d1b2e); }
+
+.dd-cdp-timeline { display:flex; flex-direction:column; padding-left:6px; }
+.dd-cdp-tl-item { display:flex; gap:10px; padding:8px 0 8px 14px; border-left:2px solid #e1e6ef; position:relative; }
+.dd-cdp-tl-dot { position:absolute; left:-5px; top:12px; width:8px; height:8px; border-radius:50%; background:var(--blue,#1a5fa0); box-shadow:0 0 0 3px #fff; }
+.dd-cdp-tl-body { display:flex; flex-direction:column; gap:1px; }
+.dd-cdp-tl-lbl { font-size:9.5px; font-weight:700; letter-spacing:.06em; color:#7a8696; text-transform:uppercase; }
+.dd-cdp-tl-val { font-size:12.5px; font-weight:700; color:var(--navy,#0d1b2e); }
+
+.dd-cdp-nba { background:linear-gradient(135deg,#f7faff 0%,#eaf1fb 100%); border:1px solid #cfe0f4; border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
+.dd-cdp-nba-eyebrow { font-size:9.5px; font-weight:800; letter-spacing:.18em; color:var(--red,#b22234); text-transform:uppercase; }
+.dd-cdp-nba-head { font-size:16px; font-weight:800; color:var(--navy,#0d1b2e); }
+.dd-cdp-nba-btn { align-self:flex-start; font:inherit; font-size:11px; font-weight:800; letter-spacing:.1em; color:#fff; background:var(--blue,#1a5fa0); border:0; border-radius:7px; padding:9px 16px; cursor:default; }
 
 /* Powered-by attribution strip (hero + others). */
 .dd-poweredby { display:flex; flex-direction:column; gap:6px; margin-top:14px; }

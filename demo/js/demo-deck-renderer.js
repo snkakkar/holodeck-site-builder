@@ -389,43 +389,84 @@
         persona: p, products: products, storyFoundations: f, industry: customer.industry,
       }) : []) || [];
 
-      // The left "screen" content for a given facet index.
-      function facetScreen(facet) {
-        // Identity facet keeps the original affinity-dot flourish.
-        const main = el("div", { class: "dd-cdp-main" });
+      // Deterministic monogram from the customer's name (first letters of up to 2 words).
+      const monogram = (fullName.trim().split(/\s+/).slice(0, 2)
+        .map(function (w) { return (w[0] || "").toUpperCase(); }).join("")) || "C";
+      const roleText = p.role || p.jobTitle || ((customer.industry || "Customer") + " customer");
+      const segText  = p.customerOf || (customer.industry ? customer.industry + " segment" : "Known customer");
+
+      // A label/value detail field (Salesforce-console style).
+      function field(r) {
+        return el("div", { class: "dd-cdp-field" }, [
+          el("div", { class: "dd-cdp-field-lbl", text: r.label }),
+          el("div", { class: "dd-cdp-field-val", text: r.value }),
+        ]);
+      }
+
+      // The right pane content varies per facet; the left rail is persistent.
+      function paneBody(facet) {
+        const rows = (facet.rows || []).slice(0, 6);
         if (facet.key === "affinities") {
-          main.appendChild(el("div", { class: "dd-cdp-h", text: facet.label }));
-          main.appendChild(el("div", { class: "dd-cdp-affinity" }, [
-            affinityNode(74, 38, RED), affinityNode(48, 64, GOLD),
-            affinityNode(62, 22, BLUE), affinityNode(82, 56, "#2e7a50"),
-            affinityNode(34, 44, RED),
-          ]));
-          main.appendChild(el("div", { class: "dd-cdp-track" }));
-        } else {
-          main.appendChild(el("div", { class: "dd-cdp-h", text: facet.label }));
-        }
-        // Derived rows (label + value), replacing the old blank shimmer rows.
-        main.appendChild(el("div", { class: "dd-cdp-rows" },
-          (facet.rows || []).slice(0, 4).map(function (r) {
-            return el("div", { class: "dd-cdp-row" }, [
-              el("span", { class: "dd-cdp-row-lbl", text: r.label }),
-              el("span", { class: "dd-cdp-row-val", text: r.value }),
-            ]);
-          })));
-        return el("div", { class: "dd-cdp-body" }, [
-          el("div", { class: "dd-cdp-side" }, [
-            el("div", { class: "dd-cdp-name",  text: fullName }),
-            el("div", { class: "dd-cdp-place", text: facet.eyebrow || ((customer.industry || "Customer") + " · profile") }),
-            el("div", { class: "dd-cdp-stat" }, [
-              el("div", { class: "dd-cdp-stat-val", text: lifetime }),
-              el("div", { class: "dd-cdp-stat-lbl", text: "Lifetime Value" }),
+          return el("div", { class: "dd-cdp-pane-flow" }, [
+            el("div", { class: "dd-cdp-affinity" }, [
+              affinityNode(74, 38, RED), affinityNode(48, 64, GOLD),
+              affinityNode(62, 22, BLUE), affinityNode(82, 56, "#2e7a50"),
+              affinityNode(34, 44, RED),
             ]),
-            el("div", { class: "dd-cdp-stat" }, [
-              el("div", { class: "dd-cdp-stat-val", text: "4" }),
-              el("div", { class: "dd-cdp-stat-lbl", text: "Orders" }),
+            el("div", { class: "dd-cdp-track" }),
+            el("div", { class: "dd-cdp-fields" }, rows.map(field)),
+          ]);
+        }
+        if (facet.key === "signals") {
+          return el("div", { class: "dd-cdp-timeline" }, rows.map(function (r) {
+            return el("div", { class: "dd-cdp-tl-item" }, [
+              el("span", { class: "dd-cdp-tl-dot" }),
+              el("div", { class: "dd-cdp-tl-body" }, [
+                el("div", { class: "dd-cdp-tl-lbl", text: r.label }),
+                el("div", { class: "dd-cdp-tl-val", text: r.value }),
+              ]),
+            ]);
+          }));
+        }
+        if (facet.key === "predicted") {
+          const headline = (rows[0] && rows[0].value) || "Personalized offer";
+          return el("div", { class: "dd-cdp-nba" }, [
+            el("div", { class: "dd-cdp-nba-eyebrow", text: "Next Best Action" }),
+            el("div", { class: "dd-cdp-nba-head", text: headline }),
+            el("div", { class: "dd-cdp-fields" }, rows.slice(1).map(field)),
+            el("button", { class: "dd-cdp-nba-btn", type: "button", text: "Launch action" }),
+          ]);
+        }
+        // identity (and any future facet): plain detail-field grid.
+        return el("div", { class: "dd-cdp-fields" }, rows.map(field));
+      }
+
+      // The full screen for a facet: persistent profile rail + per-facet console pane.
+      function facetScreen(facet) {
+        return el("div", { class: "dd-cdp-body dd-cdp-console" }, [
+          el("div", { class: "dd-cdp-rail" }, [
+            el("div", { class: "dd-cdp-avatar", text: monogram }),
+            el("div", { class: "dd-cdp-rail-name", text: fullName }),
+            el("div", { class: "dd-cdp-rail-role", text: roleText }),
+            el("div", { class: "dd-cdp-rail-seg",  text: segText }),
+            el("div", { class: "dd-cdp-kpis" }, [
+              el("div", { class: "dd-cdp-kpi" }, [
+                el("div", { class: "dd-cdp-kpi-val", text: lifetime }),
+                el("div", { class: "dd-cdp-kpi-lbl", text: "Lifetime Value" }),
+              ]),
+              el("div", { class: "dd-cdp-kpi" }, [
+                el("div", { class: "dd-cdp-kpi-val", text: "4" }),
+                el("div", { class: "dd-cdp-kpi-lbl", text: "Orders" }),
+              ]),
             ]),
           ]),
-          main,
+          el("div", { class: "dd-cdp-pane" }, [
+            el("div", { class: "dd-cdp-pane-head" }, [
+              el("div", { class: "dd-cdp-pane-eyebrow", text: facet.eyebrow || "Profile" }),
+              el("div", { class: "dd-cdp-pane-title", text: facet.label }),
+            ]),
+            paneBody(facet),
+          ]),
         ]);
       }
 
@@ -600,7 +641,6 @@
       const cxIds = s.linkedCxComponentIds || [];
       const linked = cxIds.map(cxById).filter(Boolean);
       const c = linked[0] || cxList[0] || null;
-      const isMobile = c ? (c.deviceFrame === "mobile") : false;
       const inner = c && c.url && /^https?:\/\//.test(c.url)
         ? renderCxIframe(c)
         : el("div", { class: "dd-skel dd-skel-screen" }, [
@@ -608,8 +648,12 @@
             el("div", { class: "dd-skel-screen-msg",
               text: c ? "Add a URL for this component in Step 5" : "Link a CX component in Step 5" }),
           ]);
+      // Every Aubrey CX component renders in the phone frame — the clean,
+      // content-fitting look from the Agent Conversation Moment slide. The
+      // laptop frame is reserved for synthetic mock screens (unifiedProfile,
+      // deviceMoment), not live embeds.
       return twoPanel({
-        left:  isMobile ? phoneFrame(inner) : laptopFrame(inner),
+        left:  phoneFrame(inner),
         right: rightCopy({
           eyebrow:  c && c.type ? ("Live · " + c.type.toUpperCase()) : "LIVE CX MOMENT",
           headlineHtml: s.title ? escapeHtml(s.title) : (c && c.name ? escapeHtml(c.name) : "Embedded demo screen"),

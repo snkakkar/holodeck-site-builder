@@ -672,6 +672,35 @@ button { font-family: inherit; }
   gap: 10px; margin-top: 12px;
 }
 
+/* ── First-launch product tour (spotlight + coach card) ─────────── */
+.bx-tour-dim {
+  position: fixed;
+  background: rgba(13, 27, 46, 0.55);
+  z-index: 1190;
+}
+.bx-tour-ring {
+  position: fixed;
+  z-index: 1191;
+  border: 2px solid var(--bx-action);
+  border-radius: var(--bx-radius-s);
+  box-shadow: var(--bx-shadow-2);
+  pointer-events: none;
+  transition: left .15s ease, top .15s ease, width .15s ease, height .15s ease;
+}
+.bx-coach.is-tour { z-index: 1200; }
+.bx-tour-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-top: 14px;
+}
+.bx-tour-progress { font: var(--bx-type-label); color: var(--bx-ink-3); }
+.bx-tour-nav { display: flex; align-items: center; gap: 8px; }
+.bx-tour-skip {
+  background: none; border: 0;
+  color: var(--bx-ink-3); font-size: 12px;
+  cursor: pointer; text-decoration: underline;
+  padding: 0;
+}
+
 /* Step-6 CX auto-match row: "Auto-matched to: …" + Make-explicit link. */
 .bx-cx-match {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px;

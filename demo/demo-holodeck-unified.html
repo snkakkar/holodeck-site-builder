@@ -484,6 +484,10 @@
     const circleClass = ['circle-anticipate','circle-engage','circle-guide','circle-convert','circle-delight'];
     // Colors: red=Know, blue=Reach, gold=Engage, green=Recover, pink=Convert
 
+    // Adaptive column count: N steps + (N-1) connectors = 2N-1 columns
+    // (the deck now emits 3-5 steps, not always 5).
+    flow.style.gridTemplateColumns = 'repeat(' + Math.max(1, story.steps.length * 2 - 1) + ', auto)';
+
     story.steps.forEach((step, i) => {
       const div = document.createElement('div');
       div.className = 'step';
@@ -495,7 +499,7 @@
             <div class="tb">${step.detail}</div>
             <div class="tech-row">${step.technologies.map(t => `<span class="t-tag">${t}</span>`).join('')}</div>
           </div>
-          <div class="circle-art ${circleClass[i]}">${step.emoji}</div>
+          <div class="circle-art ${circleClass[i % circleClass.length]}">${step.emoji}</div>
         </div>
         <p class="step-desc">${step.description}</p>
         <div class="cta">${step.badge}</div>

@@ -46,7 +46,7 @@
   const INDUSTRIES = ["Retail","Consumer Goods","Hospitality","Travel","Financial Services","Healthcare","Other"];
   const AUDIENCES  = ["Executive","IT","Marketing","Sales","Service","Store Ops","Field Ops","Mixed"];
   const STAGES     = ["Vision","Discovery","Technical Validation","Executive Readout","RFP / POV"];
-  const PRODUCTS   = ["Data Cloud","Agentforce","Sales Cloud","Service Cloud","Marketing Cloud","Commerce","Loyalty","MuleSoft","Tableau"];
+  const PRODUCTS   = ["Data Cloud","Agentforce","Sales Cloud","Service Cloud","Marketing Cloud","Commerce","Loyalty","Slack","Einstein","MuleSoft","Tableau"];
   const TONES      = ["Executive","Tactical","Visionary","Technical","Playful","Premium"];
 
   // ─── Top-level app state ──────────────────────────────────────
@@ -57,6 +57,9 @@
     state: null,
     previewMode: "expanded",       // "compact" | "expanded"
     previewGrouping: "by-section", // "by-section" | "flat"
+    // First-launch product tour. Lives here (not in the DOM) so it survives the
+    // home→builder view switch, which tears down and rebuilds #bxShell.
+    tour: { active: false, segment: null, index: 0, resumeOnBuilder: false },
   };
 
   // ─── DOM helpers ──────────────────────────────────────────────
@@ -276,6 +279,11 @@
         onDelete:    function (id, done) { STORE.deleteProject(id).then(function () { done && done(); toast("Deleted"); }); },
       });
       setSaveIndicator(false);
+      // First-launch tour: walk the home view, then hand off to the builder.
+      var ob = STORE.getOnboarding();
+      if (!ob.tourDone && !ob.neverShowAgain && !app.tour.active) {
+        setTimeout(function () { startTour("home"); }, 0);
+      }
       return;
     }
 
@@ -313,6 +321,12 @@
     // Persistent Quality Check strip — always visible while in the
     // builder so SEs see issues before reaching the export step.
     renderQualityFooter(shell);
+
+    // Resume the tour's builder segment after the home hand-off.
+    if (app.tour.resumeOnBuilder) {
+      app.tour.resumeOnBuilder = false;
+      setTimeout(function () { startTour("builder"); }, 0);
+    }
   }
 
   function renderQualityFooter(shell) {
@@ -487,30 +501,86 @@
     maybeStepGuide(step);
   }
 
-  // Per-step intro hints — each fires once (see guide()). Kept short and
-  // skippable; nothing here blocks the flow.
+  // Per-step contextual onboarding — a one-time tip the FIRST time each step
+  // is opened (device-level, once ever; see stepTipSeen). Each anchors to the
+  // step's primary element so the tip points at it (coach-mark); a missing
+  // anchor falls back to a centered modal. Short, skippable, never blocking.
+  const STEP_TIPS = {
+    connect: {
+      anchor: "#bxMain .bx-card-feature",
+      title: "Connect (optional)",
+      lines: [
+        "Aubrey is an optional shortcut that can pre-fill your script, foundations, and CX screens.",
+        "Everything in the builder also works entirely by hand — skip this step any time.",
+      ],
+    },
+    script: {
+      anchor: "#bxMain .bx-card-feature",
+      title: "Add your script",
+      lines: [
+        "Paste a demo script, or upload a PDF/DOCX. We extract the customer, persona, products, acts, and value drivers automatically.",
+        "Nothing is sent anywhere — extraction happens locally in your browser.",
+      ],
+    },
+    setup: {
+      anchor: "#bxMain .bx-card",
+      title: "Welcome to the Holodeck Builder",
+      lines: [
+        "You'll turn a demo script into a runnable, customer-branded Salesforce demo in nine quick steps.",
+        "Start by setting the customer, audience, and products here. The right-hand panel keeps live suggestions as you go.",
+      ],
+    },
+    foundations: {
+      anchor: "#bxMain .bx-extract-card",
+      title: "Review the extracted story",
+      lines: [
+        "This is the narrative, persona, acts, and value drivers we pulled from your script.",
+        "Edit anything that's off — these foundations drive every slide downstream.",
+      ],
+    },
+    cx: {
+      anchor: "#bxMain .bx-card",
+      title: "Embed live screens (optional)",
+      lines: [
+        "Link live, click-through Aubrey demo screens to embed them right inside the deck.",
+        "Skip it and those slides fall back to clean, brand-styled placeholders.",
+      ],
+    },
+    recs: {
+      anchor: "#bxMain .bx-rec-gcard",
+      title: "Choosing slides",
+      lines: [
+        "These recommendations come straight from your script. Toggle any slide off to drop it from the demo and the preview.",
+      ],
+    },
+    assets: {
+      anchor: "#bxMain .bx-asset-row",
+      title: "About assets",
+      lines: [
+        "Assets are shared by slot, not per slide. Each slot below lists the slides it feeds.",
+        "Skip any slot and that slide shows a clean, brand-styled placeholder instead — your demo always renders.",
+      ],
+    },
+    preview: {
+      anchor: "#bxMain .bx-preview-summary",
+      title: "Preview & deep-links",
+      lines: [
+        "This is the exact deck you'll export. In the exported demo you can navigate with arrow keys, jump between sections, and deep-link to any slide via the URL hash.",
+      ],
+    },
+    export: {
+      anchor: "#bxMain .bx-card-feature",
+      title: "Export your demo",
+      lines: [
+        "Download a self-contained ZIP you can host anywhere, or copy the config to regenerate later.",
+      ],
+    },
+  };
   function maybeStepGuide(step) {
-    // Each guide anchors to the step's primary element so the tip points
-    // at the action (onboarding coach-mark). Missing anchor → centered modal.
-    if (step === "setup") {
-      guide("intro-setup", "Welcome to the Holodeck Builder", el("div", {}, [
-        el("p", { text: "You'll turn a demo script into a runnable, customer-branded Salesforce demo in nine quick steps. Everything works by hand — Aubrey is just an optional shortcut." }),
-        el("p", { text: "Start by setting the customer, audience, and products here. The right-hand panel keeps live suggestions as you go." })
-      ]), "#bxMain .bx-card");
-    } else if (step === "assets") {
-      guide("intro-assets", "About assets", el("div", {}, [
-        el("p", { text: "Assets are shared by slot, not per slide. Each slot below lists the slides it feeds." }),
-        el("p", { text: "Skip any slot and that slide shows a clean, brand-styled placeholder instead — your demo always renders." })
-      ]), "#bxMain .bx-asset-row");
-    } else if (step === "recs") {
-      guide("intro-recs", "Choosing slides", el("div", {}, [
-        el("p", { text: "These recommendations come straight from your script. Toggle any slide off to drop it from the demo and the preview." })
-      ]), "#bxMain .bx-rec-gcard");
-    } else if (step === "preview") {
-      guide("intro-preview", "Preview & deep-links", el("div", {}, [
-        el("p", { text: "This is the exact deck you'll export. In the exported demo you can navigate with arrow keys, jump between sections, and deep-link to any slide via the URL hash." })
-      ]), "#bxMain .bx-preview");
-    }
+    const tip = STEP_TIPS[step];
+    if (!tip) return;
+    const body = el("div", {}, tip.lines.map(function (t) { return el("p", { text: t }); }));
+    guide("intro-" + step, tip.title, body, tip.anchor, "device");
   }
 
   function renderSide() {
@@ -842,8 +912,13 @@
       toast("Parser threw: " + e.message);
       return false;
     }
-    if (!f || !f.businessProblem) {
-      toast("Parser ran but found no story signals — check the script has Synopsis / CX Summary / numbered steps");
+    // Act-only labeled scripts (ACT 1/2/3 with no Synopsis) still carry
+    // signal — accept them if acts will be extracted below.
+    const willHaveActs = !(s.storyActs || []).length
+      && (PARSER.extractScriptActs(s.scriptText).length
+        || PARSER.extractStoryActsFromScript(s.scriptText).length);
+    if (!f || (!f.businessProblem && !willHaveActs)) {
+      toast("Parser ran but found no story signals — check the script has a Problem/Plot, Synopsis, ACT blocks, or numbered steps");
       return false;
     }
     if (window.HOLO_DEBUG) console.log("[holo] PARSER_RESULT", {
@@ -853,26 +928,57 @@
       dataCloudMoments: f.dataCloudMoments.length,
     });
     PARSER.mergeExtractedStoryIntoState(f, s);
+    s.project = s.project || {};
+
+    // ── Story acts (prefer labeled ACT blocks, fall back to steps) ──
     if (!(s.storyActs || []).length) {
-      const acts = PARSER.extractStoryActsFromScript(s.scriptText);
+      let acts = PARSER.extractScriptActs(s.scriptText);
+      if (!acts.length) acts = PARSER.extractStoryActsFromScript(s.scriptText);
       s.storyActs = acts.map(function (a) { return Object.assign({ id: uid("act_") }, a); });
     }
+
+    // ── Primary persona (only when none exist yet) ──
     if (!(s.personas || []).length) {
-      const desc = PARSER.extractPersonaDescription(s.scriptText);
-      if (desc) {
-        const name = (desc.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/) || [, ""])[1];
-        s.personas.push({
-          id: uid("persona_"),
-          name: name || "",
-          role: "", goals: "", painPoints: "",
-          demoRelevance: desc,
-        });
+      const ppl = PARSER.extractPersonasFromScript(s.scriptText);
+      if (ppl.length) {
+        s.personas = ppl.map(function (p) { return Object.assign({ id: uid("persona_") }, p); });
+      } else {
+        // Fallback: the older "Persona Description:" header form.
+        const desc = PARSER.extractPersonaDescription(s.scriptText);
+        if (desc) {
+          const name = (desc.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/) || [, ""])[1];
+          s.personas.push({
+            id: uid("persona_"),
+            name: name || "",
+            role: "", goals: "", painPoints: "",
+            demoRelevance: desc,
+          });
+        }
       }
     }
+
+    // ── Customer name (don't clobber; exclude the persona first name
+    //    so "Sarah's" isn't mistaken for the customer) ──
+    if (!s.project.customerName) {
+      const persona0 = (s.personas && s.personas[0]) || null;
+      const cust = PARSER.extractCustomerName(s.scriptText, persona0 && persona0.name);
+      if (cust) s.project.customerName = cust;
+    }
+
+    // ── Products (merge into the canonical list, no clobber) ──
+    s.project.products = s.project.products || [];
+    const newProducts = [];
+    (PARSER.extractProducts(s.scriptText) || []).forEach(function (p) {
+      if (s.project.products.indexOf(p) === -1) { s.project.products.push(p); newProducts.push(p); }
+    });
+
     recompute();
     commit();
+    const custNote = s.project.customerName ? (" · " + s.project.customerName) : "";
+    const prodNote = newProducts.length ? (" · " + newProducts.length + " product" + (newProducts.length === 1 ? "" : "s")) : "";
     toast("Foundations extracted — " + s.storyFoundations.valueDrivers.length + " value drivers, "
-          + s.storyActs.length + " acts, " + s.personas.length + " persona" + (s.personas.length === 1 ? "" : "s"));
+          + s.storyActs.length + " acts, " + s.personas.length + " persona" + (s.personas.length === 1 ? "" : "s")
+          + custNote + prodNote);
     return true;
   }
 
@@ -1073,6 +1179,9 @@
       return wrap;
     }
 
+    // ── Extracted from script (read-only summary) ─────────
+    wrap.appendChild(extractedFactsCard(s, f));
+
     // ── Core Narrative ────────────────────────────────────
     const coreFields = [
       ["businessProblem",      "Business problem"],
@@ -1113,6 +1222,42 @@
 
     wrap.appendChild(stepFooter("foundations"));
     return wrap;
+  }
+
+  // Read-only "what we pulled from your script" summary. Surfaces the
+  // facts that live on Steps 1/2 (customer, products, persona) plus the
+  // act titles, so the SE can confirm extraction at a glance. Edits still
+  // happen on Step 1 (customer/products), Step 2 (persona), Step 8 (act titles).
+  function extractedFactsCard(s, f) {
+    const card = el("div", { class: "bx-card" });
+    card.appendChild(el("div", { class: "bx-card-title", text: "Extracted from script" }));
+    card.appendChild(el("div", { class: "bx-card-sub",
+      text: "What the builder pulled from your script. Edit the customer & products in Setup, the persona in Step 2, and act titles in Preview." }));
+
+    const persona = (s.personas && s.personas[0]) || null;
+    const actTitles = Array.isArray(f.threeActTitles) ? f.threeActTitles.filter(Boolean) : [];
+    const rows = [
+      ["Customer", (s.project && s.project.customerName) || ""],
+      ["Products", ((s.project && s.project.products) || []).join(", ")],
+      ["Primary persona", persona ? [persona.name, persona.role].filter(Boolean).join(" · ") : ""],
+      ["Act titles", actTitles.join(" → ")],
+    ];
+
+    rows.forEach(function (r) {
+      const label = r[0], val = r[1];
+      const populated = !!(val && String(val).trim());
+      const row = el("div", { class: "bx-foundation-field" });
+      row.appendChild(el("div", { class: "bx-foundation-head" }, [
+        el("label", { class: "bx-label", text: label }),
+        populated
+          ? el("span", { class: "bx-rec-pill tone-good", text: "✓ Extracted" })
+          : el("span", { class: "bx-rec-pill tone-gold", text: "Missing — add it manually" }),
+      ]));
+      row.appendChild(el("div", { class: "bx-foundation-value",
+        text: populated ? String(val) : "—" }));
+      card.appendChild(row);
+    });
+    return card;
   }
 
   // Render one foundation card with grouped fields. listMode=true
@@ -3320,21 +3465,46 @@
     if (h.neverShowAgain) return true;
     return (h.dismissed || []).indexOf(id) !== -1;
   }
+
+  // Device-level (not per-project) variant for the per-step contextual tips.
+  // A step tip should fire the first time a feature is opened — ONCE EVER on
+  // this device — not once per project, so it lives in STORE.getOnboarding().
+  function stepTipSeen(id) {
+    const ob = STORE.getOnboarding();
+    if (ob.neverShowAgain) return true;
+    // Soft-migrate: honour legacy per-project dismissals of the original 4.
+    const legacy = (app.state && app.state.uxHints && app.state.uxHints.dismissed) || [];
+    if (legacy.indexOf(id) !== -1) return true;
+    return (ob.stepTipsSeen || []).indexOf(id) !== -1;
+  }
+  function markStepTipSeen(id, neverAgain) {
+    const ob = STORE.getOnboarding();
+    if (!ob.stepTipsSeen) ob.stepTipsSeen = [];
+    if (ob.stepTipsSeen.indexOf(id) === -1) ob.stepTipsSeen.push(id);
+    if (neverAgain) ob.neverShowAgain = true;
+    STORE.setOnboarding(ob);
+  }
   // anchor (optional): a CSS selector or element. When it resolves to a
   // visible element the guide renders as a coach-mark card pointing at it
   // (onboarding-style); otherwise it falls back to the centered modal.
-  function guide(id, title, bodyNode, anchor) {
-    if (guideSeen(id)) return;
-    // Ensure the state container exists for old projects.
-    if (!app.state.uxHints) app.state.uxHints = { dismissed: [], version: 1, neverShowAgain: false };
-    const h = app.state.uxHints;
-    if (!h.dismissed) h.dismissed = [];
+  function guide(id, title, bodyNode, anchor, scope) {
+    const device = scope === "device";
+    if (device ? stepTipSeen(id) : guideSeen(id)) return;
 
-    // Shared persistence — used by both the modal and the coach-mark.
-    function commitDismiss(neverAgain) {
-      if (h.dismissed.indexOf(id) === -1) h.dismissed.push(id);
-      if (neverAgain) h.neverShowAgain = true;
-      commit();
+    let commitDismiss;
+    if (device) {
+      // Device-level dismissal (per-step contextual tips).
+      commitDismiss = function (neverAgain) { markStepTipSeen(id, neverAgain); };
+    } else {
+      // Per-project dismissal (legacy default).
+      if (!app.state.uxHints) app.state.uxHints = { dismissed: [], version: 1, neverShowAgain: false };
+      const h = app.state.uxHints;
+      if (!h.dismissed) h.dismissed = [];
+      commitDismiss = function (neverAgain) {
+        if (h.dismissed.indexOf(id) === -1) h.dismissed.push(id);
+        if (neverAgain) h.neverShowAgain = true;
+        commit();
+      };
     }
 
     const anchorEl = (typeof anchor === "string") ? document.querySelector(anchor)
@@ -3430,6 +3600,268 @@
       document.addEventListener("click", onDocClickForCoach, true);
       document.addEventListener("keydown", onEscForCoach, true);
     }, 0);
+  }
+
+  // ─── First-launch product tour ────────────────────────────────
+  // A spotlight walkthrough: a dim backdrop with a cutout over the current
+  // anchor + a coach card with Back/Next/Skip and an "N of M" counter. The
+  // tour spans two views (home → builder); position lives on app.tour so it
+  // survives the renderShell() teardown between them. Reuses the .bx-coach
+  // card styling and the getBoundingClientRect+flip math from openCoachMark.
+  //
+  // Stop: { id, getAnchor(): Element|null, title, body(): Node }
+  const HOME_TOUR = [
+    {
+      id: "home-new",
+      getAnchor: function () { return document.querySelector("#bxPage .bx-home-actions .bx-btn-primary") || document.querySelector("#bxPage [data-tour='new-project']"); },
+      title: "Start a new demo",
+      body: function () { return el("p", { text: "Every demo begins here. A project holds your script, branding, slides, and exports — create one to get started." }); },
+    },
+    {
+      id: "home-aubrey",
+      getAnchor: function () { return document.querySelector("#bxTopbarActions [data-tour='aubrey-keys']"); },
+      title: "Aubrey keys (optional)",
+      body: function () { return el("p", { text: "Add your Aubrey keys once and the builder can pre-fill scripts and embed live demo screens. Everything still works by hand without them." }); },
+    },
+    {
+      id: "home-open",
+      getAnchor: function () { return document.querySelector("#bxPage .bx-home-actions .bx-btn-primary") || document.querySelector("#bxPage [data-tour='new-project']"); },
+      title: "Open a project to continue",
+      body: function () { return el("p", { text: "Create or open a project and the tour will pick up inside the builder, where the real work happens." }); },
+      lastInSegment: true,
+    },
+  ];
+  const BUILDER_TOUR = [
+    {
+      id: "builder-stepper",
+      getAnchor: function () { return document.querySelector("#bxStepList"); },
+      title: "Nine guided steps",
+      body: function () { return el("p", { text: "These steps take you end to end — from script to a runnable, branded demo. Each one unlocks as the last is ready; tips appear the first time you open each." }); },
+    },
+    {
+      id: "builder-topbar",
+      getAnchor: function () { return document.querySelector("#bxTopbarActions"); },
+      title: "Save, import & export",
+      body: function () { return el("p", { text: "Work autosaves per project. Import an existing config to keep editing, and export a self-contained demo any time from here." }); },
+    },
+    {
+      id: "builder-side",
+      getAnchor: function () { return document.querySelector("#bxSide"); },
+      title: "Live suggestions",
+      body: function () { return el("p", { text: "This panel reacts to what you've entered — surfacing recommended slides, missing inputs, and quality checks as you go." }); },
+      lastInSegment: true,
+    },
+  ];
+
+  let _tourEls = null;          // { dim:[4], ring, card }
+  let _tourRepositionRAF = 0;
+
+  function tourSegmentList() {
+    return app.tour.segment === "home" ? HOME_TOUR : BUILDER_TOUR;
+  }
+  function tourTotal() { return tourSegmentList().length; }
+
+  function startTour(segment) {
+    // Don't stack: if a tour is already showing this segment, ignore.
+    if (app.tour.active && app.tour.segment === segment) return;
+    teardownTourDom();
+    app.tour.active = true;
+    app.tour.segment = segment;
+    app.tour.index = 0;
+    if (segment === "home") {
+      const ob = STORE.getOnboarding();
+      if (!ob.homeSeen) { ob.homeSeen = true; STORE.setOnboarding(ob); }
+    }
+    bindTourListeners();
+    renderTourStop();
+  }
+
+  function bindTourListeners() {
+    window.addEventListener("resize", repositionTour, true);
+    window.addEventListener("scroll", repositionTour, true);
+    document.addEventListener("keydown", onTourKey, true);
+  }
+  function unbindTourListeners() {
+    window.removeEventListener("resize", repositionTour, true);
+    window.removeEventListener("scroll", repositionTour, true);
+    document.removeEventListener("keydown", onTourKey, true);
+  }
+  function onTourKey(e) {
+    if (!app.tour.active) return;
+    if (e.key === "Escape") { e.preventDefault(); finishTour(true); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); tourNext(); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); tourBack(); }
+  }
+
+  function teardownTourDom() {
+    if (!_tourEls) return;
+    [].concat(_tourEls.dim, [_tourEls.ring, _tourEls.card]).forEach(function (n) {
+      if (n && n.parentNode) n.parentNode.removeChild(n);
+    });
+    _tourEls = null;
+  }
+
+  function finishTour(skipped) {
+    teardownTourDom();
+    unbindTourListeners();
+    app.tour.active = false;
+    app.tour.segment = null;
+    app.tour.index = 0;
+    const ob = STORE.getOnboarding();
+    // Skip OR completing the builder segment ends the whole tour for good.
+    if (skipped) { ob.tourDone = true; }
+    ob.homeSeen = true;
+    STORE.setOnboarding(ob);
+  }
+
+  function tourBack() {
+    if (app.tour.index > 0) { app.tour.index--; renderTourStop(); }
+  }
+  function tourNext() {
+    const list = tourSegmentList();
+    const stop = list[app.tour.index];
+    if (app.tour.segment === "home" && stop && stop.lastInSegment) {
+      // Hand off to the builder: the user's own New/Open click enters it,
+      // and renderShell() resumes the builder segment via resumeOnBuilder.
+      app.tour.resumeOnBuilder = true;
+      teardownTourDom();
+      unbindTourListeners();
+      app.tour.active = false;
+      app.tour.segment = null;
+      app.tour.index = 0;
+      const ob = STORE.getOnboarding();
+      ob.homeSeen = true;
+      STORE.setOnboarding(ob);
+      return;
+    }
+    if (app.tour.index < list.length - 1) { app.tour.index++; renderTourStop(); return; }
+    // Past the last builder stop → tour complete.
+    const ob = STORE.getOnboarding();
+    ob.tourDone = true; ob.builderTourSeen = true;
+    STORE.setOnboarding(ob);
+    finishTour(false);
+  }
+
+  // Render the current stop. Retries a few ticks if the anchor isn't in the
+  // DOM yet (e.g. just after a view switch), then skips the stop if it never
+  // appears so the tour can't get stuck.
+  function renderTourStop(attempt) {
+    if (!app.tour.active) return;
+    attempt = attempt || 0;
+    const list = tourSegmentList();
+    const stop = list[app.tour.index];
+    if (!stop) { finishTour(false); return; }
+    const anchor = stop.getAnchor();
+    if (!anchor || !anchor.getClientRects || !anchor.getClientRects().length) {
+      if (attempt < 8) { setTimeout(function () { renderTourStop(attempt + 1); }, 60); return; }
+      // Give up on this stop; advance (or finish if it was the last).
+      if (app.tour.index < list.length - 1) { app.tour.index++; renderTourStop(); }
+      else { finishTour(false); }
+      return;
+    }
+    drawTourStop(stop, anchor);
+  }
+
+  function drawTourStop(stop, anchor) {
+    teardownTourDom();
+
+    // Four dim panels frame the anchor rect, leaving a transparent hole.
+    const dim = [0, 1, 2, 3].map(function () {
+      const d = el("div", { class: "bx-tour-dim" });
+      d.addEventListener("click", function (e) { e.stopPropagation(); });
+      document.body.appendChild(d);
+      return d;
+    });
+    const ring = el("div", { class: "bx-tour-ring" });
+    document.body.appendChild(ring);
+
+    // Coach card (reuse .bx-coach), with a tour footer instead of "Got it".
+    const card = el("div", { class: "bx-coach is-tour" });
+    card.appendChild(el("div", { class: "bx-coach-arrow" }));
+    card.appendChild(el("div", { class: "bx-coach-title", text: stop.title }));
+    const body = el("div", { class: "bx-coach-body" });
+    body.appendChild(stop.body());
+    card.appendChild(body);
+
+    const total = tourTotal();
+    const idx = app.tour.index;
+    const foot = el("div", { class: "bx-tour-foot" });
+    const skip = el("button", { type: "button", class: "bx-tour-skip", text: "Skip tour" });
+    skip.addEventListener("click", function () { finishTour(true); });
+    foot.appendChild(skip);
+    const navWrap = el("div", { class: "bx-tour-nav" });
+    navWrap.appendChild(el("span", { class: "bx-tour-progress", text: (idx + 1) + " of " + total }));
+    if (idx > 0) {
+      const back = el("button", { type: "button", class: "bx-btn bx-btn-ghost", text: "Back" });
+      back.addEventListener("click", tourBack);
+      navWrap.appendChild(back);
+    }
+    const isLastBuilder = app.tour.segment === "builder" && idx === total - 1;
+    const nextLabel = isLastBuilder ? "Finish" : (stop.lastInSegment ? "Got it" : "Next");
+    const next = el("button", { type: "button", class: "bx-btn bx-btn-primary", text: nextLabel });
+    next.addEventListener("click", tourNext);
+    navWrap.appendChild(next);
+    foot.appendChild(navWrap);
+    card.appendChild(foot);
+
+    card.style.position = "absolute";
+    document.body.appendChild(card);
+
+    _tourEls = { dim: dim, ring: ring, card: card };
+    positionTourEls(anchor);
+  }
+
+  function positionTourEls(anchor) {
+    if (!_tourEls) return;
+    const r = anchor.getBoundingClientRect();
+    const pad = 6;
+    const sx = window.scrollX, sy = window.scrollY;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    // Hole rect in viewport coords.
+    const hx = Math.max(0, r.left - pad), hy = Math.max(0, r.top - pad);
+    const hw = Math.min(vw, r.right + pad) - hx, hh = Math.min(vh, r.bottom + pad) - hy;
+
+    function setPanel(d, left, top, width, height) {
+      d.style.cssText = "position:fixed;left:" + left + "px;top:" + top + "px;width:" +
+        width + "px;height:" + height + "px;";
+      d.className = "bx-tour-dim";
+    }
+    // top, bottom, left, right panels around the hole.
+    setPanel(_tourEls.dim[0], 0, 0, vw, hy);
+    setPanel(_tourEls.dim[1], 0, hy + hh, vw, Math.max(0, vh - hy - hh));
+    setPanel(_tourEls.dim[2], 0, hy, hx, hh);
+    setPanel(_tourEls.dim[3], hx + hw, hy, Math.max(0, vw - hx - hw), hh);
+
+    _tourEls.ring.style.cssText = "position:fixed;left:" + hx + "px;top:" + hy +
+      "px;width:" + hw + "px;height:" + hh + "px;";
+
+    // Card: to the right of the anchor, flip left on overflow (page coords).
+    const card = _tourEls.card;
+    const popW = 320, margin = 14;
+    let left = r.right + margin + sx;
+    let top = r.top + sy;
+    let flipped = false;
+    if (left + popW > vw + sx - 12) {
+      left = Math.max(12 + sx, r.left + sx - popW - margin);
+      flipped = true;
+    }
+    // Keep the card on-screen vertically.
+    top = Math.max(12 + sy, Math.min(top, vh + sy - 12 - card.offsetHeight));
+    card.classList.toggle("is-flipped", flipped);
+    card.style.left = left + "px";
+    card.style.top = top + "px";
+    card.style.width = popW + "px";
+  }
+
+  function repositionTour() {
+    if (!app.tour.active || !_tourEls) return;
+    if (_tourRepositionRAF) return;
+    _tourRepositionRAF = requestAnimationFrame(function () {
+      _tourRepositionRAF = 0;
+      const stop = tourSegmentList()[app.tour.index];
+      const anchor = stop && stop.getAnchor();
+      if (anchor && anchor.getClientRects && anchor.getClientRects().length) positionTourEls(anchor);
+    });
   }
 
   // targetProjectId: string → overwrite that project; null → create new.
@@ -3996,7 +4428,9 @@
     const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"]
       .filter(function (k) { return !!c[k]; }).length;
     const label = "🔑 Aubrey Keys · " + filled + "/4";
-    return actionBtn(label, "bx-btn-ghost", openAubreyKeysModal);
+    const b = actionBtn(label, "bx-btn-ghost", openAubreyKeysModal);
+    b.setAttribute("data-tour", "aubrey-keys");
+    return b;
   }
   function saveAubreyField(field, value) {
     const c = getAubreyGlobalKeys();

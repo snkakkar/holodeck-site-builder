@@ -32,6 +32,7 @@
   const KEY_PREFIX  = "holodeck.project.";
   const KEY_DIRTY   = "holodeck.dirty";
   const KEY_MIGRATED = "holodeck.migrated.";
+  const KEY_ONBOARD = "holo.onboarding.v1";
   const LEGACY_KEY  = "holodeckBuilder.state.v1";
 
   // Data API base. See memory: neon-multiuser-backend.
@@ -372,6 +373,19 @@
     } catch (e) { /* ignore */ }
   }
 
+  // ─── Onboarding flags (sync, device-local) ─────────────────────
+  // Account/device-level — NOT per-project — because the product tour and
+  // first-time-on-home fire before any project exists. Every field reads
+  // through a default so a missing/old key is safe (back-compat).
+  function getOnboarding() {
+    const d = {
+      version: 1, tourDone: false, homeSeen: false,
+      builderTourSeen: false, stepTipsSeen: [], neverShowAgain: false,
+    };
+    return Object.assign(d, readJSON(KEY_ONBOARD, {}) || {});
+  }
+  function setOnboarding(obj) { return writeJSON(KEY_ONBOARD, obj); }
+
   // ─── Blank state shape (unchanged) ─────────────────────────────
   function newBlankState(seed) {
     const now = new Date().toISOString();
@@ -512,6 +526,8 @@
     createProject: createProject,
     getActiveProjectId: getActiveProjectId,
     setActiveProjectId: setActiveProjectId,
+    getOnboarding: getOnboarding,
+    setOnboarding: setOnboarding,
     newBlankState: newBlankState,
     summaryFromState: summaryFromState,
     derivedStatus: derivedStatus,
