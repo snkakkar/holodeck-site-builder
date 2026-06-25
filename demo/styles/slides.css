@@ -842,7 +842,7 @@
   background:linear-gradient(135deg,var(--red,#b22234) 0%,var(--blue,#1a5fa0) 100%);
   color:#fff; font-size:26px; font-weight:800;
   display:flex; align-items:center; justify-content:center;
-  box-shadow:0 8px 20px rgba(var(--blue-rgb,26,95,160),.25);
+  box-shadow:0 8px 20px rgba(var(--blue-rgb,26,95,160),.25), 0 0 0 4px #fff, 0 0 0 5px #e1e6ef;
 }
 .dd-cdp-rail-name { font-size:17px; font-weight:800; color:var(--navy,#0d1b2e); letter-spacing:-.01em; }
 .dd-cdp-rail-role { font-size:11px; font-weight:700; color:var(--blue,#1a5fa0); letter-spacing:.04em; }
@@ -858,7 +858,7 @@
 .dd-cdp-pane-title { font-size:18px; font-weight:800; color:var(--navy,#0d1b2e); letter-spacing:-.01em; margin-top:2px; }
 .dd-cdp-pane-flow { display:flex; flex-direction:column; gap:10px; }
 
-.dd-cdp-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.dd-cdp-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px; align-content:start; }
 .dd-cdp-field { background:#f7f9fc; border:1px solid #eef1f6; border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
 .dd-cdp-field-lbl { font-size:9px; font-weight:700; letter-spacing:.06em; color:#7a8696; text-transform:uppercase; }
 .dd-cdp-field-val { font-size:13px; font-weight:800; color:var(--navy,#0d1b2e); }

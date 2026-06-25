@@ -430,11 +430,14 @@
         }
         if (facet.key === "predicted") {
           const headline = (rows[0] && rows[0].value) || "Personalized offer";
+          const nbaBtn = el("button", { class: "dd-cdp-nba-btn", type: "button", text: "Launch action" });
+          // Non-interactive demo button: swallow the click so it doesn't advance the slide.
+          nbaBtn.addEventListener("click", function (e) { e.stopPropagation(); });
           return el("div", { class: "dd-cdp-nba" }, [
             el("div", { class: "dd-cdp-nba-eyebrow", text: "Next Best Action" }),
             el("div", { class: "dd-cdp-nba-head", text: headline }),
             el("div", { class: "dd-cdp-fields" }, rows.slice(1).map(field)),
-            el("button", { class: "dd-cdp-nba-btn", type: "button", text: "Launch action" }),
+            nbaBtn,
           ]);
         }
         // identity (and any future facet): plain detail-field grid.
@@ -482,7 +485,9 @@
       }
       facets.forEach(function (facet, i) {
         const tab = el("button", { class: "dd-cdp-tab", type: "button", text: facet.label });
-        tab.addEventListener("click", function () { show(i); });
+        // Keep tab clicks in-slide: matches the .pdot stopPropagation convention so the
+        // deck's click-to-advance listener on .slides-wrap doesn't fire.
+        tab.addEventListener("click", function (e) { e.stopPropagation(); show(i); });
         tabRow.appendChild(tab);
       });
 

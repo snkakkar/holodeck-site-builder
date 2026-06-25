@@ -42,6 +42,22 @@
     if (s.length > 22) s = s.slice(0, 22).replace(/\s+\S*$/, "");
     return s;
   }
+  // Punchy 1-2 word title via "educated consolidation": keep the first meaningful
+  // segment (cut at the first connector), drop filler stopwords, cap at 2 significant
+  // words. Never returns empty or an orphaned connector — falls back to shortenTitle.
+  function punchyTitle(s) {
+    const STOP = { the: 1, of: 1, a: 1, an: 1, to: 1, in: 1, for: 1, and: 1, "&": 1, with: 1, on: 1 };
+    const orig = String(s || "").replace(/\s+/g, " ").trim();
+    if (!orig) return "";
+    // Cut at the first connector, keeping only the first segment.
+    let seg = orig.split(/\s*(?:&|\band\b|:|—|–|\s-\s|,|\/)\s*/i)[0] || orig;
+    let words = seg.split(/\s+/).filter(function (w) { return w; });
+    // Drop leading/trailing filler stopwords.
+    while (words.length && STOP[words[0].toLowerCase()]) words.shift();
+    while (words.length && STOP[words[words.length - 1].toLowerCase()]) words.pop();
+    if (!words.length) return shortenTitle(orig);
+    return words.slice(0, 2).join(" ");
+  }
   function isHeaderTitle(t) {
     return !t || /^(intro|opening|open|chapter\s|section\s|close|closing)/i.test(t);
   }
@@ -194,7 +210,7 @@
     return acts.map(function (act, i) {
       return {
         eyebrow:  ov(eOv, i, eyebrowFromTags(act.tags)),
-        title:    ov(vtOv, i, act.title),
+        title:    ov(vtOv, i, punchyTitle(act.title)),
         subtitle: truncate(act.description, 220),
       };
     });
@@ -228,7 +244,7 @@
       const a = milestones[i];
       out.push({
         index:        i,
-        title:        a && a.title ? shortenTitle(a.title) : PHASE_TITLES[i],
+        title:        a && a.title ? punchyTitle(a.title) : PHASE_TITLES[i],
         phaseTitle:   PHASE_TITLES[i],
         badge:        a && a.salesforceCapabilities ? truncate(a.salesforceCapabilities, 36) : (prods[i] || "Salesforce"),
         emoji:        PHASE_EMOJIS[i],
