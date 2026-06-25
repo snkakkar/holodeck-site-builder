@@ -568,9 +568,14 @@
   // Order MUST match demo-holodeck-unified.html nav (Intro → Journey
   // Map → Meet Persona → Demo → BV). Demo SE-authored slides are the
   // only variable; everything else is fixed scaffold.
-  function buildSlideManifest(state) {
+  function buildSlideManifest(state, opts) {
     state = state || {};
     const out = [];
+    // includeDeselected: when true, emit EVERY synthetic slide regardless of
+    // selection. The Step-5 selector passes this so deselected slides stay
+    // visible (parked) and re-selectable. The runtime/preview/export paths
+    // omit it, so they still drop deselected slides.
+    const includeDeselected = !!(opts && opts.includeDeselected);
     // Selection gate: a synthetic slide is emitted unless the SE explicitly
     // de-selected it in Step 5. selectedRecIds maps id → bool; an id ABSENT
     // from the map means "default on" (so legacy state / first run is
@@ -582,7 +587,7 @@
     }
     function add(entry) {
       // Skip synthetic slides the SE de-selected; non-synthetic always added.
-      if (entry && entry.synthetic && entry.id && !isEnabled(entry.id)) return;
+      if (!includeDeselected && entry && entry.synthetic && entry.id && !isEnabled(entry.id)) return;
       out.push(Object.assign({ assets: [], capabilities: [] }, entry));
     }
 
@@ -598,7 +603,13 @@
                                  return heroHeadlineDefault((st.project && st.project.customerName) || "Customer",
                                                             st.storyFoundations || {});
                                } },
-            "Theme (eyebrow)": "project.theme",
+            "Theme (top label / eyebrow)":
+                             { path: "project.theme",
+                               prefill: function (sl, st) {
+                                 st = st || {};
+                                 return ((st.project && st.project.theme) || "").trim()
+                                   || "Salesforce Customer Experience Vision";
+                               } },
             "Customer name": "project.customerName",
           } });
     add({ id: "_rt_intro_hook", synthetic: true, sectionId: "intro",
@@ -611,23 +622,60 @@
                                    } },
             // These two feed the SUB-line (storyHookSubText), not the
             // headline; businessProblem wins, primaryNarrative is the
-            // fallback. Labelled so the precedence is clear.
-            "Sub-line · business problem":      "storyFoundations.businessProblem",
+            // fallback. Labelled so the precedence is clear. Prefill the
+            // sub with the rendered default so it's never blank.
+            "Sub-line · business problem":      { path: "storyFoundations.businessProblem",
+                                                  prefill: function (sl, st) {
+                                                    st = st || {};
+                                                    return storyHookSubText(st.storyFoundations || {});
+                                                  } },
             "Sub-line · primary narrative":     "storyFoundations.primaryNarrative",
-            "Theme (eyebrow)":                  "project.theme",
+            "Theme (top label / eyebrow)":      { path: "project.theme",
+                                                  prefill: function (sl, st) {
+                                                    st = st || {};
+                                                    return ((st.project && st.project.theme) || "").trim()
+                                                      || "Salesforce Customer Experience Vision";
+                                                  } },
           } });
     add({ id: "_rt_intro_three", synthetic: true, sectionId: "intro",
           layout: "introThreeActs", title: "Three acts (vi-3)",
           editorPaths: {
+            // Eyebrow + headline are top-of-slide labels; new state fields,
+            // both read via fOr(...,default) by the renderer so an old
+            // project (no value) still shows the literal default.
+            "Eyebrow (small label above the title)":
+                                        { path: "storyFoundations.threeActsEyebrow",
+                                          prefill: function () { return "What you'll see today"; } },
+            "Headline":                 { path: "storyFoundations.threeActsHeadline",
+                                          prefill: function () { return "Three acts. One agentic journey."; } },
             // Single-line, 1:1 with each act's description. Each binds to
             // index [0] of the moments array the renderer (threeActsFor)
-            // actually reads, so what you type is what shows.
-            "Act 1 title":              "storyFoundations.threeActTitles[0]",
-            "Act 1 · Know & Reach":     "storyFoundations.dataCloudMoments[0]",
-            "Act 2 title":              "storyFoundations.threeActTitles[1]",
-            "Act 2 · Engage & Recover": "storyFoundations.commerceMoments[0]",
-            "Act 3 title":              "storyFoundations.threeActTitles[2]",
-            "Act 3 · Convert":          "storyFoundations.agentforceMoments[0]",
+            // actually reads, so what you type is what shows. Prefill the
+            // title + description with the rendered default.
+            "Act 1 title":              { path: "storyFoundations.threeActTitles[0]",
+                                          prefill: function (sl, st) {
+                                            return threeActsFor((st || {}).storyFoundations || {})[0].title;
+                                          } },
+            "Act 1 · Know & Reach":     { path: "storyFoundations.dataCloudMoments[0]",
+                                          prefill: function (sl, st) {
+                                            return threeActsFor((st || {}).storyFoundations || {})[0].description;
+                                          } },
+            "Act 2 title":              { path: "storyFoundations.threeActTitles[1]",
+                                          prefill: function (sl, st) {
+                                            return threeActsFor((st || {}).storyFoundations || {})[1].title;
+                                          } },
+            "Act 2 · Engage & Recover": { path: "storyFoundations.commerceMoments[0]",
+                                          prefill: function (sl, st) {
+                                            return threeActsFor((st || {}).storyFoundations || {})[1].description;
+                                          } },
+            "Act 3 title":              { path: "storyFoundations.threeActTitles[2]",
+                                          prefill: function (sl, st) {
+                                            return threeActsFor((st || {}).storyFoundations || {})[2].title;
+                                          } },
+            "Act 3 · Convert":          { path: "storyFoundations.agentforceMoments[0]",
+                                          prefill: function (sl, st) {
+                                            return threeActsFor((st || {}).storyFoundations || {})[2].description;
+                                          } },
           } });
     [0, 1, 2].forEach(function (i) {
       // Each vignette renders exactly ONE moments field (by runtimeIndex):
@@ -639,9 +687,24 @@
             title: "Vignette " + (i + 1) + " (vi-" + (4 + i) + ")",
             editorPaths: (function () {
               const ep = {};
-              ep["Eyebrow"] = "storyFoundations.vignetteEyebrows[" + i + "]";
-              ep["Title"]   = "storyFoundations.vignetteTitles[" + i + "]";
-              ep[vigLabel]  = "storyFoundations." + vigField + "[0]";
+              // Prefill eyebrow/title/subtitle with the rendered default for
+              // THIS vignette (by index) so each card shows real, distinct
+              // text instead of a blank field (fixes the blank-subtitle case).
+              ep["Eyebrow (small label above the title)"] =
+                { path: "storyFoundations.vignetteEyebrows[" + i + "]",
+                  prefill: function (sl, st) {
+                    return vignettesFor((st || {}).storyFoundations || {})[i].eyebrow;
+                  } };
+              ep["Title"] =
+                { path: "storyFoundations.vignetteTitles[" + i + "]",
+                  prefill: function (sl, st) {
+                    return vignettesFor((st || {}).storyFoundations || {})[i].title;
+                  } };
+              ep[vigLabel] =
+                { path: "storyFoundations." + vigField + "[0]",
+                  prefill: function (sl, st) {
+                    return vignettesFor((st || {}).storyFoundations || {})[i].subtitle;
+                  } };
               return ep;
             })() });
     });
@@ -650,20 +713,42 @@
     add({ id: "_rt_journey_matrix", synthetic: true, sectionId: "journey-map",
           layout: "journeyMapMatrix", title: "Journey map",
           editorPaths: {
-            "Eyebrow":               "storyFoundations.journeyEyebrow",
+            "Eyebrow (small label above the title)":
+                                     { path: "storyFoundations.journeyEyebrow",
+                                       prefill: function (sl, st) {
+                                         st = st || {};
+                                         const cn = (st.project && st.project.customerName) || "";
+                                         return cn ? cn + " · journey" : "Customer journey";
+                                       } },
             "Customer name":         "project.customerName",
             "Products":              "project.products",
-            "Transformation thesis": "storyFoundations.transformationThesis",
+            "Transformation thesis": { path: "storyFoundations.transformationThesis",
+                                       prefill: function (sl, st) {
+                                         st = st || {};
+                                         const t = (st.storyFoundations && st.storyFoundations.transformationThesis) || "";
+                                         return t.trim() || "A connected journey";
+                                       } },
           } });
 
     // MEET PERSONA ─ mr-1 intro, mr-2 spotlight, mr-3 wishlist, mr-4 CTA
     add({ id: "_rt_persona_intro", synthetic: true, sectionId: "meet-persona",
           layout: "personaIntro", title: "Meet persona (mr-1)",
           editorPaths: {
-            "Eyebrow":         "storyFoundations.personaIntroEyebrow",
+            "Eyebrow (small label above the title)":
+                               { path: "storyFoundations.personaIntroEyebrow",
+                                 prefill: function () { return "Customer Spotlight"; } },
             "Persona name (headline shows first name)": "personas[0].name",
             "Customer name":   "project.customerName",
-            "Sub-line · demo relevance (wins)": "personas[0].demoRelevance",
+            // Sub-line: "<Customer> · <journey arc>". demoRelevance wins,
+            // goals is the fallback (matches personaIntroSub). Prefill the
+            // winning field with the rendered sub so it isn't blank.
+            "Sub-line · demo relevance (wins)":
+                               { path: "personas[0].demoRelevance",
+                                 prefill: function (sl, st) {
+                                   st = st || {};
+                                   const p = (st.personas && st.personas[0]) || {};
+                                   return personaIntroSub(p, (st.project && st.project.customerName) || "");
+                                 } },
             "Sub-line · goals (fallback)":      "personas[0].goals",
           } });
     add({ id: "_rt_persona_card", synthetic: true, sectionId: "meet-persona",
@@ -671,30 +756,94 @@
           editorPaths: {
             "Persona name (full)": "personas[0].name",
             "Role (top label)":    "personas[0].role",
-            "Job title":           "personas[0].jobTitle",
-            "Stats":               "personas[0].stats",
-            "Quote (pain points)": "personas[0].painPoints",
+            // Job title defaults to the role when blank (mirrors the
+            // renderer + adapter) — prefill with role so it's not empty.
+            "Job title":           { path: "personas[0].jobTitle",
+                                     prefill: function (sl, st) {
+                                       st = st || {};
+                                       const p = (st.personas && st.personas[0]) || {};
+                                       return p.jobTitle || p.role || "";
+                                     } },
+            // Three stats; rows fall back to the [TODO]/Top Moment/Tradition/
+            // Signal defaults the renderer + adapter use. Seed the rows so
+            // the SE edits real placeholders instead of an empty list.
+            "Stats":               { path: "personas[0].stats",
+                                     prefill: function () {
+                                       return [
+                                         { value: "[TODO]", label: "Top Moment" },
+                                         { value: "[TODO]", label: "Tradition"  },
+                                         { value: "[TODO]", label: "Signal"     },
+                                       ];
+                                     } },
+            // Quote = pain points, falling back to goals. Prefill with the
+            // rendered quote text (pain points wins).
+            "Quote (pain points)": { path: "personas[0].painPoints",
+                                     prefill: function (sl, st) {
+                                       st = st || {};
+                                       const p = (st.personas && st.personas[0]) || {};
+                                       return p.painPoints || p.goals || "";
+                                     } },
             // Quote falls back to goals when pain points is empty — expose it.
             "Quote fallback · goals": "personas[0].goals",
           } });
     add({ id: "_rt_persona_wishlist", synthetic: true, sectionId: "meet-persona",
           layout: "personaWishlist", title: "Wishlist (mr-3)",
           editorPaths: {
-            "Wishlist":          "personas[0].wishlist",
-            "Wishlist label":    "personas[0].wishlistLabel",
-            "Wishlist headline": "personas[0].wishlistHeadline",
+            // Seed the cards/label/headline with the same pronoun-aware
+            // defaults the renderer + adapter use, so the SE edits real rows
+            // (names, tags, emoji) instead of an empty list.
+            "Wishlist":          { path: "personas[0].wishlist",
+                                   prefill: function (sl, st) {
+                                     st = st || {};
+                                     const p = (st.personas && st.personas[0]) || {};
+                                     return defaultWishlist(pronounsFor(p.pronouns));
+                                   } },
+            "Wishlist label":    { path: "personas[0].wishlistLabel",
+                                   prefill: function (sl, st) {
+                                     st = st || {};
+                                     const p = (st.personas && st.personas[0]) || {};
+                                     const first = personaFirstName(p);
+                                     return first ? (first + "'s Wishlist") : "Wishlist";
+                                   } },
+            "Wishlist headline": { path: "personas[0].wishlistHeadline",
+                                   prefill: function (sl, st) {
+                                     st = st || {};
+                                     const p = (st.personas && st.personas[0]) || {};
+                                     const stored = p.wishlistHeadline;
+                                     return (stored && !isLegacyWishlistHeadline(stored))
+                                       ? String(stored).replace(/<\/?[^>]+>/g, "")
+                                       : wishlistHeadlineFor(pronounsFor(p.pronouns));
+                                   } },
             "Pronouns":          "personas[0].pronouns",
           } });
     add({ id: "_rt_persona_cta", synthetic: true, sectionId: "meet-persona",
           layout: "personaCta", title: "Begin the journey (mr-4)",
           editorPaths: {
-            "Eyebrow":          "storyFoundations.personaCtaEyebrow",
-            "CTA button label": "storyFoundations.personaCtaLabel",
+            "Eyebrow (small label above the title)":
+                                { path: "storyFoundations.personaCtaEyebrow",
+                                  prefill: function () { return "The Customer Journey"; } },
+            // CTA button label — prefill the shared default (arrow + caps),
+            // stripped of the &nbsp; the export keeps.
+            "CTA button label": { path: "storyFoundations.personaCtaLabel",
+                                  prefill: function (sl, st) {
+                                    st = st || {};
+                                    const cta = personaCtaCopy((st.personas && st.personas[0]) || {},
+                                                               st.story || {}, st.storyFoundations || {});
+                                    return String(cta.label).replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+                                  } },
             "Persona name":     "personas[0].name",
             // Sub-line: demoRelevance wins over futureVision (relabeled so
             // the precedence is clear — editing futureVision is dead when
-            // demoRelevance is set).
-            "Sub-line · demo relevance (wins)": "personas[0].demoRelevance",
+            // demoRelevance is set). Prefill the winning field with the
+            // rendered CTA sub.
+            "Sub-line · demo relevance (wins)":
+                                { path: "personas[0].demoRelevance",
+                                  prefill: function (sl, st) {
+                                    st = st || {};
+                                    const cta = personaCtaCopy((st.personas && st.personas[0]) || {},
+                                                               st.story || {}, st.storyFoundations || {});
+                                    return cta.sub;
+                                  } },
             "Sub-line · future vision (fallback)": "story.futureVision",
           } });
 
@@ -721,15 +870,26 @@
     add({ id: "_rt_bv_opener", synthetic: true, sectionId: "business-value",
           layout: "bvOpener", title: "Outcome opener (bv-1)",
           editorPaths: {
-            "Eyebrow":  "storyFoundations.bvOpenerEyebrow",
-            "Headline": "storyFoundations.bvOpenerHeadline",
-            "Sub-line": "storyFoundations.bvOpenerSub",
+            "Eyebrow (small label above the title)":
+                        { path: "storyFoundations.bvOpenerEyebrow",
+                          prefill: function () { return "The Business Outcome"; } },
+            "Headline": { path: "storyFoundations.bvOpenerHeadline",
+                          prefill: function () { return "A completely connected journey. Driven by AI."; } },
+            "Sub-line": { path: "storyFoundations.bvOpenerSub",
+                          prefill: function () { return "Higher conversion. Increased AOV. Lifelong loyalty."; } },
           } });
     add({ id: "_rt_bv_orbit", synthetic: true, sectionId: "business-value",
           layout: "bvOrbit", title: "Orbit (bv-2)",
           editorPaths: {
-            "Eyebrow":       "storyFoundations.bvOrbitEyebrow",
-            "Headline":      "storyFoundations.bvOrbitHeadline",
+            "Eyebrow (small label above the title)":
+                             { path: "storyFoundations.bvOrbitEyebrow",
+                               prefill: function () { return "How it all connects"; } },
+            "Headline":      { path: "storyFoundations.bvOrbitHeadline",
+                               prefill: function (sl, st) {
+                                 st = st || {};
+                                 const cn = (st.project && st.project.customerName) || "";
+                                 return cn ? cn + " · the orbit" : "One platform. Every moment.";
+                               } },
             "Customer name": "project.customerName",
             "Products (orbit node labels)": "project.products",
             "Orbit nodes":   "storyFoundations.orbitNodes",
@@ -737,23 +897,34 @@
     add({ id: "_rt_bv_caps", synthetic: true, sectionId: "business-value",
           layout: "bvCapabilities", title: "Capabilities recap (bv-3)",
           editorPaths: {
-            "Eyebrow":      "storyFoundations.bvCapsEyebrow",
-            "Headline":     "storyFoundations.bvCapsHeadline",
+            "Eyebrow (small label above the title)":
+                            { path: "storyFoundations.bvCapsEyebrow",
+                              prefill: function () { return "Key Capabilities Shown Today"; } },
+            "Headline":     { path: "storyFoundations.bvCapsHeadline",
+                              prefill: function () { return "Personalize. Search. Convert."; } },
             "Products":     "project.products",
             "Capabilities": "storyFoundations.capabilities",
           } });
     add({ id: "_rt_bv_scorecard", synthetic: true, sectionId: "business-value",
           layout: "kpiScorecard", title: "BVS scorecard (bv-4)",
           editorPaths: {
-            "Eyebrow":     "storyFoundations.bvScorecardEyebrow",
-            "Headline":    "storyFoundations.bvScorecardHeadline",
+            "Eyebrow (small label above the title)":
+                           { path: "storyFoundations.bvScorecardEyebrow",
+                             prefill: function () { return "BVS Benchmarks"; } },
+            "Headline":    { path: "storyFoundations.bvScorecardHeadline",
+                             prefill: function () { return "The numbers that matter."; } },
             "BVS metrics": "storyFoundations.bvsMetrics",
             "Disclaimer":  "storyFoundations.bvScorecardDisclaimer",
           } });
     add({ id: "_rt_bv_closing", synthetic: true, sectionId: "business-value",
           layout: "bvClosing", title: "Closing quote (bv-5)",
           editorPaths: {
-            "Eyebrow":            "storyFoundations.bvClosingEyebrow",
+            "Eyebrow (small label above the title)":
+                                  { path: "storyFoundations.bvClosingEyebrow",
+                                    prefill: function (sl, st) {
+                                      st = st || {};
+                                      return ((st.project && st.project.customerName) || "Customer") + " + Salesforce";
+                                    } },
             "Customer name":      "project.customerName",
             "Executive takeaway": "storyFoundations.executiveTakeaway",
           } });

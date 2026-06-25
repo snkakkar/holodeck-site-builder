@@ -96,6 +96,14 @@
 }
 .site-nav-links button:hover, .site-nav-links a:hover { color: #fff; background: rgba(255,255,255,.1); }
 .site-nav-links button.active, .site-nav-links a.active { color: #fff; background: rgba(var(--red-rgb, 178,34,52), .35); }
+/* Ribbon slide counter — current/total for the active section's carousel. */
+.site-nav-counter {
+  margin-left: 10px; padding-left: 12px;
+  border-left: 1px solid rgba(255,255,255,.18);
+  font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  color: rgba(255,255,255,.65); font-variant-numeric: tabular-nums;
+  min-width: 42px; text-align: center;
+}
 
 /* ═══════════════════════════════════════
    SECTION A — JOURNEY MAP
@@ -622,6 +630,21 @@
 .dd-skel-line-short { width:55%; }
 .dd-skel-lines { display:flex; flex-direction:column; gap:6px; flex:1; padding-top:8px; }
 
+/* ── Unified media policy (mediaTile) ─────────────────────────── */
+/* The host fills its slot; the image covers it. Missing/failed assets
+   degrade to .dd-skel-media (same shimmer + an "Add … in Step 7" cue). */
+.dd-media { position:relative; width:100%; height:100%; min-height:inherit; overflow:hidden; }
+.dd-media-img { display:block; width:100%; height:100%; object-fit:cover; }
+.dd-skel-media {
+  position:relative; width:100%; height:100%; min-height:200px;
+  border-radius:10px; overflow:hidden;
+  background:
+    linear-gradient(135deg, #1c2533 0%, #0d1320 100%);
+}
+/* In the scene-photo slot the media fills the whole left panel. */
+.dd-scene-photo .dd-media,
+.dd-scene-photo .dd-skel-media { position:absolute; inset:0; min-height:100%; border-radius:0; }
+
 /* ── Phone frame (used by personaCard, agentConversation, deviceMoment) */
 .dd-left-device { padding:32px; }
 .dd-phone-frame {
@@ -782,7 +805,32 @@
   opacity:.55;
 }
 .dd-cdp-rows { display:flex; flex-direction:column; gap:6px; flex:1; }
-.dd-cdp-rows .dd-cdp-row { width:100%; height:14px; border-radius:4px; background:#eef1f6; position:relative; overflow:hidden; }
+/* Legacy blank skeleton rows. */
+.dd-cdp-rows .dd-skel-row { width:100%; height:14px; border-radius:4px; background:#eef1f6; position:relative; overflow:hidden; }
+/* Derived label+value rows (unified-profile carousel). */
+.dd-cdp-rows .dd-cdp-row:not(.dd-skel-row) {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  height:auto; min-height:18px; padding:4px 8px; background:#f6f8fb;
+  border-radius:4px; border:1px solid #eef1f6;
+}
+.dd-cdp-row-lbl { font-size:9.5px; font-weight:700; color:#7a8696; letter-spacing:.03em; }
+.dd-cdp-row-val { font-size:10px; font-weight:800; color:var(--navy, #0d1b2e); text-align:right; }
+
+/* Facet tabs across the top of the CDP screen. */
+.dd-cdp-tabs { display:flex; gap:4px; padding:6px 10px 0; background:#fff; flex-wrap:wrap; }
+.dd-cdp-tab {
+  font:inherit; font-size:9px; font-weight:700; letter-spacing:.03em;
+  padding:3px 8px; border-radius:999px; cursor:pointer;
+  background:#f0f3f8; color:#5a6675; border:1px solid #e3e8f0;
+}
+.dd-cdp-tab.is-active { background:var(--blue, #1a5fa0); color:#fff; border-color:var(--blue, #1a5fa0); }
+.dd-cdp-screen-host { flex:1; min-height:0; display:flex; }
+.dd-cdp-screen-host > .dd-cdp-body { flex:1; }
+
+/* Powered-by attribution strip (hero + others). */
+.dd-poweredby { display:flex; flex-direction:column; gap:6px; margin-top:14px; }
+.dd-poweredby-center { align-items:center; }
+.dd-poweredby-label { font-size:11px; font-weight:700; letter-spacing:.18em; color:#7a8696; text-transform:uppercase; }
 
 /* CX iframe wrapper (replaces skeleton when URL given) */
 .dd-cx-iframe-wrap { width:100%; height:100%; background:#fff; }

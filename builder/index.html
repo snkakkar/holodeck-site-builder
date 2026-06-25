@@ -38,6 +38,7 @@
   <script src="preview-renderer.js"></script>
   <script src="config-generator.js"></script>
   <script src="ai-config-prompt.js"></script>
+  <script src="claude-modify-prompt.js"></script>
   <!-- Auth must load before the store so the store can read the JWT -->
   <script src="auth.js"></script>
   <script src="project-store.js"></script>
@@ -48,6 +49,8 @@
   <script src="holodeck-adapter.js"></script>
   <script src="zip-exporter.js"></script>
   <script src="aubrey-client.js"></script>
+  <!-- module: uses dynamic import()/import.meta to lazy-load vendored pdf.js -->
+  <script type="module" src="doc-extract.js"></script>
   <script src="builder.js"></script>
 </body>
 </html>

@@ -86,6 +86,17 @@
   const products = plan.products || [];
   const acts = plan.storyActs || [];
   const f = plan.storyFoundations || {};
+  // Uploaded media slots (Step 7) — used as the real asset behind slide media,
+  // with mediaTile() degrading to a skeleton + cue when a slot is empty.
+  const demoAssets = CFG.demoAssets || {};
+  // Evidence-driven "Powered by Salesforce" list (theme 4). The adapter
+  // precomputes CFG.poweredBy; fall back to deriving here so a legacy
+  // config without it still renders an attributed strip.
+  const poweredBy = (CFG.poweredBy && CFG.poweredBy.length)
+    ? CFG.poweredBy
+    : (SHARED.poweredByProducts
+        ? SHARED.poweredByProducts({ products: products, storyFoundations: f })
+        : (products.length ? products : ["Data Cloud"]));
 
   // Every project gets a chapter-opener as the first demo slide.
   // If the SE hasn't already added one (or imported a saved plan
@@ -147,11 +158,14 @@
           el("p", { class: "dd-eyebrow",  text: deriveEyebrow(s) }),
           el("h1", { class: "dd-display", html: deriveHeadline(s) }),
           el("p", { class: "dd-hero-sub", html: deriveSub(s) }),
-          products.length
-            ? el("div", { class: "dd-chips dd-chips-center" },
-                products.slice(0, 5).map(function (p) {
-                  return el("span", { class: "dd-chip dd-chip-red", text: p });
-                }))
+          poweredBy.length
+            ? el("div", { class: "dd-poweredby dd-poweredby-center" }, [
+                el("span", { class: "dd-poweredby-label", text: "Powered by Salesforce" }),
+                el("div", { class: "dd-chips dd-chips-center" },
+                  poweredBy.slice(0, 5).map(function (p) {
+                    return el("span", { class: "dd-chip dd-chip-red", text: p });
+                  })),
+              ])
             : null,
         ]),
       ];
@@ -205,8 +219,8 @@
           eyebrow:  "Before / After",
           headline: s.title || "From today to a <em>connected</em> future.",
           sub:      f.transformationThesis || "Identity + AI + agents turn fragmented touches into one experience.",
-          chipsLabel: "What gets us there",
-          chips:    products.slice(0, 6).map(function (p) { return { type: "red", label: p }; }),
+          chipsLabel: "Powered by Salesforce",
+          chips:    poweredBy.slice(0, 6).map(function (p) { return { type: "red", label: p }; }),
         }),
       });
     },
@@ -361,54 +375,90 @@
 
     // ─── Unified Profile ───────────────────────────────────────
     // Two-panel: LEFT laptop frame containing a stylized Data Cloud
-    // profile (sidebar + affinity dots).  RIGHT eyebrow + serif
-    // headline + bullet rows ("Real-time" / "Anonymous → Known").
+    // profile.  Data Cloud unifies several FACETS, so the screen is a
+    // small carousel — Identity / Affinities / Real-time signals /
+    // Predicted needs — with clickable tabs.  RIGHT eyebrow + serif
+    // headline + brand-aware "Powered by" attribution.
     unifiedProfile: function (s) {
       const p = persona || {};
-      const initial = (p.name || "R").trim().charAt(0).toUpperCase();
       const fullName = p.name || customer.name || "Customer";
       const lifetime = "$" + (1500 + ((fullName.length * 137) % 6500)).toLocaleString() + ".00";
+
+      // Facets from the shared generator (preview uses the same source).
+      const facets = (SHARED.profileFacets ? SHARED.profileFacets({
+        persona: p, products: products, storyFoundations: f, industry: customer.industry,
+      }) : []) || [];
+
+      // The left "screen" content for a given facet index.
+      function facetScreen(facet) {
+        // Identity facet keeps the original affinity-dot flourish.
+        const main = el("div", { class: "dd-cdp-main" });
+        if (facet.key === "affinities") {
+          main.appendChild(el("div", { class: "dd-cdp-h", text: facet.label }));
+          main.appendChild(el("div", { class: "dd-cdp-affinity" }, [
+            affinityNode(74, 38, RED), affinityNode(48, 64, GOLD),
+            affinityNode(62, 22, BLUE), affinityNode(82, 56, "#2e7a50"),
+            affinityNode(34, 44, RED),
+          ]));
+          main.appendChild(el("div", { class: "dd-cdp-track" }));
+        } else {
+          main.appendChild(el("div", { class: "dd-cdp-h", text: facet.label }));
+        }
+        // Derived rows (label + value), replacing the old blank shimmer rows.
+        main.appendChild(el("div", { class: "dd-cdp-rows" },
+          (facet.rows || []).slice(0, 4).map(function (r) {
+            return el("div", { class: "dd-cdp-row" }, [
+              el("span", { class: "dd-cdp-row-lbl", text: r.label }),
+              el("span", { class: "dd-cdp-row-val", text: r.value }),
+            ]);
+          })));
+        return el("div", { class: "dd-cdp-body" }, [
+          el("div", { class: "dd-cdp-side" }, [
+            el("div", { class: "dd-cdp-name",  text: fullName }),
+            el("div", { class: "dd-cdp-place", text: facet.eyebrow || ((customer.industry || "Customer") + " · profile") }),
+            el("div", { class: "dd-cdp-stat" }, [
+              el("div", { class: "dd-cdp-stat-val", text: lifetime }),
+              el("div", { class: "dd-cdp-stat-lbl", text: "Lifetime Value" }),
+            ]),
+            el("div", { class: "dd-cdp-stat" }, [
+              el("div", { class: "dd-cdp-stat-val", text: "4" }),
+              el("div", { class: "dd-cdp-stat-lbl", text: "Orders" }),
+            ]),
+          ]),
+          main,
+        ]);
+      }
+
+      // Build the carousel: tabs across the top, one screen shown at a time.
+      const screenHost = el("div", { class: "dd-cdp-screen-host" });
+      const tabRow = el("div", { class: "dd-cdp-tabs" });
+      function show(i) {
+        screenHost.innerHTML = "";
+        screenHost.appendChild(facetScreen(facets[i]));
+        Array.prototype.forEach.call(tabRow.children, function (t, ti) {
+          t.classList.toggle("is-active", ti === i);
+        });
+      }
+      facets.forEach(function (facet, i) {
+        const tab = el("button", { class: "dd-cdp-tab", type: "button", text: facet.label });
+        tab.addEventListener("click", function () { show(i); });
+        tabRow.appendChild(tab);
+      });
+
+      const cdp = el("div", { class: "dd-cdp" }, [
+        el("div", { class: "dd-cdp-bar" }, [
+          el("span", { class: "dd-cdp-pill", text: (customer.name || "BRAND").toUpperCase().slice(0,12) }),
+          el("span", { class: "dd-cdp-bar-spacer" }),
+          el("span", { class: "dd-cdp-bar-dot" }),
+          el("span", { class: "dd-cdp-bar-name", text: fullName }),
+        ]),
+        tabRow,
+        screenHost,
+      ]);
+      if (facets.length) show(0);
+
       return twoPanel({
-        left: laptopFrame(
-          el("div", { class: "dd-cdp" }, [
-            el("div", { class: "dd-cdp-bar" }, [
-              el("span", { class: "dd-cdp-pill", text: (customer.name || "BRAND").toUpperCase().slice(0,12) }),
-              el("span", { class: "dd-cdp-bar-spacer" }),
-              el("span", { class: "dd-cdp-bar-dot" }),
-              el("span", { class: "dd-cdp-bar-name", text: fullName }),
-            ]),
-            el("div", { class: "dd-cdp-body" }, [
-              el("div", { class: "dd-cdp-side" }, [
-                el("div", { class: "dd-cdp-name",  text: fullName }),
-                el("div", { class: "dd-cdp-place", text: (customer.industry || "Customer") + " · profile" }),
-                el("div", { class: "dd-cdp-stat" }, [
-                  el("div", { class: "dd-cdp-stat-val", text: lifetime }),
-                  el("div", { class: "dd-cdp-stat-lbl", text: "Lifetime Value" }),
-                ]),
-                el("div", { class: "dd-cdp-stat" }, [
-                  el("div", { class: "dd-cdp-stat-val", text: "4" }),
-                  el("div", { class: "dd-cdp-stat-lbl", text: "Orders" }),
-                ]),
-              ]),
-              el("div", { class: "dd-cdp-main" }, [
-                el("div", { class: "dd-cdp-h", text: "Affinities" }),
-                el("div", { class: "dd-cdp-affinity" }, [
-                  affinityNode(74, 38, RED),
-                  affinityNode(48, 64, GOLD),
-                  affinityNode(62, 22, BLUE),
-                  affinityNode(82, 56, "#2e7a50"),
-                  affinityNode(34, 44, RED),
-                ]),
-                el("div", { class: "dd-cdp-track" }),
-                el("div", { class: "dd-cdp-rows" }, [
-                  el("div", { class: "dd-cdp-row dd-skel-row" }, [skeletonShimmer()]),
-                  el("div", { class: "dd-cdp-row dd-skel-row" }, [skeletonShimmer()]),
-                  el("div", { class: "dd-cdp-row dd-skel-row" }, [skeletonShimmer()]),
-                ]),
-              ]),
-            ]),
-          ])
-        ),
+        left: laptopFrame(cdp),
         right: rightCopy({
           eyebrow:  "Data Cloud · Unified Profile",
           headlineHtml: s.title
@@ -418,7 +468,7 @@
           stats: [
             { val: "Real-Time", label: "Personalization" },
             { val: "→ Known",   label: "Anonymous" },
-            { val: products[0] || "Data Cloud", label: "Powered by" },
+            { val: (poweredBy[0] || "Data Cloud"), label: "Powered by" },
           ],
           quote: "Every click, every scroll, every purchase is a signal — connected into a profile uniquely " + (p.name || "her") + ".",
         }),
@@ -456,7 +506,14 @@
       const screenInner = el("div", { class: "dd-screen" }, [
         el("div", { class: "dd-screen-eyebrow", text: (act.channel || "Salesforce").toUpperCase() }),
         el("div", { class: "dd-screen-h", text: act.demoMoment || act.title || s.title || "Moment" }),
-        el("div", { class: "dd-skel dd-skel-photo" }, [skeletonShimmer()]),
+        // Real screenshot/GIF when uploaded for this device, else skeleton + cue.
+        mediaTile({
+          src: isMobile ? demoAssets.iPhoneRec
+                        : (demoAssets.laptopBrowsingGif || demoAssets.webBrowseGif),
+          kind: "gif",
+          alt: act.demoMoment || act.title || "Demo moment",
+          cue: "Add a screen recording in Step 7",
+        }),
         el("div", { class: "dd-screen-rows" }, [
           el("div", { class: "dd-screen-row" }, [
             el("div", { class: "dd-skel dd-skel-tile" }, [skeletonShimmer()]),
@@ -503,9 +560,15 @@
       ];
       return [
         el("div", { class: "dd-scene" }, [
-          // LEFT: full-bleed scene
-          el("div", { class: "dd-scene-photo dd-skel dd-skel-photo-full" }, [
-            skeletonShimmer(),
+          // LEFT: full-bleed scene — uploaded store photo when available,
+          // otherwise the skeleton (mediaTile handles the missing-asset cue).
+          el("div", { class: "dd-scene-photo" }, [
+            mediaTile({
+              src: demoAssets.storeInterior || demoAssets.storeExterior,
+              kind: "image",
+              alt: act.location || "Scene",
+              cue: "Add a scene photo in Step 7",
+            }),
             el("div", { class: "dd-scene-tag", text: act.location || (customer.name ? customer.name + " Store" : "Store") + " · " + (act.timing || "December") }),
           ]),
           // RIGHT: copy + icon list
@@ -718,6 +781,40 @@
   // div it's parked in.  Keeps "unfilled" panels from looking dead.
   function skeletonShimmer() {
     return el("span", { class: "dd-skel-shimmer" });
+  }
+
+  // ── Unified media policy ───────────────────────────────────────
+  // One way to render a GIF / screenshot / image across every slide:
+  //   - With a usable src → an <img> that, on load failure, swaps itself
+  //     for the same skeleton + "Add this asset in Step 7" cue.
+  //   - With no src → the skeleton + cue directly (never a broken image).
+  // opts: { src, kind, alt, cue }. Returns a DOM node ready to append.
+  function mediaFallback(cue) {
+    return el("div", { class: "dd-skel dd-skel-media" }, [
+      skeletonShimmer(),
+      el("div", { class: "dd-skel-screen-msg", text: cue || "Add this asset in Step 7" }),
+    ]);
+  }
+  function mediaTile(opts) {
+    opts = opts || {};
+    var src = opts.src;
+    var cue = opts.cue || "Add this asset in Step 7";
+    // Treat empty, whitespace, or unresolved [TODO:] placeholders as missing.
+    var usable = typeof src === "string" && src.trim() &&
+                 src.indexOf("[TODO") === -1;
+    if (!usable) return mediaFallback(cue);
+    var host = el("div", { class: "dd-media" });
+    var img = document.createElement("img");
+    img.className = "dd-media-img";
+    img.alt = opts.alt || "";
+    img.src = src;
+    img.onerror = function () {
+      this.onerror = null;
+      if (host.parentNode) host.parentNode.replaceChild(mediaFallback(cue), host);
+      else { host.innerHTML = ""; host.appendChild(mediaFallback(cue)); }
+    };
+    host.appendChild(img);
+    return host;
   }
 
   function timelineNode(m) {
@@ -938,12 +1035,18 @@
 
   if (wrap) {
     wrap.addEventListener("click", function () {
-      if (current < TOTAL - 1) goTo(current + 1);
+      if (current < TOTAL - 1) {
+        goTo(current + 1);
+        if (window.HOLO_NAV) window.HOLO_NAV.notifyChange();
+      }
     });
   }
-  document.addEventListener("keydown", function (e) {
-    if (window._holoActiveSection !== "demo") return;
-    if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); goTo(current + 1); }
-    if (e.key === "ArrowLeft") goTo(current - 1);
+  // Keyboard + deep-links handled centrally by HOLO_NAV. This section is
+  // already 0-based, so the adapter maps straight through.
+  if (window.HOLO_NAV) window.HOLO_NAV.register({
+    key: "demo",
+    goToIndex: function (i) { goTo(i); },
+    getCurrent: function () { return current; },
+    getTotal: function () { return TOTAL; },
   });
 })();

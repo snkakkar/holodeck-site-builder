@@ -20,6 +20,7 @@
   const CONFIG  = global.HOLO_CONFIG;
   const PREVIEW = global.HOLO_PREVIEW;
   const ADAPTER = global.HOLO_ADAPTER;
+  const CLAUDE_MODIFY = global.HOLO_CLAUDE_MODIFY;
 
   // ── /demo template manifest ─────────────────────────────────
   // Source-of-truth list of files we ship in the polished export.
@@ -80,14 +81,30 @@
   }
 
   // ─── Build the file list to put into the ZIP ─────────────────
-  // Tries the polished path first (fetch /demo/ template files +
-  // adapt config). Falls back to the legacy generator if any of the
-  // template fetches fail.
+  // Builds the export payload by fetching the live /demo/ template
+  // files and swapping in the builder's adapted config. This is the
+  // ONLY supported path: it bundles the real demo-deck-renderer.js +
+  // holodeck-shared.js + demo CSS, so the exported deck renders exactly
+  // like the Step-8 preview ("Builder preview == exported demo").
+  //
+  // It does NOT silently fall back to the legacy generator: that
+  // generator is a stale fork missing the current layouts and the demo
+  // stylesheets, so a fallback ZIP looks broken on open. If the template
+  // can't be fetched (builder opened over file://, or /demo unreachable),
+  // we reject with an actionable message so the SE fixes the cause
+  // instead of shipping a broken deck.
   function buildDemoZipPayload(state) {
     const slug = safeSlug(state);
     const root = "holodeck-" + slug + "/";
     return tryFetchPolishedTemplate().then(function (templateFiles) {
-      if (!templateFiles) return buildLegacyPayload(state, slug, root);
+      if (!templateFiles) {
+        throw new Error(
+          "Export needs the builder served over http:// so it can bundle the " +
+          "/demo template (you appear to be on file://, or /demo is unreachable). " +
+          "From the project root run: python3 -m http.server 8000 — then open " +
+          "http://localhost:8000/builder/index.html and export again."
+        );
+      }
       return buildPolishedPayload(state, slug, root, templateFiles);
     });
   }
@@ -98,12 +115,13 @@
       ? ADAPTER.toPolishedHolodeckConfigJs(state)
       : CONFIG.toHolodeckConfigJs(state);
     const builderJson = CONFIG.toJsonString(state);
-    const exportMeta  = generateExportMetadata(state);
+    const exportMeta  = generateExportMetadata(state, "polished");
 
     const files = [
       // Top-level docs
-      { path: root + "README.md",     content: generateReadme(state) },
-      { path: root + "HOW_TO_RUN.md", content: generateHowToRun(state) },
+      { path: root + "README.md",         content: generateReadme(state) },
+      { path: root + "HOW_TO_RUN.md",     content: generateHowToRun(state) },
+      { path: root + "CLAUDE_MODIFY.md",  content: generateClaudeModifyMd(state) },
     ];
 
     // Drop in every fetched template file under /demo, but skip the
@@ -125,16 +143,25 @@
     return { files: files, slug: slug, root: root, mode: "polished" };
   }
 
-  // Legacy path: generator-built minimal runtime. Kept as fallback so
-  // the export still produces a ZIP if the builder is opened over
-  // file:// (no fetch) or /demo isn't reachable for some reason.
+  // Legacy path: generator-built minimal runtime.
+  //
+  // INTENTIONALLY NOT WIRED INTO THE DEFAULT EXPORT FLOW. It is a stale
+  // fork: its hand-written renderer (generateDemoRendererJs) implements
+  // only the older layouts and is missing the current intro/journeyMap/
+  // persona/business-value layouts, and the payload omits demo/styles/*,
+  // so a ZIP built this way renders broken/unstyled. Retained only as a
+  // reference / explicit opt-in escape hatch — buildDemoZipPayload now
+  // rejects with an actionable message rather than falling back here.
+  // Do NOT re-wire this without bringing it to full layout + CSS parity
+  // (preferred fix is to keep the single polished runtime instead).
   function buildLegacyPayload(state, slug, root) {
     const cfgJs   = CONFIG.toHolodeckConfigJs(state);
     const cfgJson = CONFIG.toJsonString(state);
-    const exportMeta = generateExportMetadata(state);
+    const exportMeta = generateExportMetadata(state, "legacy");
     const files = [
-      { path: root + "README.md",     content: generateReadme(state) },
-      { path: root + "HOW_TO_RUN.md", content: generateHowToRun(state) },
+      { path: root + "README.md",         content: generateReadme(state) },
+      { path: root + "HOW_TO_RUN.md",     content: generateHowToRun(state) },
+      { path: root + "CLAUDE_MODIFY.md",  content: generateClaudeModifyMd(state) },
       { path: root + "demo/index.html",                content: generateDemoIndexHtml(state) },
       { path: root + "demo/holodeck.config.js",        content: cfgJs },
       { path: root + "demo/data/holodeck-config.json", content: cfgJson },
@@ -177,9 +204,11 @@
         return results.filter(Boolean);
       })
       .catch(function (err) {
-        // Any required file failed → fall back to legacy.
+        // Any required file failed → resolve null so buildDemoZipPayload
+        // rejects with an actionable message (we no longer ship a broken
+        // legacy fallback). See buildLegacyPayload's comment.
         if (typeof console !== "undefined" && console.warn) {
-          console.warn("[holo] Polished template fetch failed, falling back to legacy export:", err && err.message);
+          console.warn("[holo] Polished template fetch failed (export will require http:// serving):", err && err.message);
         }
         return null;
       });
@@ -254,11 +283,27 @@
       "    sf-icon.png                    Salesforce mark (fallback)",
       "    ASSET_INSTRUCTIONS.md          What to add and where",
       "source/                            Builder metadata + JSON snapshot for re-import",
+      "CLAUDE_MODIFY.md                   Copy-paste prompts to edit this demo with AI",
       "```",
       "",
       "## Quick start",
       "",
       "Open `HOW_TO_RUN.md` for the simple version.",
+      "",
+      "## Branding modes",
+      "",
+      "`brand.mode` in `demo/holodeck.config.js` controls the lockup:",
+      "",
+      "- `salesforce` (default) — Salesforce-led branding, the original look.",
+      "- `customer` — customer-led, using `brand.customerLogoPath` and the",
+      "  customer's palette; the \"+ Salesforce\" mark is hidden.",
+      "- `cobrand` — both marks shown side by side.",
+      "",
+      "## Editing with AI",
+      "",
+      "See `CLAUDE_MODIFY.md` for ready-to-paste prompts (rebrand, add a slide,",
+      "rewrite the persona, swap assets…) that an SE can hand to Claude or",
+      "ChatGPT to modify this demo without re-opening the Builder.",
       "",
       "## Project info",
       "",
@@ -295,6 +340,23 @@
       "URLs, edit the `builderPlan.cxComponents` array in",
       "`holodeck.config.js` — the `url` field controls what's embedded, and",
       "the `deviceFrame` field controls the phone / desktop / tablet chrome.",
+      "",
+    ].join("\n");
+  }
+
+  // ─── CLAUDE_MODIFY.md ────────────────────────────────────────
+  // Reusable AI-edit prompt file shipped in the export. Delegates to
+  // the HOLO_CLAUDE_MODIFY module; falls back to a minimal stub if the
+  // module didn't load (e.g. legacy/standalone context).
+  function generateClaudeModifyMd(state) {
+    if (CLAUDE_MODIFY && CLAUDE_MODIFY.generate) return CLAUDE_MODIFY.generate(state);
+    return [
+      "# Modify this Holodeck with AI",
+      "",
+      "All customer content lives in `demo/holodeck.config.js`. Hand this folder",
+      "to Claude or ChatGPT and ask it to edit that file — change the brand,",
+      "add a slide, rewrite the persona — then refresh the browser. There's no",
+      "build step.",
       "",
     ].join("\n");
   }
@@ -358,7 +420,7 @@
   }
 
   // ─── Builder metadata ────────────────────────────────────────
-  function generateExportMetadata(state) {
+  function generateExportMetadata(state, mode) {
     const project = state.project || {};
     const slides = (state.slides || []).map(function (s, i) {
       return {
@@ -371,6 +433,7 @@
     });
     return {
       exportedAt:   new Date().toISOString(),
+      mode:         mode || "polished",
       projectId:    state.id || null,
       projectName:  state.name || project.customerName || "Untitled",
       customerName: project.customerName || "",

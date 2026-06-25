@@ -156,6 +156,7 @@ button { font-family: inherit; }
   padding: 6px 8px;
 }
 .bx-btn-link:hover { text-decoration: underline; }
+.bx-btn.is-loading { opacity: 0.7; pointer-events: none; cursor: progress; }
 
 .bx-icon-btn {
   width: 32px; height: 32px;
@@ -376,15 +377,15 @@ button { font-family: inherit; }
 /* Step 7 · Asset rows */
 .bx-asset-row {
   display: grid;
-  grid-template-columns: 96px 1fr auto;
+  grid-template-columns: 132px 1fr auto;
   gap: 16px;
   align-items: center;
-  padding: 12px 0;
+  padding: 14px 0;
   border-top: 1px solid var(--bx-line);
 }
 .bx-asset-row:first-of-type { border-top: none; }
 .bx-asset-thumb {
-  width: 96px; height: 72px;
+  width: 132px; height: 88px;
   border: 1.5px solid var(--bx-line-2);
   border-radius: var(--bx-radius-s);
   background: var(--bx-surface-bg, #fafbfc);
@@ -404,6 +405,15 @@ button { font-family: inherit; }
 .bx-asset-help {
   font-size: 12px; color: var(--bx-ink-2);
   margin-top: 2px; line-height: 1.45;
+}
+.bx-asset-usedby {
+  font-size: 11.5px; color: var(--bx-ink-2);
+  margin-top: 5px; line-height: 1.4;
+}
+.bx-asset-usedby-lbl {
+  font-weight: 700; letter-spacing: 0.03em;
+  color: var(--bx-ink-3, #98a1b1); text-transform: uppercase;
+  font-size: 10.5px;
 }
 .bx-asset-status { margin-top: 6px; }
 .bx-asset-controls {
@@ -555,6 +565,13 @@ button { font-family: inherit; }
   border-color: rgba(26, 95, 160, 0.36);
   background: var(--bx-action-soft);
 }
+/* Deselected ("parked") list card: clearly dimmed, dashed "ghost" border so
+   it reads as set-aside rather than gone — but still fully re-selectable. */
+.bx-rec:not(.is-on) {
+  border-style: dashed;
+  opacity: 0.6;
+}
+.bx-rec:not(.is-on):hover { opacity: 0.85; }
 /* Real <input type="checkbox"> sized to look like the old div checkbox.
    appearance:none gives us full styling control while keeping native
    keyboard / a11y semantics. */
@@ -586,6 +603,12 @@ button { font-family: inherit; }
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
 }
+/* Required (locked) slide: checkbox is disabled-on, not clickable, no dimming. */
+.bx-rec.is-locked { opacity: 1; }
+.bx-rec-check:disabled {
+  cursor: not-allowed;
+  opacity: 1;            /* stay fully visible — it's "on and locked", not greyed */
+}
 /* Whole-card click target — wraps the checkbox + body so labels work. */
 .bx-rec-label {
   display: flex; gap: 12px; flex: 1;
@@ -593,6 +616,70 @@ button { font-family: inherit; }
   min-width: 0;
 }
 /* Details disclosure */
+/* Step-7 "Text still to update" disclosure — collapsed by default so the
+   Preview step is the primary copy editor. Mirrors .bx-rec-details. */
+.bx-pending-details {
+  margin-top: 4px;
+}
+.bx-pending-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 6px 8px;
+  border-radius: var(--bx-radius-s);
+}
+.bx-pending-summary::-webkit-details-marker { display: none; }
+.bx-pending-summary::before { content: "▸ "; transition: transform 0.15s; display: inline-block; }
+.bx-pending-details[open] .bx-pending-summary::before { content: "▾ "; }
+.bx-pending-summary:hover { background: var(--bx-bg-2); }
+.bx-pending-summary-title { font-size: 13px; font-weight: 700; color: var(--bx-ink); }
+.bx-pending-summary-hint { font-size: 12px; color: var(--bx-ink-3); }
+.bx-pending-body {
+  margin-top: 8px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+/* Onboarding coach-mark — anchored guide card that points at the step's
+   primary action. Positioned by JS (openCoachMark); arrow flips with the card. */
+.bx-coach {
+  z-index: 1200;
+  background: var(--bx-surface, #fff);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius-m, 10px);
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.18);
+  padding: 16px 16px 12px;
+}
+.bx-coach-arrow {
+  position: absolute;
+  top: 18px; left: -7px;
+  width: 12px; height: 12px;
+  background: var(--bx-surface, #fff);
+  border-left: 1px solid var(--bx-line);
+  border-bottom: 1px solid var(--bx-line);
+  transform: rotate(45deg);
+}
+.bx-coach.is-flipped .bx-coach-arrow {
+  left: auto; right: -7px;
+  border-left: none; border-bottom: none;
+  border-top: 1px solid var(--bx-line);
+  border-right: 1px solid var(--bx-line);
+}
+.bx-coach-title { font-size: 14px; font-weight: 700; color: var(--bx-ink); margin-bottom: 6px; }
+.bx-coach-body { font-size: 13px; color: var(--bx-ink-2); }
+.bx-coach-body p { margin: 0 0 8px; }
+.bx-coach-body p:last-child { margin-bottom: 0; }
+.bx-coach-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-top: 12px;
+}
+
+/* Step-6 CX auto-match row: "Auto-matched to: …" + Make-explicit link. */
+.bx-cx-match {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: 12px;
+}
+.bx-cx-match-label { color: var(--bx-ink-2); }
+.bx-cx-match-muted { color: var(--bx-ink-3); }
+
 .bx-rec-details {
   margin-top: 8px;
 }
@@ -650,6 +737,14 @@ button { font-family: inherit; }
 .bx-rec-pill.tone-red    { background: var(--bx-error-bg);     color: var(--bx-error); }
 .bx-rec-pill.tone-gold   { background: var(--bx-warn-bg);      color: var(--bx-warn); }
 .bx-rec-pill.tone-good   { background: var(--bx-good-bg);      color: var(--bx-good); }
+/* Muted "Hidden from deck" tag shown on deselected cards (list + grid). */
+.bx-rec-hidden-tag {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.10em;
+  padding: 3px 10px; border-radius: var(--bx-radius-pill);
+  background: var(--bx-bg-2); color: var(--bx-ink-3);
+  text-transform: uppercase;
+  display: inline-flex; align-items: center;
+}
 .bx-rec-why {
   font-size: 12px; color: var(--bx-ink-2);
   margin-top: 4px; line-height: 1.5;
@@ -851,6 +946,23 @@ button { font-family: inherit; }
   padding: var(--bx-sp-5);
   overflow-y: auto;
 }
+/* Guided hint modal (theme 10) */
+.bx-modal-card.bx-guide { max-width: 520px; }
+.bx-guide .bx-guide-body p {
+  margin: 0 0 12px; font-size: 14px; line-height: 1.6; color: var(--bx-ink-2);
+}
+.bx-guide .bx-guide-body p:last-of-type { margin-bottom: 0; }
+.bx-guide-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-top: var(--bx-sp-5);
+  padding-top: var(--bx-sp-4); border-top: 1px solid var(--bx-line);
+}
+.bx-guide-optout {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--bx-ink-2); cursor: pointer;
+}
+.bx-guide-optout input { cursor: pointer; }
+
 .bx-code {
   background: #0d1b2e;
   color: #d6e4f5;
@@ -1652,6 +1764,18 @@ button { font-family: inherit; }
   box-shadow: 0 0 0 1px rgba(26, 95, 160, 0.25), var(--bx-shadow);
   background: var(--bx-action-soft);
 }
+/* Deselected ("parked") grid card: dimmed + dashed ghost border. */
+.bx-rec-gcard:not(.is-on) {
+  border-style: dashed;
+  opacity: 0.6;
+}
+.bx-rec-gcard:not(.is-on):hover { opacity: 0.9; }
+/* Corner "Hidden from deck" label on a deselected grid card. */
+.bx-rec-gcard-hidden {
+  position: absolute;
+  bottom: 10px; right: 10px;
+  z-index: 2;
+}
 
 /* Status pill sits in the top-right corner */
 .bx-rec-gcard > .bx-rec-pill {
@@ -1677,6 +1801,14 @@ button { font-family: inherit; }
 .bx-rec-gcard-badge.is-on {
   background: var(--bx-action);
   border-color: var(--bx-action);
+}
+/* Required (locked) grid card: lock badge, not clickable, no dimming. */
+.bx-rec-gcard.is-locked { opacity: 1; cursor: default; }
+.bx-rec-gcard-badge.is-locked {
+  background: var(--bx-bg-2);
+  border-color: var(--bx-line-2);
+  color: var(--bx-ink-3);
+  font-size: 11px;
 }
 
 /* Thumbnail frame: scaled-down .hp preview clipped to fixed aspect */

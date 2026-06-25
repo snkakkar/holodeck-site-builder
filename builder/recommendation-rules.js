@@ -996,32 +996,56 @@
   // keeps coming from RULES (its cards map to real state.slides).
   const MANIFEST_SECTIONS = ["intro", "journey-map", "meet-persona", "business-value"];
 
+  // Of the synthetic manifest slides, only these few are truly "Required"
+  // (max 1–3 per section) — the spine the template can't tell a story
+  // without. Everything else is "recommended": still selected by default
+  // (recompute() defaults synthetic slides ON), but the SE is free to trim
+  // them without the UI shouting "Required" at every slide.
+  const MANIFEST_REQUIRED = {
+    "_rt_intro_hero": 1, "_rt_intro_hook": 1,
+    "_rt_journey_matrix": 1,
+    "_rt_persona_intro": 1, "_rt_persona_card": 1,
+    "_rt_bv_scorecard": 1, "_rt_bv_closing": 1,
+  };
+
   // Turn the synthetic manifest slides (everything except the demo section)
   // into selector recommendation entries with the SAME id/layout/section the
-  // generator/export use. selectionStatus "required" so they default on.
+  // generator/export use. A small set is "required"; the rest are
+  // "recommended" but still default on (synthetic + priority 100).
   function manifestRecommendations(state) {
     const SH = global.HOLO_SHARED;
     if (!SH || !SH.buildSlideManifest) return [];
-    const manifest = SH.buildSlideManifest(state) || [];
+    // includeDeselected: the Step-5 selector must show EVERY synthetic slide,
+    // including ones the SE turned off (rendered dimmed / "Hidden from deck"),
+    // so they stay re-selectable. Preview/export call buildSlideManifest with
+    // no opts → still gated.
+    const manifest = SH.buildSlideManifest(state, { includeDeselected: true }) || [];
     return manifest
       .filter(function (sl) {
         return sl && sl.synthetic && MANIFEST_SECTIONS.indexOf(sl.sectionId) >= 0;
       })
       .map(function (sl) {
+        const required = !!MANIFEST_REQUIRED[sl.id];
         return {
           id: sl.id,
           title: sl.title || sl.layout,
           type: "slide",
           layout: sl.layout,
           sectionId: sl.sectionId,
-          selectionStatus: "required",
+          selectionStatus: required ? "required" : "recommended",
           audienceTags: [],
           capabilities: [],
           priority: 100,
-          rationale: "Always rendered by the polished template for this section.",
+          rationale: required
+            ? "Core slide for this section — kept by default."
+            : "Rendered by the polished template; on by default, safe to trim.",
           sourceSignals: [],
           missingInputs: [],
           synthetic: true,
+          // Carry the per-vignette runtime index so the Step-5 grid card
+          // renders the right vignette (Know & Reach / Engage & Recover /
+          // Convert) instead of all three defaulting to index 0.
+          runtimeIndex: (typeof sl.runtimeIndex === "number") ? sl.runtimeIndex : undefined,
         };
       });
   }

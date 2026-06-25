@@ -83,6 +83,8 @@
       orbitCopy:         buildOrbitCopy(state, f, products),
       bvCopy:            buildBvCopy(f),
       enabledSlides:     buildEnabledSlides(state),
+      // Evidence-driven "Powered by Salesforce" list (theme 4).
+      poweredBy:         buildPoweredBy(state, project, f, products),
       timeline:          buildTimeline(state, f, acts),
       demoAssets:        buildDemoAssets(state),
       demoSlideText:     buildDemoSlideText(state, persona, project, f),
@@ -206,7 +208,10 @@
   }
   function buildBrand(b) {
     return {
-      logoPath:       b.logoPath || null,
+      // Branding mode (theme 1). Default "salesforce" → identical to legacy.
+      mode:             b.mode || "salesforce",
+      logoPath:         b.logoPath || null,
+      customerLogoPath: b.customerLogoPath || null,
       primaryColor:   b.primaryColor   || "#b22234",
       secondaryColor: b.secondaryColor || "#1a5fa0",
       accentColor:    b.accentColor    || "#f5c06a",
@@ -216,6 +221,20 @@
       fontBody:       "'Inter', -apple-system, sans-serif",
       googleFontsUrl: "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap",
     };
+  }
+
+  // "Powered by Salesforce" attribution — derived from selected products
+  // plus the capability moments the story actually exercises. Respects an
+  // SE-pinned list (state.poweredBy.auto === false). See HOLO_SHARED.
+  function buildPoweredBy(state, project, f, products) {
+    if (SHARED.poweredByProducts) {
+      return SHARED.poweredByProducts({
+        products: products,
+        storyFoundations: f,
+        poweredBy: state.poweredBy,
+      });
+    }
+    return (products && products.length) ? products : ["Data Cloud"];
   }
 
   // ─── scenes (CX component links → /demo's scenes shape) ──────

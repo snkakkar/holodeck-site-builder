@@ -154,6 +154,8 @@
         secondary: brand.secondaryColor || "#1a5fa0",
         accent:    brand.accentColor    || "#f5c06a",
         logoPath:  brand.logoPath       || "",
+        mode:            brand.mode || "salesforce",
+        customerLogoPath: brand.customerLogoPath || "",
       },
       products: products,
       capabilities: capabilities,
@@ -397,13 +399,19 @@
     if (slide.editorPaths) {
       return Object.keys(slide.editorPaths).map(function (label) {
         // An editorPaths value is either a plain path string, or
-        // { path, placeholder } where placeholder is a string or a
-        // (slide, state) => string fn (used to show the auto-derived
-        // default for override fields without persisting it).
+        // { path, placeholder, prefill } where:
+        //   placeholder = string | (slide, state) => string — greyed hint
+        //     for true override fields; the live derivation keeps updating
+        //     while the path stays blank ("blank = auto").
+        //   prefill = (slide, state) => string — seed the input VALUE with
+        //     the rendered default so plain display text (eyebrows, titles,
+        //     subtitles) shows real, editable copy. Not persisted on render;
+        //     the existing input listener persists only on first edit.
         const raw = slide.editorPaths[label];
         const path = (raw && typeof raw === "object") ? raw.path : raw;
         const placeholder = (raw && typeof raw === "object") ? raw.placeholder : undefined;
-        return { label: label, path: path, placeholder: placeholder, kind: kindForPath(path, label) };
+        const prefill = (raw && typeof raw === "object") ? raw.prefill : undefined;
+        return { label: label, path: path, placeholder: placeholder, prefill: prefill, kind: kindForPath(path, label) };
       });
     }
     // Synthetic runtime slides without editorPaths (e.g. bvOpener,
@@ -601,8 +609,17 @@
     if (f.kind === "list-strings") {
       // Newline-separated textarea → array of trimmed non-empty strings.
       const arr = get() || [];
+      // Optional prefill — (slide, state) => array of default strings,
+      // shown as the placeholder when empty (blank = use defaults).
+      let phStr = "One per line";
+      if ((!Array.isArray(arr) || !arr.length) && typeof f.prefill === "function") {
+        try {
+          const d = f.prefill(slide, state);
+          if (Array.isArray(d) && d.length) phStr = d.join("\n");
+        } catch (e) { /* keep default */ }
+      }
       const ta = el("textarea", { class: "bx-textarea", rows: "3",
-        placeholder: "One per line" });
+        placeholder: phStr });
       ta.value = (Array.isArray(arr) ? arr : []).join("\n");
       ta.addEventListener("input", function () {
         const list = ta.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
@@ -617,15 +634,27 @@
       // Lazy-allocate row inputs based on the current array.
       const arr = (get() || []).slice();
       const wrap = el("div", { class: "bx-pop-edit-list" });
-      const slotCount = Math.max(arr.length, defaultRowsFor(f.path));
+      // Optional prefill — (slide, state) => array of default row objects.
+      // We DON'T persist these; instead each empty cell shows the matching
+      // default as its placeholder so the SE sees the real rendered values
+      // (e.g. persona stats / wishlist cards) and can overwrite per cell.
+      let defaults = [];
+      if (typeof f.prefill === "function") {
+        try { const d = f.prefill(slide, state); if (Array.isArray(d)) defaults = d; } catch (e) { defaults = []; }
+      }
+      const slotCount = Math.max(arr.length, defaults.length, defaultRowsFor(f.path));
       const layout = layoutForListPath(f.path);
       for (let i = 0; i < slotCount; i++) {
         const row = (arr[i] && typeof arr[i] === "object") ? arr[i] : {};
+        const def = (defaults[i] && typeof defaults[i] === "object") ? defaults[i] : {};
         const card = el("div", { class: "bx-pop-edit-list-row" });
         card.appendChild(el("div", { class: "bx-pop-edit-list-num", text: "#" + (i + 1) }));
         layout.fields.forEach(function (fieldDef) {
+          // Default value (if any) becomes the placeholder so blank = use default.
+          const defVal = def[fieldDef.key];
+          const ph = (defVal != null && String(defVal) !== "") ? String(defVal) : (fieldDef.placeholder || fieldDef.key);
           const inp = el("input", { type: "text", class: "bx-input bx-pop-edit-list-input",
-            placeholder: fieldDef.placeholder || fieldDef.key,
+            placeholder: ph,
             value: row[fieldDef.key] || "" });
           inp.addEventListener("input", function () {
             const cur = (get() || []).slice();
@@ -655,13 +684,24 @@
     } else if (typeof f.placeholder === "string") {
       ph = f.placeholder;
     }
+    // Optional prefill — (slide, state) => string. For plain display text
+    // (eyebrows, titles, subtitles): when the stored value is empty, seed
+    // the input VALUE with the rendered default so the SE sees real,
+    // editable copy instead of a blank box. NOT persisted on render — the
+    // input listener below persists only when the SE actually edits, so
+    // saved projects stay lean and untouched defaults keep tracking source.
+    let prefillVal = "";
+    const stored = (v == null ? "" : String(v));
+    if (!stored && typeof f.prefill === "function") {
+      try { prefillVal = f.prefill(slide, state) || ""; } catch (e) { prefillVal = ""; }
+    }
     let inp;
     if (f.kind === "textarea") {
       inp = el("textarea", { class: "bx-textarea", rows: "3" });
-      inp.value = (v == null ? "" : String(v));
+      inp.value = stored || prefillVal;
     } else {
       inp = el("input", { type: "text", class: "bx-input" });
-      inp.value = (v == null ? "" : String(v));
+      inp.value = stored || prefillVal;
     }
     if (ph) inp.setAttribute("placeholder", ph);
     inp.addEventListener("input", function () { set(inp.value); onChange(); });
@@ -805,12 +845,19 @@
     hero: function (data, mode) {
       const root = el("div", { class: "hp hp-hero" });
       const eyebrow = el("div", { class: "hp-eyebrow", text: data.eyebrow || "Holodeck" });
+      // Branding mode shapes the tagline: customer mode leads with the
+      // customer and drops the explicit "+ Salesforce"; salesforce/cobrand keep it.
+      const brandMode = (data.brand && data.brand.mode) || "salesforce";
+      const tagline = data.theme || (brandMode === "customer" ? "" : "+ Salesforce");
+      const titleKids = [
+        el("span", { class: "hp-title-customer", text: data.customerName }),
+      ];
+      if (tagline) {
+        titleKids.push(el("br"));
+        titleKids.push(el("span", { class: "hp-title-tagline", text: tagline }));
+      }
       const title = data.customerName
-        ? el("h2", { class: "hp-title" }, [
-            el("span", { class: "hp-title-customer", text: data.customerName }),
-            el("br"),
-            el("span", { class: "hp-title-tagline", text: data.theme || "+ Salesforce" }),
-          ])
+        ? el("h2", { class: "hp-title" }, titleKids)
         : el("h2", { class: "hp-title hp-title-faded", text: "Customer name → fills here" });
       const sub = el("p", { class: "hp-sub",
         text: data.story.futureVision || data.story.bigProblem || data.theme
@@ -843,7 +890,11 @@
         // pathname when it's a real asset path.
         const isDataUrl = /^data:/i.test(data.brand.logoPath);
         if (isDataUrl) {
-          root.appendChild(el("img", { class: "hp-logo-img", src: data.brand.logoPath, alt: "Customer logo" }));
+          const logoImg = el("img", { class: "hp-logo-img", src: data.brand.logoPath, alt: "Customer logo" });
+          // Same missing-asset policy as the demo: a broken image hides itself
+          // rather than showing the browser's broken-image icon.
+          logoImg.addEventListener("error", function () { this.style.display = "none"; });
+          root.appendChild(logoImg);
         } else {
           root.appendChild(el("div", { class: "hp-logo-tag", text: data.brand.logoPath }));
         }
@@ -1067,6 +1118,21 @@
       card.appendChild(segs);
 
       if (mode === "expanded") {
+        // Profile-depth facets (theme 3) — same generator the exported
+        // demo's carousel uses, so preview and demo agree on the facets.
+        const facets = (SHARED.profileFacets ? SHARED.profileFacets({
+          persona: p, products: data.products || [],
+          storyFoundations: data.foundations || {}, industry: data.industry,
+        }) : []) || [];
+        if (facets.length) {
+          const fac = el("div", { class: "hp-profile-facets" });
+          fac.appendChild(el("div", { class: "hp-profile-label", text: "Unified profile facets" }));
+          fac.appendChild(el("div", { class: "hp-chiprow" },
+            facets.map(function (ff) {
+              return el("span", { class: "hp-chip tone-blue", text: ff.label });
+            })));
+          card.appendChild(fac);
+        }
         card.appendChild(el("div", { class: "hp-profile-action",
           text: "Recommended next action: " + (data.acts[0] && data.acts[0].demoMoment ? data.acts[0].demoMoment : "personalized outreach") }));
       }

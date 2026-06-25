@@ -42,6 +42,16 @@
   ].join("\n");
   document.head.appendChild(style);
 
+  // ── 1b. Brand mode tokens ──────────────────────────────────
+  // Resolve the active lockup/palette intent (salesforce | customer | cobrand)
+  // through the shared helper so the demo agrees with the builder preview.
+  // Exposed on window.HOLO_BRAND for the inline populate code below.
+  var SHARED = window.HOLO_SHARED;
+  window.HOLO_BRAND = (SHARED && SHARED.brandTokens)
+    ? SHARED.brandTokens(C.brand || {})
+    : { mode: "salesforce", showSalesforce: true, showCustomer: false,
+        leadLogo: "", salesforceLogo: "", customerLogo: "" };
+
   // ── 2. Page title ──────────────────────────────────────────
   document.title = C.customer.name + " + Salesforce | " + C.customer.demoTitle;
 

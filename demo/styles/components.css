@@ -38,6 +38,16 @@
   opacity: 0.85;
 }
 
+/* Customer logo in the lockup (customer / co-brand modes). Sits in the
+   name block, sized to align with the brand-name baseline. */
+.brand-name img.brand-cust-logo {
+  max-height: 40px;
+  max-width: 200px;
+  width: auto;
+  display: inline-block;
+  vertical-align: middle;
+}
+
 /* Common CTA button */
 .cta-btn {
   font-size: 11px;

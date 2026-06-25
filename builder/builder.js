@@ -33,12 +33,12 @@
   // Foundations / Narrative makes each user decision its own surface
   // with one obvious next action.
   const STEPS = [
-    { id: "connect",     num: "1",  label: "Connect Aubrey",        help: "Add API keys (optional) to pull content directly" },
-    { id: "script",      num: "2",  label: "Script & Story",        help: "Pull from Aubrey or paste/upload your demo script" },
+    { id: "connect",     num: "1",  label: "Connect (optional)",    help: "Optional shortcut — connect Aubrey to auto-fill. Skip and add everything by hand." },
+    { id: "script",      num: "2",  label: "Script & Story",        help: "Paste or upload your demo script (or pull it from Aubrey if connected)" },
     { id: "setup",       num: "3",  label: "Setup",                 help: "Customer, audience, products" },
     { id: "foundations", num: "4",  label: "Story Foundations",     help: "Review what was extracted" },
     { id: "recs",        num: "5",  label: "Slide Selection",       help: "Customize the slide plan by section" },
-    { id: "cx",          num: "6",  label: "CX Components",         help: "Embed live AubreyDemo screens (optional)" },
+    { id: "cx",          num: "6",  label: "CX Components",         help: "Optionally embed live web screens (AubreyDemo or any URL)" },
     { id: "assets",      num: "7",  label: "Assets",                help: "Upload images for the slides you selected (optional)" },
     { id: "preview",     num: "8",  label: "Preview",               help: "Review the full demo before exporting" },
     { id: "export",      num: "9",  label: "Export",                help: "Download the complete demo ZIP" },
@@ -484,6 +484,33 @@
     else if (step === "preview")     main.appendChild(viewPreview());
     else if (step === "export")      main.appendChild(viewExport());
     else                             main.appendChild(viewSetup());
+    maybeStepGuide(step);
+  }
+
+  // Per-step intro hints — each fires once (see guide()). Kept short and
+  // skippable; nothing here blocks the flow.
+  function maybeStepGuide(step) {
+    // Each guide anchors to the step's primary element so the tip points
+    // at the action (onboarding coach-mark). Missing anchor → centered modal.
+    if (step === "setup") {
+      guide("intro-setup", "Welcome to the Holodeck Builder", el("div", {}, [
+        el("p", { text: "You'll turn a demo script into a runnable, customer-branded Salesforce demo in nine quick steps. Everything works by hand — Aubrey is just an optional shortcut." }),
+        el("p", { text: "Start by setting the customer, audience, and products here. The right-hand panel keeps live suggestions as you go." })
+      ]), "#bxMain .bx-card");
+    } else if (step === "assets") {
+      guide("intro-assets", "About assets", el("div", {}, [
+        el("p", { text: "Assets are shared by slot, not per slide. Each slot below lists the slides it feeds." }),
+        el("p", { text: "Skip any slot and that slide shows a clean, brand-styled placeholder instead — your demo always renders." })
+      ]), "#bxMain .bx-asset-row");
+    } else if (step === "recs") {
+      guide("intro-recs", "Choosing slides", el("div", {}, [
+        el("p", { text: "These recommendations come straight from your script. Toggle any slide off to drop it from the demo and the preview." })
+      ]), "#bxMain .bx-rec-gcard");
+    } else if (step === "preview") {
+      guide("intro-preview", "Preview & deep-links", el("div", {}, [
+        el("p", { text: "This is the exact deck you'll export. In the exported demo you can navigate with arrow keys, jump between sections, and deep-link to any slide via the URL hash." })
+      ]), "#bxMain .bx-preview");
+    }
   }
 
   function renderSide() {
@@ -667,6 +694,32 @@
     c3Head.appendChild(btn("✨ Pull brand from Aubrey", "bx-btn-secondary",
       function () { openAubreyBrandPicker(); }));
     c3.appendChild(c3Head);
+
+    // Branding mode — how the demo reads: pure Salesforce, the customer's
+    // world, or both co-branded. Default "salesforce" keeps old demos identical.
+    const brandMode = s.brand.mode || "salesforce";
+    const modeWrap = el("div", { class: "bx-field" });
+    const modeLabel = el("label", { class: "bx-label", text: "Branding mode" });
+    modeLabel.appendChild(el("span", { class: "bx-help-inline",
+      text: "(how the demo lockup reads)" }));
+    modeWrap.appendChild(modeLabel);
+    const modeRow = el("div", { class: "bx-chips" });
+    [
+      { v: "salesforce", t: "Salesforce", h: "Salesforce-branded throughout" },
+      { v: "customer", t: "Customer", h: "Lead with the customer's world" },
+      { v: "cobrand", t: "Co-brand", h: "Salesforce + customer together" },
+    ].forEach(function (o) {
+      const c = el("button", { type: "button",
+        class: "bx-chip" + (brandMode === o.v ? " is-on tone-blue" : ""),
+        text: o.t, title: o.h });
+      c.addEventListener("click", function () {
+        s.brand.mode = o.v; commit(); renderMain(); renderSide();
+      });
+      modeRow.appendChild(c);
+    });
+    modeWrap.appendChild(modeRow);
+    c3.appendChild(modeWrap);
+
     const grid3 = el("div", { class: "bx-grid-3" });
     grid3.appendChild(field({ label: "Primary color", type: "color", value: s.brand.primaryColor,
       onInput: function (v) { s.brand.primaryColor = v; commit(); } }));
@@ -709,6 +762,46 @@
     logoRow.appendChild(logoFile);
     logoWrap.appendChild(logoRow);
     c3.appendChild(logoWrap);
+
+    // Customer logo — only meaningful when the demo leads with (or co-brands)
+    // the customer. Hidden in pure-Salesforce mode so nothing changes there.
+    if (brandMode !== "salesforce") {
+      const custWrap = el("div", { class: "bx-field" });
+      const custLabel = el("label", { class: "bx-label", text: "Customer logo" });
+      custLabel.appendChild(el("span", { class: "bx-help-inline",
+        text: brandMode === "cobrand"
+          ? "(shown alongside Salesforce)"
+          : "(leads the demo lockup)" }));
+      custWrap.appendChild(custLabel);
+      const custRow = el("div", { class: "bx-color-row" });
+      const custText = el("input", { type: "text", class: "bx-input",
+        placeholder: "e.g. assets/customer-logo.png", value: s.brand.customerLogoPath || "" });
+      custText.addEventListener("input", function () {
+        s.brand.customerLogoPath = custText.value; commit();
+      });
+      const custFile = el("input", { type: "file", accept: "image/*",
+        class: "bx-file-input", "aria-label": "Upload customer logo file" });
+      custFile.addEventListener("change", function () {
+        const f = custFile.files && custFile.files[0];
+        if (!f) return;
+        const mb = f.size / (1024 * 1024);
+        const sizeNote = mb > 8 ? " (" + mb.toFixed(1) + "MB — config will be larger)" : "";
+        const reader = new FileReader();
+        reader.onload = function () {
+          s.brand.customerLogoPath = String(reader.result || "");
+          custText.value = s.brand.customerLogoPath;
+          commit();
+          toast("Customer logo uploaded" + sizeNote);
+        };
+        reader.onerror = function () { toast("Could not read that file"); };
+        reader.readAsDataURL(f);
+      });
+      custRow.appendChild(custText);
+      custRow.appendChild(custFile);
+      custWrap.appendChild(custRow);
+      c3.appendChild(custWrap);
+    }
+
     wrap.appendChild(c3);
 
     // Presenter
@@ -809,26 +902,52 @@
       value: s.scriptText,
       onInput: function (v) { s.scriptText = v; recompute(); renderSide(); commit(); },
     }));
-    // Upload-from-file shortcut
+    // Upload-from-file shortcut. Text/PDF/DOCX are all extracted to
+    // plain text locally in the browser via HOLO_DOC_EXTRACT.
+    const EXTRACT = window.HOLO_DOC_EXTRACT;
+    const accept = (EXTRACT && EXTRACT.ACCEPT) || ".txt,.md,.json";
     const uploadRow = el("div", { class: "bx-row bx-mt-12 bx-row-center" });
     const fileLabel = el("label", { class: "bx-btn bx-btn-secondary", text: "📎 Upload from file" });
-    const fileInput = el("input", { type: "file", style: "display: none;", accept: ".txt,.md,.json" });
+    const fileInput = el("input", { type: "file", style: "display: none;", accept: accept });
     fileInput.addEventListener("change", function () {
       const f = fileInput.files && fileInput.files[0];
       if (!f) return;
-      const reader = new FileReader();
-      reader.onload = function () {
-        s.scriptText = String(reader.result || "");
+      const isDoc = /\.(pdf|docx)$/i.test(f.name);
+      if (isDoc) { fileLabel.classList.add("is-loading"); fileLabel.textContent = "Reading " + f.name + "…"; }
+      const done = function () {
+        fileLabel.classList.remove("is-loading");
+        fileLabel.textContent = "📎 Upload from file";
+        fileInput.value = ""; // allow re-picking the same file
+      };
+      const handle = EXTRACT
+        ? EXTRACT.extract(f)
+        : new Promise(function (res, rej) {
+            const r = new FileReader();
+            r.onload = function () { res({ text: String(r.result || "") }); };
+            r.onerror = function () { rej(r.error); };
+            r.readAsText(f);
+          });
+      handle.then(function (result) {
+        const text = (result && result.text) || "";
+        if (!text.trim()) {
+          done();
+          toast("No text found in " + f.name + " — try pasting it instead");
+          return;
+        }
+        s.scriptText = text;
         recompute(); commit(); renderShell();
         toast("Loaded " + f.name);
-      };
-      reader.readAsText(f);
+      }).catch(function (err) {
+        done();
+        const msg = (err && err.__soft && err.message) || ("Couldn't read " + f.name + " — paste the text instead");
+        toast(msg);
+      });
     });
     fileLabel.appendChild(fileInput);
     uploadRow.appendChild(fileLabel);
     uploadRow.appendChild(btn("✨ Pull script from Aubrey", "bx-btn-secondary",
       function () { openAubreyScriptPicker(); }));
-    uploadRow.appendChild(el("div", { class: "bx-help bx-help-inline", text: "or drop in any .txt, .md, or .json file" }));
+    uploadRow.appendChild(el("div", { class: "bx-help bx-help-inline", text: "or drop in a .txt, .md, .json, .pdf, or .docx file" }));
     c.appendChild(uploadRow);
 
     // Live signal preview
@@ -1143,7 +1262,7 @@
     wrap.appendChild(stepHeader(
       "Step 6 · CX Component Links",
       "Embed live demo screens (optional)",
-      "Paste AubreyDemo component links here so the final holodeck can embed live demo moments in the Demo section. Skip this step if you don't have any yet — your demo will still work."
+      "Paste any embeddable web URL — an AubreyDemo scene, a live storefront, a Salesforce screen — to show it as a live iframe in the Demo section. Skip this step if you don't have any; your demo works fine without it."
     ));
     const s = app.state;
     const components = s.cxComponents || [];
@@ -1154,7 +1273,7 @@
       const empty = el("div", { class: "bx-card" });
       empty.appendChild(el("div", { class: "bx-card-title", text: "No CX components yet" }));
       empty.appendChild(el("div", { class: "bx-card-sub",
-        text: "AubreyDemo links let your Demo section embed live screens — agentic chat, storefront flows, service consoles. If you're not running aubreydemo.com scenes, skip this step." }));
+        text: "Embeddable URLs let your Demo section show live screens — agentic chat, storefront flows, service consoles. AubreyDemo scenes work great here, but so does any embeddable page. Don't have one? Skip this step." }));
       empty.appendChild(el("div", { class: "bx-help bx-mt-12",
         html: "<strong>How it works:</strong> Paste a /scene/.../frame URL → it shows up as an iframe slide in the Demo section. If a site blocks embedding, we'll show an open-in-new-tab fallback automatically." }));
       empty.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
@@ -1267,6 +1386,36 @@
           [el("span", { class: "bx-help-inline", text: "(optional)" })]),
         linkSel,
       ]));
+
+      // Show the auto-match so the SE knows where an unlinked component
+      // will land, and let them lock it in with one click. Uses the same
+      // helper the build uses, so the displayed target is the real target.
+      if (!currentLink) {
+        const autoMap = computeCxAutoAssignments(app.state);
+        const autoSlideId = autoMap[c.id];
+        const matchRow = el("div", { class: "bx-cx-match bx-mt-6" });
+        if (autoSlideId) {
+          const autoSlide = demoSlides.find(function (sl) { return sl.id === autoSlideId; });
+          const autoTitle = autoSlide ? (autoSlide.title || "Untitled") : autoSlideId;
+          matchRow.appendChild(el("span", { class: "bx-cx-match-label",
+            text: "Auto-matched to: " + autoTitle }));
+          matchRow.appendChild(btn("Make explicit", "bx-btn-link", function () {
+            c.linkedSlideIds = [autoSlideId];
+            buildSlidePlanFromSelections();
+            commit();
+            renderMain();
+          }));
+        } else {
+          matchRow.appendChild(el("span", { class: "bx-cx-match-label bx-cx-match-muted",
+            text: "Not auto-matched — link it above to place it on a demo slide." }));
+        }
+        item.appendChild(matchRow);
+      } else {
+        item.appendChild(el("div", { class: "bx-cx-match bx-mt-6" }, [
+          el("span", { class: "bx-rec-pill tone-good", text: "Explicit" }),
+          el("span", { class: "bx-cx-match-label", text: "You set this link manually." }),
+        ]));
+      }
     } else {
       item.appendChild(el("div", { class: "bx-help bx-mt-6",
         html: "<strong>Tip:</strong> Pick demo slides in Step 5 first, then come back here to link this component to a specific demo screen." }));
@@ -1279,7 +1428,7 @@
     const status = el("div", { class: "bx-row bx-mt-12" });
     if (!c.url) status.appendChild(el("span", { class: "bx-rec-pill tone-gold", text: "URL needed" }));
     else if (!isUrl) status.appendChild(el("span", { class: "bx-rec-pill tone-red", text: "Invalid URL — must be http(s)" }));
-    else if (!/aubreydemo\.com/i.test(c.url)) status.appendChild(el("span", { class: "bx-rec-pill tone-gold", text: "Not aubreydemo.com — verify iframe support" }));
+    else if (!/aubreydemo\.com/i.test(c.url)) status.appendChild(el("span", { class: "bx-rec-pill tone-blue", text: "Custom URL — verify it allows iframe embedding" }));
     else status.appendChild(el("span", { class: "bx-rec-pill tone-good", text: "Ready to embed" }));
     item.appendChild(status);
 
@@ -1349,6 +1498,37 @@
       if (!item.layouts) return false;
       return item.layouts.some(function (l) { return layoutsInDeck[l]; });
     });
+  }
+
+  // Which SELECTED slides actually consume a given asset slot — used for the
+  // "Used by:" caption on Step 7 so SEs see why a slot exists and where it
+  // shows up. Brand/persona slots that aren't layout-scoped get a friendly
+  // catch-all. Returns an array of slide titles (deduped, in deck order).
+  function slidesUsingSlot(state, item) {
+    // state.slides[] are the demo-library slides the SE assembled; all are in
+    // the deck (fixed-section Step-5 selection lives in selectedRecIds, not here).
+    const slides = state.slides || [];
+    if (item.always && item.slot === "brand.logoPath") return ["Title slide", "Top navigation"];
+    if (item.group === "Persona" && !item.layouts) return ["Meet the persona"];
+    const layouts = item.layouts || [];
+    const titles = [];
+    slides.forEach(function (sl) {
+      if (sl.layout && layouts.indexOf(sl.layout) !== -1) {
+        const t = sl.title || layoutLabel(sl.layout) || "Untitled slide";
+        if (titles.indexOf(t) === -1) titles.push(t);
+      }
+    });
+    return titles;
+  }
+  // Friendly label for a layout id (fallback when a slide has no title).
+  function layoutLabel(layout) {
+    const map = {
+      personaCard: "Meet the persona", deviceMoment: "Device moment",
+      scenePhoto: "Scene", embeddedCxComponent: "Live CX screen",
+      unifiedProfile: "Unified profile", agentConversation: "Agent conversation",
+      currentFutureState: "Current → future state",
+    };
+    return map[layout] || layout;
   }
 
   // ─── Persona stat / wishlist helpers ─────────────────────────
@@ -1628,7 +1808,7 @@
         card.appendChild(el("div", { class: "bx-card-sub",
           text: g.label === "Brand"
             ? "Travels with the exported config — no need to drop into demo/assets/."
-            : "These flow into every slide in your deck that uses them." }));
+            : "Each slot lists the slides it feeds. Skip any and that slide shows a clean branded placeholder instead." }));
         g.items.forEach(function (it) { card.appendChild(assetRow(s, it)); });
         wrap.appendChild(card);
       });
@@ -1640,14 +1820,31 @@
     // canonical state path, so changes show up on the source step too.
     const pending = pendingTextItems(s);
     const card = el("div", { class: "bx-card" });
-    card.appendChild(el("div", { class: "bx-card-title", text: "Text still to update" }));
-    card.appendChild(el("div", { class: "bx-card-sub",
+    // Collapsed by default: the Preview step (Step 8) is now the primary
+    // place to edit slide copy. These inline editors stay available as a
+    // flat list, but tucked behind a disclosure so this step reads as
+    // "assets" first. Edits still write straight to the canonical path.
+    const details = el("details", { class: "bx-pending-details" });
+    const summary = el("summary", { class: "bx-pending-summary" });
+    summary.appendChild(el("span", { class: "bx-pending-summary-title",
       text: pending.length
-        ? "Default copy you might want to replace before presenting. Saved as you type — none of this blocks export."
+        ? "Text still to update (" + pending.length + ")"
+        : "Text still to update" }));
+    summary.appendChild(el("span", { class: "bx-pending-summary-hint",
+      text: pending.length
+        ? " — optional, edit here or in Preview (Step 8)"
+        : " — all defaults filled in" }));
+    details.appendChild(summary);
+    const body = el("div", { class: "bx-pending-body" });
+    body.appendChild(el("div", { class: "bx-card-sub",
+      text: pending.length
+        ? "Default copy you might want to replace before presenting. Saved as you type — none of this blocks export. You can also edit any of this directly on each slide in Step 8 · Preview."
         : "Every default field has been filled in. You're good to go." }));
     pending.forEach(function (item) {
-      card.appendChild(pendingTextRow(item));
+      body.appendChild(pendingTextRow(item));
     });
+    details.appendChild(body);
+    card.appendChild(details);
     wrap.appendChild(card);
 
     wrap.appendChild(stepFooter("assets"));
@@ -1685,6 +1882,17 @@
     const meta = el("div", { class: "bx-asset-meta" });
     meta.appendChild(el("div", { class: "bx-asset-label", text: item.label }));
     meta.appendChild(el("div", { class: "bx-asset-help", text: item.help }));
+    // "Used by:" — show which selected slides this slot feeds, so the SE
+    // knows what an upload (or a skip) affects in the running demo.
+    const usedBy = slidesUsingSlot(s, item);
+    if (usedBy.length) {
+      const more = usedBy.length > 4 ? " +" + (usedBy.length - 4) + " more" : "";
+      const usedByEl = el("div", { class: "bx-asset-usedby" }, [
+        el("span", { class: "bx-asset-usedby-lbl", text: "Used by: " }),
+        el("span", { text: usedBy.slice(0, 4).join(" · ") + more }),
+      ]);
+      meta.appendChild(usedByEl);
+    }
     const status = el("div", { class: "bx-asset-status" });
     function refreshStatus() {
       status.innerHTML = "";
@@ -1859,7 +2067,7 @@
     if (plan) {
       const banner = el("div", { class: "bx-card" });
       banner.appendChild(el("div", { class: "bx-card-title", text: "Your slide plan" }));
-      banner.appendChild(el("div", { class: "bx-card-sub", text: "Every generated slide appears below, pre-selected. De-select any to drop it from the preview and the exported deck." }));
+      banner.appendChild(el("div", { class: "bx-card-sub", text: "Every generated slide appears below, pre-selected. Unchecking a slide hides it from the preview and the exported deck — it stays here so you can add it back any time." }));
       banner.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
         btn("Build slide plan from selections →", "bx-btn-primary", function () {
           buildSlidePlanFromSelections();
@@ -1876,14 +2084,19 @@
       // Section-grouped recommendation cards
       plan.sections.forEach(function (sec) {
         const c = el("div", { class: "bx-card bx-section-card" });
-        const selectedCount = sec.slides.filter(function (r) { return s.selectedRecIds[r.id]; }).length;
+        const selectedCount = sec.slides.filter(function (r) {
+          return r.selectionStatus === "required" || !!s.selectedRecIds[r.id];
+        }).length;
+        const hiddenCount = sec.slides.length - selectedCount;
+        const countText = selectedCount + " of " + sec.slides.length + " selected"
+          + (hiddenCount > 0 ? " · " + hiddenCount + " hidden" : "");
         const head = el("div", { class: "bx-section-head" }, [
           el("div", { class: "bx-section-num", text: String(sec.order) }),
           el("div", { class: "bx-section-meta" }, [
             el("div", { class: "bx-section-label", text: sec.label }),
             sec.purpose ? el("div", { class: "bx-section-purpose", text: sec.purpose }) : null,
           ]),
-          el("div", { class: "bx-section-count", text: selectedCount + " of " + sec.slides.length + " selected" }),
+          el("div", { class: "bx-section-count", text: countText }),
         ]);
         c.appendChild(head);
 
@@ -1966,7 +2179,13 @@
       renderMain(); renderSide(); commit();
     });
     noneLink.addEventListener("click", function () {
-      sec.slides.forEach(function (r) { delete s.selectedRecIds[r.id]; });
+      // Set false rather than delete: absent synthetic ids default back ON in
+      // recompute(), so a deliberate Clear must record an explicit off-state.
+      // Required slides are locked on and skipped — Clear can't remove them.
+      sec.slides.forEach(function (r) {
+        if (r.selectionStatus === "required") { s.selectedRecIds[r.id] = true; return; }
+        s.selectedRecIds[r.id] = false;
+      });
       s.recommendations.forEach(function (r) { if (!s.selectedRecIds[r.id]) r.selected = false; });
       buildSlidePlanFromSelections();
       renderMain(); renderSide(); commit();
@@ -1977,14 +2196,23 @@
   }
 
   function recCard(r) {
-    const isOn = !!app.state.selectedRecIds[r.id];
-    const card = el("div", { class: "bx-rec" + (isOn ? " is-on" : "") });
+    const required = r.selectionStatus === "required";
+    // Required slides are always on; everything else honours the stored flag.
+    const isOn = required || !!app.state.selectedRecIds[r.id];
+    const card = el("div", { class: "bx-rec" + (isOn ? " is-on" : "") + (required ? " is-locked" : "") });
 
     // Real checkbox — keyboard- and screen-reader-accessible.
     const checkboxId = "bx-rec-cb-" + r.id;
     const check = el("input", { type: "checkbox", class: "bx-rec-check", id: checkboxId });
     if (isOn) check.setAttribute("checked", "checked");
-    check.addEventListener("change", function () { toggleRec(r.id); });
+    if (required) {
+      // Locked on: not user-toggleable, but keep it visibly checked.
+      check.setAttribute("disabled", "disabled");
+      check.setAttribute("aria-label", "Required slide — always included");
+      check.setAttribute("title", "Required slide — always included");
+    } else {
+      check.addEventListener("change", function () { toggleRec(r.id); });
+    }
     check.addEventListener("click", function (e) { e.stopPropagation(); });
 
     const body = el("div", { class: "bx-rec-body" });
@@ -2004,6 +2232,12 @@
 
     // One single status badge — derived from the most important signal.
     row.appendChild(statusPill(r));
+
+    // When deselected, show a muted "Hidden from deck" tag so it reads as
+    // parked (re-selectable), not lost.
+    if (!isOn) {
+      row.appendChild(el("span", { class: "bx-rec-hidden-tag", text: "Hidden from deck" }));
+    }
 
     body.appendChild(row);
     body.appendChild(el("div", { class: "bx-rec-why", text: r.rationale || "Suggested based on your inputs." }));
@@ -2051,7 +2285,8 @@
   // pipeline scaled inside a fixed-aspect frame so all cards align.
   function recGridCard(r) {
     const s = app.state;
-    const isOn = !!s.selectedRecIds[r.id];
+    const required = r.selectionStatus === "required";
+    const isOn = required || !!s.selectedRecIds[r.id];
 
     // Build a transient "slide" shape so the preview renderer can
     // run before the user has built the slide plan. This mirrors
@@ -2067,32 +2302,50 @@
       persona: (s.personas && s.personas[0]) ? s.personas[0].name : null,
       linkedCxComponentIds: [],
       missingInputs: r.missingInputs || [],
+      // Per-vignette index so the three intro vignette cards render
+      // distinct content instead of all falling back to index 0.
+      runtimeIndex: (typeof r.runtimeIndex === "number") ? r.runtimeIndex : 0,
     };
 
-    const card = el("div", {
-      class: "bx-rec-gcard surface" + (isOn ? " is-on" : ""),
-      role: "button",
-      tabindex: "0",
-      "aria-pressed": isOn ? "true" : "false",
-    });
+    const cardAttrs = {
+      class: "bx-rec-gcard surface" + (isOn ? " is-on" : "") + (required ? " is-locked" : ""),
+      role: required ? "img" : "button",
+      tabindex: required ? "-1" : "0",
+    };
+    if (required) cardAttrs["aria-label"] = "Required slide — always included";
+    else cardAttrs["aria-pressed"] = isOn ? "true" : "false";
+    const card = el("div", cardAttrs);
 
     // Click anywhere on the card toggles selection (except inputs).
-    function toggle(e) { if (e) e.stopPropagation(); toggleRec(r.id); }
-    card.addEventListener("click", function (e) {
-      if (e.target.closest("input, button, summary, .bx-rec-gcard-title")) return;
-      toggle();
-    });
-    card.addEventListener("keydown", function (e) {
-      if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); }
-    });
+    // Required cards are locked on and never toggle.
+    if (!required) {
+      const toggle = function (e) { if (e) e.stopPropagation(); toggleRec(r.id); };
+      card.addEventListener("click", function (e) {
+        if (e.target.closest("input, button, summary, .bx-rec-gcard-title")) return;
+        toggle();
+      });
+      card.addEventListener("keydown", function (e) {
+        if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); }
+      });
+    }
 
-    // Corner select badge (acts as a visual checkbox)
-    const badge = el("span", { class: "bx-rec-gcard-badge" + (isOn ? " is-on" : ""), "aria-hidden": "true" });
-    if (isOn) badge.textContent = "✓";
+    // Corner select badge (acts as a visual checkbox / lock indicator)
+    const badge = el("span", {
+      class: "bx-rec-gcard-badge" + (isOn ? " is-on" : "") + (required ? " is-locked" : ""),
+      "aria-hidden": "true",
+      title: required ? "Required slide — always included" : "",
+    });
+    if (required) badge.textContent = "🔒";
+    else if (isOn) badge.textContent = "✓";
     card.appendChild(badge);
 
     // Single status pill in top-right (re-uses existing styles)
     card.appendChild(statusPill(r));
+
+    // Deselected grid card: a corner "Hidden from deck" label, dimmed via CSS.
+    if (!isOn) {
+      card.appendChild(el("span", { class: "bx-rec-hidden-tag bx-rec-gcard-hidden", text: "Hidden from deck" }));
+    }
 
     // Thumbnail frame holds a scaled-down .hp preview
     const thumb = el("div", { class: "bx-rec-gcard-thumb" });
@@ -2155,7 +2408,20 @@
     })[layout] || layout;
   }
 
+  // A required slide is structural to the narrative and cannot be unchecked.
+  // Required is derived from the recommendation's selectionStatus.
+  function isRequiredRec(id) {
+    const list = app.state.recommendations || [];
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === id) return list[i].selectionStatus === "required";
+    }
+    return false;
+  }
+
   function toggleRec(id) {
+    // Required slides are locked on — they can never be unchecked, and since
+    // they default ON they stay ON. Force-set true defensively and bail.
+    if (isRequiredRec(id)) { app.state.selectedRecIds[id] = true; return; }
     app.state.selectedRecIds[id] = !app.state.selectedRecIds[id];
     app.state.recommendations.forEach(function (r) { if (r.id === id) r.selected = app.state.selectedRecIds[id]; });
     // Rebuild the slide plan from the current selections so Preview
@@ -2386,6 +2652,44 @@
   // Section ordering used by the slide planner.
   const SECTION_ORDER = ["intro", "journey-map", "meet-persona", "demo", "business-value"];
 
+  // Single source of truth for the CX→slide auto-match fallback.
+  // Returns a map of cxComponentId -> slideId for every component the
+  // SE has NOT explicitly linked but that the builder would auto-assign
+  // to an empty embeddedCxComponent slot. Mirrors the fallback inside
+  // buildSlidePlanFromSelections (first unassigned component fills the
+  // first unlinked embedded slide) so Step 6 can SHOW the same match the
+  // build will make — no drift between display and behavior.
+  // slideList lets the build pass its freshly-ordered demo slides (before
+  // s.slides is reassigned); callers that just want to display the match
+  // (Step 6) omit it and we read the current s.slides.
+  function computeCxAutoAssignments(state, slideList) {
+    const s = state || app.state;
+    const out = {};
+    const cxAll = s.cxComponents || [];
+    const unassignedCx = cxAll.filter(function (c) {
+      return !(c.linkedSlideIds && c.linkedSlideIds[0]);
+    });
+    if (!unassignedCx.length) return out;
+
+    // Slides already linked explicitly by some component are not auto targets.
+    const explicitlyTargeted = {};
+    cxAll.forEach(function (c) {
+      const sid = (c.linkedSlideIds && c.linkedSlideIds[0]) || "";
+      if (sid) explicitlyTargeted[sid] = true;
+    });
+
+    // Walk demo slides in deck order; the first embeddedCxComponent slide
+    // with no explicit link is the auto target for the first unassigned CX.
+    const demoSlides = (slideList || s.slides || []).filter(function (sl) {
+      return (sl.sectionId || "") === "demo";
+    });
+    const target = demoSlides.find(function (sl) {
+      return sl.layout === "embeddedCxComponent" && !explicitlyTargeted[sl.id];
+    });
+    if (target) out[unassignedCx[0].id] = target.id;
+    return out;
+  }
+
   function buildSlidePlanFromSelections() {
     const s = app.state;
     const existingById = {};
@@ -2423,8 +2727,19 @@
         explicitBySlide[slideId].push(c.id);
       }
     });
-    const unassignedCx = cxAll.filter(function (c) {
-      return !(c.linkedSlideIds && c.linkedSlideIds[0]);
+    // Auto-match map (cxId -> slideId) computed once from the SAME helper
+    // Step 6 uses to display "Auto-matched to: …", so the slot we fill here
+    // is exactly the one shown to the SE. Invert it to slideId -> [cxId].
+    const autoBySlide = {};
+    // Pass the freshly-ordered recs (each carries id/layout/sectionId, the
+    // only fields the helper reads) so the match reflects THIS build, not
+    // the previous s.slides.
+    const autoMap = computeCxAutoAssignments(s, ordered.map(function (r) {
+      return { id: r.id, layout: r.layout, sectionId: r.sectionId || RULES.layoutToSectionId(r.layout) };
+    }));
+    Object.keys(autoMap).forEach(function (cxId) {
+      const sid = autoMap[cxId];
+      (autoBySlide[sid] = autoBySlide[sid] || []).push(cxId);
     });
 
     s.slides = ordered.map(function (r) {
@@ -2434,10 +2749,10 @@
       // Resolve linked CX components for this slide:
       //   1) Honor explicit user links (cxComponent.linkedSlideIds[0] === slide.id).
       //   2) For embeddedCxComponent slides with no explicit link, fall back
-      //      to the first unassigned component so we don't leave the slot empty.
+      //      to the auto-match map so we don't leave the slot empty.
       let linkedCx = (explicitBySlide[id] || []).slice();
-      if (!linkedCx.length && r.layout === "embeddedCxComponent" && unassignedCx.length) {
-        linkedCx = [unassignedCx[0].id];
+      if (!linkedCx.length && autoBySlide[id]) {
+        linkedCx = autoBySlide[id].slice();
       }
       const firstCx = linkedCx.length ? cxAll.find(function (c) { return c.id === linkedCx[0]; }) : null;
       const deviceFrame = firstCx ? (firstCx.deviceFrame || "") : "";
@@ -2571,12 +2886,8 @@
                        " still need attention. Export anyway?")) return;
         }
         toast("Building polished demo ZIP…");
-        Promise.resolve(window.HOLO_ZIP.downloadCompleteDemoZip(s)).then(function (payload) {
-          if (payload && payload.mode === "legacy") {
-            toast("Exported (offline mode — open the builder via http:// for the polished template)");
-          } else {
-            toast("Polished demo ZIP downloaded");
-          }
+        Promise.resolve(window.HOLO_ZIP.downloadCompleteDemoZip(s)).then(function () {
+          toast("Polished demo ZIP downloaded");
         }).catch(function (e) {
           toast("Couldn't build the ZIP: " + (e && e.message || e));
         });
@@ -3000,6 +3311,127 @@
   }
   function closeModal() { $("#bxModal").hidden = true; }
 
+  // ─── Guided hints (theme 10) ──────────────────────────────────
+  // Shows a dismissible modal once per id. uxHints state (defaulted in
+  // project-store) tracks { dismissed: [], neverShowAgain }. A "Don't show
+  // again" checkbox persists through commit(). bodyNode is the guide content.
+  function guideSeen(id) {
+    const h = (app.state && app.state.uxHints) || {};
+    if (h.neverShowAgain) return true;
+    return (h.dismissed || []).indexOf(id) !== -1;
+  }
+  // anchor (optional): a CSS selector or element. When it resolves to a
+  // visible element the guide renders as a coach-mark card pointing at it
+  // (onboarding-style); otherwise it falls back to the centered modal.
+  function guide(id, title, bodyNode, anchor) {
+    if (guideSeen(id)) return;
+    // Ensure the state container exists for old projects.
+    if (!app.state.uxHints) app.state.uxHints = { dismissed: [], version: 1, neverShowAgain: false };
+    const h = app.state.uxHints;
+    if (!h.dismissed) h.dismissed = [];
+
+    // Shared persistence — used by both the modal and the coach-mark.
+    function commitDismiss(neverAgain) {
+      if (h.dismissed.indexOf(id) === -1) h.dismissed.push(id);
+      if (neverAgain) h.neverShowAgain = true;
+      commit();
+    }
+
+    const anchorEl = (typeof anchor === "string") ? document.querySelector(anchor)
+      : (anchor && anchor.getBoundingClientRect ? anchor : null);
+    const anchorVisible = anchorEl && anchorEl.getClientRects && anchorEl.getClientRects().length > 0;
+
+    if (anchorVisible) {
+      openCoachMark(id, title, bodyNode, anchorEl, commitDismiss);
+      return;
+    }
+
+    // ── Centered-modal fallback ──
+    const wrap = el("div", { class: "bx-guide-body" });
+    wrap.appendChild(bodyNode);
+
+    const foot = el("div", { class: "bx-guide-foot" });
+    const optOut = el("label", { class: "bx-guide-optout" });
+    const cb = el("input", { type: "checkbox" });
+    optOut.appendChild(cb);
+    optOut.appendChild(el("span", { text: "Don't show tips again" }));
+    foot.appendChild(optOut);
+
+    const gotIt = el("button", { type: "button", class: "bx-btn bx-btn-primary", text: "Got it" });
+    gotIt.addEventListener("click", function () {
+      commitDismiss(cb.checked);
+      closeModal();
+    });
+    foot.appendChild(gotIt);
+    wrap.appendChild(foot);
+
+    openModal(title, wrap, "bx-guide");
+  }
+
+  // Anchored coach-mark. Reuses the same getBoundingClientRect + scroll +
+  // right-overflow-flip math as openSlideTextPopover, plus an arrow that
+  // points back at the anchor. Dismissal is deferred-bound (doc click /
+  // Esc) so the click that opened it doesn't immediately close it.
+  let _activeCoach = null;
+  function closeCoachMark() {
+    if (_activeCoach && _activeCoach.parentNode) _activeCoach.parentNode.removeChild(_activeCoach);
+    _activeCoach = null;
+    document.removeEventListener("click", onDocClickForCoach, true);
+    document.removeEventListener("keydown", onEscForCoach, true);
+  }
+  function onDocClickForCoach(e) {
+    if (_activeCoach && !_activeCoach.contains(e.target)) closeCoachMark();
+  }
+  function onEscForCoach(e) {
+    if (e.key === "Escape") closeCoachMark();
+  }
+  function openCoachMark(id, title, bodyNode, anchorEl, commitDismiss) {
+    closeCoachMark();
+    const card = el("div", { class: "bx-coach" });
+    card.appendChild(el("div", { class: "bx-coach-arrow" }));
+    card.appendChild(el("div", { class: "bx-coach-title", text: title }));
+    const body = el("div", { class: "bx-coach-body" });
+    body.appendChild(bodyNode);
+    card.appendChild(body);
+
+    const foot = el("div", { class: "bx-coach-foot" });
+    const optOut = el("label", { class: "bx-guide-optout" });
+    const cb = el("input", { type: "checkbox" });
+    optOut.appendChild(cb);
+    optOut.appendChild(el("span", { text: "Don't show tips again" }));
+    foot.appendChild(optOut);
+    const gotIt = el("button", { type: "button", class: "bx-btn bx-btn-primary", text: "Got it" });
+    gotIt.addEventListener("click", function () {
+      commitDismiss(cb.checked);
+      closeCoachMark();
+    });
+    foot.appendChild(gotIt);
+    card.appendChild(foot);
+
+    card.style.position = "absolute";
+    document.body.appendChild(card);
+
+    const r = anchorEl.getBoundingClientRect();
+    const popW = 320;
+    const margin = 14;
+    let left = r.right + margin + window.scrollX;
+    let top  = r.top + window.scrollY;
+    let flipped = false;
+    if (left + popW > window.innerWidth + window.scrollX - 12) {
+      left = Math.max(12 + window.scrollX, r.left + window.scrollX - popW - margin);
+      flipped = true;
+    }
+    if (flipped) card.classList.add("is-flipped");
+    card.style.left = left + "px";
+    card.style.top  = top  + "px";
+    card.style.width = popW + "px";
+    _activeCoach = card;
+    setTimeout(function () {
+      document.addEventListener("click", onDocClickForCoach, true);
+      document.addEventListener("keydown", onEscForCoach, true);
+    }, 0);
+  }
+
   // targetProjectId: string → overwrite that project; null → create new.
   function openImportModal(targetProjectId) {
     const wrap = el("div");
@@ -3066,8 +3498,8 @@
     wrap.appendChild(el("div", { class: "bx-modal-actions", style: "margin-top: 0; margin-bottom: 14px;" }, [
       btn("⬇ Download Complete Demo ZIP", "bx-btn-primary", function () {
         toast("Building polished demo ZIP…");
-        Promise.resolve(window.HOLO_ZIP.downloadCompleteDemoZip(app.state)).then(function (payload) {
-          toast(payload && payload.mode === "legacy" ? "Exported (offline mode)" : "Polished demo ZIP downloaded");
+        Promise.resolve(window.HOLO_ZIP.downloadCompleteDemoZip(app.state)).then(function () {
+          toast("Polished demo ZIP downloaded");
         }).catch(function (e) { toast("Couldn't build the ZIP: " + (e && e.message || e)); });
       }),
       btn("Download Config JS", "bx-btn-secondary", function () {
@@ -3213,41 +3645,57 @@
   function viewConnect() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 1 · Connect Aubrey",
-      "Pull from Aubrey, or skip to manual setup",
-      "Optional. Add API keys to pull brand identity, demo scripts, personas, and CX components directly from the Aubrey ecosystem. With keys set, an Aubrey-driven project takes ~5 typed fields total."
+      "Step 1 · Connect (optional)",
+      "Start from your own script & story, or build by hand",
+      "The recommended start is to paste or upload your demo script — the builder reads it into customer, persona, products, and story foundations. Already use Aubrey? You can pull a script or brand instead. Prefer to do it yourself? Every step also works with fully manual entry."
     ));
+
+    // ── Script & Story (the recommended starting point) ──────
+    // The NATIVE path: the SE pastes/uploads their own demo script in
+    // Step 2 — no Aubrey account or keys required. This is the
+    // highest-leverage first action that everyone can take, so it
+    // leads. (Aubrey is the convenience layer below it.)
+    const script = el("div", { class: "bx-card bx-card-feature" });
+    script.appendChild(el("div", { class: "bx-card-title", text: "Script & Story" }));
+    script.appendChild(el("div", { class: "bx-card-sub",
+      text: "The recommended starting point. Paste or upload your own demo script and the builder reads it into customer name, industry, persona, Salesforce products, and story foundations. No account or keys needed — you can change anything afterward." }));
+    script.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+      btn("Paste or upload your script →", "bx-btn-primary", function () {
+        app.state.step = "script"; renderShell(); commit();
+      }),
+    ]));
+    wrap.appendChild(script);
+
+    // ── Secondary: pull from Aubrey (script or brand) ────────
+    // The convenience layer for SEs who use Aubrey: pull a full script
+    // (auto-fills brand + persona + products) or just a brand. Requires
+    // Aubrey keys, so it sits below the native script path.
+    const aubrey = el("div", { class: "bx-card" });
+    aubrey.appendChild(el("div", { class: "bx-card-title", text: "Pull from Aubrey" }));
+    aubrey.appendChild(el("div", { class: "bx-card-sub",
+      text: "Use Aubrey? Pull a demo script to auto-fill customer, brand colors, persona, products, and story foundations in one go — or pull just a brand for colors and identity. Requires Aubrey keys." }));
+    aubrey.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+      btn("✨ Pull script from Aubrey →", "bx-btn-secondary",
+        function () { openAubreyScriptPicker(); }),
+      btn("Or just pull a brand", "bx-btn-secondary",
+        function () { openAubreyBrandPicker(); }),
+    ]));
+    wrap.appendChild(aubrey);
 
     // Thin status banner that opens the same modal as the topbar
     // button. Keeping one source of truth for credentials means
     // the user can review or swap keys from here OR from any
-    // other step via the topbar.
+    // other step via the topbar. Sits under the Aubrey card it serves.
     wrap.appendChild(aubreyKeysBanner());
 
-    // ── Quick start: pull a script as the foundation ─────────
-    // The fastest path: pick a Scriptwriter script, which (with
-    // the brand auto-fill side-effect) populates customer name,
-    // industry, brand colors, persona, products, and foundations
-    // in one go. Drops the user on Step 3 (Foundations review).
-    const quick = el("div", { class: "bx-card bx-card-feature" });
-    quick.appendChild(el("div", { class: "bx-card-title", text: "Start with an Aubrey demo script" }));
-    quick.appendChild(el("div", { class: "bx-card-sub",
-      text: "Recommended for Aubrey-driven projects. Pulling a script also fills customer name, industry, brand colors, persona, and Salesforce products by following the script's brand and persona links. You can change anything afterward." }));
-    const quickRow = el("div", { class: "bx-row bx-mt-12" });
-    quickRow.appendChild(btn("✨ Pull script from Aubrey →", "bx-btn-primary",
-      function () { openAubreyScriptPicker(); }));
-    quickRow.appendChild(btn("Or just pull a brand", "bx-btn-secondary",
-      function () { openAubreyBrandPicker(); }));
-    quick.appendChild(quickRow);
-    wrap.appendChild(quick);
-
-    // ── Manual path ──────────────────────────────────────────
+    // ── Manual path (third) ──────────────────────────────────
+    // No keys needed; jump straight to Setup and build by hand.
     const manual = el("div", { class: "bx-card" });
-    manual.appendChild(el("div", { class: "bx-card-title", text: "Building without Aubrey?" }));
+    manual.appendChild(el("div", { class: "bx-card-title", text: "Build it by hand" }));
     manual.appendChild(el("div", { class: "bx-card-sub",
-      text: "No problem — every step has its own manual entry. Skip ahead to Setup and fill things in by hand. You can come back to this step any time to add API keys later." }));
+      text: "No script yet? Jump to Setup, add your customer and products by hand, then fill the story foundations yourself. You can come back here any time to paste a script or connect Aubrey." }));
     manual.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
-      btn("Skip to Setup →", "bx-btn-primary", function () {
+      btn("Start with Setup →", "bx-btn-secondary", function () {
         app.state.step = "setup"; renderShell(); commit();
       }),
     ]));

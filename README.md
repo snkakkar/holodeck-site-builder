@@ -49,7 +49,11 @@ The Builder now uses a 9-step flow:
 - Script-first default flow with extraction helpers and quality checks.
 - Section-based slide selection with richer controls (including bulk actions and view modes).
 - Explicit CX link handling that promotes linked slides to embedded CX layouts during export.
-- Dedicated **Assets** step with slot-based uploads (brand, persona, store/product/demo imagery).
+- Dedicated **Assets** step with slot-based uploads (brand, persona, store/product/demo imagery); each slot shows the slides it feeds, and skipped slots fall back to clean brand-styled placeholders.
+- **Branding modes** (Salesforce / customer / co-brand) selectable in Setup; the exported demo's lockup and palette follow the chosen mode (defaults to Salesforce, identical to prior behavior).
+- Stronger exported-demo **navigation**: arrow/Space/Home/End keyboard parity across sections, a slide counter, and `#section=…&slide=…` hash deep-links.
+- Deeper **unified-profile** carousel and a story-derived **"Powered by Salesforce"** product strip.
+- In-product **guided hints** (dismissible, "don't show again" persists) and a **`CLAUDE_MODIFY.md`** prompt file shipped in every export so SEs can edit the demo with Claude/ChatGPT.
 - Inline **Pending text editors** so SEs can fix unresolved copy without jumping between steps.
 - Persona enhancements: pronouns and wishlist/stat editing support.
 - BVS metric override editing persisted through round-trips.
@@ -62,7 +66,7 @@ The export step supports:
 - **Download Complete Demo ZIP** (recommended): ships a ready-to-run `demo/` package with current content.
 - **Config only**: download `holodeck.config.js` or builder JSON for existing demo folders.
 
-The ZIP exporter packages the polished `/demo` runtime so visual/output quality follows the live demo shell.
+The ZIP exporter packages the polished `/demo` runtime so visual/output quality follows the live demo shell. The package also includes `CLAUDE_MODIFY.md` — copy-paste prompts (rebrand, add a slide, rewrite the persona, swap assets…) for editing the exported demo with an AI assistant without re-opening the Builder.
 
 ## Security behavior for embedded CX URLs
 

@@ -27,6 +27,7 @@
       <button id="nav-rachel">Meet {persona}</button>
       <button id="nav-demo">Demo</button>
       <button id="nav-bv">Business Value</button>
+      <span id="nav-slide-counter" class="site-nav-counter" style="visibility:hidden"></span>
     </div>
   </nav>
 
@@ -258,6 +259,16 @@
   // ═══════════════════════════════════════
   (function populateFromConfig() {
     var C = CFG;
+    // Safe image apply — sets src only for a real asset path; an empty or
+    // unresolved [TODO:] slot leaves the <img> hidden (no broken icon).
+    function applyImg(el, src, alt) {
+      if (!el) return;
+      var usable = typeof src === 'string' && src.trim() && src.indexOf('[TODO') === -1;
+      if (!usable) { el.style.display = 'none'; return; }
+      el.alt = alt || '';
+      el.onerror = function () { this.onerror = null; this.style.display = 'none'; };
+      el.src = src;
+    }
     try {
     // Nav
     document.getElementById('nav-customer-name').textContent = C.customer.nameDisplay;
@@ -266,6 +277,41 @@
     document.getElementById('map-headline').innerHTML  = C.journey.headline;
     document.getElementById('map-tagline').textContent = C.customer.journeyTagline;
     document.getElementById('brand-name-display').textContent = C.customer.nameDisplay;
+    // Brand lockup — adapt to the branding mode resolved in holodeck-render.js.
+    // salesforce: customer name "+ Salesforce" + SF mark (the original look).
+    // customer:  lead with the customer, drop the explicit "+ Salesforce".
+    // cobrand:   customer + Salesforce, both marks shown.
+    (function applyBrandLockup() {
+      var BT = window.HOLO_BRAND || { mode: 'salesforce', showSalesforce: true, showCustomer: true };
+      var subEl = document.querySelector('.brand-lockup .brand-sub');
+      var divEl = document.querySelector('.brand-lockup .brand-divider');
+      var sfIcon = document.querySelector('.brand-lockup .sf-icon');
+      if (BT.mode === 'customer') {
+        if (subEl) subEl.style.display = 'none';
+        if (divEl) divEl.style.display = 'none';
+        if (sfIcon) sfIcon.style.display = 'none';
+      } else {
+        if (subEl) { subEl.style.display = ''; subEl.textContent = '+ Salesforce'; }
+        if (divEl) divEl.style.display = '';
+        if (sfIcon) sfIcon.style.display = '';
+      }
+      // Customer logo image takes over the name block when provided.
+      if (BT.customerLogo && (BT.mode === 'customer' || BT.mode === 'cobrand')) {
+        var nameEl = document.getElementById('brand-name-display');
+        if (nameEl) {
+          nameEl.innerHTML = '';
+          var img = document.createElement('img');
+          img.className = 'brand-cust-logo';
+          img.src = BT.customerLogo;
+          img.alt = C.customer.nameDisplay;
+          img.onerror = function () {
+            this.onerror = null; this.style.display = 'none';
+            nameEl.textContent = C.customer.nameDisplay;
+          };
+          nameEl.appendChild(img);
+        }
+      }
+    })();
     // Intro slide 1
     document.getElementById('vi-s1-eyebrow').textContent = C.customer.demoTitle;
     document.getElementById('vi-s1-headline').innerHTML  = C.customer.heroHeadline;
@@ -285,9 +331,10 @@
     var nameParts = C.persona.fullName.split(' ');
     document.getElementById('mr-s2-name').innerHTML     = nameParts[0] + '<br/><strong>' + nameParts.slice(1).join(' ') + '</strong>';
     document.getElementById('mr-s2-job').textContent    = C.persona.jobTitle;
-    document.getElementById('mr-hero-bg').src           = C.persona.heroBackground;
-    document.getElementById('mr-hero-gif').src          = C.persona.heroGif;
-    document.getElementById('mr-hero-gif').alt          = C.persona.name;
+    // Persona hero media — only set src when a real asset path exists, so an
+    // empty/[TODO:] slot never produces a broken-image icon. Hide on failure.
+    applyImg(document.getElementById('mr-hero-bg'), C.persona.heroBackground, C.persona.name);
+    applyImg(document.getElementById('mr-hero-gif'), C.persona.heroGif, C.persona.name);
     // Meet Persona slide 3
     document.getElementById('mr-s3-collection-label').textContent = C.persona.wishlistLabel;
     document.getElementById('mr-s3-headline').innerHTML            = C.persona.wishlistHeadline;
@@ -396,6 +443,8 @@
       document.getElementById('bv-dots').style.display = 'flex';
       document.getElementById('bv-cta').style.display = 'flex';
     }
+    // Keep the ribbon counter + URL hash in sync with the active section.
+    if (window.HOLO_NAV) window.HOLO_NAV.notifyChange();
   }
 
   document.getElementById('nav-intro').classList.add('active');
@@ -488,6 +537,20 @@
     }
     fitMap();
     window.addEventListener('resize', fitMap);
+
+    // Register a single-slide adapter so HOLO_NAV treats the journey map
+    // as a 1-slide section. Without this, sections['map'] is undefined and
+    // ←/→ neither lands on nor leaves the map (rollover to intro/rachel
+    // breaks). goToIndex is a no-op (there's only one slide); getTotal===1
+    // makes the keyboard controller roll straight over the boundary.
+    if (window.HOLO_NAV && document.getElementById('sec-map')) {
+      window.HOLO_NAV.register({
+        key: 'map',
+        goToIndex: function () {},
+        getCurrent: function () { return 0; },
+        getTotal: function () { return 1; },
+      });
+    }
   })();
 
   // ═══════════════════════════════════════
@@ -567,11 +630,14 @@
       updateThumb();
     }
 
-    document.getElementById('intro-wrap').addEventListener('click', () => { if (current < total) goTo(current+1); });
-    document.addEventListener('keydown', e => {
-      if (activeSection !== 'intro') return;
-      if (e.key==='ArrowRight'||e.key===' ') goTo(current+1);
-      if (e.key==='ArrowLeft') goTo(current-1);
+    document.getElementById('intro-wrap').addEventListener('click', () => { if (current < total) { goTo(current+1); if (window.HOLO_NAV) window.HOLO_NAV.notifyChange(); } });
+    // Keyboard + deep-links handled centrally by HOLO_NAV — register a
+    // 0-based adapter over this section's 1-based carousel state.
+    if (window.HOLO_NAV) window.HOLO_NAV.register({
+      key: 'intro',
+      goToIndex: function (i) { goTo(i + 1); },
+      getCurrent: function () { return current - 1; },
+      getTotal: function () { return total; },
     });
 
     updateThumb();
@@ -641,11 +707,12 @@
       updateThumb();
     }
 
-    document.getElementById('rachel-wrap').addEventListener('click', () => { if (current<total) goTo(current+1); });
-    document.addEventListener('keydown', e => {
-      if (activeSection !== 'rachel') return;
-      if (e.key==='ArrowRight'||e.key===' ') goTo(current+1);
-      if (e.key==='ArrowLeft') goTo(current-1);
+    document.getElementById('rachel-wrap').addEventListener('click', () => { if (current<total) { goTo(current+1); if (window.HOLO_NAV) window.HOLO_NAV.notifyChange(); } });
+    if (window.HOLO_NAV) window.HOLO_NAV.register({
+      key: 'rachel',
+      goToIndex: function (i) { goTo(i + 1); },
+      getCurrent: function () { return current - 1; },
+      getTotal: function () { return total; },
     });
 
     // Show dots/cta when section becomes active
@@ -718,11 +785,12 @@
       ctaEl.style.display = current===total ? 'none' : 'flex';
     }
 
-    document.getElementById('bv-wrap').addEventListener('click', () => { if (current<total) goTo(current+1); });
-    document.addEventListener('keydown', e => {
-      if (activeSection !== 'bv') return;
-      if (e.key==='ArrowRight'||e.key===' ') goTo(current+1);
-      if (e.key==='ArrowLeft') goTo(current-1);
+    document.getElementById('bv-wrap').addEventListener('click', () => { if (current<total) { goTo(current+1); if (window.HOLO_NAV) window.HOLO_NAV.notifyChange(); } });
+    if (window.HOLO_NAV) window.HOLO_NAV.register({
+      key: 'bv',
+      goToIndex: function (i) { goTo(i + 1); },
+      getCurrent: function () { return current - 1; },
+      getTotal: function () { return total; },
     });
   })();
 
@@ -932,6 +1000,27 @@
     for (let i = 0; i < COUNT; i++) makeParticle();
     // Ensure slide text stays above particles
     slide.querySelectorAll('.vi-s1-eyebrow,.vi-s1-headline,.vi-s1-sub').forEach(el => el.style.position = 'relative');
+  })();
+
+  // ═══════════════════════════════════════
+  //  WIRE UP UNIFIED NAVIGATION (HOLO_NAV)
+  //  Centralised keyboard (←/→/Space/Home/End, digit-to-section), a ribbon
+  //  slide counter, and #section=…&slide=… deep-links. Sections already
+  //  registered their adapters during build; here we hand HOLO_NAV the
+  //  section switcher + nav order, then boot (which honours any load-time hash).
+  // ═══════════════════════════════════════
+  (function bootNav() {
+    if (!window.HOLO_NAV) return;
+    // Nav order follows the ribbon buttons; 'map' is a single-slide section.
+    var navOrder = ['intro', 'map', 'rachel', 'demo', 'bv'].filter(function (k) {
+      return !!document.getElementById(SECTIONS[k]);
+    });
+    window.HOLO_NAV.configure({
+      showSection: showSection,
+      getActive: function () { return window._holoActiveSection; },
+      order: navOrder,
+    });
+    window.HOLO_NAV.boot();
   })();
 
   </script>
