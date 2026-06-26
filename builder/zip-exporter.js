@@ -140,6 +140,11 @@
     files.push({ path: root + "source/builder-export-metadata.json", content: JSON.stringify(exportMeta, null, 2) });
     files.push({ path: root + "source/holodeck-builder.json",        content: builderJson });
 
+    // Stable ordering: the template files arrive in fetch-resolution order,
+    // which can vary run to run. Sort by path so two exports of the same
+    // project produce byte-identical ZIPs (easier diffing / verification).
+    files.sort(function (a, b) { return a.path < b.path ? -1 : (a.path > b.path ? 1 : 0); });
+
     return { files: files, slug: slug, root: root, mode: "polished" };
   }
 

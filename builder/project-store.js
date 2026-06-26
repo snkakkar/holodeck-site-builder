@@ -145,10 +145,16 @@
   };
 
   // Synchronous cache primitives shared by both backends.
+  // Tracks whether the most recent cacheWrite's primary state write hit the
+  // localStorage quota (writeJSON returns false). Lets the UI surface a
+  // silent local-save failure instead of falsely showing "Autosaved".
+  let _lastCacheWriteFailed = false;
   function cacheWrite(state) {
-    writeJSON(KEY_PREFIX + state.id, state);
+    const ok = writeJSON(KEY_PREFIX + state.id, state);
+    _lastCacheWriteFailed = !ok;
     upsertIndex(summaryFromState(state));
   }
+  function lastCacheWriteFailed() { return _lastCacheWriteFailed; }
   function cacheDelete(id) {
     removeFromIndex(id);
     remove(KEY_PREFIX + id);
@@ -551,6 +557,7 @@
     clearCache: clearCache,
     reconcile: reconcile,
     uid: uid,
+    lastCacheWriteFailed: lastCacheWriteFailed,
     // Shared by feedback-store so the authenticated PostgREST client lives
     // in one place. DATA_API is the single source of the Data API base.
     makeDataFetch: makeDataFetch,

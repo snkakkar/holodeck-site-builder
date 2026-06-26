@@ -40,7 +40,9 @@
   // SE-layout copy (agent chat, demo-flow steps, next-steps phases) from one
   // source and can't drift. Loaded via <script src="js/holodeck-shared.js">.
   const SHARED = window.HOLO_SHARED || {};
-  const allSlides = plan.slides || [];
+  // Guard against a malformed config where slides is present but not an
+  // array — degrade to an empty deck instead of throwing on .filter below.
+  const allSlides = Array.isArray(plan.slides) ? plan.slides : [];
   // Demo deck = slides assigned to the "demo" section.  If nothing
   // tagged, treat all of them as demo (legacy configs).
   const demoSlides = allSlides.filter(function (s) { return !s.sectionId || s.sectionId === "demo"; });

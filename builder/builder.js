@@ -103,6 +103,15 @@
     // back to the dirty queue). Callers that tear down state await it.
     const p = STORE.saveProject(app.state);
     setSaveIndicator(false);
+    // The local cache write inside saveProject can fail silently if the
+    // localStorage quota is exhausted. Surface it once so the user isn't
+    // left believing autosave succeeded when the device cache didn't take.
+    if (p && typeof p.then === "function") {
+      p.catch(function () { /* network/dirty-queue handled in store */ });
+    }
+    if (STORE.lastCacheWriteFailed && STORE.lastCacheWriteFailed()) {
+      toast("Couldn't save locally — storage may be full.");
+    }
     return p;
   }
   let saveTimer = null;
@@ -124,6 +133,19 @@
   }
 
   // ─── Navigation between views ─────────────────────────────────
+  // A rejected store Promise (e.g. loadProject/saveProject failing) used to
+  // strand the UI mid-transition with no feedback. This handler lands the
+  // user safely back home with a toast so navigation never dead-ends.
+  function navFailed(message) {
+    return function (err) {
+      if (typeof console !== "undefined" && console.warn) console.warn("[holo] navigation failed:", err);
+      toast(message || "Something went wrong. Returning to projects.");
+      app.view = "home";
+      app.state = null;
+      try { STORE.setActiveProjectId(null); } catch (e) { /* ignore */ }
+      render();
+    };
+  }
   function goHome() {
     // Save BEFORE tearing down state. The cache write is synchronous so
     // data is safe instantly; we still chain so a slow Neon write can't
@@ -134,7 +156,7 @@
       app.state = null;
       STORE.setActiveProjectId(null);
       render();
-    });
+    }).catch(navFailed("Couldn't save before leaving. Returning to projects."));
   }
   function goBuilder(projectId) {
     STORE.loadProject(projectId).then(function (state) {
@@ -149,21 +171,21 @@
       STORE.setActiveProjectId(projectId);
       recompute();
       render();
-    });
+    }).catch(navFailed("That project couldn't be opened."));
   }
   function goAiPrompt() {
     const save = (app.view === "builder" && app.state) ? saveActive() : Promise.resolve();
     save.then(function () {
       app.view = "aiPrompt";
       render();
-    });
+    }).catch(navFailed("Couldn't open the AI prompt. Returning to projects."));
   }
   function goFeedback() {
     const save = (app.view === "builder" && app.state) ? saveActive() : Promise.resolve();
     save.then(function () {
       app.view = "feedback";
       render();
-    });
+    }).catch(navFailed("Couldn't open feedback. Returning to projects."));
   }
   function newProject() {
     STORE.createProject({}).then(function (state) {
@@ -172,7 +194,7 @@
       STORE.setActiveProjectId(state.id);
       recompute();
       render();
-    });
+    }).catch(navFailed("Couldn't create a new project. Please try again."));
   }
 
   // ─── Top-level render ─────────────────────────────────────────
