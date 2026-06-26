@@ -99,9 +99,11 @@ button { font-family: inherit; }
 
 /* ══════════ Top bar ══════════ */
 .bx-topbar {
-  height: var(--bx-topbar-h);
+  min-height: var(--bx-topbar-h);
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 var(--bx-sp-6);
+  gap: var(--bx-sp-4);
+  flex-wrap: wrap;                    /* let the action cluster drop to a 2nd row before overflowing */
+  padding: var(--bx-sp-2) var(--bx-sp-6);
   background: rgba(255,255,255,0.92);
   border-bottom: 1px solid var(--bx-line);
   backdrop-filter: blur(8px);
@@ -130,6 +132,8 @@ button { font-family: inherit; }
   cursor: pointer;
   transition: all 0.15s ease;
   text-decoration: none; display: inline-block;
+  white-space: nowrap;        /* keep pill labels on one line */
+  line-height: 1.2;
 }
 .bx-btn-primary {
   background: var(--bx-action);
@@ -1065,8 +1069,13 @@ button { font-family: inherit; }
 /* ════════════════════════════════════════════════════════════════
    Top-bar additions: breadcrumb + nav links
    ════════════════════════════════════════════════════════════════ */
-.bx-topbar-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.bx-topbar-actions { display: flex; align-items: center; gap: 8px; }
+.bx-topbar-left { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 auto; }
+.bx-topbar-actions {
+  display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end;
+  gap: 8px; row-gap: 6px;
+  flex: 0 1 auto; min-width: 0;
+}
+.bx-topbar-actions .bx-btn { flex: 0 0 auto; }   /* buttons keep their size; the row wraps instead */
 .bx-mark { display: flex; flex-direction: column; line-height: 1; }
 .bx-crumb {
   background: transparent;
@@ -1101,9 +1110,45 @@ button { font-family: inherit; }
   border-radius: var(--bx-radius-pill);
   cursor: pointer;
   margin-right: 2px;
+  white-space: nowrap; flex: 0 0 auto;
 }
 .bx-nav-link:hover { color: var(--bx-navy); background: var(--bx-bg-2); }
 .bx-nav-link.is-active { color: var(--bx-navy); background: var(--bx-bg-2); border-color: var(--bx-line-2); }
+
+/* Signed-in email — least critical item, so it truncates first */
+.bx-nav-user {
+  align-self: center;
+  margin: 0 4px;
+  font-size: 12px;
+  color: var(--bx-ink-2);
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  max-width: 220px;
+  flex: 0 1 auto; min-width: 0;
+}
+
+/* ── Topbar responsive scaling ──────────────────────────────── */
+/* Tighten the action cluster as room shrinks, before anything wraps. */
+@media (max-width: 1180px) {
+  .bx-topbar { padding-left: var(--bx-sp-4); padding-right: var(--bx-sp-4); }
+  .bx-topbar-actions { gap: 6px; }
+  .bx-btn { padding: 9px 14px; }
+  .bx-nav-link { padding: 8px 10px; }
+  .bx-nav-user { max-width: 160px; }
+}
+@media (max-width: 900px) {
+  /* Hide the email (still in the tooltip via title) and let actions wrap below the mark. */
+  .bx-nav-user { display: none; }
+  .bx-topbar-left { flex: 1 1 100%; }
+}
+@media (max-width: 560px) {
+  .bx-mark-sub { display: none; }            /* drop the long uppercase sub-label */
+  .bx-mark-h { font-size: 19px; }
+  .bx-btn { padding: 8px 12px; font-size: 11px; }
+  .bx-nav-link { padding: 7px 9px; font-size: 11px; }
+  .bx-crumb-name, .bx-crumb-customer { max-width: 140px; }
+}
 
 /* ════════════════════════════════════════════════════════════════
    Home page: header band, toolbar, project grid

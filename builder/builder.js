@@ -245,7 +245,7 @@
       const u = AUTH.currentUser();
       if (u && u.email) {
         right.appendChild(el("span", { class: "bx-nav-user", title: u.email,
-          text: u.email, style: "opacity:.7;font-size:12px;align-self:center;margin:0 4px;" }));
+          text: u.email }));
       }
       right.appendChild(actionBtn("Sign out", "bx-btn-ghost", function () { signOut(); }));
     }
@@ -302,6 +302,10 @@
       shell.appendChild(wrap);
       renderAiPromptPage(wrap);
       setSaveIndicator(false);
+      // First-visit guided tour for the AI setup (replay link ignores the flag).
+      const ob = STORE.getOnboarding();
+      if (!ob.aiPromptTourSeen && !ob.neverShowAgain && !app.tour.active)
+        setTimeout(function () { startTour("aiPrompt"); }, 0);
       return;
     }
 
@@ -3370,13 +3374,18 @@
     ));
 
     const c0 = el("div", { class: "bx-card" });
-    c0.appendChild(el("div", { class: "bx-card-title", text: "How this works" }));
+    const c0Head = el("div", { class: "bx-row bx-row-between" }, [
+      el("div", { class: "bx-card-title", text: "How this works" }),
+      btn("Take the tour again", "bx-btn-link", function () { startTour("aiPrompt"); }),
+    ]);
+    c0.appendChild(c0Head);
     c0.appendChild(el("ol", { class: "bx-numlist" }, [
       el("li", { text: "Copy the prompt below." }),
       el("li", { text: "Paste it into ChatGPT or Claude." }),
       el("li", { text: "Underneath the prompt, paste your customer notes, demo script, audience, products, and any context you have." }),
       el("li", { text: "The AI returns a JSON config." }),
-      el("li", { html: "Come back here, click <strong>Import Config</strong>, and paste the JSON. The builder will auto-fill setup, personas, story acts, recommendations, slides, and assets." }),
+      el("li", { html: "Come back here, click <strong>Import AI response</strong>, and paste the JSON. The builder will auto-fill setup, personas, story acts, recommendations, slides, and assets." }),
+      el("li", { html: "The <strong>Config schema / template</strong> below is already baked into the prompt — it's there only as an optional reference, so there's nothing extra to copy." }),
     ]));
     container.appendChild(c0);
 
@@ -3886,12 +3895,43 @@
       lastInSegment: true,
     },
   ];
+  // Standalone tour for the AI Prompt view (no handoff to another segment).
+  const AI_PROMPT_TOUR = [
+    {
+      id: "aiPrompt-how",
+      getAnchor: function () { return document.querySelector("#bxPage .bx-card"); },
+      title: "Generate a config with AI",
+      body: function () { return el("p", { text: "Don't build by hand — let ChatGPT or Claude draft the whole config. These steps walk you through it; the builder fills itself in from the result." }); },
+    },
+    {
+      id: "aiPrompt-prompt",
+      getAnchor: function () { return document.querySelector("#bxPage .bx-textarea-xl"); },
+      title: "Copy this prompt",
+      body: function () { return el("p", { text: "Copy this prompt into ChatGPT or Claude, then paste your customer notes and demo context underneath it. The schema is already baked in — nothing else to copy." }); },
+    },
+    {
+      id: "aiPrompt-import",
+      getAnchor: function () {
+        // Find the "Import AI response" button by its label, scoped to the page.
+        const btns = document.querySelectorAll("#bxPage button.bx-btn");
+        for (let i = 0; i < btns.length; i++) {
+          if (/import ai response/i.test(btns[i].textContent || "")) return btns[i];
+        }
+        return document.querySelector("#bxPage .bx-btn-primary");
+      },
+      title: "Import the AI's response",
+      body: function () { return el("p", { text: "When the AI returns its JSON, click Import AI response and paste it here — the builder auto-fills setup, personas, story acts, recommendations, slides, and assets." }); },
+      lastInSegment: true,
+    },
+  ];
 
   let _tourEls = null;          // { dim:[4], ring, card }
   let _tourRepositionRAF = 0;
 
   function tourSegmentList() {
-    return app.tour.segment === "home" ? HOME_TOUR : BUILDER_TOUR;
+    return app.tour.segment === "home" ? HOME_TOUR
+         : app.tour.segment === "aiPrompt" ? AI_PROMPT_TOUR
+         : BUILDER_TOUR;
   }
   function tourTotal() { return tourSegmentList().length; }
 
@@ -3936,6 +3976,7 @@
   }
 
   function finishTour(skipped) {
+    const seg = app.tour.segment;       // capture before the resets below
     teardownTourDom();
     unbindTourListeners();
     app.tour.active = false;
@@ -3945,6 +3986,9 @@
     // Skip OR completing the builder segment ends the whole tour for good.
     if (skipped) { ob.tourDone = true; }
     ob.homeSeen = true;
+    // The AI Prompt tour is standalone: whenever it ends (finish or skip),
+    // mark it seen so it doesn't auto-fire again. The replay link ignores this.
+    if (seg === "aiPrompt") ob.aiPromptTourSeen = true;
     STORE.setOnboarding(ob);
   }
 
@@ -3969,10 +4013,15 @@
       return;
     }
     if (app.tour.index < list.length - 1) { app.tour.index++; renderTourStop(); return; }
-    // Past the last builder stop → tour complete.
-    const ob = STORE.getOnboarding();
-    ob.tourDone = true; ob.builderTourSeen = true;
-    STORE.setOnboarding(ob);
+    // Past the last stop → segment complete.
+    // The builder segment is the end of the first-launch tour; the standalone
+    // aiPrompt segment isn't, so it must not set tourDone (finishTour records
+    // aiPromptTourSeen on its own).
+    if (app.tour.segment === "builder") {
+      const ob = STORE.getOnboarding();
+      ob.tourDone = true; ob.builderTourSeen = true;
+      STORE.setOnboarding(ob);
+    }
     finishTour(false);
   }
 
