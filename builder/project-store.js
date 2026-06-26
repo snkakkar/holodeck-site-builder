@@ -191,35 +191,48 @@
     };
   }
 
-  function dataFetch(path, opts) {
-    opts = opts || {};
-    const auth = AUTH();
-    return (auth ? auth.getToken() : Promise.resolve(null)).then(function (token) {
-      if (!token) {
-        const err = new Error("Not authenticated");
-        err.offline = true;
-        throw err;
-      }
-      const headers = Object.assign({
-        "Authorization": "Bearer " + token,
-        "Content-Type": "application/json",
-      }, opts.headers || {});
-      const init = { method: opts.method || "GET", headers: headers };
-      if (opts.body != null) init.body = JSON.stringify(opts.body);
-      return fetch(DATA_API + path, init).then(function (res) {
-        return res.text().then(function (text) {
-          let json = null;
-          try { json = text ? JSON.parse(text) : null; } catch (e) { /* ignore */ }
-          if (!res.ok) {
-            const err = new Error((json && (json.message || json.hint)) || ("Data API " + res.status));
-            err.status = res.status;
-            throw err;
-          }
-          return json;
+  // Factory for an authenticated PostgREST fetch bound to DATA_API.
+  // factoryOpts.offlineFlag: when true, the no-token error carries
+  // err.offline = true so callers can distinguish "not signed in" from a
+  // server error and fall back to the local cache. project-store needs
+  // this; feedback-store (fire-and-forget) does not — it reuses this same
+  // factory with offlineFlag:false. See HOLO_STORE.makeDataFetch.
+  function makeDataFetch(factoryOpts) {
+    const offlineFlag = !!(factoryOpts && factoryOpts.offlineFlag);
+    return function dataFetch(path, opts) {
+      opts = opts || {};
+      const auth = AUTH();
+      return (auth ? auth.getToken() : Promise.resolve(null)).then(function (token) {
+        if (!token) {
+          const err = new Error("Not authenticated");
+          if (offlineFlag) err.offline = true;
+          throw err;
+        }
+        const headers = Object.assign({
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/json",
+        }, opts.headers || {});
+        const init = { method: opts.method || "GET", headers: headers };
+        if (opts.body != null) init.body = JSON.stringify(opts.body);
+        return fetch(DATA_API + path, init).then(function (res) {
+          return res.text().then(function (text) {
+            let json = null;
+            try { json = text ? JSON.parse(text) : null; } catch (e) { /* ignore */ }
+            if (!res.ok) {
+              const err = new Error((json && (json.message || json.hint)) || ("Data API " + res.status));
+              err.status = res.status;
+              throw err;
+            }
+            return json;
+          });
         });
       });
-    });
+    };
   }
+
+  // project-store's own client: no-token errors are flagged offline so the
+  // optimistic write-through path can fall back to the local cache.
+  const dataFetch = makeDataFetch({ offlineFlag: true });
 
   const NeonBackend = {
     listProjects: function () {
