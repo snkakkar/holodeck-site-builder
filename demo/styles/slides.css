@@ -1054,3 +1054,34 @@
 .dd-iconrow-eyebrow { font-size:10px; font-weight:800; letter-spacing:.2em; color:var(--red, #b22234); text-transform:uppercase; }
 .dd-iconrow-title   { font-size:14.5px; font-weight:700; color:var(--navy, #0d1b2e); }
 .dd-iconrow-sub     { font-size:13px; color:#5a6b80; line-height:1.45; }
+
+/* ═══════════════════════════════════════
+   RESPONSIVE (append-only — Pass 5)
+   Base rules above are untouched. Presentation displays (≥1440px) never
+   match these queries, so desktop rendering is byte-for-byte unchanged.
+   These only engage on tablet/phone widths to stop horizontal overflow.
+═══════════════════════════════════════ */
+
+/* Tablet & below: the fixed 1440px journey-map slide overflows narrow
+   viewports. Let it use the available width instead of forcing a scrollbar. */
+@media (max-width: 1024px) {
+  #sec-map .slide {
+    width: 100%;
+    max-width: 100vw;
+  }
+}
+
+/* Phone: stack the 50/50 two-panel layouts vertically so neither panel
+   gets crushed below a usable width. */
+@media (max-width: 640px) {
+  .dd-twopanel,
+  .dd-scene {
+    grid-template-columns: 1fr;
+  }
+  .dd-left {
+    padding: 32px 24px;
+  }
+  .dd-scene-copy {
+    padding: 36px 28px;
+  }
+}
