@@ -143,37 +143,10 @@
     return { files: files, slug: slug, root: root, mode: "polished" };
   }
 
-  // Legacy path: generator-built minimal runtime.
-  //
-  // INTENTIONALLY NOT WIRED INTO THE DEFAULT EXPORT FLOW. It is a stale
-  // fork: its hand-written renderer (generateDemoRendererJs) implements
-  // only the older layouts and is missing the current intro/journeyMap/
-  // persona/business-value layouts, and the payload omits demo/styles/*,
-  // so a ZIP built this way renders broken/unstyled. Retained only as a
-  // reference / explicit opt-in escape hatch — buildDemoZipPayload now
-  // rejects with an actionable message rather than falling back here.
-  // Do NOT re-wire this without bringing it to full layout + CSS parity
-  // (preferred fix is to keep the single polished runtime instead).
-  function buildLegacyPayload(state, slug, root) {
-    const cfgJs   = CONFIG.toHolodeckConfigJs(state);
-    const cfgJson = CONFIG.toJsonString(state);
-    const exportMeta = generateExportMetadata(state, "legacy");
-    const files = [
-      { path: root + "README.md",         content: generateReadme(state) },
-      { path: root + "HOW_TO_RUN.md",     content: generateHowToRun(state) },
-      { path: root + "CLAUDE_MODIFY.md",  content: generateClaudeModifyMd(state) },
-      { path: root + "demo/index.html",                content: generateDemoIndexHtml(state) },
-      { path: root + "demo/holodeck.config.js",        content: cfgJs },
-      { path: root + "demo/data/holodeck-config.json", content: cfgJson },
-      { path: root + "demo/css/styles.css",            content: generateDemoCss(state) },
-      { path: root + "demo/js/app.js",                 content: generateDemoAppJs(state) },
-      { path: root + "demo/js/renderer.js",            content: generateDemoRendererJs(state) },
-      { path: root + "demo/assets/ASSET_INSTRUCTIONS.md", content: generateAssetInstructions(state) },
-      { path: root + "source/builder-export-metadata.json", content: JSON.stringify(exportMeta, null, 2) },
-      { path: root + "source/holodeck-builder.json",        content: cfgJson },
-    ];
-    return { files: files, slug: slug, root: root, mode: "legacy" };
-  }
+  // Legacy generator-built runtime removed: the single polished runtime
+  // (fetched live from /demo) is now canonical. buildDemoZipPayload rejects
+  // with an actionable message if the template can't be reached, rather than
+  // shipping a stale/unstyled fallback.
 
   // ─── Fetch the /demo template files ──────────────────────────
   // Resolves to an array of { dest, content (string or Uint8Array) }
@@ -206,7 +179,7 @@
       .catch(function (err) {
         // Any required file failed → resolve null so buildDemoZipPayload
         // rejects with an actionable message (we no longer ship a broken
-        // legacy fallback). See buildLegacyPayload's comment.
+        // legacy fallback).
         if (typeof console !== "undefined" && console.warn) {
           console.warn("[holo] Polished template fetch failed (export will require http:// serving):", err && err.message);
         }
