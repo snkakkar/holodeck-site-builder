@@ -476,11 +476,18 @@
       }
 
       // Build the carousel: tabs across the top, one screen shown at a time.
+      // Screens are built once and toggled via display, rather than rebuilding
+      // the active facet's DOM on every tab click (screenHost.innerHTML="").
       const screenHost = el("div", { class: "dd-cdp-screen-host" });
       const tabRow = el("div", { class: "dd-cdp-tabs" });
+      const screens = facets.map(function (facet) {
+        const scr = facetScreen(facet);
+        scr.style.display = "none";
+        screenHost.appendChild(scr);
+        return scr;
+      });
       function show(i) {
-        screenHost.innerHTML = "";
-        screenHost.appendChild(facetScreen(facets[i]));
+        screens.forEach(function (scr, si) { scr.style.display = (si === i) ? "" : "none"; });
         Array.prototype.forEach.call(tabRow.children, function (t, ti) {
           t.classList.toggle("is-active", ti === i);
         });

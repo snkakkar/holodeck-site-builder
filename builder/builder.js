@@ -203,9 +203,36 @@
     renderShell();
   }
 
+  let _topbarSig = null;
   function renderTopbar() {
     const left  = $("#bxTopbarLeft");
     const right = $("#bxTopbarActions");
+
+    // The topbar reflects: current view, the active project's name +
+    // customer, the signed-in user, and the Aubrey key count (on the keys
+    // button). renderTopbar fires on every commit (each keystroke); skip the
+    // full innerHTML rebuild when none of those changed. The Aubrey count is
+    // included because the keys modal calls renderTopbar() on close to
+    // refresh it. Any visible-state change busts the signature.
+    const s = app.state;
+    const u = (AUTH && AUTH.isAuthed && AUTH.isAuthed()) ? AUTH.currentUser() : null;
+    let aubreyCount = "";
+    if (AUBREY && (app.view === "home" || app.view === "builder")) {
+      const ak = getAubreyGlobalKeys();
+      aubreyCount = ["email", "demoforgeKey", "scriptwriterKey", "pocketsicKey"]
+        .filter(function (k) { return !!ak[k]; }).length;
+    }
+    const sig = [
+      app.view,
+      s && s.id,
+      s && s.name,
+      s && s.project && s.project.customerName,
+      u && u.email,
+      aubreyCount,
+    ].join("");
+    if (sig === _topbarSig && left.firstChild) return;
+    _topbarSig = sig;
+
     left.innerHTML = "";
     right.innerHTML = "";
 
@@ -283,9 +310,13 @@
     const shell = $("#bxShell");
     shell.innerHTML = "";
 
-    // Always strip the quality footer first; only the builder view re-adds it.
-    const stale = $("#bxQualityFooter");
-    if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+    // The quality footer belongs only to the builder view. For other views
+    // strip it; for the builder, leave it so renderQualityFooter can update
+    // it in place (avoids a remove + re-append on every shell re-render).
+    if (app.view !== "builder") {
+      const stale = $("#bxQualityFooter");
+      if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+    }
 
     if (app.view === "login") {
       shell.classList.add("is-single");
@@ -377,21 +408,32 @@
     if (!VALIDATE_STORY || !app.state) return;
     const result = VALIDATE_STORY.validateGeneratedStoryAndSlides(app.state);
     const { errors = 0, warnings = 0 } = result.summary || {};
-    // Don't add the footer twice across re-renders.
-    const existing = $("#bxQualityFooter");
-    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
 
-    const footer = el("button", {
-      id: "bxQualityFooter",
-      class: "bx-quality-footer" + (errors ? " has-errors" : warnings ? " has-warnings" : " is-clean"),
-      "aria-label": "Open Story Quality Check",
-    });
-    const tone = errors ? "tone-red" : (warnings ? "tone-gold" : "tone-good");
-    const dot  = el("span", { class: "bx-quality-dot " + tone });
+    const cls  = "bx-quality-footer" + (errors ? " has-errors" : warnings ? " has-warnings" : " is-clean");
+    const tone = "bx-quality-dot " + (errors ? "tone-red" : (warnings ? "tone-gold" : "tone-good"));
     const text = errors  ? errors + " issue" + (errors === 1 ? "" : "s") + " to fix"
                : warnings? warnings + " warning" + (warnings === 1 ? "" : "s")
                          : "Story looks healthy";
-    footer.appendChild(dot);
+
+    // Update in place across re-renders instead of removing + re-appending
+    // the footer on every shell render (it lives on document.body and was
+    // thrashing the DOM each keystroke). Only the class + text vary.
+    let footer = $("#bxQualityFooter");
+    if (footer && footer.parentNode) {
+      const dot = footer.querySelector(".bx-quality-dot");
+      const txt = footer.querySelector(".bx-quality-text");
+      if (footer.className !== cls) footer.className = cls;
+      if (dot && dot.className !== tone) dot.className = tone;
+      if (txt && txt.textContent !== text) txt.textContent = text;
+      return;
+    }
+
+    footer = el("button", {
+      id: "bxQualityFooter",
+      class: cls,
+      "aria-label": "Open Story Quality Check",
+    });
+    footer.appendChild(el("span", { class: tone }));
     footer.appendChild(el("span", { class: "bx-quality-text", text: text }));
     footer.appendChild(el("span", { class: "bx-quality-cta", text: "Run Story Quality Check →" }));
     footer.addEventListener("click", function () { openStoryQualityModal(); });
