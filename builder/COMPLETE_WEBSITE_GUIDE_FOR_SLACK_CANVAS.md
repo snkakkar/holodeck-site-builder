@@ -1,567 +1,426 @@
-# Complete Website Guide for Slack Canvas
+# Complete End-User Guide for Holodeck Website
 
-## What This Website Does (In 1 Minute)
+## What This Website Is For
 
-This website helps you build a polished, customer-ready Salesforce Holodeck demo without heavy coding.
+This website helps you create a polished, customer-ready demo from your story, customer context, and product goals.
+
+You do **not** need to be technical to use it.
 
 You can:
-- Create and manage demo projects
-- Turn scripts/notes into a full story and slide plan
-- Add branding, personas, journey acts, CX embeds, and assets
-- Preview the full flow before presenting
-- Export a ready-to-run demo package
-- Keep editing later with Claude Code prompts
-
-If you are non-technical, you can still complete the full workflow using the Builder UI.
+- Start a project from scratch or with AI help
+- Turn notes/scripts into a structured demo story
+- Choose slides and demo moments
+- Add brand details, live links, and images
+- Preview everything before sharing
+- Export a complete package
 
 ---
 
-## Quick Start (5-10 Minutes)
+## Quick Start (10 Minutes)
 
-1. Open Builder (`/builder/`) and sign in.
-2. Create a new project.
-3. Go to **Step 2 - Script & Story** and paste your script (or upload `.txt`, `.md`, `.json`, `.pdf`, `.docx`).
-4. Click **Extract Story Foundations**.
-5. Go to **Step 1 - Setup** and confirm customer, audience, stage, products, and branding.
-6. Go to **Step 5 - Slide Selection** and keep the recommended slides (or adjust).
-7. Optional: add **Step 6 - CX Component Links** and **Step 7 - Assets**.
-8. Use **Step 8 - Preview** to fix any text quickly.
-9. Use **Step 9 - Export** and download the complete ZIP.
+If you want the fastest path, do this:
 
-Default path for most users: Script -> Setup -> Slide Selection -> Preview -> Export.
+1. Sign in and create a new project.
+2. Add your customer script or notes in **Script & Story**.
+3. Click **Extract Story Foundations**.
+4. Fill customer details in **Setup**.
+5. Keep or adjust recommended slides in **Slide Selection**.
+6. Add links in **CX Component Links** (optional).
+7. Add images in **Assets** (optional).
+8. Final check in **Preview**.
+9. Download your demo from **Export**.
+
+Default path: Script -> Setup -> Slide Selection -> Preview -> Export.
 
 ---
 
-## AI Prompt Fast Lane (Updated Usability Flow)
+## AI Fast Lane (Easiest Way to Start)
 
-Use this when you want AI to generate a first-pass config quickly.
+Use this when you want AI to generate your first draft quickly.
 
-### How It Works
-- Open the **AI Prompt** page.
-- Copy the built-in prompt.
-- Paste prompt + your customer context into Claude/ChatGPT.
-- Copy the AI JSON output.
-- Come back and click **Import AI response**.
-- Paste the response and import.
+### Steps
+1. Open **AI Prompt**.
+2. Copy the provided prompt.
+3. Paste it into Claude/ChatGPT with your customer context.
+4. Copy the AI output.
+5. Return and click **Import AI response**.
+6. Paste the output and import.
 
-The builder auto-fills setup, personas, story acts, recommendations, slides, and assets.
+### What Happens Next
+The tool can auto-fill:
+- Setup details
+- Personas
+- Story acts
+- Slide recommendations
+- Slide draft content
+- Asset suggestions
 
-### New Onboarding Behavior
-- AI Prompt has a dedicated one-time guided tour.
+### Helpful UX
+- There is a one-time guided tour for this page.
 - You can replay it anytime with **Take the tour again**.
-- The guide text now uses **Import AI response** wording to match the button.
-
-### Pro Tip
-You usually do **not** need to manually copy the schema template because the main AI prompt already includes it.
+- The schema/template is already included in the main prompt, so extra copy steps are usually unnecessary.
 
 ---
 
-## End-to-End Journey
+## Full Walkthrough (Every Main Feature)
 
-### 1) Access, Login, and Session
+### 1) Login and Account
 
-### What You Can Do
-- Sign in with email + OTP
-- Return to existing work
-- Sign out securely
+What you can do:
+- Sign in using email + one-time code
+- Continue where you left off
+- Sign out safely
 
-### Required
-- Valid `@salesforce.com` email for OTP flow
-
-### Common Issues
-- OTP not received -> check email spelling and inbox filtering
-
----
+Tips:
+- Check email spelling if code does not arrive.
 
 ### 2) Home and Project Management
 
-### What You Can Do
-- View all projects
-- Search/sort/filter projects
-- Create project (scratch or AI-assisted path)
-- Open, duplicate, rename, and delete projects
+What you can do:
+- See all projects
+- Search and filter projects
+- Open, duplicate, rename, or delete projects
+- Create new project (manual or AI-assisted)
 
-### Required
-- Project name at creation time
+Best practice:
+- Use clear project names with customer + theme.
 
-### Optional
-- Add metadata early (industry/audience/stage/products) for better recommendations later
+### 3) Setup
 
----
+What this section does:
+- Defines the business context for your demo
 
-### 3) Builder 9-Step Workflow
-
-The core authoring journey is a guided 9-step flow.
-
-### Step 1 - Setup
-Purpose: define project identity and business context.
-
-You can set:
+What to fill:
 - Project name
-- Customer info (name, website, industry)
-- Audience and sales stage
-- Product chips
-- Branding mode (`salesforce`, `customer`, `cobrand`)
-- Presenter details
-- Brand colors and logos
+- Customer name and website
+- Industry
+- Audience (for example: Executive or Technical)
+- Sales stage
+- Products in scope
+- Branding mode and colors
+- Presenter name/title
 
-Use this first if you already know the customer context.
+Why this matters:
+- Better setup = better recommendations and cleaner story.
 
-### Step 2 - Script & Story
-Purpose: turn raw narrative into structured content.
+### 4) Script & Story
 
-You can:
-- Paste script directly
-- Upload supported files (`.txt`, `.md`, `.json`, `.pdf`, `.docx`)
-- Pull script from integrations when available
-- Run extraction for story foundations/personas/acts/signals
+What this section does:
+- Converts your raw script/notes into structured inputs
 
-Best practice: use clear structure in script inputs (customer, persona, journey, value, open questions).
+What you can do:
+- Paste script text
+- Upload document files
+- Run extraction to generate initial demo structure
 
-### Step 3 - Story Foundations
-Purpose: validate and refine the strategic narrative.
+Best inputs include:
+- Customer problem
+- Current pain
+- Future vision
+- Persona
+- Journey sequence
+- Value/outcome targets
 
-You can edit:
+### 5) Story Foundations
+
+What this section does:
+- Creates your strategic narrative spine
+
+Key fields:
 - Business problem
 - Current-state pain
 - Future-state vision
 - Transformation thesis
 - Executive takeaway
 - Value drivers
-- Assumptions and open questions
+- Assumptions/open questions
 
-You can also run **Story Quality Check** here.
+Use **Story Quality Check** here to catch narrative gaps early.
 
-### Step 4 - Recommended Narrative
-Purpose: review AI/parser-derived story pieces and tune relevance.
+### 6) Slide Selection
 
-You can:
-- Validate extracted foundation quality
-- Adjust narrative emphasis for your audience
-- Prepare cleaner input for slide recommendations
+What this section does:
+- Lets you shape the final deck
 
-### Step 5 - Slide Selection
-Purpose: build the deck plan.
-
-You can:
-- Select/deselect recommended slides
-- See required/recommended/optional status
+What you can do:
+- Keep or remove recommended slides
+- See required vs recommended vs optional status
 - Rename slide titles
-- Switch grid/list view
-- Use bulk actions by section
+- Use grid/list views
+- Apply bulk actions
 
-Required slides stay locked so the deck remains structurally complete.
+Tip:
+- Keep the core storyline tight; remove extras only after your story is complete.
 
-### Step 6 - CX Component Links (Optional)
-Purpose: connect live experiences (embeds/URLs) to demo moments.
+### 7) CX Component Links (Optional)
 
-You can:
-- Add component URLs
-- Set component types and frames
-- Link components to specific slides
-- Accept auto-match suggestions and make them explicit
+What this section does:
+- Adds live experience links (for example product screens or flows)
 
-If no URLs are available, you can skip this step.
+What you can do:
+- Add URLs
+- Set frame type
+- Link URLs to specific demo slides
+- Accept auto-match suggestions
 
-### Step 7 - Assets (Optional Uploads)
-Purpose: fill image/media slots used by selected layouts.
+If you have no live links yet, skip this section and continue.
 
-You can:
-- Upload images/media per slot
-- See where each asset is used
+### 8) Assets (Optional)
+
+What this section does:
+- Adds visuals to supported slides
+
+What you can do:
+- Upload images/media to each asset slot
+- See where each image is used
 - Replace or clear uploads
-- Polish pending text inline if needed
+- Polish pending text quickly
 
-If you skip uploads, slides use clean placeholders instead of broken visuals.
+Tip:
+- Pick slides first, then upload only assets those slides actually use.
 
-### Step 8 - Preview
-Purpose: presentation-quality review before export.
+### 9) Preview
 
-You can:
-- Review full deck flow
-- Check missing inputs
-- Open full modal preview
-- Navigate with keyboard
-- Edit slide text inline directly from preview
-- Reorder/remove non-synthetic slides
+What this section does:
+- Gives a realistic final-pass view before export
 
-This is the fastest place for final wording polish.
+What you can do:
+- Review full flow
+- Check for missing inputs
+- Navigate through slides
+- Edit text inline for quick polish
 
-### Step 9 - Export
-Purpose: package your demo for handoff and presenting.
+Tip:
+- Use this step for final language cleanup instead of jumping backward.
 
-You can:
-- Run export readiness checklist
-- Download complete ZIP (recommended)
-- Download/copy config-only output
-- Export even with soft warnings (after confirmation)
+### 10) Export
 
-The ZIP includes helper docs and `CLAUDE_MODIFY.md` for post-export edits.
+What this section does:
+- Packages your finished demo
+
+What you can do:
+- Run export readiness check
+- Download complete demo package (recommended)
+- Export even with warnings (after confirmation)
+
+Before sharing:
+- Replace placeholders (`XX%`, `[TODO: ...]`, etc.)
+- Verify all live links
+- Confirm branding and presenter info
+
+### 11) Feedback
+
+Use the feedback feature to:
+- Report bugs
+- Suggest improvements
+- Share likes/dislikes
+
+Best feedback format:
+- What you did
+- What you expected
+- What happened instead
 
 ---
 
-## Feature Encyclopedia (Simple + Complete)
-
-For each feature: what it is, when to use it, required inputs, common mistake, pro tip.
-
-### OTP Login
-- What: passwordless login using email code
-- When: every session start
-- Required: valid email
-- Common mistake: typo in email
-- Pro tip: verify login first before long editing sessions
-
-### Project Search/Filter
-- What: quickly find specific projects
-- When: large project list
-- Required: none
-- Common mistake: searching with old project name after rename
-- Pro tip: filter by customer + stage for fast narrowing
+## Feature Encyclopedia (Simple, Practical)
 
 ### Script Extraction
-- What: parses script into structured demo ingredients
-- When: starting a new build from notes
-- Required: script text or uploaded file
-- Common mistake: unstructured input causing weak extraction
-- Pro tip: include journey sequence and persona details explicitly
+- What: turns script into structured story data
+- Use when: starting from notes or transcript
+- Needs: script input
+- Common mistake: vague inputs
+- Pro tip: include persona + journey + value in your script
 
 ### Story Quality Check
-- What: error/warning/info checks for narrative completeness
-- When: after extraction and before final export
-- Required: baseline foundations/persona/acts
-- Common mistake: ignoring warnings until last minute
-- Pro tip: run once before slide selection and once before export
+- What: checks completeness and consistency
+- Use when: after extraction and before export
+- Needs: basic foundations
+- Common mistake: waiting until final step
+- Pro tip: run twice (early and final)
 
-### Slide Recommendation + Selection
-- What: proposes and organizes slide plan by section
-- When: after foundations are stable
-- Required: customer context + products + core narrative
-- Common mistake: removing too many context slides for executive audiences
-- Pro tip: keep story spine short, then tailor detail depth
+### Slide Recommendations
+- What: suggests slide structure based on your story
+- Use when: choosing your narrative flow
+- Needs: setup + story basics
+- Common mistake: over-trimming context slides
+- Pro tip: keep must-have story slides first, optimize later
 
-### CX Components
-- What: links live screens/frames into demo flow
-- When: showing real product touchpoints
-- Required: valid URLs
-- Common mistake: forgetting slide linkage
-- Pro tip: set explicit links for critical moments to avoid ambiguity
+### CX Links
+- What: embeds or links live experiences
+- Use when: showing real journey moments
+- Needs: valid URLs
+- Common mistake: not linking URL to the right slide
+- Pro tip: explicitly map mission-critical moments
 
-### Assets
-- What: media slots driven by selected layouts
-- When: visual polish phase
-- Required: files only for slots you care about
-- Common mistake: uploading assets before slide plan is stable
-- Pro tip: pick slides first, then upload only used assets
+### Asset Slots
+- What: image/media placement for selected slides
+- Use when: visual polish phase
+- Needs: uploaded files (optional)
+- Common mistake: uploading too early
+- Pro tip: only upload what selected slides require
 
-### Preview Inline Editing
-- What: direct text edits from preview cards/popovers
-- When: final language polish
-- Required: none
-- Common mistake: jumping backward for tiny copy edits
-- Pro tip: do micro-edits in preview to save time
+### Preview Inline Edits
+- What: quick on-slide wording edits
+- Use when: final polish
+- Needs: none
+- Common mistake: over-editing in earlier steps
+- Pro tip: reserve this for final pass speed
 
-### Export Checklist
-- What: readiness summary before packaging
-- When: final step before ZIP
-- Required: minimal narrative/build completeness
-- Common mistake: treating all warnings as blockers
-- Pro tip: resolve high-impact items first (story gaps, links, major placeholders)
-
-### Feedback
-- What: submit product feedback and triage (admin view)
-- When: reporting bugs/usability ideas
-- Required: short message
-- Common mistake: vague reports without context
-- Pro tip: include step name + action + expected vs actual
+### Export Readiness
+- What: final health check before download
+- Use when: last step
+- Needs: complete enough story
+- Common mistake: ignoring high-impact warnings
+- Pro tip: prioritize story gaps, broken links, and placeholders
 
 ---
 
-## Import, Validation, and Quality
+## Troubleshooting (If You See X, Do Y)
 
-### Accepted Import Formats
-- Raw JSON object
-- JS assignment style (`window.HOLODECK_CONFIG = {...}`)
-- JSON inside markdown fences
-- File upload import (`.js`, `.json`, `.txt`)
+### “Import did not work”
+- Re-run AI with strict JSON output
+- Paste full output (not partial)
+- Retry import
 
-### What Import Tries to Do for You
-- Normalize shape into expected builder state
-- Preserve as much usable content as possible
-- Show warnings/errors for missing or malformed parts
+### “Slides feel too generic”
+- Add clearer business problem, pain, and desired outcome
+- Specify audience and sales stage
+- Add stronger value drivers
 
-### Common Import Issues + Fixes
-- Invalid JSON -> validate syntax and remove trailing commas/comments
-- Missing required arrays/objects -> re-run with complete template
-- Unknown layout names -> use only supported layouts
-- Thin narrative data -> add foundations and acts, then re-import
+### “Live demo link does not load”
+- Confirm URL is reachable
+- Try opening in new tab
+- Replace with fallback link if needed
 
-### Supported Layouts (Use Only These)
-- `hero`
-- `storyFoundation`
-- `currentFutureState`
-- `futureState`
-- `journeyTimeline`
-- `demoMap`
-- `personaCard`
-- `agentConversation`
-- `unifiedProfile`
-- `architecture`
-- `deviceMoment`
-- `embeddedCxComponent`
-- `kpiScorecard`
-- `executiveSummary`
-- `nextSteps`
+### “Images are missing”
+- Re-check uploads
+- Confirm images were attached to the right slot
+- Re-export after changes
+
+### “My updates are not visible”
+- Refresh browser
+- Confirm you exported the newest version
 
 ---
 
-## Preview and Export Guidance
+## Claude Code Prompts for Ongoing Edits
 
-### Builder Preview vs Final Runtime
-- Builder preview helps with fast authoring decisions.
-- Exported runtime is the presentation source of truth.
+Use these copy-paste prompts to keep improving your demo after first export.
 
-### Export Options
-- **Complete ZIP**: full package for presenting/handoff (recommended)
-- **Config-only**: update existing demo environments
+### Prompting Rules (Simple)
+- Ask for small, focused edits
+- Ask for no invented facts
+- Keep unknowns as `[TODO: ...]`
+- Ask for clear change summary
 
-### Presenter Checklist (Before You Present)
-- Replace all placeholder metrics (`XX%`, `+$XX`, etc.)
-- Confirm presenter name/title
-- Verify each CX URL loads and is embeddable
-- Confirm logo/brand approvals
-- Run through all sections once on target device
-
----
-
-## Troubleshooting (By Symptom)
-
-### “Import failed” or “looks incomplete”
-- Confirm output is strict JSON or valid config assignment
-- Re-run prompt with stronger constraints and full context
-- Ensure allowed layouts only
-
-### “Slides look generic”
-- Add sharper business problem/current pain/future vision
-- Add explicit audience and stage
-- Add concrete value drivers and moments
-
-### “Embedded demo does not load”
-- Check URL reachability
-- Verify iframe compatibility
-- Add fallback messaging/link if needed
-
-### “Assets are missing”
-- Verify file paths and uploads
-- Re-check which slots are used by selected slides
-- Re-export after uploads
-
-### “Export works but output isn’t updated”
-- Hard refresh browser
-- Confirm you are opening the latest exported folder
-- Verify config changes were saved before export
-
----
-
-## Claude Code Prompt Library (Copy/Paste)
-
-Use these prompts to make future edits safely and quickly.
-
-### Prompting Principles for This Repo
-- Prefer config-first edits (`demo/holodeck.config.js`) for content changes.
-- Ask for strict JSON/valid JS output.
-- Request minimal, reviewable diffs.
-- Preserve unknown fields.
-- Never invent customer facts; use `[TODO: ...]`.
-- Keep slide layouts within allowed list.
-
-### Template A: Extraction-First Config Generation
+### A) Generate a Full First Draft
 
 ```text
-You are a Salesforce SE generating a Holodeck demo config for this repository.
-
-Return ONE valid JSON object only (no prose, no markdown fences).
+Create a complete Holodeck draft from my inputs.
 
 Requirements:
-- Match the expected shape: project, brand, storyFoundations, personas, storyActs, slideSections, slides, cxComponents, assets, recommendations, buildNotes.
-- Extract story foundations first (businessProblem, currentStatePain, futureStateVision, primaryNarrative, transformationThesis, executiveTakeaway, valueDrivers, assumptions, openQuestions).
-- Build slides across sections in order: intro, journey-map, meet-persona, demo, business-value.
-- Add selectionStatus, selectionRationale, readinessStatus, missingInputs for each slide.
-- Use only allowed layouts from this repo.
-- Do not invent facts. Use [TODO: ...] for unknowns.
-- Stable IDs (persona_1, act_1, slide_1, cx_1, asset_1), contiguous 0-based slide.order.
-- If CX URLs are provided, add cxComponents and at least one linked embeddedCxComponent slide.
+- Build a clear end-to-end story
+- Include setup, persona, story acts, and slide plan
+- Keep outputs realistic and executive-friendly
+- If something is unknown, use [TODO: ...] instead of making it up
 
 Inputs:
-[PASTE CUSTOMER NOTES + SCRIPT + PRODUCTS + AUDIENCE + BRAND + CX URLs]
+[PASTE CUSTOMER CONTEXT + SCRIPT + PRODUCTS + AUDIENCE + GOALS + LINKS]
 ```
 
-### Template B: Targeted Config Modification (Diff-First)
+### B) Make Focused Content Edits
 
 ```text
-Edit only what is requested in demo/holodeck.config.js.
-
-Requested changes:
-- [LIST CHANGES]
+Update only the following parts of my demo:
+- [LIST EXACT CHANGES]
 
 Rules:
-- Preserve existing structure and unknown fields.
-- Keep valid JavaScript assignment to window.HOLODECK_CONFIG.
-- Keep IDs and ordering stable unless explicitly changing them.
-- Use allowed slide layouts only.
-- Do not invent facts; use [TODO: ...] where needed.
-- Keep edits minimal and show a clear diff-style summary.
+- Keep everything else unchanged
+- Do not invent customer facts
+- Use [TODO: ...] when details are missing
+- Return a concise summary of exactly what changed
 ```
 
-### Template C: Validation Fix Prompt
+### C) Fix Validation and Quality Gaps
 
 ```text
-Given this config and these quality/validation issues, make minimal edits to resolve them.
+Review this demo draft and fix only quality gaps:
+- missing story clarity
+- weak value drivers
+- unclear persona relevance
+- missing readiness details
 
-Issues:
-[PASTE ISSUES]
-
-Fix priorities:
-1) Missing story foundations
-2) Persona/story act completeness
-3) Slide readiness and missing inputs
-4) Embedded CX linkage correctness
-5) Placeholder cleanup where possible
-
-Constraints:
-- Keep narrative intent
-- Preserve structure
-- Do not rewrite unrelated sections
-- Return updated config content only
+Do not rewrite unrelated sections.
+Keep structure intact.
 ```
 
-### Template D: Script-to-Config Conversion
+### D) Improve Story for Executive Audience
 
 ```text
-Convert this script into a builder-importable config JSON for this repository.
+Rewrite this demo copy for executive clarity.
 
-Must include:
-- 1+ persona
-- 3-4 story acts
-- 5-8 slides minimum
-- valueDrivers (3+)
-- assumptions and openQuestions
-- sectioned slide plan (intro, journey-map, meet-persona, demo, business-value)
+Goals:
+- shorter, sharper language
+- business outcomes first
+- confident but realistic tone
 
-No invented facts. Use [TODO: ...] placeholders when uncertain.
-
-Script:
-[PASTE SCRIPT]
+Do not add invented metrics.
+Use [TODO: ...] where needed.
 ```
 
-### Template E: Asset / CX Binding Update
+### E) Update Assets and Live Links
 
 ```text
-Update the config to bind these new assets and CX URLs to the right slides.
+Apply these updates:
+- assets: [LIST]
+- live links: [LIST]
 
-Assets:
-[LIST FILES + TARGET SLIDES]
-
-CX URLs:
-[LIST URL + TYPE + TARGET SLIDE OR ACT]
-
-Rules:
-- Keep existing slide structure unless linkage requires a minimal addition.
-- For commerce/web use desktop frame; for SMS/agent use mobile frame unless specified.
-- Ensure embeddedCxComponent slides are linked explicitly.
-- Return only config changes.
+Ensure each item is mapped to the correct demo moment.
+Keep all existing structure unless a minimal change is needed.
 ```
 
-### Template F: UX Copy Polish
+### F) Final Gate Before Sharing
 
 ```text
-Polish copy for executive clarity and brevity without changing storyline.
+Run a final review and return PASS or FAIL.
 
-Scope:
-- [LIST SLIDES OR SECTIONS]
+Check:
+- no obvious placeholders left
+- story is coherent end-to-end
+- links are mapped correctly
+- messaging fits the target audience
 
-Rules:
-- Keep tone concise and outcome-oriented
-- No invented metrics
-- Preserve meaning and structure
-- Mark unknown specifics with [TODO: ...]
+If FAIL, provide only the smallest required fixes.
 ```
 
-### Template G: Export Troubleshooting
+### Good vs Weak Prompt
 
-```text
-Diagnose this export/run issue using this repository's runtime expectations.
+Good:
+“Update only the executive summary and value slides for Acme, keep all other sections unchanged, and keep unknown metrics as `[TODO: ...]`.”
 
-Context:
-- Error: [PASTE]
-- Steps performed: [PASTE]
-- Environment: [localhost URL or other]
-
-Please provide:
-1) Likely root cause
-2) Exact remediation steps
-3) Whether fix is config-only or runtime/template-level
-4) Minimal safe fix
-```
-
-### Template H: Validation Gate Prompt (Final Pass)
-
-```text
-Review this config as a final gate and return pass/fail with concise fixes.
-
-Checklist:
-- Valid JSON/JS structure for import/runtime
-- Allowed layouts only
-- Section ordering and slide order integrity
-- selectionStatus/readinessStatus/missingInputs consistency
-- CX components linked correctly
-- Placeholder inventory ([TODO:], XX%, +$XX)
-- No invented customer facts
-
-Output:
-- PASS or FAIL
-- If FAIL: numbered minimal fixes
-```
+Weak:
+“Make this whole demo better.”
 
 ---
 
-## Good Prompt vs Weak Prompt
+## Glossary (Plain English)
 
-### Good
-“Update only `demo/holodeck.config.js` to rebrand for Acme, keep slide structure unchanged, use `[TODO: ...]` for unknown metrics, and show a minimal diff summary.”
-
-Why good: scoped, safe, and compatible with repo behavior.
-
-### Weak
-“Rewrite the whole demo to be better.”
-
-Why weak: ambiguous, high risk of breaking structure, likely to invent facts.
-
----
-
-## Glossary (Non-Technical Friendly)
-
-- **Builder**: the guided UI for creating/editing demos.
-- **Config**: the structured data file that powers all content.
-- **Story Foundations**: your business problem, pain, vision, and value backbone.
-- **Persona**: the featured end-user/customer character in the story.
-- **Story Acts**: key moments in the customer journey.
-- **Slide Layout**: predefined visual format a slide uses.
-- **CX Component**: a live or linked external experience shown in the demo.
-- **Readiness Status**: signal showing if a slide is presentation-ready.
-- **Missing Inputs**: required details still needed for a strong output.
-- **Placeholder**: temporary text like `[TODO: ...]`, `XX%`, or `+$XX`.
-- **Preview**: in-builder quality check view before export.
-- **Export ZIP**: complete packaged demo for sharing and presenting.
+- **Persona**: the main customer character in your story
+- **Story Acts**: the major moments in the journey
+- **Slide Recommendation**: system-suggested slide choices based on your content
+- **CX Link**: a live URL shown during the demo
+- **Asset Slot**: a place where an image/media file can be added
+- **Readiness**: whether a slide is presentation-ready
+- **Placeholder**: temporary text like `[TODO: ...]` or `XX%`
+- **Export Package**: the final downloadable demo bundle
 
 ---
 
 ## What Changed Recently (Usability)
 
-Recent updates emphasize smoother AI onboarding:
-- Dedicated AI Prompt tour segment
-- One-time auto-tour behavior with replay option
-- Clearer “Import AI response” action language
-- Better guidance that schema is already included in the prompt
-
-These changes make first-time AI-assisted setup easier while keeping manual/script-first workflows fully supported.
+Recent improvements make AI-assisted setup easier:
+- Dedicated AI onboarding tour
+- Replay option with **Take the tour again**
+- Clearer **Import AI response** wording
+- Better guidance that the prompt already includes needed schema context
 
