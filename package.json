@@ -4,7 +4,8 @@
   "private": true,
   "description": "Static host for Holodeck demo and builder",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check:shared": "cmp builder/holodeck-shared.js demo/js/holodeck-shared.js && echo 'holodeck-shared.js copies are in sync'"
   },
   "engines": {
     "node": ">=20 <23"

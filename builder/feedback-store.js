@@ -15,8 +15,10 @@
 (function (global) {
   "use strict";
 
-  // Same Data API base as project-store.js. See memory: neon-multiuser-backend.
-  const DATA_API = "https://ep-round-hill-ajwf0r6a.apirest.c-3.us-east-2.aws.neon.tech/neondb/rest/v1";
+  // Same Data API base as project-store.js. Sourced from HOLO_STORE so the
+  // base lives in one place; the literal is a load-order fallback only.
+  const DATA_API = (global.HOLO_STORE && global.HOLO_STORE.DATA_API) ||
+    "https://ep-round-hill-ajwf0r6a.apirest.c-3.us-east-2.aws.neon.tech/neondb/rest/v1";
 
   // The single admin who can read/triage all feedback (UI gating only;
   // the RLS policy app.is_feedback_admin() is authoritative server-side).
@@ -27,37 +29,44 @@
 
   const AUTH = function () { return global.HOLO_AUTH; };
 
-  // Stable, URL-safe id (mirrors project-store's uid()).
+  // Stable, URL-safe id. Delegates to project-store's uid (identical output
+  // to STORE.uid("f_")); inline fallback keeps this module independent.
   function uid() {
+    if (global.HOLO_STORE && global.HOLO_STORE.uid) return global.HOLO_STORE.uid("f_");
     return "f_" + Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
   }
 
-  // Authenticated PostgREST fetch — same shape as project-store.js dataFetch.
-  function dataFetch(path, opts) {
-    opts = opts || {};
-    const auth = AUTH();
-    return (auth ? auth.getToken() : Promise.resolve(null)).then(function (token) {
-      if (!token) throw new Error("Not authenticated");
-      const headers = Object.assign({
-        "Authorization": "Bearer " + token,
-        "Content-Type": "application/json",
-      }, opts.headers || {});
-      const init = { method: opts.method || "GET", headers: headers };
-      if (opts.body != null) init.body = JSON.stringify(opts.body);
-      return fetch(DATA_API + path, init).then(function (res) {
-        return res.text().then(function (text) {
-          let json = null;
-          try { json = text ? JSON.parse(text) : null; } catch (e) { /* ignore */ }
-          if (!res.ok) {
-            const err = new Error((json && (json.message || json.hint)) || ("Data API " + res.status));
-            err.status = res.status;
-            throw err;
-          }
-          return json;
+  // Authenticated PostgREST fetch. Reuses project-store's shared factory
+  // (offlineFlag:false → a plain "Not authenticated" Error, since feedback
+  // is fire-and-forget with no offline cache). Inline impl is the
+  // load-order fallback and preserves the exact prior behavior.
+  const dataFetch = (global.HOLO_STORE && global.HOLO_STORE.makeDataFetch)
+    ? global.HOLO_STORE.makeDataFetch({ offlineFlag: false })
+    : function (path, opts) {
+        opts = opts || {};
+        const auth = AUTH();
+        return (auth ? auth.getToken() : Promise.resolve(null)).then(function (token) {
+          if (!token) throw new Error("Not authenticated");
+          const headers = Object.assign({
+            "Authorization": "Bearer " + token,
+            "Content-Type": "application/json",
+          }, opts.headers || {});
+          const init = { method: opts.method || "GET", headers: headers };
+          if (opts.body != null) init.body = JSON.stringify(opts.body);
+          return fetch(DATA_API + path, init).then(function (res) {
+            return res.text().then(function (text) {
+              let json = null;
+              try { json = text ? JSON.parse(text) : null; } catch (e) { /* ignore */ }
+              if (!res.ok) {
+                const err = new Error((json && (json.message || json.hint)) || ("Data API " + res.status));
+                err.status = res.status;
+                throw err;
+              }
+              return json;
+            });
+          });
         });
-      });
-    });
-  }
+      };
 
   function currentEmail() {
     const auth = AUTH();

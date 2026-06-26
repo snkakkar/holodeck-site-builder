@@ -551,5 +551,9 @@
     clearCache: clearCache,
     reconcile: reconcile,
     uid: uid,
+    // Shared by feedback-store so the authenticated PostgREST client lives
+    // in one place. DATA_API is the single source of the Data API base.
+    makeDataFetch: makeDataFetch,
+    DATA_API: DATA_API,
   };
 })(window);
