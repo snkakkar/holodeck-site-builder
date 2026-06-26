@@ -1,0 +1,15 @@
+{
+  "name": "holodeck-demo-builder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static host for Holodeck demo and builder",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20 <23"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
