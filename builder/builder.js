@@ -26,6 +26,7 @@
   const ZIP       = window.HOLO_ZIP;
   const AUBREY    = window.HOLO_AUBREY;
   const AUTH      = window.HOLO_AUTH;
+  const FEEDBACK  = window.HOLO_FEEDBACK;
 
   // ─── App-level constants ──────────────────────────────────────
   // 8-step guided flow. Story used to be one step doing three things
@@ -157,6 +158,13 @@
       render();
     });
   }
+  function goFeedback() {
+    const save = (app.view === "builder" && app.state) ? saveActive() : Promise.resolve();
+    save.then(function () {
+      app.view = "feedback";
+      render();
+    });
+  }
   function newProject() {
     STORE.createProject({}).then(function (state) {
       app.state = state;
@@ -207,6 +215,7 @@
     // Right-side nav
     [
       ["home",     "Home",      function () { goHome(); }],
+      ["feedback", "Feedback",  function () { goFeedback(); }],
     ].forEach(function (n) {
       const isActive = (app.view === n[0]);
       right.appendChild(el("button", {
@@ -292,6 +301,15 @@
       const wrap = el("section", { class: "bx-page", id: "bxPage" });
       shell.appendChild(wrap);
       renderAiPromptPage(wrap);
+      setSaveIndicator(false);
+      return;
+    }
+
+    if (app.view === "feedback") {
+      shell.classList.add("is-single");
+      const wrap = el("section", { class: "bx-page", id: "bxPage" });
+      shell.appendChild(wrap);
+      renderFeedbackPage(wrap);
       setSaveIndicator(false);
       return;
     }
@@ -3401,6 +3419,222 @@
     ]));
     container.appendChild(exCard);
 
+  }
+
+  // ─── Feedback view ────────────────────────────────────────────
+  // One page, two roles. Everyone gets the submit form; the admin
+  // (gated by HOLO_FEEDBACK.isAdmin(), authoritative check is RLS)
+  // also gets the triage inbox below it.
+  const FEEDBACK_TYPE_LABELS = {
+    like: "👍 Like", dislike: "👎 Don't like",
+    bug: "🐞 Bug / ticket", complaint: "⚠️ Complaint",
+  };
+  const FEEDBACK_STATUS_LABELS = {
+    new: "New", in_progress: "In progress", resolved: "Resolved",
+  };
+
+  function renderFeedbackPage(container) {
+    container.innerHTML = "";
+    container.appendChild(stepHeader(
+      "Feedback",
+      "Tell us what's working — and what isn't",
+      "Share what you like, what you don't, or log a bug, ticket, or complaint. The team reads every note."
+    ));
+
+    // Admin sees the triage inbox first (top of the page), then the form.
+    // Everyone else just gets the form.
+    if (FEEDBACK && FEEDBACK.isAdmin()) {
+      renderFeedbackInbox(container);
+    }
+
+    renderFeedbackForm(container);
+  }
+
+  function renderFeedbackForm(container) {
+    const card = el("div", { class: "bx-card" });
+    card.appendChild(el("div", { class: "bx-card-title", text: "Send feedback" }));
+    card.appendChild(el("div", { class: "bx-card-sub", text: "Your email and the time are attached automatically." }));
+
+    const form = el("div", { class: "bx-feedback-form" });
+
+    // Type — chip-style radio group.
+    form.appendChild(el("label", { class: "bx-feedback-flabel", text: "Type" }));
+    const typeRow = el("div", { class: "bx-feedback-types" });
+    const state = { type: "", rating: 0 };
+    FEEDBACK.TYPES.forEach(function (t) {
+      const chip = el("button", {
+        class: "bx-feedback-type-chip",
+        type: "button",
+        text: FEEDBACK_TYPE_LABELS[t] || t,
+      });
+      chip.addEventListener("click", function () {
+        state.type = t;
+        Array.prototype.forEach.call(typeRow.children, function (c) { c.classList.remove("is-active"); });
+        chip.classList.add("is-active");
+      });
+      typeRow.appendChild(chip);
+    });
+    form.appendChild(typeRow);
+
+    // Message.
+    form.appendChild(el("label", { class: "bx-feedback-flabel", text: "Message" }));
+    const message = el("textarea", {
+      class: "bx-textarea",
+      placeholder: "What happened, what you'd change, or what you liked…",
+    });
+    form.appendChild(message);
+
+    // Rating — optional 1–5 stars.
+    form.appendChild(el("label", { class: "bx-feedback-flabel", text: "Rating (optional)" }));
+    const stars = el("div", { class: "bx-feedback-stars" });
+    function paintStars() {
+      Array.prototype.forEach.call(stars.children, function (s, i) {
+        s.classList.toggle("is-on", i < state.rating);
+      });
+    }
+    for (let i = 1; i <= 5; i++) {
+      (function (val) {
+        const star = el("button", { class: "bx-feedback-star", type: "button", text: "★" });
+        star.addEventListener("click", function () {
+          state.rating = (state.rating === val) ? 0 : val; // click same star again clears
+          paintStars();
+        });
+        stars.appendChild(star);
+      })(i);
+    }
+    form.appendChild(stars);
+
+    // Context — optional.
+    form.appendChild(el("label", { class: "bx-feedback-flabel", text: "Where / context (optional)" }));
+    const context = el("input", {
+      class: "bx-input",
+      type: "text",
+      placeholder: "e.g. the Recommendations step, or a specific demo",
+    });
+    form.appendChild(context);
+
+    // Submit.
+    const submitBtn = btn("Send feedback", "bx-btn-primary", function () {
+      submitBtn.disabled = true;
+      FEEDBACK.submit({
+        type: state.type,
+        message: message.value,
+        rating: state.rating,
+        context: context.value,
+      }).then(function () {
+        toast("Thanks — your feedback was sent");
+        // Reset the form.
+        state.type = ""; state.rating = 0;
+        Array.prototype.forEach.call(typeRow.children, function (c) { c.classList.remove("is-active"); });
+        message.value = ""; context.value = ""; paintStars();
+      }).catch(function (err) {
+        toast(err && err.message ? err.message : "Couldn't send — try again");
+      }).then(function () {
+        submitBtn.disabled = false;
+      });
+    });
+    form.appendChild(el("div", { class: "bx-row bx-mt-12" }, [submitBtn]));
+
+    card.appendChild(form);
+    container.appendChild(card);
+  }
+
+  function renderFeedbackInbox(container) {
+    const card = el("div", { class: "bx-card" });
+    card.appendChild(el("div", { class: "bx-card-title", text: "Feedback inbox (admin)" }));
+    card.appendChild(el("div", { class: "bx-card-sub", text: "All submissions. Filter, then mark each as triaged." }));
+
+    const filter = { type: "", status: "" };
+
+    // Filter bar.
+    const bar = el("div", { class: "bx-feedback-filters" });
+    function selectFilter(label, key, options, labels) {
+      const sel = el("select", { class: "bx-select" });
+      sel.appendChild(el("option", { value: "", text: label }));
+      options.forEach(function (o) {
+        sel.appendChild(el("option", { value: o, text: labels[o] || o }));
+      });
+      sel.addEventListener("change", function () { filter[key] = sel.value; renderRows(); });
+      return sel;
+    }
+    bar.appendChild(selectFilter("All types", "type", FEEDBACK.TYPES, FEEDBACK_TYPE_LABELS));
+    bar.appendChild(selectFilter("All statuses", "status", FEEDBACK.STATUSES, FEEDBACK_STATUS_LABELS));
+    card.appendChild(bar);
+
+    const listHost = el("div", { class: "bx-feedback-list" });
+    card.appendChild(listHost);
+    container.appendChild(card);
+
+    let allRows = [];
+
+    function fmtDate(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return String(iso);
+      return d.toLocaleString();
+    }
+
+    function renderRows() {
+      listHost.innerHTML = "";
+      const rows = allRows.filter(function (r) {
+        if (filter.type && r.type !== filter.type) return false;
+        if (filter.status && r.status !== filter.status) return false;
+        return true;
+      });
+      if (!rows.length) {
+        listHost.appendChild(el("div", { class: "bx-feedback-empty", text: "No feedback yet." }));
+        return;
+      }
+      rows.forEach(function (r) {
+        const row = el("div", { class: "bx-feedback-row" });
+
+        const head = el("div", { class: "bx-feedback-row-head" }, [
+          el("span", { class: "bx-feedback-type-tag bx-feedback-type-" + r.type, text: FEEDBACK_TYPE_LABELS[r.type] || r.type }),
+          el("span", { class: "bx-feedback-row-email", text: r.submitter_email || "" }),
+          r.rating ? el("span", { class: "bx-feedback-row-rating", text: "★".repeat(r.rating) }) : null,
+          el("span", { class: "bx-feedback-row-date", text: fmtDate(r.created_at) }),
+        ]);
+        row.appendChild(head);
+
+        row.appendChild(el("div", { class: "bx-feedback-row-msg", text: r.message || "" }));
+        if (r.context) {
+          row.appendChild(el("div", { class: "bx-feedback-row-context", text: "Context: " + r.context }));
+        }
+
+        // Status control.
+        const statusSel = el("select", { class: "bx-select bx-feedback-status-sel" });
+        FEEDBACK.STATUSES.forEach(function (s) {
+          const opt = el("option", { value: s, text: FEEDBACK_STATUS_LABELS[s] || s });
+          if (r.status === s) opt.setAttribute("selected", "selected");
+          statusSel.appendChild(opt);
+        });
+        statusSel.addEventListener("change", function () {
+          const next = statusSel.value;
+          statusSel.disabled = true;
+          FEEDBACK.setStatus(r.id, next).then(function () {
+            r.status = next;
+            toast("Status updated");
+          }).catch(function (err) {
+            statusSel.value = r.status; // revert on failure
+            toast(err && err.message ? err.message : "Couldn't update status");
+          }).then(function () {
+            statusSel.disabled = false;
+          });
+        });
+        row.appendChild(el("div", { class: "bx-feedback-row-foot" }, [
+          el("span", { class: "bx-feedback-row-foot-label", text: "Status" }),
+          statusSel,
+        ]));
+
+        listHost.appendChild(row);
+      });
+    }
+
+    listHost.appendChild(el("div", { class: "bx-feedback-empty", text: "Loading…" }));
+    FEEDBACK.listAll().then(function (rows) {
+      allRows = rows || [];
+      renderRows();
+    });
   }
 
   // ─── New-project chooser ──────────────────────────────────────
