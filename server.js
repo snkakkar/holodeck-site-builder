@@ -8,7 +8,11 @@ const rootDir = __dirname;
 app.use(express.static(rootDir, { extensions: ["html"] }));
 
 app.get("/", (_req, res) => {
-  res.sendFile(path.join(rootDir, "index.html"));
+  res.redirect(302, "/builder/");
+});
+
+app.get("/demo/", (_req, res) => {
+  res.redirect(302, "/builder/");
 });
 
 app.listen(port, () => {
