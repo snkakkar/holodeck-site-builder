@@ -107,7 +107,14 @@
     // localStorage quota is exhausted. Surface it once so the user isn't
     // left believing autosave succeeded when the device cache didn't take.
     if (p && typeof p.then === "function") {
-      p.catch(function () { /* network/dirty-queue handled in store */ });
+      p.then(function () {
+        // saveProject resolves even when the Neon write-through failed (it
+        // queues the row dirty and retries later). Surface it softly: the work
+        // IS saved on this device, it just hasn't reached the server yet.
+        if (STORE.lastSyncFailed && STORE.lastSyncFailed()) {
+          toast("Saved on this device — will sync when you're back online.");
+        }
+      }).catch(function () { /* network/dirty-queue handled in store */ });
     }
     if (STORE.lastCacheWriteFailed && STORE.lastCacheWriteFailed()) {
       toast("Couldn't save locally — storage may be full.");
@@ -5420,13 +5427,30 @@
   }
 
   function signOut() {
-    AUTH.signOut()
-      .then(function () { return STORE.clearCache(); })
-      .then(function () {
-        app.view = "login";
-        app.state = null;
-        render();
-      });
+    // The local session must end and the UI must land on login regardless of
+    // whether the network sign-out or cache-clear succeeds. We (1) guard each
+    // async step so a rejection can't strand the chain, and (2) wrap the whole
+    // thing in try/catch so a synchronous throw (e.g. AUTH/STORE somehow
+    // undefined) still flips the view. toLogin() is the single transition.
+    function toLogin() {
+      app.view = "login";
+      app.state = null;
+      try { render(); } catch (e) {
+        if (typeof console !== "undefined" && console.warn) console.warn("[holo] sign-out render failed:", e);
+      }
+    }
+    try {
+      const signedOut = (AUTH && AUTH.signOut) ? AUTH.signOut() : Promise.resolve();
+      Promise.resolve(signedOut)
+        .catch(function () { /* AUTH.signOut already clears locally on error */ })
+        .then(function () { return (STORE && STORE.clearCache) ? STORE.clearCache() : null; })
+        .catch(function () { /* cache clear is best-effort */ })
+        .then(toLogin)
+        .catch(toLogin); // final guard: never skip the view flip
+    } catch (e) {
+      if (typeof console !== "undefined" && console.warn) console.warn("[holo] sign-out failed:", e);
+      toLogin();
+    }
   }
 
   // ─── Boot ─────────────────────────────────────────────────────

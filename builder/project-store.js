@@ -90,6 +90,29 @@
     writeJSON(KEY_DIRTY, getDirty().filter(function (x) { return x !== id; }));
   }
 
+  // Merge any locally-known dirty projects (saved here but never confirmed by
+  // Neon) into a fresh server summary list, so a refresh of the index can't
+  // erase a project whose server upsert failed. Server rows win on id; dirty
+  // ids the server didn't return are appended from the local body. When there
+  // are zero dirty rows this returns the server list unchanged (identity for
+  // the common healthy case).
+  function mergeDirtyIntoSummaries(serverSummaries) {
+    const dirty = getDirty();
+    if (!dirty.length) return serverSummaries;
+    const present = {};
+    serverSummaries.forEach(function (s) { present[s.id] = true; });
+    const extras = [];
+    dirty.forEach(function (id) {
+      if (present[id]) return;                 // server already has it; not lost
+      const state = readJSON(KEY_PREFIX + id, null);
+      if (!state) return;                       // dirty body gone (e.g. deleted) — skip
+      state.id = id;
+      extras.push(summaryFromState(state));
+    });
+    if (!extras.length) return serverSummaries;
+    return serverSummaries.concat(extras);
+  }
+
   // ─── Pure derivations (unchanged, synchronous) ─────────────────
   function summaryFromState(state) {
     const project = state.project || {};
@@ -149,12 +172,14 @@
   // localStorage quota (writeJSON returns false). Lets the UI surface a
   // silent local-save failure instead of falsely showing "Autosaved".
   let _lastCacheWriteFailed = false;
+  let _lastSyncFailed = false; // last saveProject couldn't reach Neon (saved locally, queued dirty)
   function cacheWrite(state) {
     const ok = writeJSON(KEY_PREFIX + state.id, state);
     _lastCacheWriteFailed = !ok;
     upsertIndex(summaryFromState(state));
   }
   function lastCacheWriteFailed() { return _lastCacheWriteFailed; }
+  function lastSyncFailed() { return _lastSyncFailed; }
   function cacheDelete(id) {
     removeFromIndex(id);
     remove(KEY_PREFIX + id);
@@ -249,9 +274,13 @@
         "&select=id,name,summary,visibility,created_at,updated_at&order=updated_at.desc")
         .then(function (rows) {
           const summaries = (rows || []).map(rowToSummary);
-          // Refresh the cache index so offline reads stay current.
-          setIndex(summaries);
-          return summaries;
+          // Refresh the cache index so offline reads stay current — but do NOT
+          // drop projects that exist locally yet never reached Neon (dirty
+          // rows), or a failed-to-sync project would vanish from the home list
+          // for good. Re-attach each dirty id the server didn't return.
+          const merged = mergeDirtyIntoSummaries(summaries);
+          setIndex(merged);
+          return merged;
         });
     },
     loadProject: function (id) {
@@ -318,11 +347,13 @@
     if (!state.createdAt) state.createdAt = now;
     state.updatedAt = now;
 
+    _lastSyncFailed = false;
     cacheWrite(state); // synchronous, never lost
 
     if (!online()) return Promise.resolve(state.id);
     return NeonBackend.saveProject(state).catch(function () {
       markDirty(state.id);
+      _lastSyncFailed = true; // saved locally, will retry via flushDirty
       return state.id;
     });
   }
@@ -558,6 +589,7 @@
     reconcile: reconcile,
     uid: uid,
     lastCacheWriteFailed: lastCacheWriteFailed,
+    lastSyncFailed: lastSyncFailed,
     // Shared by feedback-store so the authenticated PostgREST client lives
     // in one place. DATA_API is the single source of the Data API base.
     makeDataFetch: makeDataFetch,
