@@ -161,6 +161,15 @@ button { font-family: inherit; }
 }
 .bx-btn-link:hover { text-decoration: underline; }
 .bx-btn.is-loading { opacity: 0.7; pointer-events: none; cursor: progress; }
+.bx-btn.is-block { display: block; width: 100%; text-align: center; }
+
+/* Text-style link button (resend code, change email, etc.). */
+.bx-link {
+  background: transparent; border: none;
+  color: var(--bx-action); font-weight: 600; font-size: 13px;
+  cursor: pointer; padding: 4px 0; text-align: left;
+}
+.bx-link:hover { text-decoration: underline; }
 
 .bx-icon-btn {
   width: 32px; height: 32px;
@@ -332,6 +341,10 @@ button { font-family: inherit; }
 .bx-label .bx-help-inline {
   font-weight: 500; color: var(--bx-ink-3); margin-left: 6px; font-size: 11px;
 }
+.bx-field-label {
+  font-size: 12px; font-weight: 700; color: var(--bx-navy);
+  letter-spacing: 0.02em;
+}
 .bx-input, .bx-select, .bx-textarea {
   font-family: var(--bx-font-sans);
   font-size: 13px;
@@ -396,7 +409,8 @@ button { font-family: inherit; }
   overflow: hidden;
   display: flex; align-items: center; justify-content: center;
 }
-.bx-asset-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bx-asset-img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
+.bx-asset-img:focus-visible { outline: 2px solid var(--bx-blue, #2f6df6); outline-offset: 2px; }
 .bx-asset-thumb-placeholder {
   font-size: 11px;
   color: var(--bx-ink-3, #98a1b1);
@@ -409,6 +423,11 @@ button { font-family: inherit; }
 .bx-asset-help {
   font-size: 12px; color: var(--bx-ink-2);
   margin-top: 2px; line-height: 1.45;
+}
+.bx-asset-note {
+  font-size: 11.5px; color: var(--bx-ink-2);
+  margin-top: 4px; line-height: 1.4;
+  font-style: italic;
 }
 .bx-asset-usedby {
   font-size: 11.5px; color: var(--bx-ink-2);
@@ -427,24 +446,15 @@ button { font-family: inherit; }
 }
 .bx-asset-controls .bx-file-input { max-width: 180px; }
 
-/* Compact "Generate with AI" pill used beside the asset uploader. */
-.bx-asset-ai {
-  display: inline-flex; align-items: center; gap: 5px;
-  white-space: nowrap;
-  font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em;
-  padding: 6px 12px; height: 30px;
-  border-radius: var(--bx-radius-pill);
-  border: 1px solid rgba(26, 95, 160, 0.30);
-  background: var(--bx-action-soft); color: var(--bx-action);
-  cursor: pointer; transition: all 0.15s ease;
-}
-.bx-asset-ai:hover:not(:disabled) { background: rgba(26, 95, 160, 0.14); border-color: var(--bx-action); }
-.bx-asset-ai:disabled { opacity: 0.6; cursor: progress; }
-.bx-asset-ai .bx-ai-spark { font-size: 12px; line-height: 1; }
+/* "Generate with AI" buttons reuse the canonical .bx-btn .bx-btn-ghost
+   pill so they match every other button; this only aligns the spark
+   glyph with the label. */
+.bx-ai-btn { display: inline-flex; align-items: center; gap: 6px; }
+.bx-ai-btn .bx-ai-spark { font-size: 13px; line-height: 1; }
+.bx-ai-btn:disabled { opacity: 0.6; cursor: progress; }
 
 /* "Generate all" lives in its own bar above the footer. */
 .bx-asset-genall { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.bx-asset-genall .bx-asset-ai { height: 34px; font-size: 12px; padding: 8px 16px; }
 
 /* Step 7 · Pending-text inline editors */
 .bx-pending-row {
@@ -998,6 +1008,16 @@ button { font-family: inherit; }
 .bx-modal-body {
   padding: var(--bx-sp-5);
   overflow-y: auto;
+}
+/* Asset lightbox — modal sizes to the image rather than the default width. */
+.bx-modal-card.bx-asset-lightbox { max-width: 90vw; width: auto; }
+.bx-asset-lightbox .bx-lightbox-body { text-align: center; }
+.bx-lightbox-img {
+  display: block;
+  max-width: 86vw; max-height: 78vh;
+  object-fit: contain;
+  margin: 0 auto;
+  border-radius: var(--bx-radius-s);
 }
 /* Guided hint modal (theme 10) */
 .bx-modal-card.bx-guide { max-width: 520px; }
@@ -2230,6 +2250,22 @@ button { font-family: inherit; }
   box-shadow: var(--bx-shadow);
 }
 .bx-firstrun-mark { font-size: 36px; line-height: 1; }
+
+/* Passwordless sign-in card — sits centered on the app background and
+   uses the same card surface as the rest of the builder. */
+.bx-login-card {
+  max-width: 420px;
+  margin: 64px auto;
+  display: flex; flex-direction: column; gap: var(--bx-sp-3);
+  background: var(--bx-card);
+  border: 1px solid var(--bx-line);
+  border-radius: var(--bx-radius);
+  box-shadow: var(--bx-shadow);
+  padding: var(--bx-surface-pad-lg);
+  text-align: center;
+}
+.bx-login-card .bx-field { text-align: left; }
+.bx-login-card .bx-link { align-self: center; text-align: center; }
 .bx-firstrun-title {
   font-family: var(--bx-font-serif);
   font-size: 30px; font-weight: 700; color: var(--bx-navy);

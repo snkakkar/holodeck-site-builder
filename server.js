@@ -191,6 +191,57 @@ app.post("/api/gemini/generate-image", async (req, res) => {
   }
 });
 
+// ── Real brand logo proxy ──────────────────────────────────────
+// Query: ?domain=<bare domain, e.g. salesforce.com>
+// Fetches the REAL brand logo/icon from a public service so the
+// builder can use the genuine mark instead of an AI-invented one.
+// Done server-side because these services aren't guaranteed to send
+// CORS headers for a browser fetch; same-origin keeps it simple.
+// Tries Clearbit (full transparent-PNG logo, when reachable) first,
+// then DuckDuckGo's icon service (largest real favicon), then
+// Google's favicon service at a high size — falling back through the
+// list until one returns a real image. Streams the bytes back with
+// the upstream mime type. On a complete miss the client falls back
+// to AI generation.
+app.get("/api/logo", async (req, res) => {
+  const raw = typeof req.query.domain === "string" ? req.query.domain : "";
+  // Normalize to a bare host: strip protocol, path, and a leading www.
+  const domain = raw
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/.*$/, "")
+    .replace(/^www\./i, "")
+    .toLowerCase();
+  if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+    return res.status(400).json({ error: "a valid domain is required" });
+  }
+
+  const sources = [
+    `https://logo.clearbit.com/${encodeURIComponent(domain)}?size=512`,
+    `https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`,
+    `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=256`,
+  ];
+
+  for (const src of sources) {
+    try {
+      const upstream = await fetch(src, { redirect: "follow" });
+      if (!upstream.ok) continue;
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      // Skip trivially-blank / placeholder responses (a real icon is
+      // comfortably larger than ~150 bytes; a 1px transparent gif is not).
+      if (buf.length < 150) continue;
+      const type = upstream.headers.get("content-type") || "image/png";
+      if (!/^image\//i.test(type)) continue;
+      res.set("Content-Type", type);
+      res.set("Cache-Control", "public, max-age=86400");
+      return res.send(buf);
+    } catch (_) {
+      // Try the next source.
+    }
+  }
+  return res.status(404).json({ error: `No logo found for ${domain}` });
+});
+
 app.use(express.static(rootDir, { extensions: ["html"] }));
 
 app.listen(port, () => {

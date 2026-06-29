@@ -39,8 +39,8 @@
     { id: "setup",       num: "3",  label: "Setup",                 help: "Customer, audience, products" },
     { id: "foundations", num: "4",  label: "Story Foundations",     help: "Review what was extracted" },
     { id: "recs",        num: "5",  label: "Slide Selection",       help: "Customize the slide plan by section" },
-    { id: "cx",          num: "6",  label: "CX Components",         help: "Optionally embed live web screens (AubreyDemo or any URL)" },
-    { id: "assets",      num: "7",  label: "Assets",                help: "Upload images for the slides you selected (optional)" },
+    { id: "assets",      num: "6",  label: "Assets",                help: "Upload images for the slides you selected (optional)" },
+    { id: "cx",          num: "7",  label: "CX Components",         help: "Optionally embed live web screens (AubreyDemo or any URL)" },
     { id: "preview",     num: "8",  label: "Preview",               help: "Review the full demo before exporting" },
     { id: "export",      num: "9",  label: "Export",                help: "Download the complete demo ZIP" },
   ];
@@ -535,6 +535,17 @@
       if (!foundationsHaveContent && !hasSelections && !slideCount) return locked("Review Story Foundations first");
       if (!slideCount) return st("review-needed", "Build slide plan");
       return st("complete", slideCount + " slides selected");
+    }
+    if (id === "assets") {
+      const relevant = relevantAssetItems(s);
+      if (relevant.length === 0) return st("optional", "No assets needed");
+      const filled = relevant.filter(function (it) {
+        if (it.slot === "brand.logoPath") return !!(s.brand && s.brand.logoPath);
+        return !!(s.assetLibrary && s.assetLibrary[it.slot]);
+      }).length;
+      if (filled === 0) return st("optional", "Optional");
+      if (filled < relevant.length) return st("review-needed", filled + " of " + relevant.length + " added");
+      return st("complete", "All assets added");
     }
     if (id === "preview") {
       if (!slideCount) return locked("Build a slide plan first");
@@ -1678,7 +1689,7 @@
   function viewCxComponents() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 6 · CX Component Links",
+      "Step 7 · CX Component Links",
       "Embed live demo screens (optional)",
       "Paste any embeddable web URL — an AubreyDemo scene, a live storefront, a Salesforce screen — to show it as a live iframe in the Demo section. Skip this step if you don't have any; your demo works fine without it."
     ));
@@ -1919,7 +1930,7 @@
   }
 
   // Which SELECTED slides actually consume a given asset slot — used for the
-  // "Used by:" caption on Step 7 so SEs see why a slot exists and where it
+  // "Used by:" caption on Step 6 so SEs see why a slot exists and where it
   // shows up. Brand/persona slots that aren't layout-scoped get a friendly
   // catch-all. Returns an array of slide titles (deduped, in deck order).
   function slidesUsingSlot(state, item) {
@@ -2001,7 +2012,7 @@
 
   // Pending text fields the SE should still tweak. Each entry is an
   // editor descriptor: { label, source, type, get, set }. We render
-  // them as inline form fields on Step 7 so the SE can polish copy
+  // them as inline form fields on Step 6 so the SE can polish copy
   // without bouncing back through canonical steps. `source` is just
   // a hint label so SEs know where the value normally lives.
   // Editors bind directly to the canonical state path, so edits show
@@ -2200,6 +2211,40 @@
   // without dumping the whole script, which image models handle
   // poorly. We still don't fabricate wordmarks/metrics; the customer
   // name is used only when the SE has actually entered it.
+  // Try to fetch the REAL brand logo from the customer's website via
+  // the same-origin /api/logo proxy (which hits a public logo service
+  // server-side). Resolves to a self-contained data: URL on success,
+  // or "" if there's no usable domain or the fetch fails — so callers
+  // can cleanly fall back to AI generation.
+  // Best-effort guess of a company's primary domain from its name, used
+  // only when the SE left the Website field blank. Strips punctuation,
+  // spaces, and common legal suffixes, then appends .com — e.g.
+  // "TopGolf" → topgolf.com, "At Home" → athome.com. Returns "" if
+  // nothing usable. A wrong guess is harmless: fetchRealLogo's proxy
+  // simply 404s and the caller falls back to AI generation.
+  function domainFromName(name) {
+    let base = String(name || "").trim().toLowerCase();
+    if (!base || /^\[todo/i.test(base)) return "";
+    base = base
+      .replace(/&/g, " and ")
+      .replace(/\b(inc|llc|ltd|corp|co|company|group|holdings|plc|gmbh)\b\.?/g, "")
+      .replace(/[^a-z0-9]+/g, "");
+    return base ? base + ".com" : "";
+  }
+
+  function fetchRealLogo(website) {
+    const domain = String(website || "")
+      .trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/.*$/, "")
+      .replace(/^www\./i, "")
+      .toLowerCase();
+    if (!domain || domain.indexOf(".") === -1) return Promise.resolve("");
+    if (!AUBREY || !AUBREY.inlineImageAsDataUrl) return Promise.resolve("");
+    return AUBREY.inlineImageAsDataUrl("/api/logo?domain=" + encodeURIComponent(domain))
+      .catch(function () { return ""; });
+  }
+
   function buildAssetPrompt(s, item) {
     const p = (s && s.project) || {};
     const brand = (s && s.brand) || {};
@@ -2227,9 +2272,14 @@
     // slots we generate a representative frame. Each pulls only the
     // signals relevant to that image.
     const intents = {
-      "brand.logoPath": "a clean, modern, minimalist brand logo mark" +
-        (customer ? " for a company called \"" + customer + "\"" : "") +
-        ", flat vector style on a transparent or solid background, no extra text",
+      "brand.logoPath": customer
+        ? ("the real, existing official logo of the company \"" + customer + "\"" +
+           (p.website ? " (" + p.website + ")" : "") +
+           " — reproduce it faithfully and exactly as the brand is actually known," +
+           " with the correct wordmark, symbol, and brand colors. Do NOT invent a" +
+           " new or different design. Flat, on a transparent or solid background, no extra text")
+        : "a clean, modern, minimalist brand logo mark, flat vector style on a" +
+          " transparent or solid background, no extra text",
       "persona.portrait": "a professional, friendly square headshot portrait of " +
         ((personaName || "a customer persona") + (personaRole ? ", a " + personaRole : "")) +
         ", natural lighting, neutral background",
@@ -2356,7 +2406,7 @@
   function viewAssets() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 7 · Assets",
+      "Step 6 · Assets",
       "Upload images for your deck (optional)",
       "We only show the slots that the slides you picked actually use. Anything you skip leaves a clean placeholder in the demo — you can still export and present without uploading anything."
     ));
@@ -2383,9 +2433,12 @@
       });
 
       // Collect every rendered row so a "Generate all" driver can
-      // reach each row's exposed _aiGenerate / _hasValue helpers.
+      // reach each row's exposed _aiGenerate / _hasValue helpers. Rows
+      // are built into `allRows` below; the driver reads it on click,
+      // after every row exists — so the bar can be appended to the top
+      // of the section even though the rows render beneath it.
       const allRows = [];
-      groups.forEach(function (g) {
+      const groupCards = groups.map(function (g) {
         const card = el("div", { class: "bx-card" });
         card.appendChild(el("div", { class: "bx-card-title", text: g.label }));
         card.appendChild(el("div", { class: "bx-card-sub",
@@ -2397,18 +2450,20 @@
           allRows.push(row);
           card.appendChild(row);
         });
-        wrap.appendChild(card);
+        return card;
       });
 
       // "Generate all with AI" — fills empty persona-card copy (one
       // text call per persona) AND every empty image slot, sequentially,
       // skipping anything already filled / uploaded / Aubrey-seeded.
-      // Shown only when Gemini is configured.
+      // Shown only when Gemini is configured. Appended to the TOP of the
+      // section (before the group cards) so it's the first thing the SE
+      // sees on this step.
       if (window.HOLO_GEMINI && window.HOLO_GEMINI.isConfigured) {
         const genAllBar = el("div", { class: "bx-card bx-asset-genall", hidden: true });
         const genAllText = el("div", { class: "bx-card-sub",
-          text: "Fill empty persona copy and generate placeholder images with Gemini for every empty slot above. You can replace anything afterwards." });
-        const genAllBtn = el("button", { class: "bx-asset-ai", type: "button" }, [
+          text: "Fill empty persona copy and generate placeholder images with Gemini for every empty slot below. Animated (GIF) slots get a still frame — upload a GIF/MP4 to animate. You can replace anything afterwards." });
+        const genAllBtn = el("button", { class: "bx-btn bx-btn-ghost bx-ai-btn", type: "button" }, [
           el("span", { class: "bx-ai-spark", text: "✦" }),
           el("span", { class: "bx-genall-label", text: "Generate all empty slots with AI" }),
         ]);
@@ -2456,6 +2511,9 @@
           if (configured) genAllBar.hidden = false;
         });
       }
+
+      // Group cards render beneath the "Generate all" bar.
+      groupCards.forEach(function (card) { wrap.appendChild(card); });
     }
 
     // Pending text fields card — inline editors. None of these are
@@ -2514,7 +2572,20 @@
       thumb.innerHTML = "";
       const v = read();
       if (v) {
-        const img = el("img", { src: v, alt: item.label, class: "bx-asset-img" });
+        const img = el("img", {
+          src: v, alt: item.label, class: "bx-asset-img",
+          title: "Click to view larger", role: "button", tabindex: "0",
+        });
+        const openLightbox = function () {
+          const box = el("div", { class: "bx-lightbox-body" }, [
+            el("img", { src: v, alt: item.label, class: "bx-lightbox-img" }),
+          ]);
+          openModal(item.label, box, "bx-asset-lightbox");
+        };
+        img.addEventListener("click", openLightbox);
+        img.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openLightbox(); }
+        });
         thumb.appendChild(img);
       } else {
         thumb.appendChild(el("div", { class: "bx-asset-thumb-placeholder", text: "No file" }));
@@ -2523,9 +2594,18 @@
     refreshThumb();
     wrap.appendChild(thumb);
 
+    // Animated slots (GIF/MP4) — the Gemini image model only returns a
+    // still frame, so make that limitation clear up front, not just in a
+    // post-generate toast.
+    const isAnimated = /Gif$/i.test(item.slot);
+
     const meta = el("div", { class: "bx-asset-meta" });
     meta.appendChild(el("div", { class: "bx-asset-label", text: item.label }));
     meta.appendChild(el("div", { class: "bx-asset-help", text: item.help }));
+    if (isAnimated) {
+      meta.appendChild(el("div", { class: "bx-asset-note",
+        text: "AI generates a still frame only — upload a GIF or MP4 to animate." }));
+    }
     // "Used by:" — show which selected slides this slot feeds, so the SE
     // knows what an upload (or a skip) affects in the running demo.
     const usedBy = slidesUsingSlot(s, item);
@@ -2589,26 +2669,58 @@
     // availability probe resolves true; writes the returned data URL
     // through the same write() path the uploader uses. Exposed via
     // assetRow so "Generate all" can drive it programmatically.
-    const aiBtn = el("button", { class: "bx-asset-ai", type: "button", hidden: true }, [
+    const aiBtn = el("button", {
+      class: "bx-btn bx-btn-ghost bx-ai-btn", type: "button", hidden: true,
+      title: isAnimated
+        ? "Generates a still frame only — upload a GIF/MP4 to animate"
+        : "Generate this image with AI",
+    }, [
       el("span", { class: "bx-ai-spark", text: "✦" }),
-      el("span", { class: "bx-asset-ai-label", text: "Generate with AI" }),
+      el("span", { class: "bx-asset-ai-label",
+        text: isAnimated ? "Generate still with AI" : "Generate with AI" }),
     ]);
     const aiLabel = aiBtn.querySelector(".bx-asset-ai-label");
+    // Apply a generated/fetched data URL to this slot.
+    function applyImage(dataUrl, doneMsg) {
+      write(dataUrl);
+      if (item.slot === "productHero") s._aubreySeededProductHero = false;
+      file.value = "";
+      refreshThumb(); refreshStatus(); commit();
+      toast(doneMsg);
+    }
     function runAiGenerate() {
       const GEMINI = window.HOLO_GEMINI;
       if (!GEMINI || !GEMINI.generateImage) { toast("Gemini is not available"); return Promise.resolve(false); }
       const origText = aiLabel.textContent;
       aiBtn.disabled = true; aiLabel.textContent = "Generating…";
-      return GEMINI.generateImage({ prompt: buildAssetPrompt(s, item) })
-        .then(function (dataUrl) {
-          write(dataUrl);
-          if (item.slot === "productHero") s._aubreySeededProductHero = false;
-          file.value = "";
-          refreshThumb(); refreshStatus(); commit();
-          const note = /Gif$/i.test(item.slot) ? " (still image — upload a GIF/MP4 to animate)" : "";
-          toast(item.label + " generated with AI" + note);
-          return true;
-        })
+
+      // AI-generate via Gemini and apply, with a slot-aware note.
+      const generate = function () {
+        return GEMINI.generateImage({ prompt: buildAssetPrompt(s, item) })
+          .then(function (dataUrl) {
+            const note = item.slot === "brand.logoPath"
+              ? " (AI look-alike)"
+              : (/Gif$/i.test(item.slot) ? " (still image — upload a GIF/MP4 to animate)" : "");
+            applyImage(dataUrl, item.label + " generated with AI" + note);
+            return true;
+          });
+      };
+
+      // For the logo, try the REAL brand logo first; fall back to AI.
+      // Prefer the SE-entered Website; if blank, derive a candidate
+      // domain from the customer name (e.g. "TopGolf" → topgolf.com).
+      const proj = (s && s.project) || {};
+      const logoDomain = (proj.website && String(proj.website).trim())
+        ? proj.website
+        : domainFromName(proj.customerName);
+      const run = (item.slot === "brand.logoPath")
+        ? fetchRealLogo(logoDomain).then(function (real) {
+            if (real) { applyImage(real, "Real logo fetched"); return true; }
+            return generate();
+          })
+        : generate();
+
+      return run
         .catch(function (err) {
           toast("AI: " + ((err && err.message) || String(err)));
           return false;
@@ -2697,7 +2809,7 @@
     return wrap;
   }
 
-  // Side panel for Step 7: short progress summary.
+  // Side panel for Step 6: short progress summary.
   function sideAssetSummary(body) {
     const s = app.state;
     const items = relevantAssetItems(s);
@@ -3345,11 +3457,11 @@
   // SE has NOT explicitly linked but that the builder would auto-assign
   // to an empty embeddedCxComponent slot. Mirrors the fallback inside
   // buildSlidePlanFromSelections (first unassigned component fills the
-  // first unlinked embedded slide) so Step 6 can SHOW the same match the
+  // first unlinked embedded slide) so Step 7 can SHOW the same match the
   // build will make — no drift between display and behavior.
   // slideList lets the build pass its freshly-ordered demo slides (before
   // s.slides is reassigned); callers that just want to display the match
-  // (Step 6) omit it and we read the current s.slides.
+  // (Step 7) omit it and we read the current s.slides.
   function computeCxAutoAssignments(state, slideList) {
     const s = state || app.state;
     const out = {};
@@ -3416,7 +3528,7 @@
       }
     });
     // Auto-match map (cxId -> slideId) computed once from the SAME helper
-    // Step 6 uses to display "Auto-matched to: …", so the slot we fill here
+    // Step 7 uses to display "Auto-matched to: …", so the slot we fill here
     // is exactly the one shown to the SE. Invert it to slideId -> [cxId].
     const autoBySlide = {};
     // Pass the freshly-ordered recs (each carries id/layout/sectionId, the
@@ -3631,7 +3743,7 @@
     out.push({ label: "Slide plan reviewed", done: (s.slides || []).length >= 5,
                hint: ((s.slides || []).length >= 5) ? "" : "5+ slides recommended" });
 
-    // Asset readiness — derived from the Step 7 Assets panel. We
+    // Asset readiness — derived from the Step 6 Assets panel. We
     // count how many of the SLOTS THAT MATTER for this deck have an
     // upload, so a deck with no persona doesn't get penalised for an
     // empty persona image. "Done" when at least one of the relevant
@@ -3647,13 +3759,13 @@
       done: relevantAssets.length === 0 || filledAssets > 0,
       hint: relevantAssets.length === 0
         ? "No image slots needed for this deck."
-        : filledAssets + " of " + relevantAssets.length + " uploaded · upload more on Step 7",
+        : filledAssets + " of " + relevantAssets.length + " uploaded · upload more on Step 6",
     });
     if (cx.length === 0) {
       out.push({
         label: "Live CX scene URLs added",
         done: false,
-        hint: "Optional — paste AubreyDemo /frame URLs in Step 6 to embed live screens",
+        hint: "Optional — paste AubreyDemo /frame URLs in Step 7 to embed live screens",
       });
     } else if (cxUrls < cx.length) {
       out.push({
@@ -5499,7 +5611,7 @@
     if (!creds) return;
     const wrap = el("div");
     wrap.appendChild(el("p", { style: "margin: 0 0 12px; font-size: 13px; color: var(--bx-ink-2);",
-      text: "Pick a brand — its persona will be added to your project (existing personas are kept). The persona portrait will be set on Step 7 if that slot is currently empty." }));
+      text: "Pick a brand — its persona will be added to your project (existing personas are kept). The persona portrait will be set on Step 6 if that slot is currently empty." }));
     const status = el("div", { class: "bx-mt-12" });
     const list = el("div", { class: "bx-list bx-mt-12" });
     list.appendChild(el("div", { class: "bx-empty", text: "Loading brands…" }));
@@ -5802,7 +5914,7 @@
   function openAubreyCxScenePicker(project, creds) {
     const wrap = el("div");
     wrap.appendChild(el("p", { style: "margin: 0 0 12px; font-size: 13px; color: var(--bx-ink-2);",
-      text: "Pick the scenes you want to import as CX components. The first 'site' scene's hero image will be inlined into Step 7's productHero slot if that slot is empty." }));
+      text: "Pick the scenes you want to import as CX components. The first 'site' scene's hero image will be inlined into Step 6's productHero slot if that slot is empty." }));
     const status = el("div", { class: "bx-mt-12" });
     const list = el("div", { class: "bx-list bx-mt-12" });
     list.appendChild(el("div", { class: "bx-empty", text: "Loading scenes…" }));
@@ -5903,8 +6015,7 @@
 
     function paint() {
       wrap.innerHTML = "";
-      const card = el("div", { class: "bx-login-card",
-        style: "max-width:420px;margin:64px auto;display:flex;flex-direction:column;gap:14px;" });
+      const card = el("div", { class: "bx-login-card" });
 
       card.appendChild(el("div", { class: "bx-firstrun-mark", text: "🪐" }));
       card.appendChild(el("h1", { class: "bx-main-title",
