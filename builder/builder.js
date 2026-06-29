@@ -1020,6 +1020,17 @@
       agentforceMoments: f.agentforceMoments.length,
       dataCloudMoments: f.dataCloudMoments.length,
     });
+    return applyExtractionToState(f, s);
+  }
+
+  // ─── Apply a parsed packet (regex OR Gemini) to builder state ──
+  // Single source of truth for turning an `extracted` foundations
+  // object into populated state. The acts/persona/customer/product
+  // steps only fill gaps — when a caller (e.g. the Gemini parser)
+  // has already populated s.storyActs / s.personas / customerName /
+  // products, the script-based extractors below are skipped, so the
+  // richer structured result wins.
+  function applyExtractionToState(f, s) {
     PARSER.mergeExtractedStoryIntoState(f, s);
     s.project = s.project || {};
 
@@ -1067,12 +1078,155 @@
 
     recompute();
     commit();
+    const vdCount = (s.storyFoundations && s.storyFoundations.valueDrivers || []).length;
     const custNote = s.project.customerName ? (" · " + s.project.customerName) : "";
     const prodNote = newProducts.length ? (" · " + newProducts.length + " product" + (newProducts.length === 1 ? "" : "s")) : "";
-    toast("Foundations extracted — " + s.storyFoundations.valueDrivers.length + " value drivers, "
+    toast("Foundations extracted — " + vdCount + " value drivers, "
           + s.storyActs.length + " acts, " + s.personas.length + " persona" + (s.personas.length === 1 ? "" : "s")
           + custNote + prodNote);
     return true;
+  }
+
+  // ─── BETA: Gemini-powered script extraction ───────────────────
+  // An AI alternative to the regex parser for messier scripts. Asks
+  // Gemini to parse the script into the storyFoundations shape (plus
+  // acts/personas/customer/products), then funnels the result through
+  // the SAME applyExtractionToState pipeline the manual button uses.
+  // The manual extractor stays the reliable default; this is opt-in.
+  function runGeminiScriptExtraction(button, status) {
+    const GEMINI = window.HOLO_GEMINI;
+    const AI_PROMPT = window.HOLO_AI_PROMPT;
+    const s = app.state;
+    if (!GEMINI || !AI_PROMPT) { toast("Gemini is not available"); return; }
+    if (!PARSER) { toast("Story parser is not loaded — check your install"); return; }
+    if (!s.scriptText || !s.scriptText.trim()) {
+      toast("Script text is empty — paste a script first");
+      return;
+    }
+
+    if (status) status.innerHTML = "";
+    const origText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Parsing with Gemini…";
+
+    const showErr = function (msg) {
+      if (status) status.appendChild(el("div", { class: "bx-alert is-error", text: "Gemini: " + msg }));
+      else toast("Gemini: " + msg);
+    };
+
+    GEMINI.generate({ prompt: AI_PROMPT.getStoryParsePrompt(s.scriptText), jsonMode: true })
+      .then(function (text) {
+        const cleaned = String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+        let data;
+        try { data = JSON.parse(cleaned); }
+        catch (_) { showErr("returned text that wasn't valid JSON — try the manual extractor."); return; }
+        if (!data || typeof data !== "object") { showErr("returned an unexpected shape."); return; }
+
+        // Coerce into the storyFoundations shape mergeExtractedStory-
+        // IntoState expects — every array MUST exist (it calls .join
+        // on several), and strings must be strings.
+        const str = function (v) { return typeof v === "string" ? v : ""; };
+        const arr = function (v) { return Array.isArray(v) ? v.filter(function (x) { return x != null && x !== ""; }) : []; };
+        const f = {
+          businessProblem:      str(data.businessProblem),
+          currentStatePain:     str(data.currentStatePain),
+          futureStateVision:    str(data.futureStateVision),
+          primaryNarrative:     str(data.primaryNarrative),
+          transformationThesis: str(data.transformationThesis),
+          executiveTakeaway:    str(data.executiveTakeaway),
+          threeActTitles:       arr(data.threeActTitles),
+          customerMoments:      arr(data.customerMoments),
+          operationalMoments:   arr(data.operationalMoments),
+          agentforceMoments:    arr(data.agentforceMoments),
+          dataCloudMoments:     arr(data.dataCloudMoments),
+          commerceMoments:      arr(data.commerceMoments),
+          marketingMoments:     arr(data.marketingMoments),
+          serviceMoments:       arr(data.serviceMoments),
+          loyaltyMoments:       arr(data.loyaltyMoments),
+          valueDrivers:         arr(data.valueDrivers),
+          assumptions:          arr(data.assumptions),
+          openQuestions:        arr(data.openQuestions),
+        };
+
+        // Pre-populate acts/personas/customer/products from the
+        // Gemini result so applyExtractionToState's regex fallbacks
+        // are skipped and the structured output wins.
+        s.project = s.project || {};
+        const acts = arr(data.storyActs);
+        if (acts.length && !(s.storyActs || []).length) {
+          s.storyActs = acts.map(function (a) {
+            return {
+              id: uid("act_"),
+              title: str(a && a.title), persona: str(a && a.persona), channel: str(a && a.channel),
+              summary: str(a && a.summary), demoMoment: str(a && a.demoMoment),
+              salesforceCapabilities: str(a && a.salesforceCapabilities),
+              businessValue: str(a && a.businessValue),
+              requiredAssets: str(a && a.requiredAssets), notes: str(a && a.notes),
+            };
+          });
+        }
+        const ppl = arr(data.personas);
+        if (ppl.length && !(s.personas || []).length) {
+          s.personas = ppl.map(function (p) {
+            return {
+              id: uid("persona_"),
+              name: str(p && p.name), role: str(p && p.role), goals: str(p && p.goals),
+              painPoints: str(p && p.painPoints), demoRelevance: str(p && p.demoRelevance),
+            };
+          });
+        }
+        if (!s.project.customerName && str(data.customerName) && !/^\[TODO/i.test(data.customerName)) {
+          s.project.customerName = str(data.customerName);
+        }
+
+        // ─── Setup-field gap-fills (Gemini-only) ─────────────────
+        // Fill Step-1 Setup fields the parser could infer, but only
+        // where the SE hasn't already typed a value (never clobber).
+        // Constrained dropdowns must match an allowed value exactly
+        // (case-insensitive, normalized) or we leave them blank.
+        const pickAllowed = function (value, list) {
+          const v = String(value || "").trim().toLowerCase();
+          if (!v) return "";
+          const hit = list.filter(function (opt) { return opt.toLowerCase() === v; })[0];
+          return hit || "";
+        };
+        const free = function (v) {
+          const s2 = str(v).trim();
+          return (!s2 || /^\[TODO/i.test(s2)) ? "" : s2;
+        };
+        if (!s.project.website)    { const w = free(data.website); if (w) s.project.website = w; }
+        if (!s.project.theme)      { const t = free(data.theme);   if (t) s.project.theme = t; }
+        if (!s.project.industry)   { const x = pickAllowed(data.industry,   INDUSTRIES); if (x) s.project.industry = x; }
+        if (!s.project.audience)   { const x = pickAllowed(data.audience,   AUDIENCES);  if (x) s.project.audience = x; }
+        if (!s.project.salesStage) { const x = pickAllowed(data.salesStage, STAGES);     if (x) s.project.salesStage = x; }
+        if (!s.project.tone)       { const x = pickAllowed(data.tone,       TONES);      if (x) s.project.tone = x; }
+
+        // products[] — intersect with the allowed PRODUCTS chips so
+        // the multi-select stays valid; gap-fill without duplicates.
+        if (Array.isArray(data.products)) {
+          s.project.products = s.project.products || [];
+          arr(data.products).forEach(function (p) {
+            const match = pickAllowed(p, PRODUCTS);
+            if (match && s.project.products.indexOf(match) === -1) s.project.products.push(match);
+          });
+        }
+
+        if (!f.businessProblem && !(s.storyActs || []).length) {
+          showErr("couldn't find a business problem or any acts in the script.");
+          return;
+        }
+
+        applyExtractionToState(f, s);
+        app.state.step = "foundations";
+        renderShell();
+      })
+      .catch(function (err) {
+        showErr((err && err.message) || String(err));
+      })
+      .then(function () {
+        button.disabled = false;
+        button.textContent = origText;
+      });
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -1171,14 +1325,40 @@
       text: s.scriptText
         ? "Run the parser on your script to generate the business problem, future-state vision, story acts, personas, and value drivers."
         : "Paste a script above first, then click Extract." }));
-    action.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+    const extractRow = el("div", { class: "bx-row bx-mt-12" }, [
       btn("✨ Extract Story Foundations", "bx-btn-primary", function () {
         if (runScriptExtraction()) {
           app.state.step = "foundations";
           renderShell();
         }
       }),
-    ]));
+    ]);
+    action.appendChild(extractRow);
+
+    // ── BETA: AI parse with Gemini (manual extractor stays the
+    //    default). Shown only when the server has a Gemini key. ──
+    const GEMINI = window.HOLO_GEMINI;
+    if (GEMINI && window.HOLO_AI_PROMPT) {
+      const geminiExtractBtn = btn("✦ Extract with Gemini (BETA)", "bx-btn-secondary", function () {
+        runGeminiScriptExtraction(geminiExtractBtn, geminiExtractStatus);
+      });
+      geminiExtractBtn.style.display = "none";
+      const betaPill = el("span", { class: "bx-rec-pill tone-gold", text: "BETA", style: "display: none; margin-left: 8px;" });
+      const geminiExtractStatus = el("div", { class: "bx-mt-12" });
+      extractRow.appendChild(geminiExtractBtn);
+      extractRow.appendChild(betaPill);
+      action.appendChild(el("div", { class: "bx-help bx-mt-6", id: "bxGeminiBetaNote",
+        text: "Beta — uses AI to parse messier scripts. Review the results; the manual extractor above is still the reliable default.",
+        style: "display: none;" }));
+      const betaNote = action.querySelector("#bxGeminiBetaNote");
+      action.appendChild(geminiExtractStatus);
+      GEMINI.isConfigured().then(function (ok) {
+        if (!ok) return;
+        geminiExtractBtn.style.display = "";
+        betaPill.style.display = "";
+        if (betaNote) betaNote.style.display = "";
+      });
+    }
     wrap.appendChild(action);
 
     // ── Personas ───────────────────────────────────────────
@@ -2011,6 +2191,92 @@
     return out;
   }
 
+  // ─── AI asset prompt builder ─────────────────────────────────
+  // Composes a concise image prompt for one asset slot. Beyond the
+  // structured Setup fields, it weaves in the RELEVANT extracted
+  // story signals for that slot (e.g. productHero pulls products +
+  // commerceMoments; persona slots pull goals/painPoints; store slots
+  // pull the script's setting) so images are specific to this demo —
+  // without dumping the whole script, which image models handle
+  // poorly. We still don't fabricate wordmarks/metrics; the customer
+  // name is used only when the SE has actually entered it.
+  function buildAssetPrompt(s, item) {
+    const p = (s && s.project) || {};
+    const brand = (s && s.brand) || {};
+    const f = (s && s.storyFoundations) || {};
+    const persona = (Array.isArray(s && s.personas) && s.personas[0]) || {};
+    const customer = (p.customerName && !/^\[TODO/i.test(p.customerName)) ? p.customerName : "";
+    const industry = p.industry || "";
+    const theme = p.theme || "";
+    const products = (Array.isArray(p.products) ? p.products : []).filter(Boolean);
+
+    // Helpers: drop [TODO:] placeholders, take the first N array
+    // entries, and trim a long paragraph to a short visual cue.
+    const clean = function (v) { const t = String(v || "").trim(); return /^\[TODO/i.test(t) ? "" : t; };
+    const firstFew = function (a, n) {
+      return (Array.isArray(a) ? a : []).map(clean).filter(Boolean).slice(0, n || 2);
+    };
+    const snippet = function (v, n) { const t = clean(v); return t ? t.slice(0, n || 160) : ""; };
+
+    const personaName = clean(persona.name);
+    const personaRole = clean(persona.role);
+    const personaGoals = snippet(persona.goals, 120);
+    const personaPain = snippet(persona.painPoints, 120);
+
+    // Per-slot intent. The image model returns a still; for animated
+    // slots we generate a representative frame. Each pulls only the
+    // signals relevant to that image.
+    const intents = {
+      "brand.logoPath": "a clean, modern, minimalist brand logo mark" +
+        (customer ? " for a company called \"" + customer + "\"" : "") +
+        ", flat vector style on a transparent or solid background, no extra text",
+      "persona.portrait": "a professional, friendly square headshot portrait of " +
+        ((personaName || "a customer persona") + (personaRole ? ", a " + personaRole : "")) +
+        ", natural lighting, neutral background",
+      "persona.heroBackground": "a full-bleed, cinematic environment photo that fits the persona's world" +
+        (industry ? " in the " + industry + " industry" : "") +
+        (personaGoals ? ", evoking " + personaGoals : "") + ", no people in focus, room for an overlay",
+      "persona.heroGif": "a candid lifestyle moment featuring " +
+        (personaName || "the persona") + (personaRole ? " (" + personaRole + ")" : "") +
+        (personaGoals ? ", pursuing " + personaGoals : "") + ", warm and editorial",
+      "persona.phoneGif": "a clean modern mobile app screen UI mockup shown on a smartphone" +
+        (personaPain ? ", helping the user with " + personaPain : "") +
+        (products.length ? " (powered by " + products.slice(0, 2).join(", ") + ")" : ""),
+      "storeExterior": "an inviting storefront / building exterior photo" +
+        (customer ? " for \"" + customer + "\"" : "") +
+        (industry ? " in the " + industry + " industry" : "") + ", daytime, no people",
+      "storeInterior": "a bright, modern interior photo of a " +
+        (industry ? industry + " " : "") + "retail or service space, no people, clean composition",
+      "productHero": "a premium product hero shot" +
+        (theme ? " illustrating \"" + theme + "\"" : "") +
+        (firstFew(f.commerceMoments, 1).length ? " — " + firstFew(f.commerceMoments, 1)[0] : "") +
+        ", studio lighting on a clean background",
+      "iPhoneRec": "a clean modern mobile app recommendation screen UI mockup on a smartphone" +
+        (firstFew(f.customerMoments, 1).length ? " showing " + firstFew(f.customerMoments, 1)[0] : ""),
+      "webBrowseGif": "a modern e-commerce / web storefront browsing screen UI mockup on a desktop browser" +
+        (firstFew(f.commerceMoments, 1).length ? " showing " + firstFew(f.commerceMoments, 1)[0] : ""),
+      "laptopBrowsingGif": "a modern web application screen UI mockup shown on a laptop" +
+        (firstFew(f.customerMoments, 1).length ? " showing " + firstFew(f.customerMoments, 1)[0] : ""),
+    };
+    const intent = intents[item.slot] || ("an on-brand image for \"" + item.label + "\"");
+
+    // Shared context line — the structured Setup fields plus a short
+    // narrative cue so even generic slots reflect this demo.
+    const ctx = [];
+    if (customer) ctx.push("Customer: " + customer);
+    if (industry) ctx.push("Industry: " + industry);
+    if (theme) ctx.push("Demo theme: " + theme);
+    if (products.length) ctx.push("Salesforce products in play: " + products.join(", "));
+    if (snippet(f.futureStateVision, 180)) ctx.push("Vision: " + snippet(f.futureStateVision, 180));
+    if (brand.primaryColor) ctx.push("Brand colors: " + [brand.primaryColor, brand.secondaryColor, brand.accentColor].filter(Boolean).join(", "));
+
+    return [
+      "Generate " + intent + ".",
+      ctx.length ? ("Context — " + ctx.join("; ") + ".") : "",
+      "High quality, professional, suitable for a sales presentation. Do not include any lorem-ipsum or placeholder text.",
+    ].filter(Boolean).join(" ");
+  }
+
   function viewAssets() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
@@ -2040,6 +2306,9 @@
         groups[groupIndex[it.group]].items.push(it);
       });
 
+      // Collect every rendered row so a "Generate all" driver can
+      // reach each row's exposed _aiGenerate / _hasValue helpers.
+      const allRows = [];
       groups.forEach(function (g) {
         const card = el("div", { class: "bx-card" });
         card.appendChild(el("div", { class: "bx-card-title", text: g.label }));
@@ -2047,9 +2316,49 @@
           text: g.label === "Brand"
             ? "Travels with the exported config — no need to drop into demo/assets/."
             : "Each slot lists the slides it feeds. Skip any and that slide shows a clean branded placeholder instead." }));
-        g.items.forEach(function (it) { card.appendChild(assetRow(s, it)); });
+        g.items.forEach(function (it) {
+          const row = assetRow(s, it);
+          allRows.push(row);
+          card.appendChild(row);
+        });
         wrap.appendChild(card);
       });
+
+      // "Generate all with AI" — fills only the empty visible slots,
+      // sequentially (one proxy call at a time), skipping anything the
+      // SE already uploaded or that Aubrey seeded. Shown only when
+      // Gemini is configured.
+      if (window.HOLO_GEMINI && window.HOLO_GEMINI.isConfigured) {
+        const genAllBar = el("div", { class: "bx-card", hidden: true });
+        genAllBar.appendChild(el("div", { class: "bx-card-sub",
+          text: "Generate placeholder images with Gemini for every empty slot above. You can replace any of them with a manual upload." }));
+        const genAllBtn = el("button", { class: "bx-mini-btn", type: "button",
+          text: "✦ Generate all empty slots with AI" });
+        genAllBtn.addEventListener("click", function () {
+          const targets = allRows.filter(function (r) { return r._aiGenerate && r._hasValue && !r._hasValue(); });
+          if (!targets.length) { toast("No empty slots to generate"); return; }
+          genAllBtn.disabled = true;
+          const origText = genAllBtn.textContent;
+          let done = 0, ok = 0;
+          toast("Generating " + targets.length + " image" + (targets.length === 1 ? "" : "s") + "…");
+          // Sequential chain — keeps proxy/quota pressure low and the
+          // UI feedback simple.
+          targets.reduce(function (chain, r) {
+            return chain.then(function () {
+              genAllBtn.textContent = "Generating " + (done + 1) + " / " + targets.length + "…";
+              return r._aiGenerate().then(function (success) { done++; if (success) ok++; });
+            });
+          }, Promise.resolve()).then(function () {
+            genAllBtn.disabled = false; genAllBtn.textContent = origText;
+            toast("AI assets: " + ok + " of " + targets.length + " generated");
+          });
+        });
+        genAllBar.appendChild(genAllBtn);
+        wrap.appendChild(genAllBar);
+        window.HOLO_GEMINI.isConfigured().then(function (configured) {
+          if (configured) genAllBar.hidden = false;
+        });
+      }
     }
 
     // Pending text fields card — inline editors. None of these are
@@ -2177,6 +2486,47 @@
       reader.readAsDataURL(f);
     });
     controls.appendChild(file);
+
+    // ─── Generate with AI (Gemini) ─────────────────────────────
+    // Sits alongside the manual uploader. Hidden until the Gemini
+    // availability probe resolves true; writes the returned data URL
+    // through the same write() path the uploader uses. Exposed via
+    // assetRow so "Generate all" can drive it programmatically.
+    const aiBtn = el("button", { class: "bx-mini-btn", type: "button",
+      text: "✦ Generate with AI", hidden: true });
+    function runAiGenerate() {
+      const GEMINI = window.HOLO_GEMINI;
+      if (!GEMINI || !GEMINI.generateImage) { toast("Gemini is not available"); return Promise.resolve(false); }
+      const origText = aiBtn.textContent;
+      aiBtn.disabled = true; aiBtn.textContent = "Generating…";
+      return GEMINI.generateImage({ prompt: buildAssetPrompt(s, item) })
+        .then(function (dataUrl) {
+          write(dataUrl);
+          if (item.slot === "productHero") s._aubreySeededProductHero = false;
+          file.value = "";
+          refreshThumb(); refreshStatus(); commit();
+          const note = /Gif$/i.test(item.slot) ? " (still image — upload a GIF/MP4 to animate)" : "";
+          toast(item.label + " generated with AI" + note);
+          return true;
+        })
+        .catch(function (err) {
+          toast("AI: " + ((err && err.message) || String(err)));
+          return false;
+        })
+        .then(function (ok) {
+          aiBtn.disabled = false; aiBtn.textContent = origText;
+          return ok;
+        });
+    }
+    aiBtn.addEventListener("click", runAiGenerate);
+    if (window.HOLO_GEMINI && window.HOLO_GEMINI.isConfigured) {
+      window.HOLO_GEMINI.isConfigured().then(function (ok) { if (ok) aiBtn.hidden = false; });
+    }
+    controls.appendChild(aiBtn);
+    // Expose for the "Generate all" driver in viewAssets.
+    wrap._aiGenerate = runAiGenerate;
+    wrap._assetSlot = item.slot;
+    wrap._hasValue = function () { return Boolean(read()); };
 
     const clear = el("button", { class: "bx-mini-btn is-danger",
       type: "button", "aria-label": "Clear", text: "Clear" });
@@ -3451,30 +3801,78 @@
     ]);
     c0.appendChild(c0Head);
     c0.appendChild(el("ol", { class: "bx-numlist" }, [
-      el("li", { text: "Copy the prompt below." }),
+      el("li", { html: "Review the <strong>SE Inputs</strong> below — we pre-fill them from your project (script, setup fields, extracted foundations). Edit or add anything." }),
+      el("li", { text: "Copy the prompt below (your inputs are already baked into it)." }),
       el("li", { text: "Paste it into ChatGPT or Claude." }),
-      el("li", { text: "Underneath the prompt, paste your customer notes, demo script, audience, products, and any context you have." }),
       el("li", { text: "The AI returns a JSON config." }),
       el("li", { html: "Come back here, click <strong>Import AI response</strong>, and paste the JSON. The builder will auto-fill setup, personas, story acts, recommendations, slides, and assets." }),
-      el("li", { html: "The <strong>Config schema / template</strong> below is already baked into the prompt — it's there only as an optional reference, so there's nothing extra to copy." }),
+      el("li", { html: "Or, if Gemini is configured, skip the copy-paste and click <strong>Generate with Gemini</strong>." }),
     ]));
     container.appendChild(c0);
 
+    // ── SE Inputs card — pre-filled from the project, editable ──
+    // This is what actually gets injected into the prompt, replacing
+    // the old "[Paste customer notes…]" placeholder so the AI works
+    // from real context instead of inventing a demo.
+    const inputsCard = el("div", { class: "bx-card" });
+    inputsCard.appendChild(el("div", { class: "bx-card-title", text: "SE Inputs (what we send the AI)" }));
+    inputsCard.appendChild(el("div", { class: "bx-card-sub", text: "Pulled from your project — edit or add anything before generating. Empty here means the AI has nothing to work from." }));
+    const inputsArea = el("textarea", { class: "bx-textarea bx-textarea-l" });
+    inputsArea.value = AI_PROMPT.buildInputsBlock(app.state);
+    inputsCard.appendChild(inputsArea);
+    container.appendChild(inputsCard);
+
     const promptCard = el("div", { class: "bx-card" });
     promptCard.appendChild(el("div", { class: "bx-card-title", text: "AI Prompt" }));
-    promptCard.appendChild(el("div", { class: "bx-card-sub", text: "Editable. Copy as-is, or tweak before sending." }));
+    promptCard.appendChild(el("div", { class: "bx-card-sub", text: "Auto-built from your SE Inputs above. Editing the inputs refreshes this; you can also tweak the prompt directly." }));
     const promptArea = el("textarea", { class: "bx-textarea bx-textarea-xl" });
-    promptArea.value = AI_PROMPT.getFullPrompt();
+    promptArea.value = AI_PROMPT.getFullPrompt(inputsArea.value);
     promptCard.appendChild(promptArea);
-    promptCard.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+
+    // Keep the prompt derived from the inputs box. We track whether
+    // the user hand-edited the prompt; once they do, we stop
+    // clobbering their edits on every keystroke in the inputs box.
+    let promptHandEdited = false;
+    promptArea.addEventListener("input", function () { promptHandEdited = true; });
+    inputsArea.addEventListener("input", function () {
+      if (!promptHandEdited) promptArea.value = AI_PROMPT.getFullPrompt(inputsArea.value);
+    });
+
+    const promptRow = el("div", { class: "bx-row bx-mt-12" }, [
       btn("Copy AI Prompt", "bx-btn-primary", function () {
         CONFIG.copyToClipboard(promptArea.value).then(function () { toast("Prompt copied"); });
       }),
       btn("Reset prompt", "bx-btn-secondary", function () {
-        promptArea.value = AI_PROMPT.getFullPrompt(); toast("Reset");
+        promptArea.value = AI_PROMPT.getFullPrompt(inputsArea.value);
+        promptHandEdited = false;
+        toast("Reset");
       }),
       btn("Import AI response", "bx-btn-primary", function () { openImportModal(null); }),
-    ]));
+    ]);
+    promptCard.appendChild(promptRow);
+
+    // ── Live Gemini path ──────────────────────────────────────
+    // Shown only when the server has GEMINI_API_KEY configured;
+    // otherwise the copy-paste flow above is the only option, so
+    // we don't surface a button that can't work. The button sends
+    // the (possibly edited) prompt straight to Gemini, then routes
+    // the JSON it returns through the same import validator the
+    // Import modal uses — no second code path for ingestion. We pass
+    // the inputs box too so the empty-context guard can check it.
+    const GEMINI = window.HOLO_GEMINI;
+    if (GEMINI) {
+      const geminiBtn = btn("✦ Generate with Gemini", "bx-btn-primary", function () {
+        runGeminiFillFields(promptArea.value, inputsArea.value, geminiBtn, geminiStatus);
+      });
+      geminiBtn.style.display = "none";
+      const geminiStatus = el("div", { class: "bx-mt-12" });
+      promptRow.appendChild(geminiBtn);
+      promptCard.appendChild(geminiStatus);
+      GEMINI.isConfigured().then(function (ok) {
+        if (ok) geminiBtn.style.display = "";
+      });
+    }
+
     container.appendChild(promptCard);
 
     const schemaCard = el("div", { class: "bx-card" });
@@ -3499,6 +3897,69 @@
     ]));
     container.appendChild(exCard);
 
+  }
+
+  // ── Gemini: fill fields from the prompt ──────────────────────
+  // Sends the prompt to the server proxy with CONFIG_TEMPLATE as the
+  // response schema, then feeds the returned JSON through the same
+  // VALIDATOR.importConfig seam openImportModal uses, so a generated
+  // config and a pasted/imported one travel identical validation.
+  function runGeminiFillFields(promptText, inputsText, button, status) {
+    const GEMINI = window.HOLO_GEMINI;
+    if (!GEMINI) return;
+    if (!promptText || !promptText.trim()) { toast("Prompt is empty"); return; }
+
+    status.innerHTML = "";
+
+    // Empty-context guard: without real inputs the AI invents the
+    // whole demo, which is worse than useless. Block when the SE
+    // Inputs box is effectively empty AND there's no script on state.
+    const hasInputs = inputsText && inputsText.trim();
+    const hasScript = app.state && app.state.scriptText && app.state.scriptText.trim();
+    if (!hasInputs && !hasScript) {
+      status.appendChild(el("div", { class: "bx-alert is-error",
+        text: "Add a demo script or some context first — go to Step 2 (Script & Story) to paste a script, or fill in the SE Inputs box above. Without it the AI will invent the whole demo." }));
+      return;
+    }
+
+    const origText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Generating…";
+
+    // jsonMode (not a responseSchema): the prompt already inlines
+    // CONFIG_TEMPLATE and instructs "return ONE valid JSON object".
+    // CONFIG_TEMPLATE is a sample config, not an OpenAPI schema, so
+    // it can't be a responseSchema — JSON mode + the prompt is the
+    // reliable path, and VALIDATOR.importConfig enforces the shape.
+    GEMINI.generate({ prompt: promptText, jsonMode: true })
+      .then(function (text) {
+        // Strip a stray ```json … ``` fence if the model added one.
+        const cleaned = String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+        const result = VALIDATOR.importConfig(cleaned);
+        if (result.errors && result.errors.length) {
+          result.errors.forEach(function (msg) {
+            status.appendChild(el("div", { class: "bx-alert is-error", text: msg }));
+          });
+          return;
+        }
+        const imported = result.state;
+        imported.id = STORE.uid();
+        return STORE.saveProject(imported).then(function () {
+          (result.warnings || []).forEach(function (msg) {
+            status.appendChild(el("div", { class: "bx-alert is-warn", text: msg }));
+          });
+          goBuilder(imported.id);
+          toast("Project created from Gemini");
+        });
+      })
+      .catch(function (err) {
+        status.appendChild(el("div", { class: "bx-alert is-error",
+          text: "Gemini: " + ((err && err.message) || err) }));
+      })
+      .then(function () {
+        button.disabled = false;
+        button.textContent = origText;
+      });
   }
 
   // ─── Feedback view ────────────────────────────────────────────

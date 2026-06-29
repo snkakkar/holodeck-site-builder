@@ -152,9 +152,7 @@ CX components (AubreyDemo):
     "paste your output into the Holodeck Builder to auto-fill the project.",
     "",
     "── SE INPUTS — READ FIRST ──",
-    "[Paste customer notes, demo script, audience, products, brand, persona,",
-    " pain, vision, and any AubreyDemo CX component links here. Missing fields",
-    " → use sensible defaults or [TODO:] placeholders.]",
+    "<<SE_INPUTS>>",
     "",
     "── EXTRACT STORY FOUNDATIONS FIRST ──",
     "Before generating any slides, read the script and pull out:",
@@ -225,14 +223,155 @@ CX components (AubreyDemo):
     "<<SCHEMA>>",
   ].join("\n");
 
-  function getFullPrompt() { return PROMPT.replace("<<SCHEMA>>", CONFIG_TEMPLATE); }
+  // The original literal placeholder — used when the SE hasn't
+  // supplied any real inputs, so the copy-paste flow still reads
+  // sensibly.
+  const SE_INPUTS_PLACEHOLDER = [
+    "[Paste customer notes, demo script, audience, products, brand, persona,",
+    " pain, vision, and any AubreyDemo CX component links here. Missing fields",
+    " → use sensible defaults or [TODO:] placeholders.]",
+  ].join("\n");
+
+  // getFullPrompt(inputsText?) — when inputsText is a non-empty
+  // string it replaces the SE INPUTS placeholder with real content;
+  // otherwise the bracketed placeholder is kept.
+  function getFullPrompt(inputsText) {
+    const inputs = (typeof inputsText === "string" && inputsText.trim())
+      ? inputsText.trim()
+      : SE_INPUTS_PLACEHOLDER;
+    return PROMPT
+      .replace("<<SE_INPUTS>>", inputs)
+      .replace("<<SCHEMA>>", CONFIG_TEMPLATE);
+  }
+
+  // ─── Build an SE-inputs block from builder state ──────────────
+  // Formats app.state into the same human-readable shape as
+  // EXAMPLE_INPUTS so the model sees a familiar structure. Only
+  // emits lines for fields that are actually populated.
+  function buildInputsBlock(state) {
+    if (!state) return "";
+    const p  = state.project || {};
+    const sf = state.storyFoundations || {};
+    const lines = [];
+
+    const products = Array.isArray(p.products) ? p.products.filter(Boolean) : [];
+    if (p.customerName || p.website) {
+      lines.push("Customer: " + (p.customerName || "[TODO: customer]") +
+        (p.website ? " (" + p.website + ")" : ""));
+    }
+    if (p.industry)   lines.push("Industry: " + p.industry);
+    if (p.audience)   lines.push("Audience: " + p.audience);
+    if (p.salesStage) lines.push("Sales stage: " + p.salesStage);
+    if (products.length) lines.push("Salesforce products: " + products.join(", "));
+    if (p.tone)  lines.push("Tone: " + p.tone);
+    if (p.theme) lines.push("Theme: " + p.theme);
+
+    // Extracted foundations, when present, sharpen the model's read.
+    if (sf.businessProblem)   lines.push("", "Big problem: " + sf.businessProblem);
+    if (sf.futureStateVision) lines.push("Future-state vision: " + sf.futureStateVision);
+    if (sf.primaryNarrative)  lines.push("Primary narrative: " + sf.primaryNarrative);
+
+    const personas = Array.isArray(state.personas) ? state.personas.filter(Boolean) : [];
+    if (personas.length) {
+      lines.push("", "Personas:");
+      personas.forEach(function (per) {
+        const bits = [per.name, per.role].filter(Boolean).join(" — ");
+        lines.push("- " + (bits || "[TODO: persona]") +
+          (per.goals ? (" · goals: " + per.goals) : ""));
+      });
+    }
+
+    const vds = Array.isArray(sf.valueDrivers) ? sf.valueDrivers.filter(Boolean) : [];
+    if (vds.length) {
+      lines.push("", "Value drivers:");
+      vds.forEach(function (v) { lines.push("- " + v); });
+    }
+
+    // The raw script last (it's the longest) so the structured
+    // fields above are read first.
+    if (state.scriptText && state.scriptText.trim()) {
+      lines.push("", "── DEMO SCRIPT ──", state.scriptText.trim());
+    }
+
+    return lines.join("\n").trim();
+  }
+
+  // ─── Story-parse prompt (Step 2 BETA Gemini extractor) ────────
+  // Asks Gemini to parse a raw script into the same storyFoundations
+  // shape the regex parser produces, plus storyActs / personas /
+  // customerName / products, as ONE JSON object. The builder funnels
+  // the result through the existing mergeExtractedStoryIntoState
+  // pipeline, so the output here must match those field names.
+  const STORY_PARSE_PROMPT = [
+    "You are parsing a rough Salesforce demo script into structured story",
+    "foundations for the Holodeck Builder. Read the SCRIPT below and return",
+    "ONE valid JSON object (no prose, no markdown fences) with EXACTLY these keys:",
+    "",
+    "{",
+    '  "businessProblem": "<one paragraph>",',
+    '  "currentStatePain": "<one paragraph>",',
+    '  "futureStateVision": "<one paragraph>",',
+    '  "primaryNarrative": "<the demo spine, ~1-2 sentences>",',
+    '  "transformationThesis": "<one sentence: from X to Y by doing Z>",',
+    '  "executiveTakeaway": "<one sentence close>",',
+    '  "customerMoments": ["..."],',
+    '  "operationalMoments": ["..."],',
+    '  "agentforceMoments": ["..."],',
+    '  "dataCloudMoments": ["..."],',
+    '  "commerceMoments": ["..."],',
+    '  "marketingMoments": ["..."],',
+    '  "serviceMoments": ["..."],',
+    '  "loyaltyMoments": ["..."],',
+    '  "valueDrivers": ["..."],',
+    '  "assumptions": ["..."],',
+    '  "openQuestions": ["..."],',
+    '  "storyActs": [{ "title": "", "persona": "", "channel": "", "summary": "", "demoMoment": "", "salesforceCapabilities": "", "businessValue": "", "notes": "" }],',
+    '  "personas": [{ "name": "", "role": "", "goals": "", "painPoints": "", "demoRelevance": "" }],',
+    '  "customerName": "",',
+    '  "website": "",',
+    '  "industry": "",',
+    '  "audience": "",',
+    '  "salesStage": "",',
+    '  "tone": "",',
+    '  "theme": "",',
+    '  "products": ["Agentforce", "Data Cloud", "..."]',
+    "}",
+    "",
+    "RULES:",
+    "1. Every array key MUST be present — use [] when there's nothing to add.",
+    "2. Do NOT invent customer facts (names, metrics, specs). Use \"[TODO: …]\"",
+    "   and record the assumption in assumptions[].",
+    "3. products[] = only Salesforce products actually implied by the script.",
+    "4. Keep prose tight; these fill form fields, not slides.",
+    "5. SETUP FIELDS — fill these only from what the script actually says:",
+    "   • website  — a real URL/domain only if one appears or is clearly implied;",
+    "     otherwise \"\".",
+    "   • theme    — a short phrase naming the demo's central storyline (free text).",
+    "   • industry, audience, salesStage, tone — pick the SINGLE closest value from",
+    "     the allowed list below, or \"\" if none fits. Do NOT invent a new value.",
+    "       industry   ∈ [Retail, Consumer Goods, Hospitality, Travel,",
+    "                     Financial Services, Healthcare, Other]",
+    "       audience   ∈ [Executive, IT, Marketing, Sales, Service, Store Ops,",
+    "                     Field Ops, Mixed]",
+    "       salesStage ∈ [Vision, Discovery, Technical Validation,",
+    "                     Executive Readout, RFP / POV]",
+    "       tone       ∈ [Executive, Tactical, Visionary, Technical, Playful,",
+    "                     Premium]",
+    "",
+    "── SCRIPT ──",
+    "<<SCRIPT>>",
+  ].join("\n");
+
+  function getStoryParsePrompt(scriptText) {
+    return STORY_PARSE_PROMPT.replace("<<SCRIPT>>", String(scriptText || ""));
+  }
 
   const PAGE_HELPER = [
-    "Copy the prompt below, paste it into ChatGPT or Claude with your",
-    "customer notes, and the model returns a JSON config. Bring it back",
-    "with Import Config — the builder will auto-fill setup, story",
-    "foundations, personas, story acts, slide sections, slides, and CX",
-    "components.",
+    "We pre-fill the SE Inputs below from your project (script, setup fields,",
+    "and any extracted foundations). Review or edit them, then Copy the prompt",
+    "into ChatGPT/Claude and bring the JSON back with Import Config — or, if",
+    "Gemini is configured on the server, click Generate with Gemini to fill",
+    "the fields directly.",
   ].join(" ");
 
   global.HOLO_AI_PROMPT = {
@@ -241,5 +380,8 @@ CX components (AubreyDemo):
     EXAMPLE_INPUTS: EXAMPLE_INPUTS,
     PAGE_HELPER: PAGE_HELPER,
     getFullPrompt: getFullPrompt,
+    buildInputsBlock: buildInputsBlock,
+    STORY_PARSE_PROMPT: STORY_PARSE_PROMPT,
+    getStoryParsePrompt: getStoryParsePrompt,
   };
 })(window);
