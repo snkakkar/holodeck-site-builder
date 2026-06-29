@@ -2277,6 +2277,82 @@
     ].filter(Boolean).join(" ");
   }
 
+  // ─── AI persona-card copy fill ───────────────────────────────
+  // Fills the small persona-card text fields (quote/painPoints, the
+  // three stat tiles, the three wishlist rows) for every persona that
+  // still has gaps — gap-fill only, never clobbering SE-entered copy.
+  // One Gemini text call per persona. Resolves to the number of
+  // personas updated. Used by the Assets-step "Generate all".
+  function runPersonaCopyFill(s) {
+    const GEMINI = window.HOLO_GEMINI;
+    const AI_PROMPT = window.HOLO_AI_PROMPT;
+    const personas = Array.isArray(s.personas) ? s.personas : [];
+    if (!GEMINI || !GEMINI.generate || !AI_PROMPT || !AI_PROMPT.getPersonaCopyPrompt) return Promise.resolve(0);
+    if (!personas.length) return Promise.resolve(0);
+
+    const f = s.storyFoundations || {};
+    const p = s.project || {};
+    const context = [
+      p.customerName ? ("Customer: " + p.customerName) : "",
+      p.industry ? ("Industry: " + p.industry) : "",
+      p.theme ? ("Demo theme: " + p.theme) : "",
+      f.futureStateVision ? ("Vision: " + String(f.futureStateVision).slice(0, 200)) : "",
+      (Array.isArray(p.products) && p.products.length) ? ("Products: " + p.products.join(", ")) : "",
+    ].filter(Boolean).join("\n");
+
+    const str = function (v) { return typeof v === "string" ? v.trim() : ""; };
+
+    // A persona "needs" copy if any of its small fields are empty.
+    const needsCopy = function (per) {
+      if (!str(per.painPoints) && !str(per.goals)) return true;
+      for (let i = 0; i < 3; i++) {
+        if (!statValue(per, i)) return true;
+        if (!wishField(per, i, "name")) return true;
+      }
+      return false;
+    };
+
+    const targets = personas.filter(needsCopy);
+    if (!targets.length) return Promise.resolve(0);
+
+    let updated = 0;
+    // Sequential — one persona at a time, same as the image chain.
+    return targets.reduce(function (chain, per) {
+      return chain.then(function () {
+        const prompt = AI_PROMPT.getPersonaCopyPrompt(per, context);
+        return GEMINI.generate({ prompt: prompt, jsonMode: true })
+          .then(function (text) {
+            const cleaned = String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+            let data;
+            try { data = JSON.parse(cleaned); } catch (_) { return; }
+            if (!data || typeof data !== "object") return;
+            let touched = false;
+
+            // Quote / pain points — only if both pain and goals empty.
+            if (!str(per.painPoints) && !str(per.goals) && str(data.painPoints)) {
+              per.painPoints = str(data.painPoints); touched = true;
+            }
+            // Stats — fill empty value/label per tile.
+            const stats = Array.isArray(data.stats) ? data.stats : [];
+            for (let i = 0; i < 3; i++) {
+              const row = stats[i] || {};
+              if (!statValue(per, i) && str(row.value)) { setStat(per, i, "value", str(row.value)); touched = true; }
+              if (!statLabel(per, i) && str(row.label)) { setStat(per, i, "label", str(row.label)); touched = true; }
+            }
+            // Wishlist — fill empty name/detail per row.
+            const wl = Array.isArray(data.wishlist) ? data.wishlist : [];
+            for (let i = 0; i < 3; i++) {
+              const row = wl[i] || {};
+              if (!wishField(per, i, "name") && str(row.name)) { setWish(per, i, "name", str(row.name)); touched = true; }
+              if (!wishField(per, i, "detail") && str(row.detail)) { setWish(per, i, "detail", str(row.detail)); touched = true; }
+            }
+            if (touched) updated++;
+          })
+          .catch(function () { /* skip this persona on error */ });
+      });
+    }, Promise.resolve()).then(function () { return updated; });
+  }
+
   function viewAssets() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
@@ -2324,35 +2400,56 @@
         wrap.appendChild(card);
       });
 
-      // "Generate all with AI" — fills only the empty visible slots,
-      // sequentially (one proxy call at a time), skipping anything the
-      // SE already uploaded or that Aubrey seeded. Shown only when
-      // Gemini is configured.
+      // "Generate all with AI" — fills empty persona-card copy (one
+      // text call per persona) AND every empty image slot, sequentially,
+      // skipping anything already filled / uploaded / Aubrey-seeded.
+      // Shown only when Gemini is configured.
       if (window.HOLO_GEMINI && window.HOLO_GEMINI.isConfigured) {
-        const genAllBar = el("div", { class: "bx-card", hidden: true });
-        genAllBar.appendChild(el("div", { class: "bx-card-sub",
-          text: "Generate placeholder images with Gemini for every empty slot above. You can replace any of them with a manual upload." }));
-        const genAllBtn = el("button", { class: "bx-mini-btn", type: "button",
-          text: "✦ Generate all empty slots with AI" });
+        const genAllBar = el("div", { class: "bx-card bx-asset-genall", hidden: true });
+        const genAllText = el("div", { class: "bx-card-sub",
+          text: "Fill empty persona copy and generate placeholder images with Gemini for every empty slot above. You can replace anything afterwards." });
+        const genAllBtn = el("button", { class: "bx-asset-ai", type: "button" }, [
+          el("span", { class: "bx-ai-spark", text: "✦" }),
+          el("span", { class: "bx-genall-label", text: "Generate all empty slots with AI" }),
+        ]);
+        const genAllLabel = genAllBtn.querySelector(".bx-genall-label");
         genAllBtn.addEventListener("click", function () {
-          const targets = allRows.filter(function (r) { return r._aiGenerate && r._hasValue && !r._hasValue(); });
-          if (!targets.length) { toast("No empty slots to generate"); return; }
+          const imgTargets = allRows.filter(function (r) { return r._aiGenerate && r._hasValue && !r._hasValue(); });
           genAllBtn.disabled = true;
-          const origText = genAllBtn.textContent;
-          let done = 0, ok = 0;
-          toast("Generating " + targets.length + " image" + (targets.length === 1 ? "" : "s") + "…");
-          // Sequential chain — keeps proxy/quota pressure low and the
-          // UI feedback simple.
-          targets.reduce(function (chain, r) {
-            return chain.then(function () {
-              genAllBtn.textContent = "Generating " + (done + 1) + " / " + targets.length + "…";
-              return r._aiGenerate().then(function (success) { done++; if (success) ok++; });
+          const origText = genAllLabel.textContent;
+          let imgOk = 0;
+          toast("Generating with AI…");
+
+          // 1) Persona copy first (writes to state in place), then
+          // 2) the empty image slots in a sequential chain.
+          genAllLabel.textContent = "Filling persona copy…";
+          runPersonaCopyFill(s)
+            .then(function (personasUpdated) {
+              let done = 0;
+              return imgTargets.reduce(function (chain, r) {
+                return chain.then(function () {
+                  genAllLabel.textContent = "Generating image " + (done + 1) + " / " + imgTargets.length + "…";
+                  return r._aiGenerate().then(function (success) { done++; if (success) imgOk++; });
+                });
+              }, Promise.resolve()).then(function () { return personasUpdated; });
+            })
+            .then(function (personasUpdated) {
+              commit();
+              const parts = [];
+              if (personasUpdated) parts.push(personasUpdated + " persona" + (personasUpdated === 1 ? "" : "s") + " filled");
+              parts.push(imgOk + " of " + imgTargets.length + " image" + (imgTargets.length === 1 ? "" : "s") + " generated");
+              toast("AI: " + parts.join(" · "));
+              genAllBtn.disabled = false; genAllLabel.textContent = origText;
+              // Re-render so filled persona copy shows in the pending-
+              // text card and new images show their thumbnails.
+              renderShell();
+            })
+            .catch(function (err) {
+              genAllBtn.disabled = false; genAllLabel.textContent = origText;
+              toast("AI: " + ((err && err.message) || String(err)));
             });
-          }, Promise.resolve()).then(function () {
-            genAllBtn.disabled = false; genAllBtn.textContent = origText;
-            toast("AI assets: " + ok + " of " + targets.length + " generated");
-          });
         });
+        genAllBar.appendChild(genAllText);
         genAllBar.appendChild(genAllBtn);
         wrap.appendChild(genAllBar);
         window.HOLO_GEMINI.isConfigured().then(function (configured) {
@@ -2492,13 +2589,16 @@
     // availability probe resolves true; writes the returned data URL
     // through the same write() path the uploader uses. Exposed via
     // assetRow so "Generate all" can drive it programmatically.
-    const aiBtn = el("button", { class: "bx-mini-btn", type: "button",
-      text: "✦ Generate with AI", hidden: true });
+    const aiBtn = el("button", { class: "bx-asset-ai", type: "button", hidden: true }, [
+      el("span", { class: "bx-ai-spark", text: "✦" }),
+      el("span", { class: "bx-asset-ai-label", text: "Generate with AI" }),
+    ]);
+    const aiLabel = aiBtn.querySelector(".bx-asset-ai-label");
     function runAiGenerate() {
       const GEMINI = window.HOLO_GEMINI;
       if (!GEMINI || !GEMINI.generateImage) { toast("Gemini is not available"); return Promise.resolve(false); }
-      const origText = aiBtn.textContent;
-      aiBtn.disabled = true; aiBtn.textContent = "Generating…";
+      const origText = aiLabel.textContent;
+      aiBtn.disabled = true; aiLabel.textContent = "Generating…";
       return GEMINI.generateImage({ prompt: buildAssetPrompt(s, item) })
         .then(function (dataUrl) {
           write(dataUrl);
@@ -2514,7 +2614,7 @@
           return false;
         })
         .then(function (ok) {
-          aiBtn.disabled = false; aiBtn.textContent = origText;
+          aiBtn.disabled = false; aiLabel.textContent = origText;
           return ok;
         });
     }

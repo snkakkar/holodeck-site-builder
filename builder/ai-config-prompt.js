@@ -366,6 +366,62 @@ CX components (AubreyDemo):
     return STORY_PARSE_PROMPT.replace("<<SCRIPT>>", String(scriptText || ""));
   }
 
+  // ─── Persona-card copy prompt (Assets step "Generate all") ────
+  // Given one persona + demo context, asks Gemini for the small
+  // copy fields the persona card needs: three stat tiles, a three-
+  // item wishlist, and a short quote / pain-point line. Returns ONE
+  // JSON object. The builder gap-fills only the empty fields, so the
+  // model's job is to propose plausible, on-theme values grounded in
+  // the persona + script — not to invent customer metrics.
+  const PERSONA_COPY_PROMPT = [
+    "You are filling in the persona card for a Salesforce demo. Using the",
+    "PERSONA and DEMO CONTEXT below, return ONE valid JSON object (no prose,",
+    "no markdown fences) with EXACTLY these keys:",
+    "",
+    "{",
+    '  "painPoints": "<one short sentence — the unspoken thing on their mind>",',
+    '  "stats": [',
+    '    { "value": "<short, e.g. \\"4th of July\\">", "label": "Top Moment" },',
+    '    { "value": "<short>", "label": "Tradition" },',
+    '    { "value": "<short>", "label": "Signal" }',
+    "  ],",
+    '  "wishlist": [',
+    '    { "name": "<product name>", "detail": "<short context, e.g. \\"Saved to cart · price-drop trigger\\">" },',
+    '    { "name": "<product name>", "detail": "<short context>" },',
+    '    { "name": "<product name>", "detail": "<short context>" }',
+    "  ]",
+    "}",
+    "",
+    "RULES:",
+    "1. Keep every value SHORT — these are tiles and list rows, not paragraphs.",
+    "2. Ground everything in the persona + demo theme. Stay on-industry.",
+    "3. Do NOT invent specific customer metrics or prices. Wishlist items are",
+    "   illustrative product names that fit the persona; that's fine.",
+    "4. Always return all three stats and all three wishlist rows.",
+    "",
+    "── PERSONA ──",
+    "<<PERSONA>>",
+    "",
+    "── DEMO CONTEXT ──",
+    "<<CONTEXT>>",
+  ].join("\n");
+
+  // getPersonaCopyPrompt(persona, context) — persona is the persona
+  // object; context is a short string (theme/industry/vision/etc.).
+  function getPersonaCopyPrompt(persona, context) {
+    const p = persona || {};
+    const personaLines = [
+      p.name ? ("Name: " + p.name) : "",
+      p.role ? ("Role: " + p.role) : "",
+      p.goals ? ("Goals: " + p.goals) : "",
+      p.painPoints ? ("Known pain points: " + p.painPoints) : "",
+      p.demoRelevance ? ("Demo relevance: " + p.demoRelevance) : "",
+    ].filter(Boolean).join("\n") || "[no persona detail provided]";
+    return PERSONA_COPY_PROMPT
+      .replace("<<PERSONA>>", personaLines)
+      .replace("<<CONTEXT>>", String(context || "[no extra context]"));
+  }
+
   const PAGE_HELPER = [
     "We pre-fill the SE Inputs below from your project (script, setup fields,",
     "and any extracted foundations). Review or edit them, then Copy the prompt",
@@ -383,5 +439,7 @@ CX components (AubreyDemo):
     buildInputsBlock: buildInputsBlock,
     STORY_PARSE_PROMPT: STORY_PARSE_PROMPT,
     getStoryParsePrompt: getStoryParsePrompt,
+    PERSONA_COPY_PROMPT: PERSONA_COPY_PROMPT,
+    getPersonaCopyPrompt: getPersonaCopyPrompt,
   };
 })(window);
