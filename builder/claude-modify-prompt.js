@@ -1,162 +1,119 @@
 // ════════════════════════════════════════════════════════════════
 //  CLAUDE MODIFY PROMPT
-//  Builds CLAUDE_MODIFY.md — a reusable, copy-paste prompt file
-//  shipped inside every exported Holodeck. An SE can hand the demo
-//  folder to Claude / ChatGPT and use these prompts to make further
-//  edits (rebrand, add a slide, rewrite the persona, swap assets…)
-//  without re-opening the Builder.
-//
-//  Pure string generation, no DOM. Mirrors ai-config-prompt.js in
-//  spirit: a constant body plus a state-aware header.
+//  Builds CLAUDE_MODIFY.md for exported demos.
+//  Focus: plain-language, end-user editing guidance.
 //
 //  Public API:
-//    HOLO_CLAUDE_MODIFY.generate(state) → markdown string
+//    HOLO_CLAUDE_MODIFY.generate(state) -> markdown string
 // ════════════════════════════════════════════════════════════════
 
 (function (global) {
   "use strict";
 
-  // ── Orientation: how the exported demo is wired together ───────
-  const ORIENTATION = [
-    "## How this demo is structured",
+  const QUICK_START = [
+    "## Quick start",
     "",
-    "This is a **static, no-build** Salesforce Holodeck demo. There is no",
-    "bundler, framework, or compile step — every file is plain HTML/CSS/JS",
-    "served as-is. To preview a change, edit the file and refresh the browser.",
-    "",
-    "```",
-    "demo/",
-    "  demo-holodeck-unified.html   The full polished demo (5 sections)",
-    "  holodeck.config.js           ALL customer content lives here — edit this first",
-    "  data/holodeck-config.json    JSON snapshot (round-trips back into the Builder)",
-    "  styles/                      Design system (tokens, slides, components, nav…)",
-    "  js/                          Config-driven renderer (do not hand-edit content here)",
-    "  assets/                      Logos, persona images, scene photos, GIFs",
-    "```",
-    "",
-    "**Golden rule:** customer-facing content (copy, slides, brand, persona,",
-    "products, CX components) is data in `demo/holodeck.config.js`. Change the",
-    "config, not the renderer. The `js/` files turn that config into the DOM and",
-    "should only change if you're altering *behavior*, not *content*.",
+    "1. Open Claude or ChatGPT.",
+    "2. Share this exported demo folder.",
+    "3. Copy one prompt from this file.",
+    "4. Replace bracketed placeholders like `[CUSTOMER]`.",
+    "5. Ask the AI to make only the requested change.",
+    "6. Review the summary of changes before presenting.",
     "",
   ];
 
-  // ── The config shape, summarized for the model ────────────────
-  const CONFIG_SHAPE = [
-    "## What's in `holodeck.config.js`",
+  const SIMPLE_CONTEXT = [
+    "## What to edit",
     "",
-    "The file assigns `window.HOLODECK_CONFIG = { … }`. Key blocks:",
+    "For most content changes, ask the AI to edit `demo/holodeck.config.js`.",
     "",
-    "- `customer` / `project` — name, industry, audience, products, theme.",
-    "- `brand` — `mode` (`\"salesforce\"` | `\"customer\"` | `\"cobrand\"`),",
-    "  `primaryColor`, `secondaryColor`, `accentColor`, `logoPath`,",
-    "  `customerLogoPath`. The mode controls the lockup: Salesforce-led,",
-    "  customer-led, or co-branded.",
-    "- `persona` — the spotlighted persona (name, role, goals, hero image).",
-    "- `poweredBy.products` — the \"Powered by Salesforce\" attribution strip,",
-    "  derived from the story; edit to pin a specific product list.",
-    "- `slides[]` — the deck. Each slide has a `layout`, `title`, `sectionId`,",
-    "  and layout-specific content. Allowed layouts: hero, storyFoundation,",
-    "  currentFutureState, futureState, journeyTimeline, demoMap, personaCard,",
-    "  agentConversation, unifiedProfile, architecture, deviceMoment,",
-    "  embeddedCxComponent, kpiScorecard, executiveSummary, nextSteps.",
-    "- `demoAssets` — paths for scene/device media (storeInterior, productHero,",
-    "  iPhoneRec, laptopBrowsingGif, …). Empty → the slide shows a clean,",
-    "  brand-styled placeholder, never a broken image.",
-    "- `builderPlan` — the full round-trip snapshot (sections, CX components,",
-    "  story foundations). `builderPlan.cxComponents[].url` controls embedded",
-    "  iframes; `deviceFrame` controls the phone/desktop chrome.",
+    "This is where story text, customer details, slides, links, and media mappings live.",
+    "If you are only changing content (not behavior), this is usually the only file needed.",
     "",
   ];
 
-  // ── Copy-paste prompt recipes ─────────────────────────────────
-  const RECIPES = [
-    "## Ready-to-use prompts",
+  const EVERYDAY_PROMPTS = [
+    "## Everyday prompts (copy/paste)",
     "",
-    "Paste any of these into Claude or ChatGPT alongside this folder. Each is",
-    "written so the model edits the **config**, preserves structure, and keeps",
-    "the demo runnable.",
+    "### 1) Rename customer everywhere",
+    "> Update the customer name everywhere in my demo to `[NEW CUSTOMER NAME]`. Keep the same structure and slide flow. Show exactly what changed.",
     "",
-    "### Rebrand to the customer",
-    "> In `demo/holodeck.config.js`, set `brand.mode` to `\"customer\"`, update",
-    "> `brand.primaryColor` / `secondaryColor` / `accentColor` to <CUSTOMER>'s",
-    "> palette, and point `brand.customerLogoPath` at a file I'll drop in",
-    "> `demo/assets/`. Keep everything else unchanged. Show me the diff.",
+    "### 2) Rewrite for executive audience",
+    "> Rewrite this demo for executive leaders: shorter sentences, outcomes first, and plain business language. Keep the same storyline.",
     "",
-    "### Switch to co-branded (Salesforce + customer)",
-    "> Set `brand.mode` to `\"cobrand\"` in the config. Keep the Salesforce mark",
-    "> via `brand.logoPath` and add the customer mark via",
-    "> `brand.customerLogoPath`. Don't touch slide content.",
+    "### 3) Adapt for a new industry",
+    "> Adapt this demo for `[INDUSTRY]`. Keep the same storyline, but update examples, challenges, and benefits to match that industry.",
     "",
-    "### Add a new slide",
-    "> Add one slide to `slides[]` in `demo/holodeck.config.js`: layout",
-    "> `<LAYOUT from the allowed list>`, title \"<TITLE>\", in the `<SECTION>`",
-    "> section. Populate its content fields to match the surrounding slides of",
-    "> the same layout. Set a clear `selectionStatus` and `order`. Don't",
-    "> renumber unrelated slides destructively — just insert.",
+    "### 4) Shift product emphasis",
+    "> Rebalance the story to emphasize `[PRODUCT A]` and `[PRODUCT B]` without changing the overall flow.",
     "",
-    "### Remove or reorder slides",
-    "> In `slides[]`, remove the slide titled \"<TITLE>\" and re-sort the",
-    "> remaining slides' `order` fields so they stay 0-based and contiguous",
-    "> within each section. Verify no other slide referenced it.",
+    "### 5) Simplify for first meeting",
+    "> Rewrite this demo so a first-time audience can understand it quickly. Use plain language and avoid unexplained acronyms.",
     "",
-    "### Rewrite the persona",
-    "> Rewrite the `persona` block (and the matching personaCard / unifiedProfile",
-    "> slides) for <NEW PERSONA: name, role, goals, pain points>. Keep the tone",
-    "> consistent with the rest of the deck. Leave layout and structure intact.",
+    "### 6) Create a 5-minute version",
+    "> Trim this demo to a clear 5-minute version. Keep only the most important slides and smooth transitions.",
     "",
-    "### Sharpen the story / value",
-    "> Tighten the `storyFoundation`, `currentFutureState`, and `executiveSummary`",
-    "> slide copy in the config to emphasize <OUTCOME / METRIC>. Keep it concise",
-    "> and executive-ready; don't invent metrics — use [TODO:] for unknowns.",
+    "### 7) Add safe metric placeholders",
+    "> Add placeholders like `[TODO: metric]` where impact is discussed. Do not invent numbers.",
     "",
-    "### Swap in a real asset",
-    "> I added `demo/assets/<FILE>`. Update the matching path in",
-    "> `demoAssets` (or the relevant slide) so the demo uses it. If a slide had",
-    "> a placeholder, it should now show the image.",
+    "### 8) Refresh persona",
+    "> Replace the persona with: Name `[NAME]`, Role `[ROLE]`, Goals `[GOALS]`, Pain points `[PAINS]`. Update related slides so details stay consistent.",
     "",
-    "### Add an embedded live screen (CX component)",
-    "> Add an entry to `builderPlan.cxComponents` with the URL <URL>, a sensible",
-    "> `deviceFrame` (commerce/web → desktop; SMS/agent → mobile), and add a",
-    "> matching `embeddedCxComponent` slide in the Demo section linked to it.",
+    "### 9) Localize by region",
+    "> Adjust wording for `[REGION/COUNTRY]` audience (tone, spelling, terminology) while keeping the same structure.",
+    "",
+    "### 10) Editorial cleanup",
+    "> Do a final polish pass: improve clarity, remove repetition, and fix grammar. Keep facts and structure unchanged.",
+    "",
+    "### 11) Update assets and links",
+    "> Apply these updates: Assets `[LIST]`, Live links `[LIST]`. Map each to the correct demo moment and keep everything else unchanged.",
+    "",
+    "### 12) Final quality gate",
+    "> Run a final review and return PASS or FAIL. Check placeholders, story flow, link mapping, and audience fit. If FAIL, provide only the smallest required fixes.",
     "",
   ];
 
-  // ── Guardrails ────────────────────────────────────────────────
-  const GUARDRAILS = [
-    "## Guardrails for the AI",
+  const SAFETY_RULES = [
+    "## Safety rules for AI edits",
     "",
-    "1. Edit `holodeck.config.js` for content; only touch `js/` for behavior.",
-    "2. Keep the file valid JavaScript — it must still assign",
-    "   `window.HOLODECK_CONFIG`. After editing, the demo must load with no",
-    "   console errors.",
-    "3. Use only the allowed slide layouts listed above.",
-    "4. Don't invent customer facts (names, metrics, logos). Use `[TODO: …]`",
-    "   placeholders and call them out.",
-    "5. Preserve backward compatibility: leave unrecognized fields untouched.",
-    "6. Prefer small, reviewable diffs over wholesale rewrites.",
+    "1. Make small, focused updates.",
+    "2. Do not invent customer facts, metrics, logos, or claims.",
+    "3. Keep unknown details as `[TODO: ...]`.",
+    "4. Keep slide structure stable unless explicitly asked to add/remove/reorder slides.",
+    "5. Preserve fields you do not understand; do not delete unknown content.",
+    "6. Return a clear summary of what changed.",
+    "",
+  ];
+
+  const GOOD_VS_WEAK = [
+    "## Good prompt vs weak prompt",
+    "",
+    "Good:",
+    "> Update only the executive summary and value slides for Acme. Keep everything else unchanged and use `[TODO: ...]` for unknown metrics.",
+    "",
+    "Weak:",
+    "> Make this whole demo better.",
     "",
   ];
 
   function header(state) {
     const project = (state && state.project) || {};
     const customer = project.customerName || (state && state.name) || "this customer";
-    const products = (project.products || []).join(", ") || "—";
+    const products = (project.products || []).join(", ") || "Not set yet";
     const brand = (state && state.brand) || {};
     const mode = brand.mode || "salesforce";
+    const slides = ((state && state.slides) || []).length;
     return [
-      "# Modify this Holodeck with AI",
+      "# Edit this downloaded demo with AI",
       "",
-      "This file ships with your exported Salesforce Holodeck. Hand the demo",
-      "folder to Claude or ChatGPT, then use the prompts below to make changes",
-      "without re-opening the Builder.",
+      "Use this file to request safe, simple edits after export.",
       "",
-      "**This demo at a glance**",
+      "**Current demo snapshot**",
       "",
       "- Customer: " + customer,
-      "- Products in scope: " + products,
-      "- Current branding mode: `" + mode + "`",
-      "- Slides: " + ((state && state.slides) || []).length,
+      "- Product focus: " + products,
+      "- Branding mode: " + mode,
+      "- Slide count: " + slides,
       "",
     ];
   }
@@ -164,10 +121,11 @@
   function generate(state) {
     return [].concat(
       header(state || {}),
-      ORIENTATION,
-      CONFIG_SHAPE,
-      RECIPES,
-      GUARDRAILS
+      QUICK_START,
+      SIMPLE_CONTEXT,
+      EVERYDAY_PROMPTS,
+      SAFETY_RULES,
+      GOOD_VS_WEAK
     ).join("\n");
   }
 

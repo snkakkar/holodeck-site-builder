@@ -59,9 +59,16 @@
     if (opts.schema && typeof opts.schema === "object") payload.schema = opts.schema;
     if (opts.model) payload.model = opts.model;
 
+    // The proxy streams a newline-delimited JSON (NDJSON) response —
+    // a {type:"start"} line, periodic {type:"ping"} heartbeats while
+    // Gemini generates, then a terminal {type:"done",text} or
+    // {type:"error",error}. Streaming keeps the HTTP connection alive
+    // past Heroku's 30s router limit (H12) on long script parses. We
+    // read the stream, ignore pings, and resolve with the full text so
+    // callers are unchanged.
     return fetch(GENERATE_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
       body: JSON.stringify(payload),
     })
       .catch(function (err) {
@@ -69,20 +76,79 @@
           "(Underlying: " + ((err && err.message) || err) + ")");
       })
       .then(function (res) {
-        return res.text().then(function (body) {
-          let parsed;
-          try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
-          if (!res.ok) {
-            const msg = (parsed && parsed.error) || ("HTTP " + res.status);
-            throw new Error(msg);
+        // A non-2xx with no stream (e.g. 503 unconfigured) still arrives
+        // as a single JSON object — handle that before streaming.
+        if (!res.ok && !res.body) {
+          return res.text().then(function (body) {
+            let parsed; try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
+            throw new Error((parsed && parsed.error) || ("HTTP " + res.status));
+          });
+        }
+        return readNdjson(res, function (msg) {
+          if (msg.type === "error") throw new Error(msg.error || "Gemini error");
+          if (msg.type === "done") {
+            if (typeof msg.text !== "string") throw new Error("Unexpected response from the Gemini proxy");
+            return msg.text; // terminal value
           }
-          if (parsed && parsed.error) throw new Error(parsed.error);
-          if (!parsed || typeof parsed.text !== "string") {
-            throw new Error("Unexpected response from the Gemini proxy");
-          }
-          return parsed.text;
+          return undefined; // start / ping → keep reading
         });
       });
+  }
+
+  // Read an NDJSON stream, passing each parsed line to `onMessage`.
+  // Resolves with the first non-undefined value `onMessage` returns
+  // (the terminal "done" text); rejects if `onMessage` throws (error
+  // line) or the stream ends with no terminal line. Falls back to a
+  // buffered read when ReadableStream isn't available.
+  function readNdjson(res, onMessage) {
+    if (!res.body || typeof res.body.getReader !== "function") {
+      // No streaming support — buffer the whole body, then replay lines.
+      return res.text().then(function (body) {
+        const result = consumeNdjsonLines(body, true, onMessage);
+        if (result.done) return result.value;
+        throw new Error("Gemini stream ended without a result");
+      });
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    function pump() {
+      return reader.read().then(function (step) {
+        buffer += decoder.decode(step.value || new Uint8Array(), { stream: !step.done });
+        const result = consumeNdjsonLines(buffer, step.done, onMessage);
+        buffer = result.rest;
+        if (result.done) return result.value;
+        if (step.done) throw new Error("Gemini stream ended without a result");
+        return pump();
+      });
+    }
+    return pump();
+  }
+
+  // Pull complete lines out of `buffer`, parse each as JSON, and run
+  // `onMessage`. Returns { rest, done, value } — `rest` is the unparsed
+  // tail, `done`/`value` set once onMessage yields a terminal value.
+  // When `flush` is true the final line need not be newline-terminated.
+  function consumeNdjsonLines(buffer, flush, onMessage) {
+    let rest = buffer;
+    let nl;
+    while ((nl = rest.indexOf("\n")) !== -1) {
+      const line = rest.slice(0, nl).trim();
+      rest = rest.slice(nl + 1);
+      if (!line) continue;
+      let msg; try { msg = JSON.parse(line); } catch (_) { continue; }
+      const v = onMessage(msg);
+      if (v !== undefined) return { rest: rest, done: true, value: v };
+    }
+    if (flush && rest.trim()) {
+      let msg; try { msg = JSON.parse(rest.trim()); } catch (_) { msg = null; }
+      if (msg) {
+        const v = onMessage(msg);
+        if (v !== undefined) return { rest: "", done: true, value: v };
+      }
+      rest = "";
+    }
+    return { rest: rest, done: false, value: undefined };
   }
 
   // ─── Image generation ────────────────────────────────────────
@@ -99,9 +165,13 @@
     const payload = { prompt: String(prompt) };
     if (opts.model) payload.model = opts.model;
 
+    // Same NDJSON streaming protocol as generate() — start/ping/done —
+    // so image generation also survives Heroku's 30s router limit. The
+    // terminal line carries {type:"done",dataUrl}. Resolves with the
+    // data: URL string, so callers are unchanged.
     return fetch(IMAGE_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
       body: JSON.stringify(payload),
     })
       .catch(function (err) {
@@ -109,18 +179,21 @@
           "(Underlying: " + ((err && err.message) || err) + ")");
       })
       .then(function (res) {
-        return res.text().then(function (body) {
-          let parsed;
-          try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
-          if (!res.ok) {
-            const msg = (parsed && parsed.error) || ("HTTP " + res.status);
-            throw new Error(msg);
+        if (!res.ok && !res.body) {
+          return res.text().then(function (body) {
+            let parsed; try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
+            throw new Error((parsed && parsed.error) || ("HTTP " + res.status));
+          });
+        }
+        return readNdjson(res, function (msg) {
+          if (msg.type === "error") throw new Error(msg.error || "Gemini error");
+          if (msg.type === "done") {
+            if (typeof msg.dataUrl !== "string" || !msg.dataUrl) {
+              throw new Error("Unexpected response from the Gemini image proxy");
+            }
+            return msg.dataUrl; // terminal value
           }
-          if (parsed && parsed.error) throw new Error(parsed.error);
-          if (!parsed || typeof parsed.dataUrl !== "string" || !parsed.dataUrl) {
-            throw new Error("Unexpected response from the Gemini image proxy");
-          }
-          return parsed.dataUrl;
+          return undefined; // start / ping → keep reading
         });
       });
   }

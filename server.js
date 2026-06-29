@@ -42,6 +42,32 @@ const GEMINI_TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
 const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
+// ── NDJSON streaming helper ────────────────────────────────────
+// Heroku's router kills any request whose first byte or idle gap
+// exceeds ~30s/55s (H12 Request Timeout). Slow Gemini calls (long
+// script parses, image generation) blow past that. We answer as
+// newline-delimited JSON: a {type:"start"} line flushed immediately,
+// {type:"ping"} heartbeats every 10s while we wait, and a terminal
+// {type:"done",...} or {type:"error",error}. This keeps the
+// connection alive no matter how long the upstream call takes. The
+// client (gemini-client.js) reads these lines and ignores pings.
+// Returns { writeLine, finish } — call finish() exactly once.
+function beginNdjson(res) {
+  res.status(200);
+  res.set("Content-Type", "application/x-ndjson; charset=utf-8");
+  res.set("Cache-Control", "no-cache, no-transform");
+  res.set("X-Accel-Buffering", "no");
+  const writeLine = (obj) => { try { res.write(JSON.stringify(obj) + "\n"); } catch (_) {} };
+  writeLine({ type: "start" });
+  const heartbeat = setInterval(() => writeLine({ type: "ping" }), 10000);
+  const finish = (obj) => {
+    clearInterval(heartbeat);
+    writeLine(obj);
+    res.end();
+  };
+  return { writeLine, finish };
+}
+
 app.get("/", (_req, res) => {
   res.redirect(302, "/builder/");
 });
@@ -65,13 +91,25 @@ app.get("/api/gemini/status", (_req, res) => {
   });
 });
 
-// ── Gemini: text/JSON generation ───────────────────────────────
-// Body: { prompt: string, schema?: object, model?: string }
-// When `schema` is present we ask Gemini for application/json and
-// pass the schema through as responseSchema so the model returns a
-// single valid JSON object. We return { text } — the raw model text
-// — and let the caller parse/validate (the builder reuses its
-// existing import validator).
+// ── Gemini: text/JSON generation (streamed NDJSON) ─────────────
+// Body: { prompt: string, schema?: object, jsonMode?: bool, model?: string }
+//
+// A full-script parse can take well over Heroku's 30s router limit
+// (H12 Request Timeout), which killed the old buffered response. We
+// avoid that by proxying Gemini's streaming endpoint and replying as
+// newline-delimited JSON (NDJSON):
+//   {"type":"start"}                       ← flushed immediately (beats
+//                                             the 30s time-to-first-byte)
+//   {"type":"ping"}                        ← heartbeat while generating
+//                                             (keeps the 55s idle window
+//                                             from closing)
+//   {"type":"done","text":…,"model":…}     ← final, full text
+//   {"type":"error","error":…}             ← failure (terminal line)
+// The client (gemini-client.js) reads these lines, ignores pings, and
+// resolves with the full text — so callers still just get a string.
+// The result is still buffered server-side before `done`, so JSON /
+// responseSchema validation downstream is unchanged; streaming only
+// keeps the HTTP connection alive past 30s.
 app.post("/api/gemini/generate", async (req, res) => {
   if (!GEMINI_API_KEY) {
     return res.status(503).json({ error: "Gemini is not configured on the server (GEMINI_API_KEY unset)." });
@@ -102,43 +140,86 @@ app.post("/api/gemini/generate", async (req, res) => {
   };
   if (Object.keys(generationConfig).length) payload.generationConfig = generationConfig;
 
-  const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`;
+  // Begin the NDJSON response immediately so Heroku sees a first byte
+  // long before its 30s limit (see beginNdjson).
+  const { finish } = beginNdjson(res);
+
+  // Stream from Gemini via SSE (alt=sse). Each event's data is a partial
+  // GenerateContentResponse; we concatenate the text parts as they land.
+  const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
   try {
     const upstream = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
       body: JSON.stringify(payload),
     });
-    const raw = await upstream.text();
-    let parsed;
-    try { parsed = JSON.parse(raw); } catch (_) { parsed = null; }
 
     if (!upstream.ok) {
+      const raw = await upstream.text();
+      let parsed; try { parsed = JSON.parse(raw); } catch (_) { parsed = null; }
       const msg = (parsed && parsed.error && parsed.error.message) || `Gemini HTTP ${upstream.status}`;
-      return res.status(502).json({ error: msg });
+      return finish({ type: "error", error: msg });
     }
 
-    // Flatten the first candidate's text parts into one string.
-    const cand = parsed && parsed.candidates && parsed.candidates[0];
-    const parts = (cand && cand.content && cand.content.parts) || [];
-    const text = parts.map((p) => (p && p.text) || "").join("");
-    if (!text) {
-      const finish = cand && cand.finishReason ? ` (finishReason: ${cand.finishReason})` : "";
-      return res.status(502).json({ error: `Gemini returned no text${finish}` });
+    // Parse the SSE byte stream line-by-line, accumulating "data:" JSON
+    // chunks into the full text. `finishReason` is captured for error
+    // messages if no text comes back.
+    let text = "";
+    let finishReason = "";
+    let buffer = "";
+    const decoder = new TextDecoder();
+    const handleEvent = (jsonStr) => {
+      let evt; try { evt = JSON.parse(jsonStr); } catch (_) { return; }
+      if (evt && evt.error && evt.error.message) { finishReason = "ERROR: " + evt.error.message; return; }
+      const cand = evt && evt.candidates && evt.candidates[0];
+      if (!cand) return;
+      if (cand.finishReason) finishReason = cand.finishReason;
+      const parts = (cand.content && cand.content.parts) || [];
+      for (const p of parts) if (p && p.text) text += p.text;
+    };
+
+    for await (const chunk of upstream.body) {
+      buffer += decoder.decode(chunk, { stream: true });
+      // SSE events are separated by blank lines; each event has one or
+      // more "data: …" lines.
+      let nl;
+      while ((nl = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, nl).replace(/\r$/, "");
+        buffer = buffer.slice(nl + 1);
+        if (line.startsWith("data:")) {
+          const data = line.slice(5).trim();
+          if (data && data !== "[DONE]") handleEvent(data);
+        }
+      }
     }
-    return res.json({ text, model });
+    if (buffer.trim().startsWith("data:")) {
+      const data = buffer.trim().slice(5).trim();
+      if (data && data !== "[DONE]") handleEvent(data);
+    }
+
+    if (!text) {
+      const fr = finishReason ? ` (finishReason: ${finishReason})` : "";
+      return finish({ type: "error", error: `Gemini returned no text${fr}` });
+    }
+    return finish({ type: "done", text, model });
   } catch (err) {
-    return res.status(502).json({ error: `Could not reach Gemini: ${(err && err.message) || err}` });
+    return finish({ type: "error", error: `Could not reach Gemini: ${(err && err.message) || err}` });
   }
 });
 
-// ── Gemini: image generation ───────────────────────────────────
+// ── Gemini: image generation (NDJSON-wrapped) ──────────────────
 // Body: { prompt: string, model?: string }
 // The image model returns the picture as an inlineData part (base64)
-// rather than text, so we can't reuse /generate (which flattens text
-// parts only). We pull the first inlineData part and hand the browser
-// a ready-to-use data: URL, which drops straight into the builder's
-// assetLibrary slots (same shape the manual uploader produces).
+// rather than text, so we can't reuse /generate. We pull the first
+// inlineData part and hand the browser a ready-to-use data: URL, which
+// drops straight into the builder's assetLibrary slots (same shape the
+// manual uploader produces).
+//
+// Image generation can also exceed Heroku's 30s router limit, so the
+// response is wrapped in the same NDJSON start/ping/done protocol as
+// /generate (see beginNdjson). We still buffer the upstream call (the
+// base64 image arrives in one piece); the heartbeat is what keeps the
+// connection alive. Terminal line is {type:"done",dataUrl,model}.
 app.post("/api/gemini/generate-image", async (req, res) => {
   if (!GEMINI_API_KEY) {
     return res.status(503).json({ error: "Gemini is not configured on the server (GEMINI_API_KEY unset)." });
@@ -154,6 +235,7 @@ app.post("/api/gemini/generate-image", async (req, res) => {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
   };
 
+  const { finish } = beginNdjson(res);
   const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`;
   try {
     const upstream = await fetch(url, {
@@ -167,7 +249,7 @@ app.post("/api/gemini/generate-image", async (req, res) => {
 
     if (!upstream.ok) {
       const msg = (parsed && parsed.error && parsed.error.message) || `Gemini HTTP ${upstream.status}`;
-      return res.status(502).json({ error: msg });
+      return finish({ type: "error", error: msg });
     }
 
     // Find the first inlineData part in the first candidate.
@@ -175,19 +257,20 @@ app.post("/api/gemini/generate-image", async (req, res) => {
     const parts = (cand && cand.content && cand.content.parts) || [];
     const imgPart = parts.filter((p) => p && p.inlineData && p.inlineData.data)[0];
     if (!imgPart) {
-      const finish = cand && cand.finishReason ? ` (finishReason: ${cand.finishReason})` : "";
+      const fr = cand && cand.finishReason ? ` (finishReason: ${cand.finishReason})` : "";
       // Surface any text the model returned instead of an image — it
       // often explains a safety block or refusal.
       const note = parts.map((p) => (p && p.text) || "").join("").trim();
-      return res.status(502).json({
-        error: `Gemini returned no image${finish}${note ? ": " + note.slice(0, 200) : ""}`,
+      return finish({
+        type: "error",
+        error: `Gemini returned no image${fr}${note ? ": " + note.slice(0, 200) : ""}`,
       });
     }
     const mime = imgPart.inlineData.mimeType || "image/png";
     const dataUrl = `data:${mime};base64,${imgPart.inlineData.data}`;
-    return res.json({ dataUrl, model });
+    return finish({ type: "done", dataUrl, model });
   } catch (err) {
-    return res.status(502).json({ error: `Could not reach Gemini: ${(err && err.message) || err}` });
+    return finish({ type: "error", error: `Could not reach Gemini: ${(err && err.message) || err}` });
   }
 });
 
