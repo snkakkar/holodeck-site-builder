@@ -58,6 +58,10 @@
     if (opts.jsonMode) payload.jsonMode = true;
     if (opts.schema && typeof opts.schema === "object") payload.schema = opts.schema;
     if (opts.model) payload.model = opts.model;
+    // Opt-in latency controls forwarded to the proxy (see server.js).
+    if (opts.fast) payload.fast = true;
+    if (typeof opts.temperature === "number") payload.temperature = opts.temperature;
+    if (typeof opts.maxOutputTokens === "number") payload.maxOutputTokens = opts.maxOutputTokens;
 
     // The proxy streams a newline-delimited JSON (NDJSON) response —
     // a {type:"start"} line, periodic {type:"ping"} heartbeats while

@@ -134,6 +134,13 @@ app.post("/api/gemini/generate", async (req, res) => {
   if (body.schema && typeof body.schema === "object") {
     generationConfig.responseSchema = body.schema;
   }
+  // Opt-in latency controls (only applied when the caller asks). For a
+  // mechanical JSON extraction these cut a lot of wall-clock:
+  //  • fast → disable the 2.5-flash "thinking" pass (the big win)
+  //  • temperature / maxOutputTokens → deterministic, bounded output
+  if (body.fast === true) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  if (typeof body.temperature === "number") generationConfig.temperature = body.temperature;
+  if (typeof body.maxOutputTokens === "number") generationConfig.maxOutputTokens = body.maxOutputTokens;
 
   const payload = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],

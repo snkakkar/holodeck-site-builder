@@ -85,6 +85,30 @@
     });
     return node;
   }
+  // Small reusable progress widget. Returns { node, set, indeterminate }.
+  //  • set(frac, label)      → determinate: fill width = frac (0..1)
+  //  • indeterminate(label)  → animated sweep (for single long calls)
+  function progressBar(initialLabel) {
+    const fill = el("div", { class: "bx-progress-fill" });
+    const track = el("div", { class: "bx-progress" }, [fill]);
+    const label = el("div", { class: "bx-progress-label", text: initialLabel || "" });
+    const node = el("div", { class: "bx-progress-wrap" }, [track, label]);
+    return {
+      node: node,
+      set: function (frac, text) {
+        track.classList.remove("is-indeterminate");
+        const pct = Math.max(0, Math.min(1, frac || 0)) * 100;
+        fill.style.width = Math.round(pct) + "%";
+        if (text != null) label.textContent = text;
+      },
+      indeterminate: function (text) {
+        track.classList.add("is-indeterminate");
+        fill.style.width = "";
+        if (text != null) label.textContent = text;
+      },
+    };
+  }
+
   function uid(prefix) { return STORE.uid(prefix); }
   function toast(msg) {
     const t = $("#bxToast");
@@ -1120,12 +1144,30 @@
     button.disabled = true;
     button.textContent = "Parsing with Gemini…";
 
+    // A single long call, so an animated (indeterminate) bar is the
+    // honest representation. Lives in the status div; cleared on the
+    // success render or replaced by the error alert below.
+    let pb = null;
+    if (status) {
+      pb = progressBar("Parsing your script with Gemini…");
+      pb.indeterminate("Parsing your script with Gemini…");
+      status.appendChild(pb.node);
+    }
+    const clearBar = function () { if (pb && pb.node.parentNode) pb.node.parentNode.removeChild(pb.node); };
+
     const showErr = function (msg) {
+      clearBar();
       if (status) status.appendChild(el("div", { class: "bx-alert is-error", text: "Gemini: " + msg }));
       else toast("Gemini: " + msg);
     };
 
-    GEMINI.generate({ prompt: AI_PROMPT.getStoryParsePrompt(s.scriptText), jsonMode: true })
+    GEMINI.generate({
+      prompt: AI_PROMPT.getStoryParsePrompt(s.scriptText),
+      jsonMode: true,
+      fast: true,            // disable the model's thinking pass — big latency win
+      temperature: 0.2,      // extraction is deterministic, not creative
+      maxOutputTokens: 4096, // comfortably covers the storyFoundations JSON
+    })
       .then(function (text) {
         const cleaned = String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
         let data;
@@ -1910,6 +1952,23 @@
     { slot: "laptopBrowsingGif", group: "Demo screens", label: "Laptop browsing GIF",
       help: "Looping desktop browse for laptop-frame slides.",
       layouts: ["deviceMoment", "embeddedCxComponent"], accept: "image/*,video/mp4" },
+
+    // CX component stills — optional AI/uploaded screenshots that render
+    // INSIDE the device frame in place of the live HTML mock / blank
+    // iframe. When empty, the existing mock renders unchanged. Image-only
+    // (no Gif suffix → no "still image" note).
+    { slot: "cxUnifiedProfile", group: "CX component stills", label: "Unified profile still",
+      help: "Stylized Data Cloud unified-profile screen. Shows inside the laptop frame on the Unified Profile slide (replaces the HTML mock).",
+      layouts: ["unifiedProfile"], accept: "image/*" },
+    { slot: "cxInstagramAd", group: "CX component stills", label: "Instagram ad still",
+      help: "Paid-social / Instagram ad creative. Shows inside the phone frame on Embedded CX / device slides.",
+      layouts: ["embeddedCxComponent", "deviceMoment"], accept: "image/*" },
+    { slot: "cxShopperAgent", group: "CX component stills", label: "Shopper agent still",
+      help: "Shopper / commerce agent chat screenshot. Shows inside the phone frame.",
+      layouts: ["embeddedCxComponent", "deviceMoment"], accept: "image/*" },
+    { slot: "cxTextConvo", group: "CX component stills", label: "Agentic text thread still",
+      help: "SMS / agentic text-message thread. Shows inside the phone frame on the Agent Conversation slide (replaces the chat mock).",
+      layouts: ["agentConversation", "embeddedCxComponent"], accept: "image/*" },
   ];
 
   // Compute which assets should show given the current slide plan.
@@ -2263,6 +2322,20 @@
     };
     const snippet = function (v, n) { const t = clean(v); return t ? t.slice(0, n || 160) : ""; };
 
+    // Shared art direction for synthetic UI-mockup slots (CX stills,
+    // phone/laptop screens). STYLIZED, minimal-text — avoids the dense
+    // small copy image models render as garble. No device bezel: the
+    // demo renderer already wraps these in a phone/laptop frame.
+    const UI_ART = "Stylized, high-fidelity product UI mockup — clean modern SaaS design, " +
+      "generous whitespace, large rounded cards, soft shadows, one clear focal element. " +
+      "Use the brand's real colors and tone. Minimal text: at most a few short large-type labels; " +
+      "represent body copy as abstract gray placeholder bars, never real paragraphs. " +
+      "Screen content only — no device bezel in the image.";
+    // Negative clause appended to every prompt (photographic slots
+    // benefit too — keeps watermarks/garbled text out).
+    const NO_GARBLE = "Avoid: tiny or dense text, lorem-ipsum, misspelled/garbled words, watermarks, " +
+      "UI clutter, fake third-party logos, broken layouts.";
+
     const personaName = clean(persona.name);
     const personaRole = clean(persona.role);
     const personaGoals = snippet(persona.goals, 120);
@@ -2289,9 +2362,11 @@
       "persona.heroGif": "a candid lifestyle moment featuring " +
         (personaName || "the persona") + (personaRole ? " (" + personaRole + ")" : "") +
         (personaGoals ? ", pursuing " + personaGoals : "") + ", warm and editorial",
-      "persona.phoneGif": "a clean modern mobile app screen UI mockup shown on a smartphone" +
-        (personaPain ? ", helping the user with " + personaPain : "") +
-        (products.length ? " (powered by " + products.slice(0, 2).join(", ") + ")" : ""),
+      "persona.phoneGif": UI_ART + " A mobile app home screen for " +
+        (personaName || "the customer") +
+        (personaPain ? ", helping with " + personaPain : "") +
+        (products.length ? " (powered by " + products.slice(0, 2).join(", ") + ")" : "") +
+        ". 9:16 vertical mobile composition.",
       "storeExterior": "an inviting storefront / building exterior photo" +
         (customer ? " for \"" + customer + "\"" : "") +
         (industry ? " in the " + industry + " industry" : "") + ", daytime, no people",
@@ -2301,12 +2376,44 @@
         (theme ? " illustrating \"" + theme + "\"" : "") +
         (firstFew(f.commerceMoments, 1).length ? " — " + firstFew(f.commerceMoments, 1)[0] : "") +
         ", studio lighting on a clean background",
-      "iPhoneRec": "a clean modern mobile app recommendation screen UI mockup on a smartphone" +
-        (firstFew(f.customerMoments, 1).length ? " showing " + firstFew(f.customerMoments, 1)[0] : ""),
-      "webBrowseGif": "a modern e-commerce / web storefront browsing screen UI mockup on a desktop browser" +
-        (firstFew(f.commerceMoments, 1).length ? " showing " + firstFew(f.commerceMoments, 1)[0] : ""),
-      "laptopBrowsingGif": "a modern web application screen UI mockup shown on a laptop" +
-        (firstFew(f.customerMoments, 1).length ? " showing " + firstFew(f.customerMoments, 1)[0] : ""),
+      "iPhoneRec": UI_ART + " A mobile app product-recommendation screen" +
+        (firstFew(f.customerMoments, 1).length ? " showing " + firstFew(f.customerMoments, 1)[0] : "") +
+        (products.length ? " (powered by " + products.slice(0, 2).join(", ") + ")" : "") +
+        ". 9:16 vertical mobile composition.",
+      "webBrowseGif": UI_ART + " A modern e-commerce / web storefront browsing screen" +
+        (customer ? " for \"" + customer + "\"" : "") +
+        (firstFew(f.commerceMoments, 1).length ? " showing " + firstFew(f.commerceMoments, 1)[0] : "") +
+        ". 16:10 desktop browser composition.",
+      "laptopBrowsingGif": UI_ART + " A modern web application screen on a laptop" +
+        (firstFew(f.customerMoments, 1).length ? " showing " + firstFew(f.customerMoments, 1)[0] : "") +
+        ". 16:10 desktop composition.",
+
+      "cxUnifiedProfile": UI_ART + " A Salesforce Data Cloud unified customer profile dashboard for " +
+        (personaName || "the customer") + (personaRole ? " (" + personaRole + ")" : "") +
+        ". Left rail: circular avatar monogram, name, segment, two large KPI tiles (Lifetime Value, Orders). " +
+        "Main pane: a few labeled attribute fields and a simple affinity/score visual" +
+        (personaGoals ? " reflecting " + personaGoals : "") +
+        (industry ? ", in a " + industry + " context" : "") +
+        ". Salesforce console aesthetic, light theme, brand-accent highlights. 16:10 desktop composition.",
+      "cxInstagramAd": UI_ART + " A single Instagram-style paid social ad creative" +
+        (customer ? " for \"" + customer + "\"" : "") +
+        ". A bold hero product/lifestyle image filling the frame, a small brand handle row at top, " +
+        "like/comment/share icons, a 'Sponsored' tag, one short large headline and a Shop Now button" +
+        (firstFew(f.commerceMoments, 1).length ? " promoting " + firstFew(f.commerceMoments, 1)[0] : "") +
+        ". 9:16 vertical mobile composition.",
+      "cxShopperAgent": UI_ART + " A shopping/commerce assistant chat screen on a phone" +
+        (customer ? " for \"" + customer + "\"" : "") +
+        ". Header with an agent name, two or three short chat bubbles, and a horizontal row of product " +
+        "recommendation cards (image + short price-style label)" +
+        (personaPain ? " helping with " + personaPain : "") +
+        ". Friendly, on-brand. 9:16 vertical mobile composition.",
+      "cxTextConvo": UI_ART + " An SMS / iMessage-style text thread on a phone between " +
+        (personaName || "a customer") + " and a brand assistant" +
+        (customer ? " from \"" + customer + "\"" : "") +
+        ". Three or four short bubbles (incoming gray, outgoing brand-color), a typing indicator, " +
+        "and a message input bar" +
+        (personaPain ? ", resolving " + personaPain : "") +
+        ". Short realistic messages only. 9:16 vertical mobile composition.",
     };
     const intent = intents[item.slot] || ("an on-brand image for \"" + item.label + "\"");
 
@@ -2318,12 +2425,15 @@
     if (theme) ctx.push("Demo theme: " + theme);
     if (products.length) ctx.push("Salesforce products in play: " + products.join(", "));
     if (snippet(f.futureStateVision, 180)) ctx.push("Vision: " + snippet(f.futureStateVision, 180));
+    if (personaName) ctx.push("Persona: " + personaName + (personaRole ? " (" + personaRole + ")" : ""));
+    if (personaGoals) ctx.push("Persona goal: " + personaGoals);
     if (brand.primaryColor) ctx.push("Brand colors: " + [brand.primaryColor, brand.secondaryColor, brand.accentColor].filter(Boolean).join(", "));
 
     return [
       "Generate " + intent + ".",
       ctx.length ? ("Context — " + ctx.join("; ") + ".") : "",
-      "High quality, professional, suitable for a sales presentation. Do not include any lorem-ipsum or placeholder text.",
+      "High quality, professional, suitable for a sales presentation.",
+      NO_GARBLE,
     ].filter(Boolean).join(" ");
   }
 
@@ -2475,24 +2585,48 @@
           let imgOk = 0;
           toast("Generating with AI…");
 
+          // Progress bar lives just below the button; the post-run
+          // renderShell() rebuilds this whole section and clears it.
+          const pb = progressBar("Filling persona copy…");
+          genAllBar.appendChild(pb.node);
+
+          // A few images at a time is ~3x faster than one-at-a-time while
+          // staying well under Gemini's rate limits. Advance to the next
+          // batch only once the current one fully settles.
+          const IMG_BATCH = 3;
+          let done = 0;
+          const total = imgTargets.length;
+          const updateProgress = function () {
+            genAllLabel.textContent = "Generating image " + done + " / " + total + "…";
+            pb.set(total ? done / total : 1, "Generating image " + done + " / " + total + "…");
+          };
+          const runBatch = function (start) {
+            const slice = imgTargets.slice(start, start + IMG_BATCH);
+            if (!slice.length) return Promise.resolve();
+            return Promise.all(slice.map(function (r) {
+              // _aiGenerate catches its own errors and resolves to a
+              // boolean, so one slow/failed slot won't reject the batch.
+              return r._aiGenerate().then(function (success) {
+                done++; if (success) imgOk++; updateProgress();
+              });
+            })).then(function () { return runBatch(start + IMG_BATCH); });
+          };
+
           // 1) Persona copy first (writes to state in place), then
-          // 2) the empty image slots in a sequential chain.
+          // 2) the empty image slots in batched-parallel waves.
           genAllLabel.textContent = "Filling persona copy…";
+          pb.indeterminate("Filling persona copy…");
           runPersonaCopyFill(s)
             .then(function (personasUpdated) {
-              let done = 0;
-              return imgTargets.reduce(function (chain, r) {
-                return chain.then(function () {
-                  genAllLabel.textContent = "Generating image " + (done + 1) + " / " + imgTargets.length + "…";
-                  return r._aiGenerate().then(function (success) { done++; if (success) imgOk++; });
-                });
-              }, Promise.resolve()).then(function () { return personasUpdated; });
+              if (total) { pb.set(0, "Generating image 0 / " + total + "…"); }
+              else { pb.set(1, "No empty image slots"); }
+              return runBatch(0).then(function () { return personasUpdated; });
             })
             .then(function (personasUpdated) {
               commit();
               const parts = [];
               if (personasUpdated) parts.push(personasUpdated + " persona" + (personasUpdated === 1 ? "" : "s") + " filled");
-              parts.push(imgOk + " of " + imgTargets.length + " image" + (imgTargets.length === 1 ? "" : "s") + " generated");
+              parts.push(imgOk + " of " + total + " image" + (total === 1 ? "" : "s") + " generated");
               toast("AI: " + parts.join(" · "));
               genAllBtn.disabled = false; genAllLabel.textContent = origText;
               // Re-render so filled persona copy shows in the pending-
@@ -2500,6 +2634,7 @@
               renderShell();
             })
             .catch(function (err) {
+              if (pb.node.parentNode) pb.node.parentNode.removeChild(pb.node);
               genAllBtn.disabled = false; genAllLabel.textContent = origText;
               toast("AI: " + ((err && err.message) || String(err)));
             });

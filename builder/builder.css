@@ -429,6 +429,34 @@ button { font-family: inherit; }
   margin-top: 4px; line-height: 1.4;
   font-style: italic;
 }
+/* Progress bar — used by the Gemini "Extract" (indeterminate) and
+   "Generate all" (determinate) flows. Determinate fill width is set
+   inline; the indeterminate variant animates a sliding chunk. */
+.bx-progress-wrap { margin-top: 10px; }
+.bx-progress {
+  height: 8px; border-radius: 999px;
+  background: var(--bx-line-2);
+  overflow: hidden;
+}
+.bx-progress-fill {
+  height: 100%; width: 0;
+  background: var(--bx-blue, #2f6df6);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.bx-progress.is-indeterminate .bx-progress-fill {
+  width: 40%;
+  animation: bx-progress-slide 1.1s ease-in-out infinite;
+}
+@keyframes bx-progress-slide {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(260%); }
+}
+.bx-progress-label {
+  font-size: 11.5px; color: var(--bx-ink-2);
+  margin-top: 6px; line-height: 1.4;
+}
+
 .bx-asset-usedby {
   font-size: 11.5px; color: var(--bx-ink-2);
   margin-top: 5px; line-height: 1.4;

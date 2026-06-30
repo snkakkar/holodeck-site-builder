@@ -91,6 +91,12 @@
   // Uploaded media slots (Step 7) — used as the real asset behind slide media,
   // with mediaTile() degrading to a skeleton + cue when a slot is empty.
   const demoAssets = CFG.demoAssets || {};
+  // True when a slot holds a usable image src (not empty / [TODO]). Used to
+  // render a generated/uploaded CX still INSIDE a device frame in place of
+  // the HTML mock; when false the existing mock renders unchanged.
+  function hasStill(src) {
+    return typeof src === "string" && src.trim() && src.indexOf("[TODO") === -1;
+  }
   // Evidence-driven "Powered by Salesforce" list (theme 4). The adapter
   // precomputes CFG.poweredBy; fall back to deriving here so a legacy
   // config without it still renders an attributed strip.
@@ -344,7 +350,10 @@
       const userMsg  = chat.user;
       const agentMsg = chat.agent;
       return twoPanel({
-        left: phoneFrame(
+        // A generated/uploaded text-thread still replaces the chat mock.
+        left: hasStill(demoAssets.cxTextConvo)
+          ? phoneFrame(mediaTile({ src: demoAssets.cxTextConvo, kind: "image", alt: "Agentic text conversation" }))
+          : phoneFrame(
           el("div", { class: "dd-chat-thread" }, [
             el("div", { class: "dd-chat-head" }, [
               el("div", { class: "dd-chat-headline", text: "Agentforce" }),
@@ -513,7 +522,10 @@
       if (facets.length) show(0);
 
       return twoPanel({
-        left: laptopFrame(cdp),
+        // A generated/uploaded still wins over the interactive HTML mock.
+        left: hasStill(demoAssets.cxUnifiedProfile)
+          ? laptopFrame(mediaTile({ src: demoAssets.cxUnifiedProfile, kind: "image", alt: "Unified customer profile" }))
+          : laptopFrame(cdp),
         right: rightCopy({
           eyebrow:  "Data Cloud · Unified Profile",
           headlineHtml: s.title
@@ -563,7 +575,7 @@
         el("div", { class: "dd-screen-h", text: act.demoMoment || act.title || s.title || "Moment" }),
         // Real screenshot/GIF when uploaded for this device, else skeleton + cue.
         mediaTile({
-          src: isMobile ? demoAssets.iPhoneRec
+          src: isMobile ? (demoAssets.cxShopperAgent || demoAssets.cxTextConvo || demoAssets.iPhoneRec)
                         : (demoAssets.laptopBrowsingGif || demoAssets.webBrowseGif),
           kind: "gif",
           alt: act.demoMoment || act.title || "Demo moment",
@@ -655,7 +667,18 @@
       const cxIds = s.linkedCxComponentIds || [];
       const linked = cxIds.map(cxById).filter(Boolean);
       const c = linked[0] || cxList[0] || null;
-      const inner = c && c.url && /^https?:\/\//.test(c.url)
+      // Pick a CX still by component type/name (mirrors the adapter's
+      // buildScenes heuristics), falling back to whichever is available.
+      const tn = ((c && (c.type || "")) + " " + (c && (c.name || ""))).toLowerCase();
+      const still =
+        /instagram|paid|ad/.test(tn)            ? demoAssets.cxInstagramAd  :
+        /sms|text|message/.test(tn)             ? demoAssets.cxTextConvo    :
+        /agent|shopper|chat|commerce/.test(tn)  ? demoAssets.cxShopperAgent :
+        (demoAssets.cxShopperAgent || demoAssets.cxInstagramAd || demoAssets.cxTextConvo);
+      // A generated/uploaded still wins over the live iframe / skeleton.
+      const inner = hasStill(still)
+        ? mediaTile({ src: still, kind: "image", alt: (c && c.name) || "CX component" })
+        : c && c.url && /^https?:\/\//.test(c.url)
         ? renderCxIframe(c)
         : el("div", { class: "dd-skel dd-skel-screen" }, [
             skeletonShimmer(),

@@ -718,6 +718,15 @@
 .dd-dot-y { background:#febc2e; }
 .dd-dot-g { background:#28c840; }
 
+/* CX-component stills rendered directly inside a device frame: the
+   media host fills the screen area below the phone status bar / laptop
+   bar. cover + top keeps the screen header visible and fills edge-to-edge
+   so it reads like a real screenshot (prompts request matching ratios). */
+.dd-phone-screen > .dd-media,
+.dd-laptop-screen > .dd-media { flex:1; min-height:0; }
+.dd-phone-screen > .dd-media > .dd-media-img,
+.dd-laptop-screen > .dd-media > .dd-media-img { object-fit:cover; object-position:top; }
+
 /* ── Phone "screen" content modules ──────────────────────────── */
 .dd-screen { display:flex; flex-direction:column; gap:8px; padding:14px 18px; flex:1; }
 .dd-screen-eyebrow { font-size:9.5px; font-weight:800; letter-spacing:.22em; color:var(--red, #b22234); text-transform:uppercase; }

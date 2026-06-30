@@ -870,6 +870,12 @@
       iPhoneRec:         asset(state, "iPhoneRec"),
       webBrowseGif:      asset(state, "webBrowseGif"),
       laptopBrowsingGif: asset(state, "laptopBrowsingGif"),
+      // CX component stills — empty string when unset; the demo renderer
+      // treats empty as "render the HTML mock instead" (non-destructive).
+      cxUnifiedProfile:  asset(state, "cxUnifiedProfile"),
+      cxInstagramAd:     asset(state, "cxInstagramAd"),
+      cxShopperAgent:    asset(state, "cxShopperAgent"),
+      cxTextConvo:       asset(state, "cxTextConvo"),
       macbookFrame:      "assets/macbook-transparent.png",
       iPhoneFrame:       "assets/iPhone16Pro_FRAME.png",
     };
