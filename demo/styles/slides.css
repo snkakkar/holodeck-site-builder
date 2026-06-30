@@ -140,6 +140,12 @@
   align-items: start; margin-bottom: 36px;
   position: relative; overflow: visible;
 }
+/* When the SE authored a real timeline, the journey-map section hosts the
+   dd-jt horizontal timeline instead of the circle grid — switch off grid so
+   the timeline's own flex rows lay out unobstructed. */
+#sec-map .flow.flow-timeline {
+  display: block; gap: 0;
+}
 #sec-map .step {
   display: flex; flex-direction: column;
   align-items: center; text-align: center;
@@ -725,8 +731,12 @@
    so it reads like a real screenshot (prompts request matching ratios). */
 .dd-phone-screen > .dd-media,
 .dd-laptop-screen > .dd-media { flex:1; min-height:0; }
+/* CX stills are AI-generated mockups that already carry their own screen
+   chrome and vary in aspect ratio. `contain` shows the whole image without
+   cropping/distorting it; the white backdrop reads as screen bezel for any
+   letterboxing. (cover/top would double-crop mockups and distort them.) */
 .dd-phone-screen > .dd-media > .dd-media-img,
-.dd-laptop-screen > .dd-media > .dd-media-img { object-fit:cover; object-position:top; }
+.dd-laptop-screen > .dd-media > .dd-media-img { object-fit:contain; object-position:center; background:#fff; }
 
 /* ── Phone "screen" content modules ──────────────────────────── */
 .dd-screen { display:flex; flex-direction:column; gap:8px; padding:14px 18px; flex:1; }
@@ -1054,6 +1064,29 @@
   padding: 64px 72px;
   display:flex; flex-direction:column; gap:18px;
   justify-content:center;
+}
+
+/* ── Story / context interstitial ────────────────────────────── */
+.dd-display-lg { font-size:72px; line-height:1.02; }
+.dd-interstitial { height:100%; }
+.dd-interstitial-solo {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; gap:18px; padding:72px 96px;
+}
+.dd-interstitial-solo .dd-display-lg { max-width:1100px; }
+.dd-interstitial-split { display:grid; grid-template-columns: 46% 54%; }
+.dd-interstitial-media { position:relative; min-height:100%; overflow:hidden; background: linear-gradient(135deg, #2c3441 0%, #0d1320 100%); }
+.dd-interstitial-media .dd-media,
+.dd-interstitial-media .dd-skel-media { position:absolute; inset:0; min-height:100%; border-radius:0; }
+.dd-interstitial-split .dd-interstitial-copy {
+  padding:72px 80px; display:flex; flex-direction:column; gap:18px;
+  align-items:flex-start; justify-content:center; text-align:left;
+}
+.dd-interstitial-split .dd-interstitial-copy .dd-sub-center { margin:0; text-align:left; }
+@media (max-width: 900px) {
+  .dd-display-lg { font-size:48px; }
+  .dd-interstitial-split { grid-template-columns: 1fr; }
+  .dd-interstitial-media { min-height:200px; }
 }
 
 /* ── Icon list (used by scenePhoto) ──────────────────────────── */

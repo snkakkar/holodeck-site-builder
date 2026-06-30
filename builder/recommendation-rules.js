@@ -210,21 +210,11 @@
     },
 
     // ── Journey Map section ─────────────────────────────────────
-    {
-      id: "slide-journey-timeline",
-      title: "End-to-End Customer Journey",
-      type: "slide",
-      layout: "journeyTimeline",
-      sectionId: "journey-map",
-      selectionStatus: "required",
-      capabilities: [],
-      requiredInputs: ["storyActs"],
-      match: function (ctx) {
-        if ((ctx.storyActs || []).length >= 3) return { priority: 90, signals: ["multi-act"] };
-        if ((ctx.storyActs || []).length >= 1) return { priority: 75, signals: ["acts"] };
-        return { priority: 60, signals: ["scaffolding"] };
-      },
-    },
+    // NOTE: journey-map is manifest-owned (see buildSlideManifest +
+    // MANIFEST_SECTIONS) — the journey timeline now ships as the synthetic
+    // slide _rt_journey_timeline, which carries its editorPaths. The old
+    // RULES timeline entry was filtered out before rendering and has been
+    // removed. (slide-demo-map below is likewise manifest-gated.)
     {
       id: "slide-demo-map",
       title: "One Journey, Many Signals",
@@ -274,6 +264,40 @@
     },
 
     // ── Demo section: agent / commerce / data / device moments ──
+    {
+      // "The moment that starts everything" — the cinematic scene-photo
+      // beat (one visit, one email) that opens the demo. Renders in /demo
+      // from storyActs + demoAssets.storeInterior; this rule makes it
+      // discoverable + selectable in the Step-5 selector.
+      id: "slide-scene-photo",
+      title: "The moment that starts everything",
+      type: "slide",
+      layout: "scenePhoto",
+      sectionId: "demo",
+      selectionStatus: "recommended",
+      capabilities: ["Data Cloud"],
+      requiredInputs: ["storyActs"],
+      match: function (ctx) {
+        if (!(ctx.storyActs || []).length) return null;
+        return { priority: 88, signals: ["story"] };
+      },
+    },
+    {
+      // Story / context interstitial — a pacing beat ("Two months have
+      // passed…") the SE can drop anywhere in the demo. Always available
+      // (optional), low priority so it never crowds the recommended cards.
+      id: "slide-story-interstitial",
+      title: "Story / context beat",
+      type: "slide",
+      layout: "storyInterstitial",
+      sectionId: "demo",
+      selectionStatus: "optional",
+      capabilities: [],
+      requiredInputs: [],
+      match: function () {
+        return { priority: 20, signals: ["story"] };
+      },
+    },
     {
       id: "slide-agent-conversation",
       title: "Agent Conversation Moment",
@@ -860,6 +884,10 @@
         audienceTags: rule.audienceTags || [],
         capabilities: rule.capabilities ? rule.capabilities.slice() : [],
         priority: result.priority,
+        // Intent grouping for the Step-5 selector: an explicit tag on the
+        // rule wins, else derive from the layout. Lets the demo section
+        // collapse its many near-duplicate cards under a few intent headers.
+        intentGroup: rule.intentGroup || intentGroupFor(rule.layout, result.signals),
         rationale: rationaleFor(rule, result, ctx),
         sourceSignals: result.signals || [],
         missingInputs: missing,
@@ -962,6 +990,8 @@
       futureState:         "intro",
       journeyTimeline:     "journey-map",
       demoMap:             "journey-map",
+      scenePhoto:          "demo",
+      storyInterstitial:   "demo",
       personaCard:         "meet-persona",
       unifiedProfile:      "demo",
       agentConversation:   "demo",
@@ -972,6 +1002,28 @@
       executiveSummary:    "business-value",
       nextSteps:           "business-value",
     })[layout] || "demo";
+  }
+
+  // Group label for the Step-5 selector's demo section, so the many
+  // near-duplicate demo cards collapse under a handful of intent headers.
+  // Derived from layout + signals; rules may override with `intentGroup`.
+  function intentGroupFor(layout, signals) {
+    signals = signals || [];
+    if (layout === "scenePhoto" || layout === "storyInterstitial") return "Context & story";
+    if (layout === "agentConversation") return "Agent moments";
+    if (layout === "unifiedProfile") return "Data moments";
+    if (layout === "embeddedCxComponent") return "Live CX moments";
+    if (layout === "architecture") {
+      // Architecture cards split between agent topics/handoff and data/integration.
+      if (signals.indexOf("agentforce") >= 0 || signals.indexOf("handoff") >= 0) return "Agent moments";
+      return "Data moments";
+    }
+    if (layout === "deviceMoment") {
+      if (signals.indexOf("commerce") >= 0 || signals.indexOf("loyalty") >= 0 || signals.indexOf("lifecycle") >= 0) return "Commerce moments";
+      if (signals.indexOf("datacloud") >= 0 || signals.indexOf("activation") >= 0) return "Data moments";
+      return "Device moments";
+    }
+    return "Other moments";
   }
 
   // Compute the dynamic label for the Meet section.

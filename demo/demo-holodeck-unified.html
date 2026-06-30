@@ -484,8 +484,24 @@
     const circleClass = ['circle-anticipate','circle-engage','circle-guide','circle-convert','circle-delight'];
     // Colors: red=Know, blue=Reach, gold=Engage, green=Recover, pink=Convert
 
+    // When the SE authored explicit timeline events in the builder, render the
+    // horizontal timeline (the same dd-jt track the builder preview shows) in
+    // place of the circle/flow map — true preview==export parity. The demo-deck
+    // renderer owns that markup so the two stay byte-identical. We still fall
+    // through to the platform footer / fitMap / HOLO_NAV registration below.
+    var usedTimeline = false;
+    if (window.HOLO_DEMO && window.HOLO_DEMO.hasAuthoredTimeline &&
+        window.HOLO_DEMO.hasAuthoredTimeline()) {
+      // The horizontal timeline lays itself out (flex rows), so the circle
+      // grid template would only fight it — clear it.
+      flow.style.gridTemplateColumns = '';
+      flow.classList.add('flow-timeline');
+      usedTimeline = window.HOLO_DEMO.renderJourneyTimeline(flow);
+    }
+
     // Adaptive column count: N steps + (N-1) connectors = 2N-1 columns
     // (the deck now emits 3-5 steps, not always 5).
+    if (!usedTimeline) {
     flow.style.gridTemplateColumns = 'repeat(' + Math.max(1, story.steps.length * 2 - 1) + ', auto)';
 
     story.steps.forEach((step, i) => {
@@ -513,6 +529,7 @@
         flow.appendChild(conn);
       }
     });
+    } // end if (!usedTimeline) — circle/flow map
 
     document.getElementById('platform-title').textContent = story.platform.title;
     document.getElementById('platform-trust').textContent = story.platform.subtitle;

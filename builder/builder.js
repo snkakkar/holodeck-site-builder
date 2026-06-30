@@ -743,6 +743,7 @@
       title: "iFrame CX Components (optional)",
       lines: [
         "These are live, click-through demo screens embedded via an iFrame — not images. Link an Aubrey scene (or a URL) to drop the real interactive screen into the deck.",
+        "Once you link a component to a demo slide, pick the exact still image that slide should show right here — it overrides the component default and the auto-match.",
         "Static imagery is handled separately on the Assets step — including the still images these CX slots fall back to. Skip a component and its slide shows a clean, brand-styled placeholder.",
       ],
     },
@@ -1862,7 +1863,8 @@
         linkedStoryActIds: [], linkedSlideIds: [],
         deviceFrame: "desktop", iframeAllowed: true,
         fallbackMode: "link-card", status: "ready", notes: "",
-        imageSlot: "",  // "" = auto-match by type/name; else an explicit CX-still slot
+        imageSlot: "",  // "" = auto-match by type/name; else an explicit CX-still slot (component-wide default)
+        imageSlotsBySlide: {},  // { [slideId]: slot } — per-slide override, wins over imageSlot
       });
       s._cxSkipped = false;
       recompute(); renderMain(); commit();
@@ -1931,6 +1933,32 @@
           [el("span", { class: "bx-help-inline", text: "(optional)" })]),
         linkSel,
       ]));
+
+      // Per-slide still image: once a component is tied to a specific slide,
+      // the SE can pick exactly which CX still that slide shows — this wins
+      // over the component-wide default (Assets page) and the type/name
+      // heuristic. Stored on c.imageSlotsBySlide[slideId]; "" clears it.
+      if (currentLink) {
+        const imgSel = el("select", { class: "bx-select" });
+        imgSel.appendChild(el("option", { value: "", text: "Use component default / auto" }));
+        const bySlide = c.imageSlotsBySlide || {};
+        CX_IMAGE_SLOTS.forEach(function (opt) {
+          const o = el("option", { value: opt.slot, text: opt.label });
+          if ((bySlide[currentLink] || "") === opt.slot) o.setAttribute("selected", "selected");
+          imgSel.appendChild(o);
+        });
+        imgSel.addEventListener("change", function () {
+          c.imageSlotsBySlide = c.imageSlotsBySlide || {};
+          if (imgSel.value) c.imageSlotsBySlide[currentLink] = imgSel.value;
+          else delete c.imageSlotsBySlide[currentLink];
+          commit();
+        });
+        item.appendChild(el("div", { class: "bx-field" }, [
+          el("label", { class: "bx-label", text: "Image for this slide" },
+            [el("span", { class: "bx-help-inline", text: "(optional)" })]),
+          imgSel,
+        ]));
+      }
 
       // Show the auto-match so the SE knows where an unlinked component
       // will land, and let them lock it in with one click. Uses the same
@@ -2034,9 +2062,9 @@
     // always:true — these surface in Step 7 regardless of the current deck
     // layouts (like Brand/Persona). Generation is non-destructive: an empty
     // slot leaves the existing HTML mock unchanged, so always-on is safe.
-    { slot: "cxUnifiedProfile", group: "CX component stills", label: "Unified profile still",
-      help: "Stylized Data Cloud unified-profile screen. Shows inside the laptop frame on the Unified Profile slide (replaces the HTML mock).",
-      layouts: ["unifiedProfile"], always: true, accept: "image/*" },
+    // Note: there is intentionally no "cxUnifiedProfile" still slot — the
+    // Unified Profile slide always renders the interactive carousel, so a
+    // generated still for it would never be shown.
     { slot: "cxInstagramAd", group: "CX component stills", label: "Instagram ad still",
       help: "Paid-social / Instagram ad creative. Shows inside the phone frame on Embedded CX / device slides.",
       layouts: ["embeddedCxComponent", "deviceMoment"], always: true, accept: "image/*" },
@@ -2090,6 +2118,7 @@
     const map = {
       personaCard: "Meet the persona", deviceMoment: "Device moment",
       scenePhoto: "Scene", embeddedCxComponent: "Live CX screen",
+      storyInterstitial: "Story / context",
       unifiedProfile: "Unified profile", agentConversation: "Agent conversation",
       currentFutureState: "Current → future state",
     };
@@ -2483,13 +2512,8 @@
         (firstFew(f.customerMoments, 1).length ? " showing " + firstFew(f.customerMoments, 1)[0] : "") +
         ". 16:10 desktop composition.",
 
-      "cxUnifiedProfile": UI_ART + " A Salesforce Data Cloud unified customer profile dashboard for " +
-        (personaName || "the customer") + (personaRole ? " (" + personaRole + ")" : "") +
-        ". Left rail: circular avatar monogram, name, segment, two large KPI tiles (Lifetime Value, Orders). " +
-        "Main pane: a few labeled attribute fields and a simple affinity/score visual" +
-        (personaGoals ? " reflecting " + personaGoals : "") +
-        (industry ? ", in a " + industry + " context" : "") +
-        ". Salesforce console aesthetic, light theme, brand-accent highlights. 16:10 desktop composition.",
+      // No "cxUnifiedProfile" prompt — the Unified Profile slide always renders
+      // the interactive carousel, so a generated still for it is never shown.
       "cxInstagramAd": UI_ART + " A single Instagram-style paid social ad creative" +
         (customer ? " for \"" + customer + "\"" : "") +
         ". A bold hero product/lifestyle image filling the frame, a small brand handle row at top, " +
@@ -2984,6 +3008,37 @@
     wrap._assetSlot = item.slot;
     wrap._hasValue = function () { return Boolean(read()); };
 
+    // ─── Attach this CX still to a demo slide ──────────────────
+    // Only for CX-component stills. Lists every demo slide; picking one
+    // attaches this still to that slide. Writes the same imageSlotsBySlide
+    // mapping the Step-7 "Image for this slide" picker uses, so the two
+    // surfaces stay in sync.
+    if (CX_STILL_SLOTS.indexOf(item.slot) !== -1) {
+      const demoSlides = (s.slides || []).filter(function (sl) {
+        return (sl.sectionId || "") === "demo";
+      });
+      if (demoSlides.length) {
+        const slideSel = el("select", { class: "bx-select" });
+        slideSel.appendChild(el("option", { value: "", text: "Not on a specific slide" }));
+        const cur = cxSlideForSlot(s, item.slot);
+        demoSlides.forEach(function (sl) {
+          const o = el("option", { value: sl.id,
+            text: (sl.title || "Untitled") + " · " + layoutLabelShort(sl.layout || "") });
+          if (cur === sl.id) o.setAttribute("selected", "selected");
+          slideSel.appendChild(o);
+        });
+        slideSel.addEventListener("change", function () {
+          cxAttachSlotToSlide(s, item.slot, slideSel.value || "");
+          commit();
+        });
+        controls.appendChild(el("div", { class: "bx-field" }, [
+          el("label", { class: "bx-label", text: "Show on slide" },
+            [el("span", { class: "bx-help-inline", text: "(optional)" })]),
+          slideSel,
+        ]));
+      }
+    }
+
     const clear = el("button", { class: "bx-mini-btn is-danger",
       type: "button", "aria-label": "Clear", text: "Clear" });
     clear.addEventListener("click", function () {
@@ -3001,11 +3056,71 @@
   // slot ids in sync with ASSET_CATALOG's "CX component stills" group; the
   // renderer (embeddedCxComponent) reads c.imageSlot to pick the still.
   const CX_IMAGE_SLOTS = [
-    { slot: "cxUnifiedProfile", label: "Unified profile still" },
     { slot: "cxInstagramAd",    label: "Instagram ad still" },
     { slot: "cxShopperAgent",   label: "Shopper agent still" },
     { slot: "cxTextConvo",      label: "Agentic text thread still" },
   ];
+  const CX_STILL_SLOTS = CX_IMAGE_SLOTS.map(function (o) { return o.slot; });
+
+  // The renderer keys a per-slide CX still off the CX component linked to the
+  // slide (c.imageSlotsBySlide[slideId]). These helpers let the Assets still
+  // rows attach a slot to a slide using that same mapping — so the Assets
+  // dropdown and the Step-7 "Image for this slide" picker stay in sync.
+
+  // Demo slides that have a linked CX component (the only slides where a
+  // per-slide still actually takes effect). Returns [{id, title, comp}].
+  function cxSlideTargets(s) {
+    const slides = (s.slides || []).filter(function (sl) {
+      return (sl.sectionId || "") === "demo";
+    });
+    const out = [];
+    slides.forEach(function (sl) {
+      const comp = (s.cxComponents || []).filter(function (c) {
+        return (c.linkedSlideIds && c.linkedSlideIds[0]) === sl.id;
+      })[0];
+      if (comp) {
+        out.push({ id: sl.id, comp: comp,
+          title: (sl.title || "Untitled") + " · " + layoutLabelShort(sl.layout || "") });
+      }
+    });
+    return out;
+  }
+
+  // Which slide (id) currently shows the given still slot, by scanning the
+  // components' per-slide maps. "" = not attached to any slide.
+  function cxSlideForSlot(s, slot) {
+    const comps = s.cxComponents || [];
+    for (let i = 0; i < comps.length; i++) {
+      const m = comps[i].imageSlotsBySlide || {};
+      const sid = Object.keys(m).filter(function (k) { return m[k] === slot; })[0];
+      if (sid) return sid;
+    }
+    return "";
+  }
+
+  // Attach `slot` to `slideId` (or detach when slideId is ""). Clears this
+  // slot from every component first so a slot maps to at most one slide,
+  // then writes it onto the component that renders on the chosen slide —
+  // the one linked to it, or the first component (which the renderer falls
+  // back to: c = linked[0] || cxList[0]).
+  function cxAttachSlotToSlide(s, slot, slideId) {
+    const comps = s.cxComponents || [];
+    comps.forEach(function (c) {
+      const m = c.imageSlotsBySlide || {};
+      Object.keys(m).forEach(function (k) { if (m[k] === slot) delete m[k]; });
+      c.imageSlotsBySlide = m;
+    });
+    if (slideId) {
+      const linked = comps.filter(function (c) {
+        return (c.linkedSlideIds && c.linkedSlideIds[0]) === slideId;
+      })[0];
+      const target = linked || comps[0];
+      if (target) {
+        target.imageSlotsBySlide = target.imageSlotsBySlide || {};
+        target.imageSlotsBySlide[slideId] = slot;
+      }
+    }
+  }
 
   // Assets-page panel: one row per iFrame CX component letting the SE
   // explicitly choose which still-image slot it uses, instead of relying on
@@ -3207,6 +3322,12 @@
         if (!sec.slides.length) {
           c.appendChild(el("div", { class: "bx-empty",
             html: "No suggestions for this section yet. Add inputs in earlier steps." }));
+        } else if (sec.id === "demo") {
+          // The demo section carries the bulk of the cards (many near-
+          // duplicate device/agent/data moments). Group them by intent and
+          // tuck the lower-priority options behind a disclosure so the
+          // selector reads as a short curated list, not a wall of cards.
+          renderDemoSectionCards(c, sec, mode);
         } else if (mode === "grid") {
           const grid = el("div", { class: "bx-rec-grid" });
           sec.slides.forEach(function (r) { grid.appendChild(recGridCard(r)); });
@@ -3242,6 +3363,83 @@
 
     wrap.appendChild(stepFooter("recs"));
     return wrap;
+  }
+
+  // Fixed display order for the demo section's intent groups. Anything not
+  // listed (e.g. "Other moments") falls to the end in encounter order.
+  const DEMO_INTENT_ORDER = [
+    "Context & story",
+    "Agent moments",
+    "Data moments",
+    "Commerce moments",
+    "Live CX moments",
+    "Device moments",
+    "Other moments",
+  ];
+
+  // Render the demo section as intent groups. Within each group the
+  // required/recommended cards show inline; the optional long-tail collapses
+  // behind a "More options" disclosure. Pure presentation — selection state,
+  // ids, and buildSlidePlanFromSelections are untouched.
+  function renderDemoSectionCards(container, sec, mode) {
+    const s = app.state;
+    // Bucket by intentGroup (preserving priority order within each).
+    const buckets = {};
+    const seen = [];
+    sec.slides.forEach(function (r) {
+      const g = r.intentGroup || "Other moments";
+      if (!buckets[g]) { buckets[g] = []; seen.push(g); }
+      buckets[g].push(r);
+    });
+    // Order groups: known order first, then any extras in encounter order.
+    const groups = DEMO_INTENT_ORDER.filter(function (g) { return buckets[g]; })
+      .concat(seen.filter(function (g) { return DEMO_INTENT_ORDER.indexOf(g) < 0; }));
+
+    groups.forEach(function (g) {
+      const recs = buckets[g];
+      // Curated tier = required + recommended; long-tail = optional, but
+      // anything the SE has actively selected is promoted to the curated
+      // tier so a kept card never hides inside the collapsed disclosure.
+      const curated = recs.filter(function (r) {
+        return r.selectionStatus === "required"
+          || r.selectionStatus === "recommended"
+          || !!s.selectedRecIds[r.id];
+      });
+      const more = recs.filter(function (r) { return curated.indexOf(r) < 0; });
+
+      const groupEl = el("div", { class: "bx-intent-group" });
+      groupEl.appendChild(el("div", { class: "bx-intent-head" }, [
+        el("span", { class: "bx-intent-label", text: g }),
+        el("span", { class: "bx-intent-count", text: String(recs.length) }),
+      ]));
+
+      appendCards(groupEl, curated, mode);
+
+      if (more.length) {
+        const moreSelected = more.filter(function (r) { return !!s.selectedRecIds[r.id]; }).length;
+        const det = el("details", { class: "bx-intent-more" });
+        const sum = el("summary", { class: "bx-intent-more-summary",
+          text: "More options (" + more.length + ")"
+            + (moreSelected ? " · " + moreSelected + " on" : "") });
+        det.appendChild(sum);
+        const body = el("div", { class: "bx-intent-more-body" });
+        appendCards(body, more, mode);
+        det.appendChild(body);
+        groupEl.appendChild(det);
+      }
+      container.appendChild(groupEl);
+    });
+  }
+
+  // Append a list of recs as either grid or list cards into a parent node.
+  function appendCards(parent, recs, mode) {
+    if (mode === "grid") {
+      const grid = el("div", { class: "bx-rec-grid" });
+      recs.forEach(function (r) { grid.appendChild(recGridCard(r)); });
+      parent.appendChild(grid);
+    } else {
+      recs.forEach(function (r) { parent.appendChild(recCard(r)); });
+    }
   }
 
   // ─── View-mode segmented toggle (Grid / List) ────────────────
@@ -3504,6 +3702,7 @@
       personaCard: "Persona", agentConversation: "Agent", unifiedProfile: "Profile",
       architecture: "Architecture", deviceMoment: "Device", embeddedCxComponent: "Embedded CX",
       kpiScorecard: "KPI", executiveSummary: "Takeaway", nextSteps: "Roadmap",
+      scenePhoto: "Scene moment", storyInterstitial: "Story beat",
     })[layout] || layout;
   }
 

@@ -428,7 +428,15 @@
     ];
     const extras = defaultEditorPathsForLayout((slide && slide.layout) || "");
     Object.keys(extras).forEach(function (label) {
-      base.push({ label: label, path: extras[label], kind: kindForPath(extras[label], label) });
+      const path = extras[label];
+      // A "__slide.<field>" path binds the editor directly to a per-slide
+      // field (like the base title/notes), instead of the global state tree.
+      // Lets layouts such as storyInterstitial carry their own copy without
+      // a dedicated state array.
+      const m = /^__slide\.(.+)$/.exec(String(path || ""));
+      const field = { label: label, path: path, kind: kindForPath(path, label) };
+      if (m) field.slideField = m[1];
+      base.push(field);
     });
     return base;
   }
@@ -508,6 +516,14 @@
           "Customer name": "project.customerName",  // drives the h3
           "Products":      "project.products",      // rendered as the platform layer
         };
+      case "storyInterstitial":
+        // Per-slide narrative beat — fields live on the slide object so an
+        // SE can drop several with distinct copy. Bound via "__slide.*".
+        return {
+          "Kicker":    "__slide.kicker",
+          "Headline":  "__slide.headline",
+          "Sub-line":  "__slide.sub",
+        };
       case "deviceMoment":
       case "journeyTimeline":
       case "demoMap":
@@ -525,7 +541,10 @@
   // Layouts whose visible body is driven by state.storyActs (managed in
   // the Step 2 planner, not field-by-field). The popover shows a note so
   // the SE knows the per-act content is edited there, not here.
-  const STORYACTS_LAYOUTS = ["deviceMoment", "journeyTimeline", "demoMap", "journeyMapMatrix"];
+  // journeyTimeline is intentionally NOT here: it now has its own editable
+  // timeline-events list (decoupled from storyActs), so the "edit in Step 2"
+  // note would be misleading.
+  const STORYACTS_LAYOUTS = ["deviceMoment", "demoMap", "journeyMapMatrix"];
   function kindForPath(path, label) {
     const p = String(path || "");
     // Heuristic: any path ending in [n] / a known list field is treated as a list.
@@ -538,7 +557,8 @@
         || /openQuestions$/.test(p)) return "list-strings";
     // Lists of objects (one row per entry, multiple inputs).
     if (/wishlist$/.test(p) || /\.stats$/.test(p) || /bvsMetrics$/.test(p)
-        || /orbitNodes$/.test(p) || /capabilities$/.test(p)) return "list-objects";
+        || /orbitNodes$/.test(p) || /capabilities$/.test(p)
+        || /timelineEvents$/.test(p)) return "list-objects";
     if (/Notes$/.test(p) || /narrative$/i.test(p) || /takeaway$/i.test(p) || /vision$/i.test(p)
         || /problem$/i.test(p) || /pain$/i.test(p) || /painPoints$/i.test(p) || /goals$/i.test(p)
         || /demoRelevance$/i.test(p) || /relevance$/i.test(p) || /thesis$/i.test(p)
@@ -631,8 +651,6 @@
     }
 
     if (f.kind === "list-objects") {
-      // Lazy-allocate row inputs based on the current array.
-      const arr = (get() || []).slice();
       const wrap = el("div", { class: "bx-pop-edit-list" });
       // Optional prefill — (slide, state) => array of default row objects.
       // We DON'T persist these; instead each empty cell shows the matching
@@ -642,33 +660,117 @@
       if (typeof f.prefill === "function") {
         try { const d = f.prefill(slide, state); if (Array.isArray(d)) defaults = d; } catch (e) { defaults = []; }
       }
-      const slotCount = Math.max(arr.length, defaults.length, defaultRowsFor(f.path));
       const layout = layoutForListPath(f.path);
-      for (let i = 0; i < slotCount; i++) {
-        const row = (arr[i] && typeof arr[i] === "object") ? arr[i] : {};
-        const def = (defaults[i] && typeof defaults[i] === "object") ? defaults[i] : {};
-        const card = el("div", { class: "bx-pop-edit-list-row" });
-        card.appendChild(el("div", { class: "bx-pop-edit-list-num", text: "#" + (i + 1) }));
-        layout.fields.forEach(function (fieldDef) {
-          // Default value (if any) becomes the placeholder so blank = use default.
-          const defVal = def[fieldDef.key];
-          const ph = (defVal != null && String(defVal) !== "") ? String(defVal) : (fieldDef.placeholder || fieldDef.key);
-          const inp = el("input", { type: "text", class: "bx-input bx-pop-edit-list-input",
-            placeholder: ph,
-            value: row[fieldDef.key] || "" });
-          inp.addEventListener("input", function () {
-            const cur = (get() || []).slice();
-            while (cur.length <= i) cur.push({});
-            cur[i] = Object.assign({}, cur[i], (function () {
-              const o = {}; o[fieldDef.key] = inp.value; return o;
-            })());
-            set(cur);
-            onChange();
-          });
-          card.appendChild(inp);
-        });
-        wrap.appendChild(card);
+      const dynamic = !!layout.dynamic;
+
+      // Mutate the stored array, then re-render the list in place. Used by
+      // the dynamic (add / remove / reorder) controls so the row numbers and
+      // inputs stay in sync without rebuilding the whole popover.
+      function mutate(fn) {
+        const cur = (get() || []).slice();
+        fn(cur);
+        set(cur);
+        onChange();
+        renderList();
       }
+
+      function renderList() {
+        wrap.textContent = "";
+        const arr = (get() || []).slice();
+        // Dynamic lists size to the data (with a single empty starter row when
+        // empty); fixed lists keep the lazy-allocated slot count so each
+        // placeholder still shows the matching prefilled default.
+        const slotCount = dynamic
+          ? Math.max(arr.length, defaults.length, 1)
+          : Math.max(arr.length, defaults.length, defaultRowsFor(f.path));
+        for (let i = 0; i < slotCount; i++) {
+          const rowObj = (arr[i] && typeof arr[i] === "object") ? arr[i] : {};
+          const def = (defaults[i] && typeof defaults[i] === "object") ? defaults[i] : {};
+          const card = el("div", { class: "bx-pop-edit-list-row" });
+          card.appendChild(el("div", { class: "bx-pop-edit-list-num", text: "#" + (i + 1) }));
+          layout.fields.forEach(function (fieldDef) {
+            // Default value (if any) becomes the placeholder so blank = use default.
+            const defVal = def[fieldDef.key];
+            const ph = (defVal != null && String(defVal) !== "") ? String(defVal) : (fieldDef.placeholder || fieldDef.key);
+            const inp = el("input", { type: "text", class: "bx-input bx-pop-edit-list-input",
+              placeholder: ph,
+              value: rowObj[fieldDef.key] || "" });
+            const idx = i;
+            inp.addEventListener("input", function () {
+              const cur = (get() || []).slice();
+              while (cur.length <= idx) cur.push({});
+              const o = {}; o[fieldDef.key] = inp.value;
+              cur[idx] = Object.assign({}, cur[idx], o);
+              set(cur);
+              onChange();
+            });
+            // Channel-icon picker: a strip of catalog buttons that write the
+            // emoji into this cell (and fire the input listener) so the SE can
+            // pick instead of typing. Falls back to a plain input if the
+            // shared catalog is unavailable.
+            if (fieldDef.picker === "channel" && SHARED.CHANNEL_ICONS && SHARED.CHANNEL_ICONS.length) {
+              const cell = el("div", { class: "bx-pop-edit-icon-cell" });
+              cell.appendChild(inp);
+              const strip = el("div", { class: "bx-pop-edit-icon-strip" });
+              SHARED.CHANNEL_ICONS.forEach(function (ic) {
+                const btn = el("button", { type: "button", class: "bx-pop-edit-icon-btn",
+                  title: ic.key, text: ic.icon });
+                btn.addEventListener("click", function () {
+                  inp.value = ic.icon;
+                  inp.dispatchEvent(new Event("input", { bubbles: true }));
+                });
+                strip.appendChild(btn);
+              });
+              cell.appendChild(strip);
+              card.appendChild(cell);
+            } else {
+              card.appendChild(inp);
+            }
+          });
+          if (dynamic) {
+            const idx = i;
+            const ctrls = el("div", { class: "bx-pop-edit-list-ctrls" });
+            const up = el("button", { type: "button", class: "bx-pop-edit-list-ctrl",
+              title: "Move up", text: "↑", "aria-label": "Move up" });
+            up.disabled = idx === 0;
+            up.addEventListener("click", function () {
+              mutate(function (cur) {
+                while (cur.length <= idx) cur.push({});
+                if (idx > 0) { const t = cur[idx - 1]; cur[idx - 1] = cur[idx]; cur[idx] = t; }
+              });
+            });
+            const down = el("button", { type: "button", class: "bx-pop-edit-list-ctrl",
+              title: "Move down", text: "↓", "aria-label": "Move down" });
+            down.disabled = idx >= slotCount - 1;
+            down.addEventListener("click", function () {
+              mutate(function (cur) {
+                while (cur.length <= idx + 1) cur.push({});
+                const t = cur[idx + 1]; cur[idx + 1] = cur[idx]; cur[idx] = t;
+              });
+            });
+            const rm = el("button", { type: "button", class: "bx-pop-edit-list-ctrl is-danger",
+              title: "Remove", text: "✕", "aria-label": "Remove" });
+            rm.addEventListener("click", function () {
+              mutate(function (cur) { if (idx < cur.length) cur.splice(idx, 1); });
+            });
+            ctrls.appendChild(up);
+            ctrls.appendChild(down);
+            ctrls.appendChild(rm);
+            card.appendChild(ctrls);
+          }
+          wrap.appendChild(card);
+        }
+        if (dynamic) {
+          const add = el("button", { type: "button", class: "bx-pop-edit-list-add",
+            text: "+ Add" });
+          add.addEventListener("click", function () {
+            mutate(function (cur) { cur.push({}); });
+          });
+          wrap.appendChild(add);
+        }
+      }
+
+      renderList();
       row.appendChild(wrap);
       return row;
     }
@@ -719,9 +821,21 @@
     if (/bvsMetrics$/.test(path))   return 5;
     if (/orbitNodes$/.test(path))   return 6;
     if (/capabilities$/.test(path)) return 4;
+    if (/timelineEvents$/.test(path)) return 5;
     return 3;
   }
   function layoutForListPath(path) {
+    if (/timelineEvents$/.test(path)) {
+      // Dynamic = SE can add / remove / reorder rows (not fixed-slot like
+      // wishlist/stats). The "icon" field renders the channel-icon picker.
+      return { dynamic: true, fields: [
+        { key: "month",   placeholder: "Month (e.g. DEC)" },
+        { key: "label",   placeholder: "Event label" },
+        { key: "sub",     placeholder: "Sub-text (optional)" },
+        { key: "channel", placeholder: "Channel (email / sms / store …)" },
+        { key: "icon",    placeholder: "Pick or paste an emoji", picker: "channel" },
+      ] };
+    }
     if (/wishlist$/.test(path)) {
       return { fields: [
         { key: "name",   placeholder: "Item name" },
@@ -772,6 +886,8 @@
       unifiedProfile: "Unified Profile",
       architecture: "Architecture",
       deviceMoment: "Device Moment",
+      scenePhoto: "Scene Moment",
+      storyInterstitial: "Story / Context",
       embeddedCxComponent: "Embedded CX Component",
       kpiScorecard: "KPI Scorecard",
       executiveSummary: "Executive Takeaway",
@@ -904,35 +1020,53 @@
 
     // ── Journey timeline ─────────────────────────────────────────
     journeyTimeline: function (data, mode) {
+      const fnd = data.foundations || {};
       const root = el("div", { class: "hp hp-timeline" });
-      root.appendChild(el("div", { class: "hp-eyebrow", text: data.eyebrow || "Customer journey" }));
-      root.appendChild(el("h3", { class: "hp-h3", text: slideTitleOr(data, data.customerName ? "How " + data.customerName + " moves through the journey" : "Customer journey") }));
+      root.appendChild(el("div", { class: "hp-eyebrow",
+        text: fnd.journeyTimelineEyebrow || data.eyebrow || "Customer journey" }));
+      root.appendChild(el("h3", { class: "hp-h3",
+        text: fnd.journeyTimelineHeadline || slideTitleOr(data, data.customerName ? "How " + data.customerName + " moves through the journey" : "Customer journey") }));
 
-      if (!data.acts.length) {
+      // Prefer the SE-authored timeline-events override; fall back to story
+      // acts so the wireframe matches the polished /demo renderer's source.
+      const evts = (Array.isArray(fnd.timelineEvents) && fnd.timelineEvents.length)
+        ? fnd.timelineEvents
+        : (data.acts || []);
+      const usingEvents = (Array.isArray(fnd.timelineEvents) && fnd.timelineEvents.length) > 0;
+
+      if (!evts.length) {
         root.appendChild(el("div", { class: "hp-empty",
-          html: "Add story acts in <strong>Step 2</strong> to populate the timeline." }));
+          html: "Add story acts in <strong>Step 2</strong> — or open this slide's editor to author timeline events." }));
         return root;
       }
 
       const rail = el("div", { class: "hp-rail" });
       const max = mode === "expanded" ? 8 : 5;
-      data.acts.slice(0, max).forEach(function (a, i) {
+      evts.slice(0, max).forEach(function (e, i) {
+        e = e || {};
+        const channel = e.channel || "";
+        const icon = (e.icon && String(e.icon).trim())
+          || (SHARED.channelIcon ? SHARED.channelIcon(channel) : "");
+        const title = usingEvents ? (e.label || e.title || "") : (e.title || "");
+        const sub = usingEvents ? (e.sub || "") : (e.summary || "");
+        const month = e.month || e.timing || "";
         const node = el("div", { class: "hp-rail-node" }, [
           el("div", { class: "hp-rail-dot" }, [el("span", { text: String(i + 1) })]),
           el("div", { class: "hp-rail-card" }, [
-            a.title ? el("div", { class: "hp-rail-title", text: a.title }) : null,
-            a.persona ? el("div", { class: "hp-rail-meta", text: "👤 " + a.persona }) : null,
-            a.channel ? el("div", { class: "hp-rail-meta", text: "📱 " + a.channel }) : null,
-            a.summary ? el("div", { class: "hp-rail-summary", text: truncate(a.summary, mode === "expanded" ? 180 : 90) }) : null,
-            a.salesforceCapabilities ? el("div", { class: "hp-rail-cap", text: a.salesforceCapabilities }) : null,
-            a.businessValue ? el("div", { class: "hp-rail-bv", text: "→ " + a.businessValue }) : null,
+            month ? el("div", { class: "hp-rail-meta", text: month }) : null,
+            title ? el("div", { class: "hp-rail-title", text: title }) : null,
+            (!usingEvents && e.persona) ? el("div", { class: "hp-rail-meta", text: "👤 " + e.persona }) : null,
+            channel ? el("div", { class: "hp-rail-meta", text: (icon ? icon + " " : "") + channel }) : null,
+            sub ? el("div", { class: "hp-rail-summary", text: truncate(sub, mode === "expanded" ? 180 : 90) }) : null,
+            (!usingEvents && e.salesforceCapabilities) ? el("div", { class: "hp-rail-cap", text: e.salesforceCapabilities }) : null,
+            (!usingEvents && e.businessValue) ? el("div", { class: "hp-rail-bv", text: "→ " + e.businessValue }) : null,
           ]),
         ]);
         rail.appendChild(node);
       });
       root.appendChild(rail);
-      if (data.acts.length > max) {
-        root.appendChild(el("div", { class: "hp-more", text: "+ " + (data.acts.length - max) + " more acts" }));
+      if (evts.length > max) {
+        root.appendChild(el("div", { class: "hp-more", text: "+ " + (evts.length - max) + " more" }));
       }
       return root;
     },
@@ -1799,6 +1933,21 @@
       // Truncate to 120 to match the export (oneSentence/120) so the same
       // takeaway reads identically in preview and the polished deck.
       root.appendChild(el("h2", { class: "hp-title", text: "”" + truncate(quote, 120) + "”" }));
+      return root;
+    },
+
+    // ── Story / context interstitial ───────────────────────────
+    // Wireframe mirror of the /demo storyInterstitial renderer: kicker
+    // eyebrow + big headline + sub-line, all from per-slide fields.
+    storyInterstitial: function (data, mode) {
+      const s = data.slide || {};
+      const root = el("div", { class: "hp hp-interstitial" });
+      const kicker = s.kicker || s.eyebrow || data.eyebrow || "";
+      if (kicker) root.appendChild(el("div", { class: "hp-eyebrow", text: String(kicker).toUpperCase() }));
+      root.appendChild(el("h3", { class: "hp-h3 hp-h3-xl",
+        text: s.headline || s.title || data.title || "Two months have passed." }));
+      const sub = s.sub || s.subline || "";
+      if (sub) root.appendChild(el("p", { class: "hp-sub", text: sub }));
       return root;
     },
 

@@ -961,6 +961,13 @@
           linkedCxComponentIds: mergedCx,
           deviceFrame: s.deviceFrame || "",
           speakerNotes: s.speakerNotes || "",
+          // Per-slide narrative copy for the storyInterstitial layout (and any
+          // future per-slide-text layouts). Harmless/empty for other layouts;
+          // must round-trip so the exported /demo deck matches the preview.
+          kicker:   s.kicker   || "",
+          headline: s.headline || "",
+          sub:      s.sub      || "",
+          imageSlot: s.imageSlot || "",
         };
       }),
     };

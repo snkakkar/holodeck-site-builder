@@ -796,6 +796,46 @@
                                          return t.trim() || "A connected journey";
                                        } },
           } });
+    // Journey timeline (above/below-the-line milestones). Recommended (not
+    // required) so SEs can trim it. Its editor only surfaces when the slide
+    // is kept. Timeline events live in storyFoundations.timelineEvents — a
+    // dedicated override array so the timeline editor never mutates
+    // storyActs (which demoMap + scenePhoto also read).
+    add({ id: "_rt_journey_timeline", synthetic: true, sectionId: "journey-map",
+          layout: "journeyTimeline", title: "Journey timeline",
+          editorPaths: {
+            "Eyebrow (small label above the title)":
+                                  { path: "storyFoundations.journeyTimelineEyebrow",
+                                    prefill: function () { return "The Customer Journey"; } },
+            "Headline":           { path: "storyFoundations.journeyTimelineHeadline",
+                                    prefill: function () { return "One journey. Every channel. Always personal."; } },
+            "Sub-line":           { path: "storyFoundations.journeyTimelineSub",
+                                    prefill: function (sl, st) {
+                                      st = st || {};
+                                      const t = (st.storyFoundations && st.storyFoundations.transformationThesis) || "";
+                                      return t.trim() || "From one moment, AI turns identity into months of personalized engagement.";
+                                    } },
+            // Timeline events — resolves to the dynamic list-objects editor
+            // (add / remove / reorder + per-row icon picker). Blank = fall
+            // back to storyActs at render time, so legacy projects are
+            // unchanged. Prefill seeds the rows from storyActs so the SE
+            // edits real moments instead of an empty list.
+            "Timeline events":    { path: "storyFoundations.timelineEvents",
+                                    prefill: function (sl, st) {
+                                      st = st || {};
+                                      const acts = (st.storyActs || []).slice(0, 7);
+                                      const months = ["DEC","JAN","FEB","MAR","APR","MAY","JUN","JUL"];
+                                      return acts.map(function (a, i) {
+                                        return {
+                                          month:   a.timing || months[i] || "",
+                                          label:   a.title || a.demoMoment || ("Moment " + (i + 1)),
+                                          sub:     a.channel || "",
+                                          channel: a.channel || "",
+                                          icon:    "",
+                                        };
+                                      });
+                                    } },
+          } });
 
     // MEET PERSONA ─ mr-1 intro, mr-2 spotlight, mr-3 wishlist, mr-4 CTA
     add({ id: "_rt_persona_intro", synthetic: true, sectionId: "meet-persona",
@@ -1074,6 +1114,42 @@
     })[industry] || "🏠";
   }
 
+  // ─── Channel icon catalog ─────────────────────────────────────
+  // Single source of truth for the channel → emoji mapping used by the
+  // journey timeline and demo-map nodes. The builder's timeline-event
+  // editor renders these as a pickable icon strip; the /demo renderer's
+  // channelIcon() derives from this list. Order = picker display order.
+  // Each entry: { key (canonical channel), icon, match (keyword regex) }.
+  const CHANNEL_ICONS = [
+    { key: "email",  icon: "📧",  match: /email/ },
+    { key: "sms",    icon: "💬",  match: /sms|text|imessage/ },
+    { key: "social", icon: "📸",  match: /insta|social|facebook|tiktok/ },
+    { key: "store",  icon: "🏪",  match: /store|pos|in-?person/ },
+    { key: "web",    icon: "🖥️",  match: /web|site|browse/ },
+    { key: "mobile", icon: "📱",  match: /mobile|app|phone/ },
+    { key: "cart",   icon: "🛒",  match: /cart|checkout|purch/ },
+    { key: "agent",  icon: "🤖",  match: /agent|chat/ },
+  ];
+
+  // Map a free-text channel string to its emoji. Mirrors the original
+  // inline channelIcon() (kept order-sensitive: SMS-style keywords are
+  // tested before the generic "mobile/phone" bucket). "•" = no match.
+  function channelIcon(channel) {
+    const c = String(channel || "").toLowerCase().trim();
+    if (!c) return "•";
+    // An exact catalog key wins (e.g. the icon-picker stores "store").
+    for (let i = 0; i < CHANNEL_ICONS.length; i++) {
+      if (CHANNEL_ICONS[i].key === c) return CHANNEL_ICONS[i].icon;
+    }
+    // SMS/text keywords first so "text message" doesn't fall to mobile.
+    const sms = CHANNEL_ICONS.find(function (e) { return e.key === "sms"; });
+    if (sms && sms.match.test(c)) return sms.icon;
+    for (let i = 0; i < CHANNEL_ICONS.length; i++) {
+      if (CHANNEL_ICONS[i].key !== "sms" && CHANNEL_ICONS[i].match.test(c)) return CHANNEL_ICONS[i].icon;
+    }
+    return "•";
+  }
+
   // ─── Public API ──────────────────────────────────────────────
   global.HOLO_SHARED = {
     // text helpers
@@ -1121,6 +1197,9 @@
     // demo-section SE layouts (preview ↔ export)
     demoFlowSteps:           demoFlowSteps,
     agentChat:               agentChat,
+    // channel icons (timeline + demo-map)
+    CHANNEL_ICONS:           CHANNEL_ICONS,
+    channelIcon:             channelIcon,
     nextStepsPhases:         nextStepsPhases,
     defaultWishlist:         defaultWishlist,
     emojiForIndustry:        emojiForIndustry,

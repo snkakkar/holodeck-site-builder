@@ -242,32 +242,15 @@
     // Centered horizontal track, hero milestone in red, rest in
     // muted blue.  Uses storyActs as the milestone source.
     journeyTimeline: function (s) {
-      const months = ["DEC","JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV"];
-      const milestones = (acts.length ? acts : Array.from({length:5},function(_,i){return{title:"Moment "+(i+1)};}))
-        .slice(0, 7).map(function (a, i) {
-          return {
-            month: a.timing || months[i % 12] || ("M" + (i+1)),
-            icon:  channelIcon(a.channel),
-            label: a.title || a.demoMoment || ("Moment " + (i+1)),
-            sub:   a.channel || "",
-            hero:  i === 0 || a.heroMoment === true,
-          };
-        });
-      const half = Math.ceil(milestones.length / 2);
-      const above = milestones.slice(0, half);
-      const below = milestones.slice(half);
       return [
         el("div", { class: "dd-stack-center" }, [
-          el("p", { class: "dd-eyebrow", text: deriveEyebrow(s) }),
-          el("h2", { class: "dd-display dd-display-mid", html: s.title || "One journey. Every channel. <em>Always personal.</em>" }),
+          el("p", { class: "dd-eyebrow", text: f.journeyTimelineEyebrow || deriveEyebrow(s) }),
+          el("h2", { class: "dd-display dd-display-mid",
+            html: escapeHtml(f.journeyTimelineHeadline || "") || "One journey. Every channel. <em>Always personal.</em>" }),
           el("p", { class: "dd-sub-center",
-            text: f.transformationThesis || "From one moment, AI turns identity into months of personalized engagement." }),
+            text: f.journeyTimelineSub || f.transformationThesis || "From one moment, AI turns identity into months of personalized engagement." }),
         ]),
-        el("div", { class: "dd-jt" }, [
-          el("div", { class: "dd-jt-row dd-jt-above" }, above.map(timelineNode)),
-          el("div", { class: "dd-jt-track" }),
-          el("div", { class: "dd-jt-row dd-jt-below" }, below.map(timelineNode)),
-        ]),
+        buildTimelineTrack(),
       ];
     },
 
@@ -522,10 +505,10 @@
       if (facets.length) show(0);
 
       return twoPanel({
-        // A generated/uploaded still wins over the interactive HTML mock.
-        left: hasStill(demoAssets.cxUnifiedProfile)
-          ? laptopFrame(mediaTile({ src: demoAssets.cxUnifiedProfile, kind: "image", alt: "Unified customer profile" }))
-          : laptopFrame(cdp),
+        // The interactive Data Cloud profile carousel always renders here — it
+        // *is* the feature. (A legacy cxUnifiedProfile still in an old config is
+        // intentionally ignored; the slot is no longer generatable in Assets.)
+        left: laptopFrame(cdp),
         right: rightCopy({
           eyebrow:  "Data Cloud · Unified Profile",
           headlineHtml: s.title
@@ -659,6 +642,37 @@
       ];
     },
 
+    // ─── Story / context interstitial ──────────────────────────
+    // A simple narrative beat ("Two months have passed…") to pace the
+    // demo between sections. Reads per-slide fields (NOT storyActs):
+    // kicker eyebrow + big headline + sub-line, with an optional image
+    // panel. When no image is linked it centers the copy full-width.
+    storyInterstitial: function (s) {
+      const kicker   = s.kicker   || s.eyebrow || deriveEyebrow(s).toUpperCase();
+      const headline = s.headline || s.title   || "Two months have passed.";
+      const sub      = s.sub      || s.subline || s.summary || "";
+      // Optional image — a per-slide asset slot or any linked demo asset.
+      const imgSlot  = s.imageSlot || s.assetSlot || "";
+      const src      = (imgSlot && demoAssets[imgSlot]) || s.imageUrl || "";
+      const hasImg   = hasStill(src);
+      const copy = el("div", { class: "dd-interstitial-copy" }, [
+        kicker   ? el("p", { class: "dd-eyebrow", text: String(kicker).toUpperCase() }) : null,
+        el("h2", { class: "dd-display dd-display-lg", html: escapeHtml(headline) }),
+        sub ? el("p", { class: "dd-sub-center", text: sub }) : null,
+      ]);
+      if (!hasImg) {
+        return [el("div", { class: "dd-interstitial dd-interstitial-solo" }, [copy])];
+      }
+      return [
+        el("div", { class: "dd-interstitial dd-interstitial-split" }, [
+          el("div", { class: "dd-interstitial-media" }, [
+            mediaTile({ src: src, kind: "image", alt: headline, cue: "Add an image in Step 7" }),
+          ]),
+          copy,
+        ]),
+      ];
+    },
+
     // ─── Embedded CX Component ─────────────────────────────────
     // Two-panel: LEFT live iframe inside the matching device
     // frame; RIGHT eyebrow + headline + chips. Empty-state shows
@@ -671,7 +685,11 @@
       // wins; otherwise fall back to the type/name heuristic (mirrors the
       // adapter's buildScenes heuristics), then to whatever is available.
       const tn = ((c && (c.type || "")) + " " + (c && (c.name || ""))).toLowerCase();
-      const assigned = c && c.imageSlot && demoAssets[c.imageSlot];
+      // A per-slide assignment (set in Step 5 next to the linked slide) wins
+      // over the component-wide imageSlot, which wins over the heuristic.
+      const perSlide = c && c.imageSlotsBySlide && s && c.imageSlotsBySlide[s.id];
+      const assigned = (perSlide && demoAssets[perSlide]) ||
+        (c && c.imageSlot && demoAssets[c.imageSlot]);
       const still = hasStill(assigned) ? assigned :
         /instagram|paid|ad/.test(tn)            ? demoAssets.cxInstagramAd  :
         /sms|text|message/.test(tn)             ? demoAssets.cxTextConvo    :
@@ -687,12 +705,13 @@
             el("div", { class: "dd-skel-screen-msg",
               text: c ? "Add a URL for this component in Step 5" : "Link a CX component in Step 5" }),
           ]);
-      // Every Aubrey CX component renders in the phone frame — the clean,
-      // content-fitting look from the Agent Conversation Moment slide. The
-      // laptop frame is reserved for synthetic mock screens (unifiedProfile,
-      // deviceMoment), not live embeds.
+      // Match the device frame to the component: desktop/tablet/web screens
+      // render in the laptop frame, mobile-style screens (chat, SMS, social)
+      // in the phone frame. Authored on the component as c.deviceFrame
+      // (desktop/mobile/tablet/none); falls back to the type for older configs.
+      const useLaptop = c && /desktop|tablet|web/i.test(c.deviceFrame || c.type || "");
       return twoPanel({
-        left:  phoneFrame(inner),
+        left:  useLaptop ? laptopFrame(inner) : phoneFrame(inner),
         right: rightCopy({
           eyebrow:  c && c.type ? ("Live · " + c.type.toUpperCase()) : "LIVE CX MOMENT",
           headlineHtml: s.title ? escapeHtml(s.title) : (c && c.name ? escapeHtml(c.name) : "Embedded demo screen"),
@@ -910,6 +929,55 @@
     ]);
   }
 
+  // True when the SE has authored explicit timeline events (the journey-map
+  // section then renders this horizontal timeline instead of the circle map).
+  function hasAuthoredTimeline() {
+    return Array.isArray(f.timelineEvents) && f.timelineEvents.length > 0;
+  }
+
+  // Build the horizontal-timeline track (above-row · track · below-row).
+  // Shared by the journeyTimeline slide renderer and the journey-map section
+  // (via window.HOLO_DEMO.renderJourneyTimeline) so both stay byte-identical.
+  // Source precedence: SE timelineEvents → storyActs → placeholder scaffold.
+  function buildTimelineTrack() {
+    const months = ["DEC","JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV"];
+    const evts = hasAuthoredTimeline()
+      ? f.timelineEvents
+      : (acts.length ? acts : Array.from({length:5},function(_,i){return{label:"Moment "+(i+1)};}));
+    const milestones = evts.slice(0, 8).map(function (e, i) {
+      e = e || {};
+      const channel = e.channel || "";
+      return {
+        month: e.month || e.timing || months[i % 12] || ("M" + (i+1)),
+        // An explicit picked icon wins; otherwise derive from the channel.
+        icon:  (e.icon && String(e.icon).trim()) || channelIcon(channel),
+        label: e.label || e.title || e.demoMoment || ("Moment " + (i+1)),
+        sub:   e.sub || channel || "",
+        hero:  i === 0 || e.hero === true || e.heroMoment === true,
+      };
+    });
+    const half = Math.ceil(milestones.length / 2);
+    const above = milestones.slice(0, half);
+    const below = milestones.slice(half);
+    return el("div", { class: "dd-jt dd-jt-n" + milestones.length }, [
+      el("div", { class: "dd-jt-row dd-jt-above" }, above.map(timelineNode)),
+      el("div", { class: "dd-jt-track" }),
+      el("div", { class: "dd-jt-row dd-jt-below" }, below.map(timelineNode)),
+    ]);
+  }
+
+  // Public hook for the journey-map section (buildMap() in the deck HTML):
+  // when the SE authored timeline events, swap the circle/flow map for the
+  // horizontal timeline so the exported deck matches the builder preview.
+  window.HOLO_DEMO = window.HOLO_DEMO || {};
+  window.HOLO_DEMO.hasAuthoredTimeline = hasAuthoredTimeline;
+  window.HOLO_DEMO.renderJourneyTimeline = function (container) {
+    if (!container) return false;
+    container.innerHTML = "";
+    container.appendChild(buildTimelineTrack());
+    return true;
+  };
+
   function affinityNode(top, left, color) {
     const n = document.createElement("span");
     n.className = "dd-cdp-aff-dot";
@@ -941,7 +1009,11 @@
     return wrap;
   }
 
+  // Channel → emoji. Defers to the shared catalog (HOLO_SHARED.channelIcon)
+  // so the builder's icon picker and this renderer stay in lockstep; the
+  // inline map is a fallback if shared isn't loaded.
   function channelIcon(channel) {
+    if (SHARED.channelIcon) return SHARED.channelIcon(channel);
     const c = String(channel || "").toLowerCase();
     if (/sms|text|imessage/.test(c)) return "💬";
     if (/email/.test(c))               return "📧";

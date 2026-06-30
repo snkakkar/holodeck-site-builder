@@ -394,9 +394,9 @@ button { font-family: inherit; }
 /* Step 7 · Asset rows */
 .bx-asset-row {
   display: grid;
-  grid-template-columns: 132px 1fr auto;
+  grid-template-columns: 132px minmax(0, 1fr) minmax(220px, 340px);
   gap: 16px;
-  align-items: center;
+  align-items: start;
   padding: 14px 0;
   border-top: 1px solid var(--bx-line);
 }
@@ -467,12 +467,18 @@ button { font-family: inherit; }
   font-size: 10.5px;
 }
 .bx-asset-status { margin-top: 6px; }
+/* Controls stack vertically in their column so the meta column keeps its
+   width (a wide select used to squeeze the description to one word per
+   line). Each control spans the column. */
 .bx-asset-controls {
-  display: flex; align-items: center; gap: 8px;
-  flex-shrink: 0;
-  flex-wrap: wrap; justify-content: flex-end;
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  min-width: 0;
 }
-.bx-asset-controls .bx-file-input { max-width: 180px; }
+.bx-asset-controls .bx-file-input { max-width: 100%; }
+.bx-asset-controls .bx-field { margin: 0; }
+.bx-asset-controls .bx-select { width: 100%; box-sizing: border-box; }
+/* Clear button shouldn't stretch full-width like the inputs. */
+.bx-asset-controls .bx-mini-btn { align-self: flex-end; }
 
 /* "Generate with AI" buttons reuse the canonical .bx-btn .bx-btn-ghost
    pill so they match every other button; this only aligns the spark
@@ -1906,6 +1912,34 @@ button { font-family: inherit; }
   .bx-rec-grid { grid-template-columns: 1fr; }
 }
 
+/* ─── Demo-section intent groups (Step 5 declutter) ─────────────── */
+.bx-intent-group { margin-top: var(--bx-sp-4); }
+.bx-intent-group:first-child { margin-top: 0; }
+.bx-intent-head {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 8px;
+}
+.bx-intent-label {
+  font-size: 11px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--bx-ink-2);
+}
+.bx-intent-count {
+  font-size: 10px; font-weight: 700; color: var(--bx-ink-3);
+  background: var(--bx-bg-2); border-radius: 10px; padding: 1px 7px;
+}
+.bx-intent-more { margin-top: 8px; }
+.bx-intent-more-summary {
+  cursor: pointer; list-style: none;
+  font-size: 12px; font-weight: 700; color: var(--bx-action, #1a5fa0);
+  padding: 6px 0; user-select: none;
+}
+.bx-intent-more-summary::-webkit-details-marker { display: none; }
+.bx-intent-more-summary::before {
+  content: "▸ "; color: var(--bx-ink-3); font-weight: 700;
+}
+.bx-intent-more[open] > .bx-intent-more-summary::before { content: "▾ "; }
+.bx-intent-more-body { padding-top: 6px; }
+
 .bx-rec-gcard {
   position: relative;
   padding: var(--bx-sp-3);
@@ -2115,6 +2149,13 @@ button { font-family: inherit; }
 .hp-next-item { padding: 4px 0; }
 
 .hp-unknown { background: var(--bx-bg); border-style: dashed; }
+/* Story / context interstitial wireframe — centered, oversized headline. */
+.hp-interstitial {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 8px; min-height: 140px; padding: 12px;
+}
+.hp-h3-xl { font-size: 30px; line-height: 1.1; margin: 4px 0 8px; max-width: 24ch; }
+.hp-interstitial .hp-sub { text-align: center; max-width: 44ch; }
 
 /* Asset readiness pills (more colors for the new states) */
 .hp-asset-pill.tone-red { background: rgba(178,34,52,0.10); color: var(--bx-red); }
@@ -2553,6 +2594,59 @@ button { font-family: inherit; }
   outline-offset: 0;
   border-color: var(--bx-action);
 }
+/* Dynamic list rows (timeline events) wrap so the icon cell + reorder
+   controls have room without crushing the text inputs. */
+.bx-pop-edit-list-row { flex-wrap: wrap; }
+.bx-pop-edit-icon-cell {
+  flex: 1 1 120px; min-width: 0;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.bx-pop-edit-icon-strip {
+  display: flex; flex-wrap: wrap; gap: 3px;
+}
+.bx-pop-edit-icon-btn {
+  flex: 0 0 auto;
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1;
+  border: 1px solid var(--bx-line);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0;
+}
+.bx-pop-edit-icon-btn:hover { border-color: var(--bx-action); background: var(--bx-bg-2); }
+.bx-pop-edit-list-ctrls {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 2px;
+  margin-left: auto;
+}
+.bx-pop-edit-list-ctrl {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; line-height: 1;
+  border: 1px solid var(--bx-line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--bx-ink-2);
+  cursor: pointer;
+  padding: 0;
+}
+.bx-pop-edit-list-ctrl:hover:not(:disabled) { border-color: var(--bx-action); color: var(--bx-action); }
+.bx-pop-edit-list-ctrl:disabled { opacity: .35; cursor: default; }
+.bx-pop-edit-list-ctrl.is-danger:hover:not(:disabled) { border-color: var(--bx-danger, #c0392b); color: var(--bx-danger, #c0392b); }
+.bx-pop-edit-list-add {
+  align-self: flex-start;
+  margin-top: 4px;
+  font-size: 12px; font-weight: 700;
+  padding: 6px 12px;
+  border: 1px dashed var(--bx-line);
+  border-radius: 6px;
+  background: var(--bx-bg-2);
+  color: var(--bx-action);
+  cursor: pointer;
+}
+.bx-pop-edit-list-add:hover { border-color: var(--bx-action); background: #fff; }
 .bx-pop-edit-foot {
   padding: 8px 14px 10px;
   border-top: 1px solid var(--bx-line);
