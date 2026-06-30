@@ -133,10 +133,25 @@
     if (p && typeof p.then === "function") {
       p.then(function () {
         // saveProject resolves even when the Neon write-through failed (it
-        // queues the row dirty and retries later). Surface it softly: the work
-        // IS saved on this device, it just hasn't reached the server yet.
-        if (STORE.lastSyncFailed && STORE.lastSyncFailed()) {
-          toast("Saved on this device — will sync when you're back online.");
+        // queues the row dirty and retries later). Surface it: the work IS saved
+        // on this device, it just hasn't reached the account yet. Log the real
+        // status + PostgREST message so a persistent failure is diagnosable.
+        const failed = STORE.lastSyncFailed && STORE.lastSyncFailed();
+        // Refine the persistent indicator now that the write-through resolved.
+        setSaveIndicator(false, !failed);
+        if (failed) {
+          const e = STORE.lastSyncError && STORE.lastSyncError();
+          if (e) {
+            console.warn("[holodeck] cloud save failed:", e.status || "(net)", e.message);
+            if (e.offline) {
+              toast("Saved on this device — sign in to sync to your account.");
+            } else {
+              toast("Saved on this device — couldn't sync to your account" +
+                (e.status ? " (error " + e.status + ")" : "") + ". Retrying later.");
+            }
+          } else {
+            toast("Saved on this device — not yet synced to your account.");
+          }
         }
       }).catch(function () { /* network/dirty-queue handled in store */ });
     }
@@ -151,7 +166,10 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveActive, 250);
   }
-  function setSaveIndicator(dirty) {
+  // state: true = "Saving…"; false = optimistic local save done; the optional
+  // `synced` arg (set once the async write resolves) distinguishes a confirmed
+  // cloud save ("Saved to cloud") from a local-only fallback ("Saved locally").
+  function setSaveIndicator(dirty, synced) {
     const elIndicator = $("#bxSaveIndicator");
     if (!elIndicator) return;
     if (app.view !== "builder") {
@@ -159,8 +177,13 @@
       return;
     }
     elIndicator.style.visibility = "";
-    if (dirty) { elIndicator.classList.add("is-dirty"); elIndicator.textContent = "Saving…"; }
-    else       { elIndicator.classList.remove("is-dirty"); elIndicator.textContent = "Autosaved"; }
+    if (dirty) {
+      elIndicator.classList.add("is-dirty");
+      elIndicator.textContent = "Saving…";
+    } else {
+      elIndicator.classList.remove("is-dirty");
+      elIndicator.textContent = synced === false ? "Saved locally" : "Saved to cloud";
+    }
   }
 
   // ─── Navigation between views ─────────────────────────────────
@@ -1957,18 +1980,21 @@
     // INSIDE the device frame in place of the live HTML mock / blank
     // iframe. When empty, the existing mock renders unchanged. Image-only
     // (no Gif suffix → no "still image" note).
+    // always:true — these surface in Step 7 regardless of the current deck
+    // layouts (like Brand/Persona). Generation is non-destructive: an empty
+    // slot leaves the existing HTML mock unchanged, so always-on is safe.
     { slot: "cxUnifiedProfile", group: "CX component stills", label: "Unified profile still",
       help: "Stylized Data Cloud unified-profile screen. Shows inside the laptop frame on the Unified Profile slide (replaces the HTML mock).",
-      layouts: ["unifiedProfile"], accept: "image/*" },
+      layouts: ["unifiedProfile"], always: true, accept: "image/*" },
     { slot: "cxInstagramAd", group: "CX component stills", label: "Instagram ad still",
       help: "Paid-social / Instagram ad creative. Shows inside the phone frame on Embedded CX / device slides.",
-      layouts: ["embeddedCxComponent", "deviceMoment"], accept: "image/*" },
+      layouts: ["embeddedCxComponent", "deviceMoment"], always: true, accept: "image/*" },
     { slot: "cxShopperAgent", group: "CX component stills", label: "Shopper agent still",
       help: "Shopper / commerce agent chat screenshot. Shows inside the phone frame.",
-      layouts: ["embeddedCxComponent", "deviceMoment"], accept: "image/*" },
+      layouts: ["embeddedCxComponent", "deviceMoment"], always: true, accept: "image/*" },
     { slot: "cxTextConvo", group: "CX component stills", label: "Agentic text thread still",
       help: "SMS / agentic text-message thread. Shows inside the phone frame on the Agent Conversation slide (replaces the chat mock).",
-      layouts: ["agentConversation", "embeddedCxComponent"], accept: "image/*" },
+      layouts: ["agentConversation", "embeddedCxComponent"], always: true, accept: "image/*" },
   ];
 
   // Compute which assets should show given the current slide plan.

@@ -173,6 +173,18 @@
   // silent local-save failure instead of falsely showing "Autosaved".
   let _lastCacheWriteFailed = false;
   let _lastSyncFailed = false; // last saveProject couldn't reach Neon (saved locally, queued dirty)
+  // Full detail of the most recent failed Neon write, so the UI/console can
+  // show WHY (status + PostgREST message) instead of a generic "saved locally".
+  let _lastSyncError = null;   // { status, message, offline, at } | null
+  function recordSyncError(err) {
+    _lastSyncFailed = true;
+    _lastSyncError = {
+      status: (err && err.status) || 0,
+      message: (err && err.message) || "Unknown error",
+      offline: !!(err && err.offline),
+      at: Date.now(),
+    };
+  }
   function cacheWrite(state) {
     const ok = writeJSON(KEY_PREFIX + state.id, state);
     _lastCacheWriteFailed = !ok;
@@ -180,6 +192,7 @@
   }
   function lastCacheWriteFailed() { return _lastCacheWriteFailed; }
   function lastSyncFailed() { return _lastSyncFailed; }
+  function lastSyncError() { return _lastSyncError; }
   function cacheDelete(id) {
     removeFromIndex(id);
     remove(KEY_PREFIX + id);
@@ -213,13 +226,21 @@
     return base;
   }
   function stateToRow(state) {
-    return {
+    const row = {
       id: state.id,
       name: state.name || (state.project && state.project.customerName) || "Untitled project",
       summary: summaryFromState(state),
       state: state,
       updated_at: state.updatedAt || new Date().toISOString(),
     };
+    // Send owner_id explicitly. The column DEFAULT (auth.user_id()) only fires
+    // on a fresh INSERT, but our upsert uses resolution=merge-duplicates — on
+    // the conflict/UPDATE branch the default does NOT apply, so without this the
+    // row's owner_id stays NULL and the RLS WITH CHECK (owner_id = auth.user_id())
+    // rejects the write. Setting it satisfies both the INSERT and UPDATE checks.
+    const me = currentUserId();
+    if (me) row.owner_id = me;
+    return row;
   }
 
   // Factory for an authenticated PostgREST fetch bound to DATA_API.
@@ -348,12 +369,13 @@
     state.updatedAt = now;
 
     _lastSyncFailed = false;
+    _lastSyncError = null;
     cacheWrite(state); // synchronous, never lost
 
     if (!online()) return Promise.resolve(state.id);
-    return NeonBackend.saveProject(state).catch(function () {
+    return NeonBackend.saveProject(state).catch(function (err) {
       markDirty(state.id);
-      _lastSyncFailed = true; // saved locally, will retry via flushDirty
+      recordSyncError(err); // saved locally, will retry via flushDirty
       return state.id;
     });
   }
@@ -399,7 +421,7 @@
     return Promise.all(ids.map(function (id) {
       const state = readJSON(KEY_PREFIX + id, null);
       if (!state) { clearDirty(id); return Promise.resolve(); }
-      return NeonBackend.saveProject(state).catch(function () { /* still dirty */ });
+      return NeonBackend.saveProject(state).catch(function (err) { recordSyncError(err); /* still dirty */ });
     }));
   }
 
@@ -549,7 +571,7 @@
       }
       // Insert each owned row (RLS with-check forces owner_id = me).
       return Promise.all(localStates.map(function (state) {
-        return NeonBackend.saveProject(state).catch(function () { markDirty(state.id); });
+        return NeonBackend.saveProject(state).catch(function (err) { markDirty(state.id); recordSyncError(err); });
       })).then(function () {
         try { localStorage.setItem(flagKey, "1"); } catch (e) { /* ignore */ }
         return localStates.length;
@@ -558,11 +580,28 @@
   }
 
   // Clear server-sourced cached rows on sign-out (shared-machine safety).
-  // Keeps device-local UI pointers untouched.
+  // Keeps device-local UI pointers untouched. CRITICAL: never drop rows that
+  // are still dirty (saved locally but not yet confirmed by Neon) or their
+  // retry queue — doing so destroys un-synced work permanently. Only confirmed
+  // (server-sourced) rows are safe to evict.
   function clearCache() {
-    getIndex().forEach(function (p) { remove(KEY_PREFIX + p.id); });
-    remove(KEY_INDEX);
-    remove(KEY_DIRTY);
+    const dirty = getDirty();
+    const keepDirty = {};
+    dirty.forEach(function (id) { keepDirty[id] = true; });
+
+    getIndex().forEach(function (p) {
+      if (!keepDirty[p.id]) remove(KEY_PREFIX + p.id);
+    });
+
+    if (dirty.length) {
+      // Rebuild the index to hold only the surviving dirty rows; keep the
+      // dirty queue so flushDirty can sync them after the next sign-in.
+      const survivors = getIndex().filter(function (p) { return keepDirty[p.id]; });
+      setIndex(survivors);
+    } else {
+      remove(KEY_INDEX);
+      remove(KEY_DIRTY);
+    }
     setActiveProjectId(null);
     return Promise.resolve();
   }
@@ -590,6 +629,7 @@
     uid: uid,
     lastCacheWriteFailed: lastCacheWriteFailed,
     lastSyncFailed: lastSyncFailed,
+    lastSyncError: lastSyncError,
     // Shared by feedback-store so the authenticated PostgREST client lives
     // in one place. DATA_API is the single source of the Data API base.
     makeDataFetch: makeDataFetch,
