@@ -2096,8 +2096,8 @@ button { font-family: inherit; }
   top: 0; left: 0;
   width: 480px;               /* design width before scale */
   /* Scaled down so the preview reads as a small thumbnail inside the (unchanged)
-     16:10 box rather than filling it edge-to-edge. */
-  transform: scale(0.62);
+     16:10 box rather than filling it edge-to-edge. (0.62 × 0.50 = 0.31) */
+  transform: scale(0.31);
   transform-origin: top left;
   border: none;
   box-shadow: none;
