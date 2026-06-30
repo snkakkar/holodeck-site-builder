@@ -1338,19 +1338,38 @@
       const root = el("div", { class: "hp hp-device" });
       const act = data.acts[0] || null;
       const channel = (act && act.channel) || "Phone";
-      const isLaptop = /laptop|macbook|web|desktop|store|associate|console/i.test(channel);
+      // Mirror the /demo renderer's deviceMoment frame logic: decide from
+      // EXPLICIT signals (author deviceFrame, then slide-title + channel
+      // keywords), defaulting to phone — so a slide titled "… Phone Moment"
+      // isn't forced to a laptop by desk-prose elsewhere in the act.
+      const dframe = data.slide && data.slide.deviceFrame;
+      const dsig = ((slideTitleOr(data, "") || "") + " " + channel).toLowerCase();
+      let isLaptop;
+      if (dframe === "desktop") isLaptop = true;
+      else if (dframe === "mobile") isLaptop = false;
+      else if (/phone|mobile|instagram|insta|social|sms|imessage|\bapp\b|paid|\bad\b/.test(dsig)) isLaptop = false;
+      else if (/laptop|macbook|web|desktop|browser|store|associate|console|revenue desk/.test(dsig)) isLaptop = true;
+      else isLaptop = false;
       root.appendChild(el("div", { class: "hp-eyebrow", text: "Channel · " + channel }));
 
       const stage = el("div", { class: "hp-device-stage" });
       const device = el("div", { class: "hp-device-frame " + (isLaptop ? "is-laptop" : "is-phone") });
       const screen = el("div", { class: "hp-device-screen" });
-      // Faux UI inside the device
+      // Faux UI inside the device. Use a SHORT headline (the act title, or a
+      // trimmed clause) — never the raw multi-sentence demoMoment script, which
+      // would dump a whole paragraph into the tiny phone screen.
       screen.appendChild(el("div", { class: "hp-device-bar" }));
-      const headline = el("div", { class: "hp-device-headline",
-        text: (act && act.demoMoment) || "Product moment" });
+      const hText = (act && act.title)
+        ? (SHARED.cleanHeadline ? SHARED.cleanHeadline(act.title, 42) : truncate(act.title, 42))
+        : (act && act.demoMoment
+            ? (SHARED.oneSentence ? SHARED.oneSentence(act.demoMoment, 42) : truncate(act.demoMoment, 42))
+            : "Product moment");
+      const headline = el("div", { class: "hp-device-headline", text: hText });
       screen.appendChild(headline);
-      if (act && act.summary) {
-        screen.appendChild(el("div", { class: "hp-device-body", text: truncate(act.summary, 120) }));
+      const bodySrc = (act && (act.summary || act.demoMoment)) || "";
+      if (bodySrc) {
+        const bText = SHARED.oneSentence ? SHARED.oneSentence(bodySrc, 90) : truncate(bodySrc, 90);
+        screen.appendChild(el("div", { class: "hp-device-body", text: bText }));
       }
       const cta = el("div", { class: "hp-device-cta", text: act && act.businessValue ? truncate(act.businessValue, 40) : "Take action" });
       screen.appendChild(cta);

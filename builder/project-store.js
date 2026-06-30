@@ -531,6 +531,10 @@
       }, seed.story || {}),
       personas:        seed.personas        || [],
       storyActs:       seed.storyActs       || [],
+      // AI-generated agent-conversation script ({turns:[…]}), produced in the
+      // builder via Gemini and read by the demo's agentConversation slide. Null
+      // until generated → the deterministic SHARED.agentChat() fallback is used.
+      agentChatScript: seed.agentChatScript || null,
       assetLibrary:    seed.assetLibrary    || {},
       scriptText:      seed.scriptText      || "",
       storyMode:       seed.storyMode       || "script",

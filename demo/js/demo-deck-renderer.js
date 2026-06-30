@@ -320,11 +320,16 @@
     // in the original deck.
     agentConversation: function (s) {
       const personaName = (persona && persona.name) || customer.name || "Customer";
-      // Derive the chat from HOLO_SHARED.agentChat so the exported slide and
-      // the Step 8 preview show identical copy (single source of truth).
-      // Reconstruct the state shape the shared helper reads.
-      const chat = SHARED.agentChat
-        ? SHARED.agentChat({ story: plan.story || {}, personas: plan.personas || [], project: { industry: customer.industry || "", customerName: customer.name || "" } })
+      // Prefer an AI-generated, story-contextual script when the SE generated
+      // one in the builder (persisted on the project). Otherwise derive a
+      // deterministic chat from HOLO_SHARED.agentChat — passing the story acts
+      // + foundations so even the fallback is grounded in THIS script, not a
+      // generic retail scenario.
+      const aiScript = plan.agentChatScript;
+      const chat = (aiScript && Array.isArray(aiScript.turns) && aiScript.turns.length)
+        ? aiScript
+        : SHARED.agentChat
+        ? SHARED.agentChat({ story: plan.story || {}, personas: plan.personas || [], storyActs: acts, storyFoundations: f, project: { industry: customer.industry || "", customerName: customer.name || "" } })
         : {
             user:  (persona && persona.painPoints) ? truncate(persona.painPoints, 80) : "Can you help me find what I left behind?",
             agent: (acts[0] && acts[0].businessValue) ? truncate(acts[0].businessValue, 100)
@@ -356,18 +361,19 @@
         const side = t.from === "user" ? "dd-chat-me" : "dd-chat-them";
         let b;
         if (t.kind === "card" && t.card) {
-          // Rich agent message: a product-recommendation card (emoji tile +
-          // "Recommended for you" eyebrow + title + detail + price · CTA row).
+          // Rich agent message: a "next step" card (emoji tile + eyebrow +
+          // title + detail + optional price · CTA row). Channel-neutral
+          // defaults so a card without retail fields doesn't read as shopping.
           const c = t.card;
           b = el("div", { class: "dd-chat-bubble " + side + " dd-chat-card" }, [
-            el("div", { class: "dd-chat-card-media", text: c.emoji || "🛍️" }),
+            el("div", { class: "dd-chat-card-media", text: c.emoji || "🤖" }),
             el("div", { class: "dd-chat-card-body" }, [
               c.eyebrow ? el("div", { class: "dd-chat-card-eyebrow", text: c.eyebrow }) : null,
-              el("div", { class: "dd-chat-card-title", text: c.title || "Your top match" }),
+              el("div", { class: "dd-chat-card-title", text: c.title || "Your best next step" }),
               c.sub ? el("div", { class: "dd-chat-card-sub", text: c.sub }) : null,
               el("div", { class: "dd-chat-card-foot" }, [
-                el("span", { class: "dd-chat-card-price", text: c.price || "" }),
-                el("span", { class: "dd-chat-card-cta", text: (c.cta || "Shop now") + " ›" }),
+                c.price ? el("span", { class: "dd-chat-card-price", text: c.price }) : null,
+                el("span", { class: "dd-chat-card-cta", text: (c.cta || "See how") + " ›" }),
               ]),
             ]),
           ]);
@@ -394,6 +400,10 @@
         // Show the typing indicator only while more turns remain.
         typing.style.display = (revealed < bubbles.length) ? "" : "none";
         thread.classList.toggle("is-complete", revealed >= bubbles.length);
+        // Keep the newest bubble in view: the phone frame is a fixed size and
+        // the thread scrolls internally (overflow-y:auto), so scroll to the
+        // bottom rather than letting the conversation overflow out of frame.
+        thread.scrollTop = thread.scrollHeight;
       }
       reveal(); // first turn visible immediately (and in the static preview)
       thread.addEventListener("click", function (e) {
@@ -605,8 +615,25 @@
     // RIGHT eyebrow + headline + sub + capability chips.
     deviceMoment: function (s) {
       const act = (s.linkedActId && acts.find(function(a){return a.id===s.linkedActId;})) || acts[0] || {};
-      const isMobile = (s && s.deviceFrame === "mobile") ||
-                       (act.channel && /phone|sms|imessage|app|mobile/i.test(act.channel));
+      // Default to a PHONE (mirrors embeddedCxComponent), flipping to the
+      // laptop frame ONLY on an explicit desktop signal. The old logic
+      // defaulted to laptop with a narrow mobile opt-in, so an "Instagram Ad
+      // — Phone Moment" slide wrongly got the Mac browser chrome. We match the
+      // full "revenue desk" / "desktop" — NOT bare "desk" — so a Revenue Desk
+      // eyebrow doesn't accidentally force desktop.
+      // Decide the frame from EXPLICIT signals first, prose last. The signal
+      // string is the slide title + channel ONLY — NOT act.demoMoment/act.title
+      // prose, which on a "Phone Moment" slide can contain "Salesforce Revenue
+      // Desk" and wrongly force the laptop. Author override (s.deviceFrame) wins;
+      // then a phone keyword; then a desktop keyword; else default to phone.
+      const dmSig = (((s && s.title) || "") + " " + (act.channel || "")).toLowerCase();
+      let isMobile;
+      if (s && s.deviceFrame === "mobile") isMobile = true;
+      else if (s && s.deviceFrame === "desktop") isMobile = false;
+      else if (/phone|mobile|instagram|insta|social|sms|imessage|\bapp\b|paid|\bad\b/.test(dmSig)) isMobile = true;
+      else if (/desktop|laptop|browser|web page|website|\bweb\b|revenue desk/.test(dmSig)) isMobile = false;
+      else isMobile = true;
+      const isDesktop = !isMobile;
       // Resolve the device "screen" with the same precedence embeddedCxComponent
       // uses, so a deviceMoment slide can show EITHER an assigned still or a live
       // iframe — whatever is bound to it:
@@ -640,7 +667,13 @@
         // Empty/fallback: full skeleton chrome + cue so the SE knows what to add.
         screenInner = el("div", { class: "dd-screen" }, [
           el("div", { class: "dd-screen-eyebrow", text: (act.channel || "Salesforce").toUpperCase() }),
-          el("div", { class: "dd-screen-h", text: act.demoMoment || act.title || s.title || "Moment" }),
+          el("div", { class: "dd-screen-h", text: (function () {
+            // SHORT screen heading — prefer the brief act title; never dump the
+            // multi-sentence demoMoment script into the tiny phone screen.
+            if (act.title)      return SHARED.cleanHeadline ? SHARED.cleanHeadline(act.title, 42) : act.title;
+            if (act.demoMoment) return SHARED.oneSentence  ? SHARED.oneSentence(act.demoMoment, 42) : act.demoMoment;
+            return s.title || "Moment";
+          })() }),
           mediaTile({
             src: globalStill,
             kind: "gif",
@@ -686,11 +719,44 @@
     // Store" opener slide from the original deck.
     scenePhoto: function (s) {
       const act = (s.linkedActId && acts.find(function(a){return a.id===s.linkedActId;})) || acts[0] || {};
+      // The NEXT act drives "what happens next" so the slide advances the real
+      // story instead of echoing hardcoded retail-CDP copy.
+      const sceneIdx  = acts.indexOf(act);
+      const sceneNext = (sceneIdx >= 0 && acts[sceneIdx + 1]) || {};
+      // Title helper: a SHORT but COMPLETE clause (not punchyTitle's 1-2 word
+      // stub, which cuts "Split-Screen 1: Customer View…" down to the
+      // meaningless "Split-Screen 1"). cleanHeadline trims to a word boundary.
+      const tTitle = function (v, max, fb) {
+        const out = SHARED && SHARED.cleanHeadline ? SHARED.cleanHeadline(v, max || 42) : truncate(v, max || 42);
+        return out || fb;
+      };
+      const tSub = function (v, max, fb) {
+        const out = SHARED && SHARED.oneSentence ? SHARED.oneSentence(v, max || 70) : truncate(v, max || 70);
+        return out || fb;
+      };
+      // Icons derive from the act's channel (semantic, story-driven) rather than
+      // hardcoded retail glyphs. channelIcon falls back to a neutral dot/🤖.
+      const ic = function (ch) { return (SHARED && SHARED.channelIcon ? SHARED.channelIcon(ch || "") : "") || "•"; };
+      const hasNext = !!(sceneNext && (sceneNext.title || sceneNext.demoMoment || sceneNext.summary));
       const rows = [
-        { eyebrow:"WHEN",              icon:"❄️", title: act.timing  || "December · Holiday Season",  sub: "Last-minute holiday shopping in-store" },
-        { eyebrow:"THE MOMENT",        icon:"📧", title: act.demoMoment || "Email captured at checkout", sub: "She shares her email for a digital receipt" },
-        { eyebrow:"WHAT HAPPENS NEXT", icon:"☁️", title: "CDP builds a unified profile",                sub: "In-store identity now connects every future channel" },
-        { eyebrow:"WHY IT MATTERS",    icon:"🎯", title: "Anonymous → Known",                          sub: "The bridge that makes every touchpoint personal" },
+        { eyebrow:"WHEN",              icon:"🗓️",
+          title: act.timing || act.month || "Opening",
+          sub:   act.location || tSub(act.summary, 60, "The opening moment") },
+        { eyebrow:"THE MOMENT",        icon: ic(act.channel),
+          // Prefer the act TITLE (short — "In-store identity capture") over the
+          // demoMoment paragraph for the headline; demoMoment fills the sub.
+          title: tTitle(act.title || act.demoMoment, 42, "The key moment"),
+          sub:   tSub(act.summary || act.demoMoment, 70, "Where the story begins") },
+        hasNext
+          ? { eyebrow:"WHAT HAPPENS NEXT", icon: ic(sceneNext.channel || act.channel),
+              title: tTitle(sceneNext.title || sceneNext.demoMoment || act.salesforceCapabilities, 42, "What happens next"),
+              sub:   tSub(sceneNext.summary || sceneNext.demoMoment, 70, "The story continues") }
+          : { eyebrow:"WHERE IT LEADS",    icon: ic(act.channel),
+              title: tTitle(act.salesforceCapabilities || act.businessValue, 42, "Where it leads"),
+              sub:   tSub(act.businessValue || f.executiveTakeaway, 70, "The story continues") },
+        { eyebrow:"WHY IT MATTERS",    icon:"🎯",
+          title: tTitle(act.businessValue || f.executiveTakeaway, 42, "Why it matters"),
+          sub:   tSub(f.businessProblem || f.executiveTakeaway, 70, "The outcome that counts") },
       ];
       return [
         el("div", { class: "dd-scene" }, [
@@ -1042,10 +1108,35 @@
         hero:  i === 0 || e.hero === true || e.heroMoment === true,
       };
     });
-    const half = Math.ceil(milestones.length / 2);
+    const n = milestones.length;
+    // Few events (≤3) read as a cramped vertical stack when split above/below
+    // (1 above + 1 below the SAME center). Lay them out in a single row so they
+    // become side-by-side milestones with real horizontal spacing. ≥4 keeps the
+    // alternating above/below layout so a long journey stays compact.
+    const single = n <= 3;
+    // Scale the timeline width to the node count so a 2-event journey doesn't
+    // stretch a near-empty line across the page; clamp to 100% so a full 8-event
+    // journey still spans edge-to-edge, and floor at 420px so 2 events still
+    // spread. Width is driven by the row that carries the most nodes.
+    const widest = single ? n : Math.max(Math.ceil(n / 2), n - Math.ceil(n / 2), 1);
+    const trackWidth = "min(100%, max(420px, " + (widest * 260) + "px))";
+    const wrapStyle = "max-width:" + trackWidth + ";margin-left:auto;margin-right:auto;";
+    if (single) {
+      return el("div", {
+        class: "dd-jt dd-jt-single dd-jt-n" + n,
+        style: wrapStyle,
+      }, [
+        el("div", { class: "dd-jt-row dd-jt-above" }, milestones.map(timelineNode)),
+        el("div", { class: "dd-jt-track" }),
+      ]);
+    }
+    const half = Math.ceil(n / 2);
     const above = milestones.slice(0, half);
     const below = milestones.slice(half);
-    return el("div", { class: "dd-jt dd-jt-n" + milestones.length }, [
+    return el("div", {
+      class: "dd-jt dd-jt-n" + n,
+      style: wrapStyle,
+    }, [
       el("div", { class: "dd-jt-row dd-jt-above" }, above.map(timelineNode)),
       el("div", { class: "dd-jt-track" }),
       el("div", { class: "dd-jt-row dd-jt-below" }, below.map(timelineNode)),

@@ -67,6 +67,13 @@
     tour: { active: false, segment: null, index: 0, resumeOnBuilder: false },
   };
 
+  // Cached Gemini-configured flag. Resolved once at boot (the server tells
+  // us whether a key is present). Used to decide whether to show AI actions
+  // that re-render synchronously (e.g. the per-slide "Generate conversation"
+  // button on the preview step), where an async isConfigured() per render
+  // would be awkward.
+  let _geminiReady = false;
+
   // ─── DOM helpers ──────────────────────────────────────────────
   function $(sel, root) { return (root || document).querySelector(sel); }
   function el(tag, attrs, children) {
@@ -3753,6 +3760,11 @@
 
   // ─── STEP 7: PREVIEW ──────────────────────────────────────────
   function viewPreview() {
+    // Default enrichment: kick off the Gemini agent-conversation script in
+    // the background (no-op if already present / Gemini off / no chat slide).
+    // The demo falls back to the deterministic script if this never lands.
+    ensureAgentChatScript();
+
     const wrap = el("div");
     wrap.appendChild(stepHeader(
       "Step 8 · Preview",
@@ -4709,6 +4721,111 @@
       .then(function () {
         button.disabled = false;
         button.textContent = origText;
+      });
+  }
+
+  // ─── Auto-generate the agent-conversation script (Gemini) ─────
+  // Runs silently in the background when the SE reaches the Preview step:
+  // builds a contextual chat from the loaded story (company/industry +
+  // first persona + story acts + business value) and persists it on
+  // state.agentChatScript. The demo's agentConversation slide reads this
+  // cached script; if generation is skipped or fails, the demo falls back
+  // to the deterministic SHARED.agentChat(). No button, no toasts — purely
+  // a default enrichment. Skips when: no project, no agentConversation
+  // slide, a script already exists, Gemini isn't configured, or there's
+  // no story context yet. _agentChatGenInFlight guards against re-entry
+  // while a request is outstanding (the Preview step re-renders often).
+  let _agentChatGenInFlight = false;
+  function ensureAgentChatScript() {
+    const s = app.state;
+    if (!s || _agentChatGenInFlight) return;
+    // Already have a script → nothing to do (regeneration is manual via
+    // re-running the story / clearing the field; we never overwrite).
+    if (s.agentChatScript && Array.isArray(s.agentChatScript.turns) && s.agentChatScript.turns.length) return;
+    // Only worth generating if the deck actually shows an agent conversation.
+    const hasChatSlide = (s.slides || []).some(function (sl) { return sl.layout === "agentConversation"; });
+    if (!hasChatSlide) return;
+    if (!_geminiReady) return; // configured-flag resolved once at boot
+
+    const GEMINI = window.HOLO_GEMINI;
+    const AI_PROMPT = window.HOLO_AI_PROMPT;
+    if (!GEMINI || !GEMINI.generate || !AI_PROMPT || !AI_PROMPT.getAgentChatPrompt) return;
+
+    const p = s.project || {};
+    const f = s.storyFoundations || {};
+    const story = s.story || {};
+    const persona = (s.personas || [])[0] || {};
+    const acts = s.storyActs || [];
+
+    // Compact, grounded context — the real company, the persona's pain,
+    // and the actual demo acts/business value so the model writes a
+    // story-specific conversation rather than a generic one.
+    const clip = function (v, n) { return v ? String(v).slice(0, n) : ""; };
+    const actLines = acts.slice(0, 4).map(function (a, i) {
+      const bits = [
+        a.title || a.demoMoment || ("Act " + (i + 1)),
+        a.demoMoment && a.demoMoment !== a.title ? ("— " + clip(a.demoMoment, 140)) : "",
+        a.salesforceCapabilities ? ("[" + clip(a.salesforceCapabilities, 80) + "]") : "",
+        a.businessValue ? ("→ value: " + clip(a.businessValue, 100)) : "",
+      ].filter(Boolean).join(" ");
+      return (i + 1) + ". " + bits;
+    });
+    const context = [
+      p.customerName ? ("Company: " + p.customerName) : "",
+      p.industry ? ("Industry: " + p.industry) : "",
+      p.theme ? ("Demo theme: " + clip(p.theme, 120)) : "",
+      persona.name ? ("Customer persona: " + persona.name + (persona.role ? (", " + persona.role) : "")) : "",
+      persona.painPoints ? ("Persona pain: " + clip(persona.painPoints, 160)) : "",
+      persona.goals ? ("Persona goals: " + clip(persona.goals, 160)) : "",
+      (story.bigProblem || f.businessProblem) ? ("Business problem: " + clip(story.bigProblem || f.businessProblem, 200)) : "",
+      (story.businessValueMoments || f.executiveTakeaway) ? ("Business value: " + clip(story.businessValueMoments || f.executiveTakeaway, 200)) : "",
+      actLines.length ? ("Demo acts:\n" + actLines.join("\n")) : "",
+    ].filter(Boolean).join("\n");
+
+    // Without real story context the model would invent a generic chat —
+    // skip silently and let the deterministic fallback handle it.
+    if (!context.trim()) return;
+
+    _agentChatGenInFlight = true;
+    const prompt = AI_PROMPT.getAgentChatPrompt(context);
+    GEMINI.generate({ prompt: prompt, jsonMode: true })
+      .then(function (text) {
+        const cleaned = String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+        let data;
+        try { data = JSON.parse(cleaned); } catch (_) { data = null; }
+        // Validate the {turns:[{from,text|card}]} shape; keep only well-formed
+        // turns so a partial response can't break the demo renderer.
+        const rawTurns = (data && Array.isArray(data.turns)) ? data.turns : [];
+        const turns = rawTurns.map(function (t) {
+          if (!t || typeof t !== "object") return null;
+          const from = (t.from === "user") ? "user" : "agent";
+          if (t.kind === "card" && t.card && typeof t.card === "object") {
+            const c = t.card;
+            return { from: from, kind: "card", card: {
+              eyebrow: String(c.eyebrow || ""), title: String(c.title || ""),
+              sub: String(c.sub || ""), cta: String(c.cta || "See how"),
+            } };
+          }
+          const txt = String(t.text || "").trim();
+          if (!txt) return null;
+          return { from: from, text: txt };
+        }).filter(Boolean);
+
+        // Too few usable turns → leave agentChatScript null so the demo
+        // uses the deterministic fallback. Don't persist a broken script.
+        if (turns.length < 2) return;
+        s.agentChatScript = { turns: turns };
+        commit();        // persists via the debounced saveActive (local + cloud)
+        // Re-render only if still on the Preview step so the SE sees the
+        // generated chat; otherwise it's already saved for the demo.
+        if (app.view === "builder" && app.state === s && app.state.step === "preview") renderMain();
+      })
+      .catch(function () {
+        // Silent: the demo falls back to SHARED.agentChat() when the script
+        // is null. A failed background enrichment shouldn't interrupt the SE.
+      })
+      .then(function () {
+        _agentChatGenInFlight = false;
       });
   }
 
@@ -6753,6 +6870,16 @@
 
   // ─── Boot ─────────────────────────────────────────────────────
   function boot() {
+    // Resolve the Gemini-configured flag once; re-render if we're already
+    // sitting on the preview step so the "Generate conversation" action
+    // appears without a manual refresh.
+    if (window.HOLO_GEMINI && window.HOLO_GEMINI.isConfigured) {
+      window.HOLO_GEMINI.isConfigured().then(function (ok) {
+        _geminiReady = !!ok;
+        if (ok && app.view === "builder" && app.state && app.state.step === "preview") renderMain();
+      });
+    }
+
     $("#bxModal").addEventListener("click", function (e) {
       if (e.target === $("#bxModal")) closeModal();
     });

@@ -936,6 +936,9 @@
       storyFoundations: state.storyFoundations || {},
       personas:         state.personas         || [],
       storyActs:        state.storyActs        || [],
+      // AI-generated agent-conversation script; the demo's agentConversation
+      // slide prefers this over the deterministic SHARED.agentChat() fallback.
+      agentChatScript:  state.agentChatScript  || null,
       cxComponents:     cxAll,
       assetLibrary:     state.assetLibrary || {},
       slideSections:    state.slideSections || [],

@@ -79,7 +79,7 @@
   /* ── Layout ─────────────────────────────────────────────────── */
   --bx-topbar-h: 60px;
   --bx-stepper-w: 260px;
-  --bx-side-w: 360px;
+  --bx-side-w: 240px;   /* narrower "Live Suggestions" panel → wider main column */
 }
 
 * { box-sizing: border-box; }
@@ -273,7 +273,7 @@ button { font-family: inherit; }
 /* ══════════ Main content ══════════ */
 .bx-main {
   padding: var(--bx-sp-8) var(--bx-sp-9) var(--bx-sp-9);
-  max-width: 920px;
+  max-width: 1600px;
   width: 100%;
   margin: 0 auto;
 }
@@ -1116,9 +1116,20 @@ button { font-family: inherit; }
   border-radius: 8px;
   background: var(--bx-bg-2);
 }
+.bx-edit-modal .bx-pop-edit-list-row { align-items: flex-start; }
 .bx-edit-modal .bx-pop-edit-list-input { flex: 1 1 200px; min-width: 160px; }
-.bx-edit-modal .bx-pop-edit-icon-cell { flex: 1 1 100%; }
-.bx-edit-modal .bx-pop-edit-icon-btn { width: 28px; height: 28px; font-size: 16px; }
+/* Channel-icon picker: a compact cell, NOT a full-width column. The picker
+   input must not flex-grow vertically (it sits in a column flexbox, where
+   flex:1 would balloon it into a huge empty box), so pin it to auto height. */
+.bx-edit-modal .bx-pop-edit-icon-cell {
+  flex: 1 1 200px; min-width: 160px;
+  align-self: flex-start;
+}
+.bx-edit-modal .bx-pop-edit-icon-cell .bx-pop-edit-list-input {
+  flex: 0 0 auto; width: 100%;
+}
+.bx-edit-modal .bx-pop-edit-icon-strip { gap: 4px; }
+.bx-edit-modal .bx-pop-edit-icon-btn { width: 26px; height: 26px; font-size: 15px; }
 .bx-guide-foot {
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; margin-top: var(--bx-sp-5);
@@ -1962,7 +1973,7 @@ button { font-family: inherit; }
 /* ── Slide Selection: GRID VIEW ─────────────────────────────── */
 .bx-rec-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));   /* exactly 3 per line */
   gap: var(--bx-sp-4);
 }
 @media (max-width: 720px) {
@@ -2069,7 +2080,7 @@ button { font-family: inherit; }
   font-size: 11px;
 }
 
-/* Thumbnail frame: scaled-down .hp preview clipped to fixed aspect */
+/* Thumbnail frame: scaled-down .hp preview clipped to a 16:10 landscape box. */
 .bx-rec-gcard-thumb {
   position: relative;
   aspect-ratio: 16 / 10;
@@ -2084,7 +2095,9 @@ button { font-family: inherit; }
   position: absolute;
   top: 0; left: 0;
   width: 480px;               /* design width before scale */
-  transform: scale(0.42);
+  /* Scaled down so the preview reads as a small thumbnail inside the (unchanged)
+     16:10 box rather than filling it edge-to-edge. */
+  transform: scale(0.62);
   transform-origin: top left;
   border: none;
   box-shadow: none;

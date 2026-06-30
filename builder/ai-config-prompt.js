@@ -422,6 +422,56 @@ CX components (AubreyDemo):
       .replace("<<CONTEXT>>", String(context || "[no extra context]"));
   }
 
+  // ─── Agent conversation script ────────────────────────────────
+  // Generates the chat thread shown on the agentConversation slide.
+  // The script MUST be contextual to the loaded demo story — never a
+  // generic shopping/retail conversation unless the story itself is
+  // retail. The agent greets first as the company's AI agent; the
+  // customer raises the persona's real pain; the agent grounds every
+  // answer in the actual demo acts + business value and ends with a
+  // concrete next step.
+  const AGENT_CHAT_PROMPT = [
+    "You are scripting a short, realistic conversation between a company's",
+    "AI agent and a customer, shown on a phone during a Salesforce demo.",
+    "Using the DEMO CONTEXT below, return ONE valid JSON object (no prose,",
+    "no markdown fences) with EXACTLY this shape:",
+    "",
+    "{",
+    '  "turns": [',
+    '    { "from": "agent", "text": "<short message>" },',
+    '    { "from": "user",  "text": "<short message>" },',
+    '    { "from": "agent", "kind": "card",',
+    '      "card": { "eyebrow": "<2-3 words>", "title": "<short>", "sub": "<one short line>", "cta": "<2-3 words>" } }',
+    "  ]",
+    "}",
+    "",
+    "RULES:",
+    "1. The FIRST turn is the agent greeting as the company's agent, e.g.",
+    '   "Hi, I\'m the <Company> agent — here to help with <use case>."',
+    "2. The customer then raises the persona's real pain in their own words.",
+    "3. The agent grounds answers in the ACTUAL demo acts and business value",
+    "   below — reference the real moment/capability, not generic features.",
+    "4. EXACTLY ONE turn may be a card (kind:\"card\"); make it the agent's",
+    "   recommended next step tied to a demo act. All other turns are plain",
+    "   text with no card/kind. The card is optional — omit it if it doesn't",
+    "   fit the story.",
+    "5. The conversation ENDS with the agent offering a clear next step",
+    "   (e.g. \"want me to set that up?\").",
+    "6. Keep every message SHORT — these are chat bubbles, one or two lines.",
+    "7. Stay strictly on this story's industry and use case. Do NOT make it a",
+    "   shopping/retail conversation unless the story is genuinely retail.",
+    "8. Aim for 6-9 turns total.",
+    "",
+    "── DEMO CONTEXT ──",
+    "<<CONTEXT>>",
+  ].join("\n");
+
+  // getAgentChatPrompt(context) — context is a string assembled by the
+  // caller from company/industry + persona + story acts + business value.
+  function getAgentChatPrompt(context) {
+    return AGENT_CHAT_PROMPT.replace("<<CONTEXT>>", String(context || "[no context provided]"));
+  }
+
   const PAGE_HELPER = [
     "We pre-fill the SE Inputs below from your project (script, setup fields,",
     "and any extracted foundations). Review or edit them, then Copy the prompt",
@@ -441,5 +491,7 @@ CX components (AubreyDemo):
     getStoryParsePrompt: getStoryParsePrompt,
     PERSONA_COPY_PROMPT: PERSONA_COPY_PROMPT,
     getPersonaCopyPrompt: getPersonaCopyPrompt,
+    AGENT_CHAT_PROMPT: AGENT_CHAT_PROMPT,
+    getAgentChatPrompt: getAgentChatPrompt,
   };
 })(window);

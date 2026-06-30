@@ -1063,6 +1063,8 @@
   // preview show identical copy. Accepts the builder state.
   // Industry → a short, clean noun phrase for the agent's greeting use-case
   // ("…here to help with <X>"). Always reads as a phrase, never a sentence.
+  // Neutral by default — only assumes "shopping" when the industry is actually
+  // retail; everything else gets a channel-agnostic phrase.
   function agentUseCase(industry) {
     return ({
       "Retail":             "your shopping",
@@ -1071,7 +1073,7 @@
       "Travel":             "your trip",
       "Financial Services": "your accounts",
       "Healthcare":         "your care",
-    })[industry] || "what you need";
+    })[industry] || "what you're working on";
   }
 
   function agentChat(state) {
@@ -1079,6 +1081,10 @@
     const story = state.story || {};
     const persona = (state.personas || [])[0] || null;
     const industry = (state.project && state.project.industry) || "";
+    // The first demo act + foundations let us ground the conversation in the
+    // ACTUAL script instead of assuming a retail/shopping scenario.
+    const act = (state.storyActs || [])[0] || {};
+    const found = state.storyFoundations || {};
     // {user, agent} are kept for back-compat (the Step 8 static preview reads
     // them); the interactive slide uses `turns`. `user`/`agent` mirror the
     // first customer ask + the agent's grounded reply below.
@@ -1094,8 +1100,14 @@
     // forth, not a recitation of story fields. No two turns echo one source.
 
     // 1. Agent greets first — "Hello, I'm the <Company> Agent — here to help…".
+    // Prefer a short use-case pulled from the actual story; fall back to the
+    // industry phrase so we never assume "shopping" for a non-retail script.
+    const storyUseCase = oneSentence(story.bigProblem || found.businessProblem || "", 38);
+    const useCase = (storyUseCase && storyUseCase.length <= 36 && storyUseCase.indexOf("…") === -1)
+      ? lowerFirst(storyUseCase)
+      : agentUseCase(industry);
     const greeting = "Hello, I'm the " + company + " Agent — here to help with " +
-      agentUseCase(industry) + ".";
+      useCase + ".";
 
     // 2. Customer opens with their pain, phrased as a first-person complaint.
     const painLine = (persona && persona.painPoints)
@@ -1127,20 +1139,19 @@
     // 5. Agent leads into the recommendation.
     turns.push({ from: "agent", text: "Based on that, here's a strong match for you:" });
 
-    // 6. The rich beat: a product-recommendation card sent BY the agent.
-    const cardTitle = (Array.isArray(state.wishlist) && state.wishlist[0] && state.wishlist[0].name)
-      ? String(state.wishlist[0].name)
-      : (story.commerceMoments ? oneSentence(story.commerceMoments, 36) : "Your top match");
-    const cardSub = (persona && persona.goals)
-      ? oneSentence(persona.goals, 60)
-      : "Matched to your profile and recent activity";
+    // 6. The rich beat: a "next step" card sent BY the agent — grounded in the
+    // demo act, NOT a retail product. Channel-neutral: no price, a neutral CTA,
+    // and an icon derived from the act's channel (fb 🤖).
+    const cardTitle = punchyTitle(act.demoMoment || act.title || "")
+      || (story.commerceMoments ? oneSentence(story.commerceMoments, 36) : "Your best next step");
+    const cardSub = oneSentence(act.summary || (persona && persona.goals) || "", 60)
+      || "Matched to your profile and recent activity";
     turns.push({ from: "agent", kind: "card", card: {
-      eyebrow: "Recommended for you",
+      eyebrow: "Here's the match",
       title: cardTitle,
       sub: cardSub,
-      price: "In your range",
-      cta: "Shop now",
-      emoji: "🛍️",
+      cta: "See how",
+      emoji: channelIcon(act.channel || ""),
     } });
 
     // 7. Customer reacts positively (short, natural).
@@ -1149,10 +1160,10 @@
     // 8. Agent offers the next action, naming a business-value benefit as a
     // single phrase (NOT the raw "A; B; C" list the field often holds). The
     // clause keeps its own casing (often Title Case), so don't lowercase it.
-    const benefit = firstClause(story.businessValueMoments || "", 48);
+    const benefit = firstClause(story.businessValueMoments || act.businessValue || "", 48);
     turns.push({ from: "agent", text: benefit
       ? ("I can set that up — it's a quick win for " + benefit + ". Want me to?")
-      : "I can set that up and apply your perks — want me to?" });
+      : "I can set that up right now — want me to?" });
 
     // 9. Customer confirms.
     turns.push({ from: "user", text: "Yes, please." });
@@ -1222,6 +1233,10 @@
   // Each entry: { key (canonical channel), icon, match (keyword regex) }.
   const CHANNEL_ICONS = [
     { key: "email",  icon: "📧",  match: /email/ },
+    // A classic envelope as a clearer "mail" glyph (the 📧 card reads poorly at
+    // small picker sizes). Guarded match so it never shadows the "email" entry
+    // above — only an explicit "mail"/"letter"/"envelope" channel resolves here.
+    { key: "mail",   icon: "✉️",  match: /\bmail\b|letter|envelope/ },
     { key: "sms",    icon: "💬",  match: /sms|text|imessage/ },
     { key: "social", icon: "📸",  match: /insta|social|facebook|tiktok/ },
     { key: "store",  icon: "🏪",  match: /store|pos|in-?person/ },
