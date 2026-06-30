@@ -1196,6 +1196,28 @@ button { font-family: inherit; }
   flex: 0 1 auto; min-width: 0;
 }
 
+/* Initials avatar — the profile entry point, replaces the email text +
+   the old Profile nav link. Round, brand-tinted, always visible. */
+.bx-avatar {
+  align-self: center;
+  flex: 0 0 auto;
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin: 0 4px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--bx-line-2);
+  background: var(--bx-bg-2);
+  color: var(--bx-navy);
+  font-size: 12px; font-weight: 800; letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.bx-avatar:hover { border-color: var(--bx-navy); box-shadow: 0 0 0 2px var(--bx-bg-2); }
+.bx-avatar.is-active { border-color: var(--bx-navy); box-shadow: 0 0 0 2px var(--bx-bg-2); }
+
 /* ── Topbar responsive scaling ──────────────────────────────── */
 /* Tighten the action cluster as room shrinks, before anything wraps. */
 @media (max-width: 1180px) {

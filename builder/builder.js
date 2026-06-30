@@ -301,6 +301,7 @@
       s && s.name,
       s && s.project && s.project.customerName,
       u && u.email,
+      app.profile && app.profile.name,
       aubreyCount,
     ].join("");
     if (sig === _topbarSig && left.firstChild) return;
@@ -337,7 +338,6 @@
     // Right-side nav
     [
       ["home",     "Home",      function () { goHome(); }],
-      ["profile",  "Profile",   function () { goProfile(); }],
       ["feedback", "Feedback",  function () { goFeedback(); }],
     ].forEach(function (n) {
       const isActive = (app.view === n[0]);
@@ -358,11 +358,40 @@
     if (AUTH && AUTH.isAuthed() && app.view !== "login") {
       const u = AUTH.currentUser();
       if (u && u.email) {
-        right.appendChild(el("span", { class: "bx-nav-user", title: u.email,
-          text: u.email }));
+        // Initials avatar replaces both the Profile nav link and the email
+        // text — clicking it opens the profile page. Title shows the email.
+        right.appendChild(profileAvatarButton(u));
       }
       right.appendChild(actionBtn("Sign out", "bx-btn-ghost", function () { signOut(); }));
     }
+  }
+
+  // Round avatar showing the user's initials. Source order for the name:
+  // synced profile name → auth name → email local-part. Clicking opens the
+  // profile page; marked active when that page is showing.
+  function profileAvatarButton(u) {
+    const name = (app.profile && app.profile.name) || (u && u.name) || "";
+    const initials = initialsFor(name, u && u.email);
+    const b = el("button", {
+      class: "bx-avatar" + (app.view === "profile" ? " is-active" : ""),
+      title: (u && u.email) ? ("Profile · " + u.email) : "Profile",
+      "aria-label": "Open your profile",
+      text: initials,
+      on: { click: function () { goProfile(); } },
+    });
+    return b;
+  }
+
+  // Up to two initials. Prefers the first letters of the first two name
+  // words; falls back to the first two letters of the email local-part,
+  // then "?". Always uppercase.
+  function initialsFor(name, email) {
+    const words = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (words.length >= 2) return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+    if (words.length === 1 && words[0]) return words[0].slice(0, 2).toUpperCase();
+    const local = String(email || "").split("@")[0].replace(/[^a-zA-Z0-9]/g, "");
+    if (local) return local.slice(0, 2).toUpperCase();
+    return "?";
   }
 
   function actionBtn(label, klass, onClick) {
@@ -4506,6 +4535,8 @@
       };
       STORE.saveProfile(clean).then(function (saved) {
         app.profile = saved;
+        // Refresh the topbar so the avatar initials follow the new name.
+        renderTopbar();
         // If a project is open and its presenter fields are still blank,
         // back-fill them now so the just-saved details take effect without
         // needing to reopen the project.
@@ -4949,9 +4980,9 @@
     },
     {
       id: "home-profile",
-      getAnchor: function () { return tourFindNavLink("Profile"); },
+      getAnchor: function () { return document.querySelector("#bxTopbarActions .bx-avatar"); },
       title: "Your profile & keys",
-      body: function () { return el("p", { text: "Open Profile to set your name and title — they sync to your account and pre-fill the presenter name on new demos. Your optional Aubrey keys live here too (saved on this device); add them once and the builder can pre-fill scripts and embed live demo screens." }); },
+      body: function () { return el("p", { text: "This is you — the initials open your profile. Set your name and title there (they sync to your account and pre-fill the presenter name on new demos). Your optional Aubrey keys live here too, saved on this device; add them once and the builder can pre-fill scripts and embed live demo screens." }); },
     },
     {
       id: "home-open",
@@ -5014,16 +5045,6 @@
 
   let _tourEls = null;          // { dim:[4], ring, card }
   let _tourRepositionRAF = 0;
-
-  // Find a topbar nav link by its visible label (e.g. "Profile") so a tour
-  // step can anchor to it without a brittle positional selector.
-  function tourFindNavLink(label) {
-    const links = document.querySelectorAll("#bxTopbarActions .bx-nav-link");
-    for (let i = 0; i < links.length; i++) {
-      if ((links[i].textContent || "").trim() === label) return links[i];
-    }
-    return null;
-  }
 
   function tourSegmentList() {
     return app.tour.segment === "home" ? HOME_TOUR

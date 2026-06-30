@@ -668,6 +668,7 @@
   border-radius:30px;
   overflow:hidden;
   display:flex; flex-direction:column;
+  min-height:0;                          /* constrain the flex chain so .dd-chat-thread's overflow-y:auto engages instead of growing past the frame */
   position:relative;
 }
 .dd-phone-status {
