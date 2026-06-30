@@ -220,11 +220,16 @@
         goHome();
         return;
       }
-      app.state = state;
-      app.view = "builder";
-      STORE.setActiveProjectId(projectId);
-      recompute();
-      render();
+      // AI images persist as "gcs:" tokens; mint fresh signed URLs into the
+      // live state so the editor/preview can display them. signAssets never
+      // rejects — on failure it leaves tokens (renderer shows a placeholder).
+      return STORE.signAssets(state).then(function () {
+        app.state = state;
+        app.view = "builder";
+        STORE.setActiveProjectId(projectId);
+        recompute();
+        render();
+      });
     }).catch(navFailed("That project couldn't be opened."));
   }
   function goAiPrompt() {

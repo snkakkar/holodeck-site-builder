@@ -6,6 +6,7 @@ __MACOSX/
 *.swo
 *~
 .env
+holodeck-gcs-key.json
 Thumbs.db
 node_modules/
 npm-debug.log*

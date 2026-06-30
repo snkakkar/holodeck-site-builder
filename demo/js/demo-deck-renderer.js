@@ -1130,4 +1130,79 @@
     getCurrent: function () { return current; },
     getTotal: function () { return TOTAL; },
   });
+
+  // ─── Export stamp + expired-image banner ─────────────────────
+  // AI images are hosted in a private bucket and embedded as 7-day signed
+  // URLs at export time. We stamp the export date in a quiet footer, and
+  // if any image fails to load after the URLs lapse we surface a one-time,
+  // dismissible banner asking the SE to re-export (no cross-origin refresh
+  // — the deck is fully static once exported).
+  (function exportNotices() {
+    const info = CFG.export || {};
+    if (!info.exportedAt) return; // a non-exported preview has no stamp
+
+    function fmtDate(iso) {
+      try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return "";
+        return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+      } catch (e) { return ""; }
+    }
+
+    const stampText = fmtDate(info.exportedAt);
+    if (stampText) {
+      const foot = document.createElement("div");
+      foot.className = "dd-export-stamp";
+      foot.setAttribute("aria-hidden", "true");
+      foot.style.cssText =
+        "position:fixed;right:10px;bottom:8px;z-index:40;" +
+        "font:11px/1.4 Inter,system-ui,sans-serif;color:rgba(255,255,255,.38);" +
+        "letter-spacing:.02em;pointer-events:none;user-select:none;";
+      foot.textContent = "Exported " + stampText;
+      document.body.appendChild(foot);
+    }
+
+    // Show the expired-images banner at most once per page load.
+    let bannerShown = false;
+    function showExpiredBanner() {
+      if (bannerShown) return;
+      bannerShown = true;
+      const bar = document.createElement("div");
+      bar.className = "dd-expired-banner";
+      bar.setAttribute("role", "status");
+      bar.style.cssText =
+        "position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:9999;" +
+        "max-width:min(680px,92vw);display:flex;align-items:center;gap:12px;" +
+        "padding:11px 14px;border-radius:10px;background:#1b2233;color:#e8edf6;" +
+        "border:1px solid rgba(245,192,106,.4);box-shadow:0 8px 28px rgba(0,0,0,.45);" +
+        "font:13px/1.45 Inter,system-ui,sans-serif;";
+      const msg = document.createElement("span");
+      msg.style.flex = "1";
+      msg.textContent =
+        "Some images have expired — re-export this demo from the Holodeck builder to refresh them.";
+      const close = document.createElement("button");
+      close.type = "button";
+      close.setAttribute("aria-label", "Dismiss");
+      close.textContent = "×";
+      close.style.cssText =
+        "flex:none;background:none;border:0;color:#e8edf6;font-size:20px;line-height:1;" +
+        "cursor:pointer;padding:0 4px;opacity:.7;";
+      close.addEventListener("click", function () { bar.remove(); });
+      bar.appendChild(msg);
+      bar.appendChild(close);
+      document.body.appendChild(bar);
+    }
+
+    // Listen in the capture phase — <img> error events don't bubble. A
+    // failing signed-URL image (403 after expiry) trips the banner; broken
+    // relative/local assets are ignored so we don't false-alarm on those.
+    document.addEventListener("error", function (e) {
+      const t = e && e.target;
+      if (!t || t.tagName !== "IMG") return;
+      const src = t.currentSrc || t.src || "";
+      if (/storage\.googleapis\.com|storage\.cloud\.google\.com/.test(src)) {
+        showExpiredBanner();
+      }
+    }, true);
+  })();
 })();

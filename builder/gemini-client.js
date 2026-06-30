@@ -171,8 +171,10 @@
 
     // Same NDJSON streaming protocol as generate() — start/ping/done —
     // so image generation also survives Heroku's 30s router limit. The
-    // terminal line carries {type:"done",dataUrl}. Resolves with the
-    // data: URL string, so callers are unchanged.
+    // terminal line carries either {type:"done",url} (server uploaded the
+    // bytes to GCS → short public URL) or {type:"done",dataUrl} (inline
+    // fallback when GCS isn't configured). Either way we resolve with a
+    // string the assetLibrary slot uses directly, so callers are unchanged.
     return fetch(IMAGE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
@@ -192,10 +194,21 @@
         return readNdjson(res, function (msg) {
           if (msg.type === "error") throw new Error(msg.error || "Gemini error");
           if (msg.type === "done") {
-            if (typeof msg.dataUrl !== "string" || !msg.dataUrl) {
+            // GCS path: server returns {path, url}. Display the signed url
+            // now, but register url→token (gcs:<path>) so save re-tokenizes
+            // (we never persist a signed url). Fall back to the inline
+            // data: url when GCS isn't configured.
+            if (typeof msg.path === "string" && msg.path && typeof msg.url === "string" && msg.url) {
+              const assets = window.HOLO_ASSETS;
+              if (assets && assets.remember) assets.remember(msg.url, "gcs:" + msg.path);
+              return msg.url; // terminal value (signed url for immediate display)
+            }
+            const out = (typeof msg.url === "string" && msg.url) ||
+              (typeof msg.dataUrl === "string" && msg.dataUrl) || "";
+            if (!out) {
               throw new Error("Unexpected response from the Gemini image proxy");
             }
-            return msg.dataUrl; // terminal value
+            return out; // terminal value
           }
           return undefined; // start / ping → keep reading
         });

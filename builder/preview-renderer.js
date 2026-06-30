@@ -885,11 +885,11 @@
       }
       if (data.brand.logoPath) {
         // Logos uploaded via Step 1 are data URLs (base64 strings
-        // hundreds of KB long). Don't dump that into the corner tag —
-        // render a small thumbnail when it's a data URL, and the
-        // pathname when it's a real asset path.
-        const isDataUrl = /^data:/i.test(data.brand.logoPath);
-        if (isDataUrl) {
+        // hundreds of KB long); AI/GCS-hosted logos are https:// URLs.
+        // Render a thumbnail for any real image URL (data: or http(s)://),
+        // and fall back to showing the pathname/text for a bare asset path.
+        const isImageUrl = /^(data:|https?:\/\/)/i.test(data.brand.logoPath);
+        if (isImageUrl) {
           const logoImg = el("img", { class: "hp-logo-img", src: data.brand.logoPath, alt: "Customer logo" });
           // Same missing-asset policy as the demo: a broken image hides itself
           // rather than showing the browser's broken-image icon.

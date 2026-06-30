@@ -211,6 +211,9 @@
       if (isHeavyDataUrl(slim.brand.customerLogoPath)) slim.brand.customerLogoPath = "";
     }
     // Persona portraits live in assetLibrary["persona.portrait"] (handled above).
+    // Re-tokenize signed GCS urls so the offline cache holds the stable
+    // token, not an expiring signed url (rehydrated via signAssets on load).
+    tokenizeForPersist(slim);
     return slim;
   }
   function cacheWrite(state) {
@@ -254,11 +257,17 @@
     return base;
   }
   function stateToRow(state) {
+    // Persist a CLONE with any signed GCS URLs swapped back to their
+    // tiny "gcs:" tokens — never store a signed url (it expires and
+    // bloats the row). Live state keeps its displayable urls untouched.
+    let persistState = state;
+    try { persistState = tokenizeForPersist(JSON.parse(JSON.stringify(state))); }
+    catch (e) { persistState = state; }
     const row = {
       id: state.id,
       name: state.name || (state.project && state.project.customerName) || "Untitled project",
       summary: summaryFromState(state),
-      state: state,
+      state: persistState,
       updated_at: state.updatedAt || new Date().toISOString(),
     };
     // Send owner_id explicitly. The column DEFAULT (auth.user_id()) only fires
@@ -634,10 +643,93 @@
     return Promise.resolve();
   }
 
+  // ════════════════════════════════════════════════════════════
+  //  GCS asset tokens ↔ signed URLs
+  //  AI images live in a private GCS bucket. Project state persists a
+  //  tiny token "gcs:ai/abc.png" (never a signed URL — those expire and
+  //  would also bloat the row). On load we sign tokens into displayable
+  //  URLs; on save we convert any signed URL back to its token. The
+  //  url→token map is the bridge: it's filled both when we sign (here)
+  //  and right after generation (gemini-client → HOLO_ASSETS.remember).
+  // ════════════════════════════════════════════════════════════
+  const SIGN_API = "/api/asset/sign";
+  const _urlToToken = Object.create(null); // signed url → "gcs:ai/.."
+
+  function rememberSigned(url, token) {
+    if (typeof url === "string" && url && typeof token === "string" && token) {
+      _urlToToken[url] = token;
+    }
+  }
+  function isGcsToken(v) { return typeof v === "string" && v.lastIndexOf("gcs:", 0) === 0; }
+  function tokenPath(token) { return token.slice(4); } // strip "gcs:"
+
+  // Walk every asset-bearing slot in a state, applying fn(value) and
+  // writing back any string it returns. Covers assetLibrary.* plus the
+  // two brand logo fields (same shape the cache slimmer handles).
+  function mapAssetValues(state, fn) {
+    if (!state) return;
+    if (state.assetLibrary && typeof state.assetLibrary === "object") {
+      Object.keys(state.assetLibrary).forEach(function (k) {
+        const out = fn(state.assetLibrary[k]);
+        if (typeof out === "string") state.assetLibrary[k] = out;
+      });
+    }
+    if (state.brand && typeof state.brand === "object") {
+      ["logoPath", "customerLogoPath"].forEach(function (k) {
+        const out = fn(state.brand[k]);
+        if (typeof out === "string") state.brand[k] = out;
+      });
+    }
+  }
+
+  // PERSIST guard: on a CLONE bound for cache/cloud, swap any signed URL
+  // we know the token for back to the token. Never mutates live state.
+  function tokenizeForPersist(stateClone) {
+    mapAssetValues(stateClone, function (v) {
+      return (typeof v === "string" && _urlToToken[v]) || undefined;
+    });
+    return stateClone;
+  }
+
+  // LOAD step: replace every "gcs:" token in the live state with a fresh
+  // signed URL so the editor/preview can display it. Records url→token so
+  // a later save re-tokenizes. Resolves to the (mutated) state; on sign
+  // failure leaves the token in place (renderer shows a placeholder).
+  function signAssets(state) {
+    if (!state) return Promise.resolve(state);
+    const tokens = [];
+    mapAssetValues(state, function (v) { if (isGcsToken(v)) tokens.push(v); return undefined; });
+    if (!tokens.length) return Promise.resolve(state);
+    const paths = tokens.map(tokenPath);
+    return fetch(SIGN_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths: paths }),
+    })
+      .then(function (res) { return res.ok ? res.json() : { urls: {} }; })
+      .then(function (data) {
+        const urls = (data && data.urls) || {};
+        mapAssetValues(state, function (v) {
+          if (!isGcsToken(v)) return undefined;
+          const signed = urls[tokenPath(v)];
+          if (!signed) return undefined; // unsignable → leave token
+          rememberSigned(signed, v);
+          return signed;
+        });
+        return state;
+      })
+      .catch(function () { return state; }); // network error → leave tokens
+  }
+
+  // Exposed for gemini-client to register a freshly-generated image's
+  // signed url ↔ token the moment it's applied to a slot.
+  global.HOLO_ASSETS = { remember: rememberSigned };
+
   global.HOLO_STORE = {
     listProjects: listProjects,
     loadProject: loadProject,
     saveProject: saveProject,
+    signAssets: signAssets,
     deleteProject: deleteProject,
     renameProject: renameProject,
     duplicateProject: duplicateProject,

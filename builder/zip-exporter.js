@@ -21,6 +21,14 @@
   const PREVIEW = global.HOLO_PREVIEW;
   const ADAPTER = global.HOLO_ADAPTER;
   const CLAUDE_MODIFY = global.HOLO_CLAUDE_MODIFY;
+  const STORE   = global.HOLO_STORE;
+
+  // GCS-hosted AI images expire 7 days after a signed URL is minted. An
+  // exported deck bakes the URLs in, so we re-sign immediately before
+  // building the payload to hand the SE the full 7-day window, and stamp
+  // the expiry into the deck config (see buildExportMeta) so the deck can
+  // surface a "re-export" banner once they lapse.
+  const SIGNED_URL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
   // ── /demo template manifest ─────────────────────────────────
   // Source-of-truth list of files we ship in the polished export.
@@ -96,7 +104,15 @@
   function buildDemoZipPayload(state) {
     const slug = safeSlug(state);
     const root = "holodeck-" + slug + "/";
-    return tryFetchPolishedTemplate().then(function (templateFiles) {
+    // Re-sign any "gcs:" asset tokens into fresh signed URLs so the deck
+    // embeds the longest-lived links possible. signAssets never rejects;
+    // unsignable tokens are left in place and simply won't render.
+    const signed = (STORE && STORE.signAssets)
+      ? STORE.signAssets(state).catch(function () { return state; })
+      : Promise.resolve(state);
+    return signed.then(function () {
+      return tryFetchPolishedTemplate();
+    }).then(function (templateFiles) {
       if (!templateFiles) {
         throw new Error(
           "Export needs the builder served over http:// so it can bundle the " +
@@ -111,11 +127,19 @@
 
   // Polished path: copy /demo verbatim, swap in adapter-built config.
   function buildPolishedPayload(state, slug, root, templateFiles) {
+    const exportMeta  = generateExportMetadata(state, "polished");
+    // Deck-facing slice of the metadata (date stamp + signed-URL expiry +
+    // builder origin) so the standalone deck can show "Exported <date>"
+    // and a graceful "images expired — re-export" banner.
+    const deckExportInfo = {
+      exportedAt:        exportMeta.exportedAt,
+      signedUrlsExpireAt: new Date(Date.parse(exportMeta.exportedAt) + SIGNED_URL_TTL_MS).toISOString(),
+      builderOrigin:     (typeof window !== "undefined" && window.location) ? window.location.origin : "",
+    };
     const polishedCfgJs = ADAPTER
-      ? ADAPTER.toPolishedHolodeckConfigJs(state)
+      ? ADAPTER.toPolishedHolodeckConfigJs(state, deckExportInfo)
       : CONFIG.toHolodeckConfigJs(state);
     const builderJson = CONFIG.toJsonString(state);
-    const exportMeta  = generateExportMetadata(state, "polished");
 
     const files = [
       // Top-level docs
@@ -409,8 +433,11 @@
         capabilities: s.capabilities || [],
       };
     });
+    const exportedAt = new Date().toISOString();
     return {
-      exportedAt:   new Date().toISOString(),
+      exportedAt:   exportedAt,
+      signedUrlsExpireAt: new Date(Date.parse(exportedAt) + SIGNED_URL_TTL_MS).toISOString(),
+      builderOrigin: (typeof window !== "undefined" && window.location) ? window.location.origin : "",
       mode:         mode || "polished",
       projectId:    state.id || null,
       projectName:  state.name || project.customerName || "Untitled",

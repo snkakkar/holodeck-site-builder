@@ -42,6 +42,77 @@ const GEMINI_TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
 const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
+// ── Google Cloud Storage (image bytes) ─────────────────────────
+// AI-generated images come back from Gemini as raw base64 bytes. If
+// we leave them inline as data: URLs inside the project state, the
+// state blob blows past the Neon Data API's ~1MB request-body limit
+// and cloud saves 400. So we upload the bytes to a PRIVATE GCS bucket
+// (the org forbids public buckets) and store only the short object
+// PATH (e.g. "ai/abc.png") in the project — tiny, so saves never 400.
+// The browser can't read a private object directly, so we hand it a
+// short-lived V4 SIGNED URL, minted fresh whenever a project loads
+// (see /api/asset/sign). Lazily build the client on first use so the
+// server still boots (and image gen still works via the data: URL
+// fallback) when GCS is not configured.
+//
+// Credentials: prefer GCS_KEY_JSON (the service-account key's JSON
+// contents in one env var — how Heroku gets it), else fall back to
+// GOOGLE_APPLICATION_CREDENTIALS (a key file path — local dev / ADC).
+const GCS_BUCKET = process.env.GCS_BUCKET || "";
+const GCS_SIGNED_URL_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (V4 max)
+let _gcsBucket = null;       // cached Bucket handle
+let _gcsInit = false;        // have we attempted init?
+const gcsConfigured = () => Boolean(GCS_BUCKET && (process.env.GCS_KEY_JSON || process.env.GOOGLE_APPLICATION_CREDENTIALS));
+
+function getGcsBucket() {
+  if (_gcsInit) return _gcsBucket;
+  _gcsInit = true;
+  if (!gcsConfigured()) return null;
+  try {
+    const { Storage } = require("@google-cloud/storage");
+    let opts = {};
+    if (process.env.GCS_KEY_JSON) {
+      const creds = JSON.parse(process.env.GCS_KEY_JSON);
+      opts = { projectId: creds.project_id, credentials: creds };
+    }
+    // No GCS_KEY_JSON → Storage() picks up GOOGLE_APPLICATION_CREDENTIALS / ADC.
+    _gcsBucket = new Storage(opts).bucket(GCS_BUCKET);
+  } catch (err) {
+    console.warn("[holodeck] GCS init failed; falling back to inline data URLs:", (err && err.message) || err);
+    _gcsBucket = null;
+  }
+  return _gcsBucket;
+}
+
+// Upload raw image bytes to the private bucket; resolve to the object
+// PATH (e.g. "ai/171234-ab12.png"), NOT a URL — the path is what we
+// persist in project state. Object lives under ai/ with a unique name.
+function uploadImageToGcs(buffer, mime) {
+  const bucket = getGcsBucket();
+  if (!bucket) return Promise.reject(new Error("GCS not configured"));
+  const ext = String(mime || "image/png").split("/")[1] || "png";
+  const name = "ai/" + Date.now() + "-" + Math.random().toString(36).slice(2, 10) + "." + ext;
+  return bucket
+    .file(name)
+    .save(buffer, { contentType: mime || "image/png", resumable: false })
+    .then(function () { return name; });
+}
+
+// Mint a short-lived V4 signed READ URL for a private object path.
+// Only ai/ paths are signable (guards against signing arbitrary
+// objects from a client-supplied path). Resolves to the https URL.
+function signGcsUrl(objectPath) {
+  const bucket = getGcsBucket();
+  if (!bucket) return Promise.reject(new Error("GCS not configured"));
+  if (typeof objectPath !== "string" || objectPath.indexOf("ai/") !== 0) {
+    return Promise.reject(new Error("Refusing to sign non-ai/ path"));
+  }
+  return bucket
+    .file(objectPath)
+    .getSignedUrl({ action: "read", version: "v4", expires: Date.now() + GCS_SIGNED_URL_TTL_MS })
+    .then(function (res) { return res[0]; });
+}
+
 // ── NDJSON streaming helper ────────────────────────────────────
 // Heroku's router kills any request whose first byte or idle gap
 // exceeds ~30s/55s (H12 Request Timeout). Slow Gemini calls (long
@@ -88,6 +159,7 @@ app.get("/api/gemini/status", (_req, res) => {
     configured: Boolean(GEMINI_API_KEY),
     model: GEMINI_TEXT_MODEL,
     imageModel: GEMINI_IMAGE_MODEL,
+    imageHosting: gcsConfigured() ? "gcs" : "inline",
   });
 });
 
@@ -274,11 +346,60 @@ app.post("/api/gemini/generate-image", async (req, res) => {
       });
     }
     const mime = imgPart.inlineData.mimeType || "image/png";
-    const dataUrl = `data:${mime};base64,${imgPart.inlineData.data}`;
-    return finish({ type: "done", dataUrl, model });
+    const b64 = imgPart.inlineData.data;
+
+    // When GCS is configured, upload the bytes and hand back the object
+    // PATH (persisted in state) plus a freshly-signed URL (so the client
+    // can display the image immediately without a second round-trip).
+    // This keeps the saved project state tiny — see the GCS block above.
+    // Otherwise fall back to the inline data: URL so image generation
+    // still works locally without a bucket. If the upload/sign fails,
+    // degrade to the data: URL rather than error out the generation.
+    if (gcsConfigured()) {
+      try {
+        const path = await uploadImageToGcs(Buffer.from(b64, "base64"), mime);
+        const signed = await signGcsUrl(path);
+        return finish({ type: "done", path, url: signed, model });
+      } catch (upErr) {
+        console.warn("[holodeck] GCS upload failed; using inline data URL:", (upErr && upErr.message) || upErr);
+      }
+    }
+    return finish({ type: "done", dataUrl: `data:${mime};base64,${b64}`, model });
   } catch (err) {
     return finish({ type: "error", error: `Could not reach Gemini: ${(err && err.message) || err}` });
   }
+});
+
+// ── Asset signing (private GCS → short-lived signed URLs) ──────
+// Body: { paths: ["ai/abc.png", ...] }
+// Returns: { urls: { "ai/abc.png": "<signed https url>", ... } }
+// The client calls this on project load to turn the stored gcs object
+// paths into displayable URLs (and again right before export). Paths
+// that can't be signed (not ai/, sign failure) are simply omitted from
+// the result — the caller leaves a placeholder. Permissive CORS so a
+// same-origin exported deck could refresh too; the bucket stays private
+// and only ai/ paths are signable (see signGcsUrl), so this exposes
+// nothing beyond the demo images it already generated.
+app.options("/api/asset/sign", (_req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  res.sendStatus(204);
+});
+app.post("/api/asset/sign", async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  if (!gcsConfigured()) {
+    return res.status(503).json({ error: "GCS not configured", urls: {} });
+  }
+  const paths = Array.isArray(req.body && req.body.paths) ? req.body.paths : [];
+  // De-dupe and bound the batch so a bad caller can't ask for thousands.
+  const unique = Array.from(new Set(paths.filter((p) => typeof p === "string"))).slice(0, 100);
+  const urls = {};
+  await Promise.all(unique.map(async (p) => {
+    try { urls[p] = await signGcsUrl(p); }
+    catch (_) { /* unsignable → omit; caller falls back to placeholder */ }
+  }));
+  return res.json({ urls });
 });
 
 // ── Real brand logo proxy ──────────────────────────────────────
