@@ -667,10 +667,12 @@
       const cxIds = s.linkedCxComponentIds || [];
       const linked = cxIds.map(cxById).filter(Boolean);
       const c = linked[0] || cxList[0] || null;
-      // Pick a CX still by component type/name (mirrors the adapter's
-      // buildScenes heuristics), falling back to whichever is available.
+      // Pick a CX still: an explicit Assets-page assignment (c.imageSlot)
+      // wins; otherwise fall back to the type/name heuristic (mirrors the
+      // adapter's buildScenes heuristics), then to whatever is available.
       const tn = ((c && (c.type || "")) + " " + (c && (c.name || ""))).toLowerCase();
-      const still =
+      const assigned = c && c.imageSlot && demoAssets[c.imageSlot];
+      const still = hasStill(assigned) ? assigned :
         /instagram|paid|ad/.test(tn)            ? demoAssets.cxInstagramAd  :
         /sms|text|message/.test(tn)             ? demoAssets.cxTextConvo    :
         /agent|shopper|chat|commerce/.test(tn)  ? demoAssets.cxShopperAgent :

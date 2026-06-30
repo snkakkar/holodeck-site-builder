@@ -644,6 +644,74 @@
   }
 
   // ════════════════════════════════════════════════════════════
+  //  USER PROFILE (Neon `profiles` table — synced name/title/role)
+  //  One row per auth user, keyed on user_id (= app.user_id()). RLS
+  //  restricts read/write to the owner. Aubrey API keys are NOT here —
+  //  they stay device-local in localStorage (aubrey-client.js), so they
+  //  never sync and never ride along in a JWT-scoped row.
+  // ════════════════════════════════════════════════════════════
+  const KEY_PROFILE_CACHE = "holodeck.profile.";  // + userId  (offline mirror)
+
+  function blankProfile() { return { name: "", title: "", role: "" }; }
+  function sanitizeProfile(p) {
+    const b = blankProfile();
+    if (!p || typeof p !== "object") return b;
+    b.name  = String(p.name  || "");
+    b.title = String(p.title || "");
+    b.role  = String(p.role  || "");
+    return b;
+  }
+
+  // Read the cached profile for the current user (offline fallback).
+  function readProfileCache() {
+    const me = currentUserId();
+    if (!me) return null;
+    return readJSON(KEY_PROFILE_CACHE + me, null);
+  }
+  function writeProfileCache(profile) {
+    const me = currentUserId();
+    if (!me) return;
+    writeJSON(KEY_PROFILE_CACHE + me, sanitizeProfile(profile));
+  }
+
+  // loadProfile(): the user's saved {name,title,role}, or a blank shape.
+  // Online → Data API (cache-refreshed); offline / signed-out → cache.
+  function loadProfile() {
+    if (!online()) return Promise.resolve(sanitizeProfile(readProfileCache()));
+    const me = currentUserId();
+    return dataFetch("/profiles?user_id=eq." + encodeURIComponent(me) +
+      "&select=name,title,role&limit=1")
+      .then(function (rows) {
+        const p = sanitizeProfile(rows && rows[0]);
+        writeProfileCache(p);
+        return p;
+      })
+      .catch(function () { return sanitizeProfile(readProfileCache()); });
+  }
+
+  // saveProfile({name,title,role}): upsert the user's row. Writes the
+  // cache first (so a same-tick reload is correct) then pushes to Neon;
+  // a sync failure resolves anyway with the saved value (cache holds it).
+  function saveProfile(profile) {
+    const clean = sanitizeProfile(profile);
+    writeProfileCache(clean);
+    if (!online()) return Promise.resolve(clean);
+    const me = currentUserId();
+    // owner_id-equivalent: user_id must equal app.user_id() for the RLS
+    // WITH CHECK to pass on both the INSERT and the merge UPDATE branch.
+    const row = {
+      user_id: me, name: clean.name, title: clean.title, role: clean.role,
+      updated_at: new Date().toISOString(),
+    };
+    return dataFetch("/profiles?on_conflict=user_id", {
+      method: "POST",
+      headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+      body: [row],
+    }).then(function () { return clean; })
+      .catch(function () { return clean; });
+  }
+
+  // ════════════════════════════════════════════════════════════
   //  GCS asset tokens ↔ signed URLs
   //  AI images live in a private GCS bucket. Project state persists a
   //  tiny token "gcs:ai/abc.png" (never a signed URL — those expire and
@@ -729,6 +797,8 @@
     listProjects: listProjects,
     loadProject: loadProject,
     saveProject: saveProject,
+    loadProfile: loadProfile,
+    saveProfile: saveProfile,
     signAssets: signAssets,
     deleteProject: deleteProject,
     renameProject: renameProject,

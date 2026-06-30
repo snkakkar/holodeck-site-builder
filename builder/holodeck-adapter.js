@@ -813,7 +813,7 @@
     // First story act with concrete content (skip generic chapter
     // headers like "Intro" / "Open" that don't read as slide copy)
     const acts = (state.storyActs || []);
-    function isGenericTitle(t) { return !t || /^(intro|opening|open|chapter\s|section\s)/i.test(t); }
+    function isGenericTitle(t) { return !t || /^(intro|opening|open|chapter\s|section\s|act\s*\d)/i.test(t); }
     const firstAct  = acts.find(function (a) { return a && a.summary && !isGenericTitle(a.title); }) || acts[0] || null;
     const secondAct = acts.slice(acts.indexOf(firstAct) + 1).find(function (a) { return a && a.summary; }) || null;
 

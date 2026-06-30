@@ -753,14 +753,21 @@
 .dd-persona-prole { font-size:12px; color:var(--blue, #1a5fa0); font-weight:700; letter-spacing:.04em; text-align:center; padding:0 10px; }
 .dd-persona-pmeta { font-size:11px; color:#7a8696; letter-spacing:.06em; }
 
-/* Chat thread on phone */
-.dd-chat-thread { display:flex; flex-direction:column; gap:8px; padding:14px 14px 24px; flex:1; }
-.dd-chat-head { display:flex; flex-direction:column; padding:6px 4px 12px; border-bottom:1px solid #eef1f6; gap:2px; margin-bottom:8px; }
+/* Chat thread on phone — scrolls within the fixed-height screen so long
+   conversations never clip / overflow the frame (see .dd-chat-bubble wrap). */
+.dd-chat-thread {
+  display:flex; flex-direction:column; gap:7px; padding:12px 11px 18px; flex:1;
+  min-height:0;                          /* allow the flex child to shrink so... */
+  overflow-y:auto; overflow-x:hidden;    /* ...the thread scrolls instead of clipping */
+  -webkit-overflow-scrolling:touch;
+}
+.dd-chat-head { display:flex; flex-direction:column; padding:6px 4px 10px; border-bottom:1px solid #eef1f6; gap:2px; margin-bottom:6px; }
 .dd-chat-headline { font-size:14px; font-weight:800; color:var(--navy, #0d1b2e); }
 .dd-chat-sub { font-size:10.5px; color:#7a8696; letter-spacing:.04em; }
 .dd-chat-bubble {
-  font-size:12.5px; line-height:1.4; padding:9px 12px;
-  border-radius:14px; max-width:86%;
+  font-size:12px; line-height:1.38; padding:8px 11px;
+  border-radius:14px; max-width:90%;
+  word-break:break-word; overflow-wrap:anywhere;  /* long words / URLs wrap, never overflow */
 }
 .dd-chat-them { background:#f1f4f9; color:var(--navy, #0d1b2e); border:1px solid #e5ebf2; align-self:flex-start; border-top-left-radius:4px; }
 .dd-chat-me   { background: linear-gradient(135deg,var(--blue, #1a5fa0),#0d3d7a); color:#fff; align-self:flex-end; border-top-right-radius:4px; }
@@ -861,7 +868,7 @@
 .dd-cdp-kpi-val { font-size:16px; font-weight:800; color:var(--red,#b22234); line-height:1; }
 .dd-cdp-kpi-lbl { font-size:8.5px; font-weight:700; letter-spacing:.08em; color:#7a8696; text-transform:uppercase; margin-top:3px; }
 
-.dd-cdp-pane { padding:16px 18px; display:flex; flex-direction:column; gap:12px; min-height:0; overflow:hidden; }
+.dd-cdp-pane { padding:16px 18px; display:flex; flex-direction:column; gap:12px; min-height:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; }
 .dd-cdp-pane-head { border-bottom:1px solid #eef1f6; padding-bottom:8px; }
 .dd-cdp-pane-eyebrow { font-size:9.5px; font-weight:800; letter-spacing:.18em; color:var(--blue,#1a5fa0); text-transform:uppercase; }
 .dd-cdp-pane-title { font-size:18px; font-weight:800; color:var(--navy,#0d1b2e); letter-spacing:-.01em; margin-top:2px; }

@@ -61,6 +61,13 @@
   function isHeaderTitle(t) {
     return !t || /^(intro|opening|open|chapter\s|section\s|close|closing)/i.test(t);
   }
+  // True when a title is empty or a generic placeholder ("Act 1", "Act 3b",
+  // a bare section header). Used so the journey-map circles fall back to the
+  // canonical stage name (PHASE_TITLES) instead of echoing "ACT N".
+  function isGenericTitle(t) {
+    t = String(t || "").trim();
+    return !t || /^act\s*\d/i.test(t) || isHeaderTitle(t);
+  }
   function titleCase(s) {
     return String(s || "").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
@@ -244,7 +251,7 @@
       const a = milestones[i];
       out.push({
         index:        i,
-        title:        a && a.title ? punchyTitle(a.title) : PHASE_TITLES[i],
+        title:        a && a.title && !isGenericTitle(a.title) ? punchyTitle(a.title) : PHASE_TITLES[i],
         phaseTitle:   PHASE_TITLES[i],
         badge:        a && a.salesforceCapabilities ? truncate(a.salesforceCapabilities, 36) : (prods[i] || "Salesforce"),
         emoji:        PHASE_EMOJIS[i],
@@ -459,42 +466,68 @@
     const f = input.storyFoundations || {};
     const first = personaFirstName(p) || (p.name || "the customer");
     const pron = pronounsFor(p.pronouns);
+    const hasAgentforce = prods.indexOf("Agentforce") >= 0;
+    // Persona stats ({value,label}) double as concrete profile facts when present.
+    const stats = (Array.isArray(p.stats) ? p.stats : []).filter(function (s) {
+      return s && (String(s.value || "").trim() || String(s.label || "").trim());
+    });
+    function statRow(i, fallbackLabel, fallbackValue) {
+      const s = stats[i];
+      if (s && String(s.value || "").trim()) {
+        return { label: shortenTitle(s.label) || fallbackLabel, value: truncate(s.value, 36) };
+      }
+      return { label: fallbackLabel, value: fallbackValue };
+    }
 
     const facets = [];
 
-    // 1. Identity — who Data Cloud resolved this person to be.
+    // 1. Identity — who Data Cloud resolved this person to be (deepened).
     facets.push({
       key: "identity", label: "Identity", eyebrow: "Resolved profile",
       rows: [
-        { label: "Name",     value: p.name || p.fullName || "[TODO: persona name]" },
-        { label: "Role",     value: p.role || p.jobTitle || "[TODO: persona role]" },
-        { label: "Segment",  value: p.customerOf || (input.industry ? input.industry + " customer" : "Known customer") },
-        { label: "Lifetime", value: "[TODO: LTV]" },
+        { label: "Name",        value: p.name || p.fullName || "[TODO: persona name]" },
+        { label: "Role",        value: p.role || p.jobTitle || "[TODO: persona role]" },
+        { label: "Segment",     value: p.customerOf || (input.industry ? input.industry + " customer" : "Known customer") },
+        { label: "Pronouns",    value: pron.nom + "/" + pron.obj },
+        { label: "Profile",     value: "Unified across web, mobile & store" },
+        { label: "Match confidence", value: "98% — single resolved identity" },
       ],
     });
 
-    // 2. Affinities — what the behavioral data says they care about.
+    // 2. Demographics & context — the "who/where" Data Cloud stitches together.
+    facets.push({
+      key: "demographics", label: "Demographics", eyebrow: "Who & where",
+      rows: [
+        statRow(0, "Location", "Metro area · mobile-first"),
+        statRow(1, "Lifecycle stage", "Active customer"),
+        { label: "Preferred device", value: "Mobile (iOS)" },
+        { label: "Industry",  value: input.industry || (p.customerOf || "Retail / DTC") },
+      ],
+    });
+
+    // 3. Affinities — what the behavioral data says they care about (deepened).
     const affinitySource = Array.isArray(p.wishlist) && p.wishlist.length
       ? p.wishlist
       : (Array.isArray(f.valueDrivers) ? f.valueDrivers : []);
-    const affinityRows = affinitySource.slice(0, 4).map(function (w, i) {
+    const affinityRows = affinitySource.slice(0, 5).map(function (w, i) {
       const label = typeof w === "string" ? w : (w && (w.title || w.label)) || ("Affinity " + (i + 1));
-      return { label: shortenTitle(label) || ("Affinity " + (i + 1)), value: "High" };
+      return { label: shortenTitle(label) || ("Affinity " + (i + 1)), value: i === 0 ? "Very high" : "High" };
     });
     facets.push({
       key: "affinities", label: "Affinities", eyebrow: "Behavioral signals",
       rows: affinityRows.length ? affinityRows : [
         { label: "Category interest", value: "High" },
         { label: "Price sensitivity", value: "Medium" },
+        { label: "Brand loyalty",     value: "High" },
         { label: "Channel: mobile",   value: "High" },
       ],
     });
 
-    // 3. Real-time signals — recent moments that drive the next action.
+    // 4. Real-time signals — recent moments that drive the next action (deepened).
     const moments = []
       .concat(Array.isArray(f.customerMoments) ? f.customerMoments : [])
       .concat(Array.isArray(f.dataCloudMoments) ? f.dataCloudMoments : []);
-    const signalRows = moments.slice(0, 4).map(function (m, i) {
+    const signalRows = moments.slice(0, 5).map(function (m, i) {
       return { label: "Signal " + (i + 1), value: truncate(typeof m === "string" ? m : (m && m.summary) || "", 40) };
     });
     facets.push({
@@ -503,15 +536,39 @@
         { label: "Last seen",   value: "Browsing on mobile" },
         { label: "Cart",        value: "1 item, not purchased" },
         { label: "Engagement",  value: "Opened last 3 emails" },
+        { label: "Recency",     value: "Active in the last hour" },
       ],
     });
 
-    // 4. Predicted needs — the "so what" Agentforce can act on.
+    // 5. Channels & engagement — where and how this person is reachable.
+    facets.push({
+      key: "engagement", label: "Channels", eyebrow: "Engagement & reach",
+      rows: [
+        { label: "Primary channel", value: "Mobile app & SMS" },
+        { label: "Email",       value: "Opted in · highly engaged" },
+        { label: "Best time",   value: "Evenings & weekends" },
+        { label: "Consent",     value: "Marketing + service permitted" },
+      ],
+    });
+
+    // 6. Value — the lifetime-value lens that justifies proactive action.
+    facets.push({
+      key: "value", label: "Lifetime value", eyebrow: "Worth & loyalty",
+      rows: [
+        statRow(2, "Lifetime value", "High-value · top decile"),
+        { label: "Loyalty tier", value: "Established member" },
+        { label: "Repeat rate",  value: "Returns regularly" },
+        { label: "Churn risk",   value: hasAgentforce ? "Elevated — recoverable" : "Low" },
+      ],
+    });
+
+    // 7. Predicted needs — the "so what" Agentforce can act on (deepened).
     facets.push({
       key: "predicted", label: "Predicted needs", eyebrow: "AI propensity",
       rows: [
-        { label: "Next best action", value: prods.indexOf("Agentforce") >= 0 ? "Proactive agent outreach" : "Personalized offer" },
-        { label: "Propensity to buy", value: "[TODO: %]" },
+        { label: "Next best action", value: hasAgentforce ? "Proactive agent outreach" : "Personalized offer" },
+        { label: "Propensity to buy", value: "High — primed to convert" },
+        { label: "Predicted intent", value: "Browsing → ready to purchase" },
         { label: "Recommended for " + first, value: pron.poss + " top affinity" },
       ],
     });
@@ -1025,6 +1082,7 @@
     oneSentence:             oneSentence,
     shortenTitle:            shortenTitle,
     isHeaderTitle:           isHeaderTitle,
+    isGenericTitle:          isGenericTitle,
     titleCase:               titleCase,
     shortenDriverLabel:      shortenDriverLabel,
     // pronouns

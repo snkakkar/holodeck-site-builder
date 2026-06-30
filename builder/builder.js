@@ -56,6 +56,10 @@
   const app = {
     view: "home",
     state: null,
+    // The signed-in user's synced profile {name,title,role} (Neon `profiles`).
+    // Loaded once on auth; used to pre-populate the presenter name/title on a
+    // fresh project. null until loaded.
+    profile: null,
     previewMode: "expanded",       // "compact" | "expanded"
     previewGrouping: "by-section", // "by-section" | "flat"
     // First-launch product tour. Lives here (not in the DOM) so it survives the
@@ -227,6 +231,8 @@
         app.state = state;
         app.view = "builder";
         STORE.setActiveProjectId(projectId);
+        // Seed presenter name/title from the synced profile if still blank.
+        if (prepopulatePresenterFromProfile(state)) saveActive();
         recompute();
         render();
       });
@@ -246,11 +252,19 @@
       render();
     }).catch(navFailed("Couldn't open feedback. Returning to projects."));
   }
+  function goProfile() {
+    const save = (app.view === "builder" && app.state) ? saveActive() : Promise.resolve();
+    save.then(function () {
+      app.view = "profile";
+      render();
+    }).catch(navFailed("Couldn't open your profile. Returning to projects."));
+  }
   function newProject() {
     STORE.createProject({}).then(function (state) {
       app.state = state;
       app.view = "builder";
       STORE.setActiveProjectId(state.id);
+      if (prepopulatePresenterFromProfile(state)) saveActive();
       recompute();
       render();
     }).catch(navFailed("Couldn't create a new project. Please try again."));
@@ -323,6 +337,7 @@
     // Right-side nav
     [
       ["home",     "Home",      function () { goHome(); }],
+      ["profile",  "Profile",   function () { goProfile(); }],
       ["feedback", "Feedback",  function () { goFeedback(); }],
     ].forEach(function (n) {
       const isActive = (app.view === n[0]);
@@ -332,15 +347,6 @@
         on: { click: n[2] },
       }));
     });
-
-    if (app.view === "home" || app.view === "builder") {
-      // Aubrey keys live in localStorage, not in project state.
-      // The topbar button is the canonical, always-visible entry
-      // point for managing them so the user can swap keys mid-build
-      // without navigating back to Step 1.
-      const aubreyBtn = aubreyKeysTopbarButton();
-      if (aubreyBtn) right.appendChild(aubreyBtn);
-    }
 
     if (app.view === "builder") {
       right.appendChild(actionBtn("Import", "bx-btn-ghost", function () { openImportModal(app.state.id); }));
@@ -426,6 +432,15 @@
       const wrap = el("section", { class: "bx-page", id: "bxPage" });
       shell.appendChild(wrap);
       renderFeedbackPage(wrap);
+      setSaveIndicator(false);
+      return;
+    }
+
+    if (app.view === "profile") {
+      shell.classList.add("is-single");
+      const wrap = el("section", { class: "bx-page", id: "bxPage" });
+      shell.appendChild(wrap);
+      renderProfilePage(wrap);
       setSaveIndicator(false);
       return;
     }
@@ -696,10 +711,10 @@
     },
     cx: {
       anchor: "#bxMain .bx-card",
-      title: "Embed live screens (optional)",
+      title: "iFrame CX Components (optional)",
       lines: [
-        "Link live, click-through Aubrey demo screens to embed them right inside the deck.",
-        "Skip it and those slides fall back to clean, brand-styled placeholders.",
+        "These are live, click-through demo screens embedded via an iFrame — not images. Link an Aubrey scene (or a URL) to drop the real interactive screen into the deck.",
+        "Static imagery is handled separately on the Assets step — including the still images these CX slots fall back to. Skip a component and its slide shows a clean, brand-styled placeholder.",
       ],
     },
     recs: {
@@ -714,6 +729,7 @@
       title: "About assets",
       lines: [
         "Assets are shared by slot, not per slide. Each slot below lists the slides it feeds.",
+        "Scroll to the CX imagery section to pick which still image backs each iFrame CX Component (a still shows whenever the live embed can't load).",
         "Skip any slot and that slide shows a clean, brand-styled placeholder instead — your demo always renders.",
       ],
     },
@@ -1759,9 +1775,9 @@
   function viewCxComponents() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 7 · CX Component Links",
-      "Embed live demo screens (optional)",
-      "Paste any embeddable web URL — an AubreyDemo scene, a live storefront, a Salesforce screen — to show it as a live iframe in the Demo section. Skip this step if you don't have any; your demo works fine without it."
+      "Step 7 · iFrame CX Components",
+      "Embed live, interactive demo screens (optional)",
+      "These are live iFrame embeds — an AubreyDemo scene, a storefront, a Salesforce screen — shown as interactive screens in the Demo section. This is different from Assets (static images / GIFs you upload or generate): use Assets for imagery, use this step for interactive embeddable URLs. Skip if you don't have any; your demo works fine without it."
     ));
     const s = app.state;
     const components = s.cxComponents || [];
@@ -1817,6 +1833,7 @@
         linkedStoryActIds: [], linkedSlideIds: [],
         deviceFrame: "desktop", iframeAllowed: true,
         fallbackMode: "link-card", status: "ready", notes: "",
+        imageSlot: "",  // "" = auto-match by type/name; else an explicit CX-still slot
       });
       s._cxSkipped = false;
       recompute(); renderMain(); commit();
@@ -2164,10 +2181,12 @@
         // Pronouns drive the wishlist headline ("Her top 3..."
         // vs. "His top 3..."). We always surface this so the SE
         // can change it from the she/her default — the slide
-        // emits hard-coded pronouns otherwise.
+        // emits hard-coded pronouns otherwise. It has a working
+        // default, so it's shown but does NOT count as "still to
+        // update" (pending:false).
         out.push({
           label: tag + " pronouns", source: "Step 4 · Personas",
-          type: "select",
+          type: "select", pending: false,
           options: [
             { value: "",          label: "she/her (default)" },
             { value: "she/her",   label: "she/her" },
@@ -2289,7 +2308,23 @@
         });
       }
     });
+    // Normalize the `pending` flag so the "Text still to update" counter is
+    // honest: an item counts only if it's editable AND genuinely empty AND
+    // not explicitly opted out (e.g. pronouns, which always have a default).
+    // Read-only hints never count. Every item stays in the list so the SE can
+    // still polish it; only the COUNT is filtered to what truly needs work.
+    out.forEach(function (it) {
+      if (it.readonly) { it.pending = false; return; }
+      if (it.pending === false) return;            // explicit opt-out (e.g. pronouns)
+      const val = it.get ? String(it.get() || "").trim() : "";
+      it.pending = !val;                            // empty → still needs attention
+    });
     return out;
+  }
+  // Count of items that genuinely still need the SE's attention (drives the
+  // "Text still to update (N)" header). See pendingTextItems' normalization.
+  function pendingTextCount(items) {
+    return (items || []).filter(function (it) { return it.pending; }).length;
   }
 
   // ─── AI asset prompt builder ─────────────────────────────────
@@ -2684,6 +2719,11 @@
 
       // Group cards render beneath the "Generate all" bar.
       groupCards.forEach(function (card) { wrap.appendChild(card); });
+
+      // CX imagery assignment — explicitly map each iFrame CX component to a
+      // still-image slot above (instead of relying on the type/name heuristic).
+      const cxCard = cxImageAssignmentCard(s);
+      if (cxCard) wrap.appendChild(cxCard);
     }
 
     // Pending text fields card — inline editors. None of these are
@@ -2691,6 +2731,7 @@
     // default / empty copy in one place. Edits write straight to the
     // canonical state path, so changes show up on the source step too.
     const pending = pendingTextItems(s);
+    const pendingCount = pendingTextCount(pending);
     const card = el("div", { class: "bx-card" });
     // Collapsed by default: the Preview step (Step 8) is now the primary
     // place to edit slide copy. These inline editors stay available as a
@@ -2698,22 +2739,26 @@
     // "assets" first. Edits still write straight to the canonical path.
     const details = el("details", { class: "bx-pending-details" });
     const summary = el("summary", { class: "bx-pending-summary" });
-    summary.appendChild(el("span", { class: "bx-pending-summary-title",
-      text: pending.length
-        ? "Text still to update (" + pending.length + ")"
-        : "Text still to update" }));
-    summary.appendChild(el("span", { class: "bx-pending-summary-hint",
-      text: pending.length
-        ? " — optional, edit here or in Preview (Step 8)"
-        : " — all defaults filled in" }));
+    const summaryTitle = el("span", { class: "bx-pending-summary-title" });
+    const summaryHint  = el("span", { class: "bx-pending-summary-hint" });
+    // Live recount: edits in this card flip an item's `pending` flag, so the
+    // header (N) and hint stay honest without a full re-render.
+    function refreshSummary() {
+      const n = pendingTextCount(pending);
+      summaryTitle.textContent = n ? "Text still to update (" + n + ")" : "Text still to update";
+      summaryHint.textContent  = n ? " — optional, edit here or in Preview (Step 8)" : " — all defaults filled in";
+    }
+    refreshSummary();
+    summary.appendChild(summaryTitle);
+    summary.appendChild(summaryHint);
     details.appendChild(summary);
     const body = el("div", { class: "bx-pending-body" });
     body.appendChild(el("div", { class: "bx-card-sub",
-      text: pending.length
+      text: pendingCount
         ? "Default copy you might want to replace before presenting. Saved as you type — none of this blocks export. You can also edit any of this directly on each slide in Step 8 · Preview."
-        : "Every default field has been filled in. You're good to go." }));
+        : "Every field has a value — nothing's blank. You can still fine-tune any of these below or in Step 8 · Preview." }));
     pending.forEach(function (item) {
-      body.appendChild(pendingTextRow(item));
+      body.appendChild(pendingTextRow(item, refreshSummary));
     });
     details.appendChild(body);
     card.appendChild(details);
@@ -2923,9 +2968,60 @@
     return wrap;
   }
 
+  // The CX-still slots an iFrame CX component can be assigned to. Keep the
+  // slot ids in sync with ASSET_CATALOG's "CX component stills" group; the
+  // renderer (embeddedCxComponent) reads c.imageSlot to pick the still.
+  const CX_IMAGE_SLOTS = [
+    { slot: "cxUnifiedProfile", label: "Unified profile still" },
+    { slot: "cxInstagramAd",    label: "Instagram ad still" },
+    { slot: "cxShopperAgent",   label: "Shopper agent still" },
+    { slot: "cxTextConvo",      label: "Agentic text thread still" },
+  ];
+
+  // Assets-page panel: one row per iFrame CX component letting the SE
+  // explicitly choose which still-image slot it uses, instead of relying on
+  // the type/name heuristic. Returns null when there are no CX components.
+  function cxImageAssignmentCard(s) {
+    const comps = (s.cxComponents || []).filter(Boolean);
+    if (!comps.length) return null;
+    const card = el("div", { class: "bx-card" });
+    card.appendChild(el("div", { class: "bx-card-title", text: "CX component imagery" }));
+    card.appendChild(el("div", { class: "bx-card-sub",
+      text: "Assign each iFrame CX component a still image from the slots above. \"Auto\" matches by the component's type/name. Upload or generate the still in the \"CX component stills\" group above; pick which one each component shows here." }));
+    comps.forEach(function (c) {
+      const row = el("div", { class: "bx-asset-row" });
+      const meta = el("div", { class: "bx-asset-meta" });
+      meta.appendChild(el("div", { class: "bx-asset-label", text: c.name || "Untitled component" }));
+      meta.appendChild(el("div", { class: "bx-asset-help",
+        text: (c.type ? c.type + " · " : "") + (c.url || "no URL yet") }));
+      row.appendChild(meta);
+
+      const sel = el("select", { class: "bx-select" });
+      sel.appendChild(el("option", { value: "", text: "Auto (match by type/name)" }));
+      CX_IMAGE_SLOTS.forEach(function (opt) {
+        const o = el("option", { value: opt.slot, text: opt.label });
+        if ((c.imageSlot || "") === opt.slot) o.setAttribute("selected", "selected");
+        sel.appendChild(o);
+      });
+      sel.addEventListener("change", function () {
+        c.imageSlot = sel.value || "";
+        commit();
+      });
+      const controls = el("div", { class: "bx-asset-controls" }, [
+        el("div", { class: "bx-field" }, [
+          el("label", { class: "bx-label", text: "Image slot" }),
+          sel,
+        ]),
+      ]);
+      row.appendChild(controls);
+      card.appendChild(row);
+    });
+    return card;
+  }
+
   // Single pending-text row: label + source chip + inline editor.
   // Read-only items just show a hint (e.g. "no personas added yet").
-  function pendingTextRow(item) {
+  function pendingTextRow(item, onChange) {
     const wrap = el("div", { class: "bx-pending-row" });
     const head = el("div", { class: "bx-pending-head" }, [
       el("div", { class: "bx-pending-label", text: item.label }),
@@ -2970,8 +3066,12 @@
     const evt = (item.type === "select") ? "change" : "input";
     input.addEventListener(evt, function () {
       item.set(input.value);
+      // Keep `pending` honest so a live recount reflects this edit (empty →
+      // filled drops it from the count; pronouns stay opted-out).
+      if (item.pending !== false) item.pending = !String(input.value || "").trim();
       refreshStatus();
       commit();
+      if (typeof onChange === "function") onChange();
     });
     head.appendChild(status);
     wrap.appendChild(input);
@@ -4356,6 +4456,79 @@
     new: "New", in_progress: "In progress", resolved: "Resolved",
   };
 
+  // ─── PROFILE PAGE ─────────────────────────────────────────────
+  // Two sections:
+  //  • Your details (name / title / role) — synced to Neon (`profiles`),
+  //    so they follow the SE across devices and pre-populate the presenter
+  //    name on new projects.
+  //  • Aubrey Demo keys — device-local (localStorage), the canonical entry
+  //    point for managing them (moved here from the topbar).
+  function renderProfilePage(container) {
+    container.replaceChildren();
+    container.appendChild(stepHeader(
+      "Profile",
+      "Your presenter details & connections",
+      "Your name, title, and role sync to your account and pre-fill the presenter name on new demos. Aubrey keys stay on this device only."
+    ));
+
+    // Working copy edited in place; persisted on Save.
+    const draft = Object.assign({ name: "", title: "", role: "" }, app.profile || {});
+
+    const card = el("div", { class: "bx-card" });
+    card.appendChild(el("div", { class: "bx-card-title", text: "Your details" }));
+    card.appendChild(el("div", { class: "bx-card-sub",
+      text: "Synced to your account. Used to pre-fill the presenter name/title on new projects when you haven't set one." }));
+
+    const grid = el("div", { class: "bx-grid-2 bx-mt-12" });
+    grid.appendChild(field({
+      label: "Full name", placeholder: "Jordan Rivera", value: draft.name,
+      onInput: function (v) { draft.name = v; },
+    }));
+    grid.appendChild(field({
+      label: "Title", help: "(as it should appear when presenting)",
+      placeholder: "Principal Solution Engineer", value: draft.title,
+      onInput: function (v) { draft.title = v; },
+    }));
+    grid.appendChild(field({
+      label: "Role", help: "(optional — your function/team)",
+      placeholder: "Solution Engineering", value: draft.role,
+      onInput: function (v) { draft.role = v; },
+    }));
+    card.appendChild(grid);
+
+    const actions = el("div", { class: "bx-row bx-mt-12" });
+    const saveBtn = btn("Save profile", "bx-btn-primary", function () {
+      saveBtn.setAttribute("disabled", "disabled");
+      const clean = {
+        name: String(draft.name || "").trim(),
+        title: String(draft.title || "").trim(),
+        role: String(draft.role || "").trim(),
+      };
+      STORE.saveProfile(clean).then(function (saved) {
+        app.profile = saved;
+        // If a project is open and its presenter fields are still blank,
+        // back-fill them now so the just-saved details take effect without
+        // needing to reopen the project.
+        if (app.state && prepopulatePresenterFromProfile(app.state)) {
+          saveActive();
+          if (app.view === "builder") renderShell();
+        }
+        toast("Profile saved");
+      }).catch(function () {
+        toast("Couldn't save your profile — try again.");
+      }).then(function () {
+        saveBtn.removeAttribute("disabled");
+      });
+    });
+    actions.appendChild(saveBtn);
+    card.appendChild(actions);
+    container.appendChild(card);
+
+    // Aubrey Demo keys — device-local. This is now the canonical place to
+    // manage them (removed from the topbar).
+    container.appendChild(aubreyConnectionsCard("inline"));
+  }
+
   function renderFeedbackPage(container) {
     container.innerHTML = "";
     container.appendChild(stepHeader(
@@ -4775,10 +4948,10 @@
       body: function () { return el("p", { text: "Every demo begins here. A project holds your script, branding, slides, and exports — create one to get started." }); },
     },
     {
-      id: "home-aubrey",
-      getAnchor: function () { return document.querySelector("#bxTopbarActions [data-tour='aubrey-keys']"); },
-      title: "Aubrey keys (optional)",
-      body: function () { return el("p", { text: "Add your Aubrey keys once and the builder can pre-fill scripts and embed live demo screens. Everything still works by hand without them." }); },
+      id: "home-profile",
+      getAnchor: function () { return tourFindNavLink("Profile"); },
+      title: "Your profile & keys",
+      body: function () { return el("p", { text: "Open Profile to set your name and title — they sync to your account and pre-fill the presenter name on new demos. Your optional Aubrey keys live here too (saved on this device); add them once and the builder can pre-fill scripts and embed live demo screens." }); },
     },
     {
       id: "home-open",
@@ -4841,6 +5014,16 @@
 
   let _tourEls = null;          // { dim:[4], ring, card }
   let _tourRepositionRAF = 0;
+
+  // Find a topbar nav link by its visible label (e.g. "Profile") so a tour
+  // step can anchor to it without a brittle positional selector.
+  function tourFindNavLink(label) {
+    const links = document.querySelectorAll("#bxTopbarActions .bx-nav-link");
+    for (let i = 0; i < links.length; i++) {
+      if ((links[i].textContent || "").trim() === label) return links[i];
+    }
+    return null;
+  }
 
   function tourSegmentList() {
     return app.tour.segment === "home" ? HOME_TOUR
@@ -5617,18 +5800,9 @@
     return card;
   }
 
-  // Topbar button. Lives next to Import / Save / Export so it's
-  // always one click away while the user is building.
-  function aubreyKeysTopbarButton() {
-    if (!AUBREY) return null;
-    const c = getAubreyGlobalKeys();
-    const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"]
-      .filter(function (k) { return !!c[k]; }).length;
-    const label = "🔑 Aubrey Keys · " + filled + "/4";
-    const b = actionBtn(label, "bx-btn-ghost", openAubreyKeysModal);
-    b.setAttribute("data-tour", "aubrey-keys");
-    return b;
-  }
+  // (The Aubrey-keys topbar button was removed — keys are now managed on the
+  // Profile page, the canonical entry point. The Connect-step banner and the
+  // Profile page's connections card are the remaining surfaces.)
   function saveAubreyField(field, value) {
     const c = getAubreyGlobalKeys();
     c[field] = value;
@@ -6262,10 +6436,32 @@
   // Transition from the login view into the authenticated app: migrate
   // any local work into the account, then land on home.
   function onAuthenticated() {
-    return STORE.migrateLegacyIfPresent()
+    // Load the synced profile up front so it's available to pre-populate the
+    // presenter name when a project opens. Best-effort: a failure leaves
+    // app.profile as a blank shape and never blocks the boot chain.
+    const loadProfile = (STORE && STORE.loadProfile)
+      ? STORE.loadProfile().then(function (p) { app.profile = p; }).catch(function () { app.profile = { name: "", title: "", role: "" }; })
+      : Promise.resolve();
+    return loadProfile
+      .then(function () { return STORE.migrateLegacyIfPresent(); })
       .then(function () { return STORE.migrateLocalToAccount(); })
       .then(function () { return STORE.flushDirty(); })
       .then(function () { goHome(); });
+  }
+
+  // Seed the active project's presenter fields from the synced profile when
+  // they're still empty. Idempotent — never overwrites an SE-typed value, and
+  // a no-op when there's no profile/name. Returns true if anything changed.
+  function prepopulatePresenterFromProfile(state) {
+    if (!state || !state.project || !app.profile) return false;
+    let changed = false;
+    if (!String(state.project.presenterName || "").trim() && app.profile.name) {
+      state.project.presenterName = app.profile.name; changed = true;
+    }
+    if (!String(state.project.presenterTitle || "").trim() && app.profile.title) {
+      state.project.presenterTitle = app.profile.title; changed = true;
+    }
+    return changed;
   }
 
   function signOut() {
