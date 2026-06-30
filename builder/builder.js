@@ -3930,17 +3930,36 @@
     closeSlidePopover();
     const card = anchorBtn.closest(".bx-preview");
     if (!card) return;
+
+    // Re-render the preview body in place on every edit — keeps the
+    // editor open and avoids tearing down the whole preview grid.
+    const onChange = function () {
+      commit();
+      const body = card.querySelector(".hp");
+      if (body && body.parentNode) {
+        const fresh = PREVIEW.renderSlidePreview(slide, app.state, app.previewMode);
+        body.parentNode.replaceChild(fresh, body);
+      }
+    };
+
+    // Slides carrying a list editor (e.g. journey-timeline events) need
+    // far more room than the 360px side popover — each row is #num + N
+    // inputs + an emoji channel picker + reorder controls. Route those to
+    // the centered modal; keep the lightweight anchored popover for the
+    // simple title+notes slides where the side UX is nicer.
+    const fields = PREVIEW.editorFieldsForSlide(slide) || [];
+    const isWide = fields.some(function (f) { return f.kind === "list-objects"; });
+    if (isWide) {
+      const editor = PREVIEW.buildEditorPopover(slide, app.state, {
+        onChange: onChange,
+        onClose: closeModal,
+      });
+      openModal(slide.title || "Edit slide text", editor, "bx-edit-modal");
+      return;
+    }
+
     const pop = PREVIEW.buildEditorPopover(slide, app.state, {
-      onChange: function () {
-        commit();
-        // Re-render the preview body in place — keeps the popover open
-        // and avoids tearing down the whole preview grid on each keystroke.
-        const body = card.querySelector(".hp");
-        if (body && body.parentNode) {
-          const fresh = PREVIEW.renderSlidePreview(slide, app.state, app.previewMode);
-          body.parentNode.replaceChild(fresh, body);
-        }
-      },
+      onChange: onChange,
       onClose: closeSlidePopover,
     });
     // Anchor the popover absolutely so it sits beside the card no

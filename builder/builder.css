@@ -391,16 +391,29 @@ button { font-family: inherit; }
   color: var(--bx-action);
 }
 
-/* Step 7 · Asset rows */
+/* Step 7 · Asset rows.
+   The Step-7 card is narrow, so a 3-column grid (thumb | text | controls)
+   starved the middle text track — the label/help/USED-BY text wrapped one
+   word (often one character) per line, and worst on the CX-stills group that
+   also carries the "Show on slide" select. Default to thumb+text side by
+   side with the controls dropped to their own full-width row beneath (so the
+   description always gets the full width); promote to the inline 3-column
+   layout only when the card is wide enough to give the text a usable floor. */
 .bx-asset-row {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr) minmax(220px, 340px);
-  gap: 16px;
+  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-areas:
+    "thumb meta"
+    "controls controls";
+  gap: 12px 16px;
   align-items: start;
   padding: 14px 0;
   border-top: 1px solid var(--bx-line);
 }
 .bx-asset-row:first-of-type { border-top: none; }
+.bx-asset-thumb { grid-area: thumb; }
+.bx-asset-meta  { grid-area: meta; }
+.bx-asset-controls { grid-area: controls; }
 .bx-asset-thumb {
   width: 132px; height: 88px;
   border: 1.5px solid var(--bx-line-2);
@@ -467,18 +480,31 @@ button { font-family: inherit; }
   font-size: 10.5px;
 }
 .bx-asset-status { margin-top: 6px; }
-/* Controls stack vertically in their column so the meta column keeps its
-   width (a wide select used to squeeze the description to one word per
-   line). Each control spans the column. */
+/* Full-width controls row: lay the file picker / Generate / "Show on slide"
+   select / Clear out horizontally and let them wrap, so they use the row
+   width instead of stacking in a starved column. */
 .bx-asset-controls {
-  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  display: flex; flex-direction: row; flex-wrap: wrap;
+  align-items: flex-end; gap: 8px 12px;
   min-width: 0;
 }
 .bx-asset-controls .bx-file-input { max-width: 100%; }
-.bx-asset-controls .bx-field { margin: 0; }
+.bx-asset-controls .bx-field { margin: 0; flex: 1 1 220px; max-width: 320px; }
 .bx-asset-controls .bx-select { width: 100%; box-sizing: border-box; }
-/* Clear button shouldn't stretch full-width like the inputs. */
 .bx-asset-controls .bx-mini-btn { align-self: flex-end; }
+
+/* Wide enough to give the text track a readable floor → inline 3-column row
+   (thumb | text | controls) with controls back in a tidy vertical stack. */
+@media (min-width: 1100px) {
+  .bx-asset-row {
+    grid-template-columns: 132px minmax(240px, 1fr) minmax(220px, 320px);
+    grid-template-areas: "thumb meta controls";
+  }
+  .bx-asset-controls {
+    flex-direction: column; flex-wrap: nowrap; align-items: stretch;
+  }
+  .bx-asset-controls .bx-field { flex: none; max-width: none; }
+}
 
 /* "Generate with AI" buttons reuse the canonical .bx-btn .bx-btn-ghost
    pill so they match every other button; this only aligns the spark
@@ -1059,6 +1085,40 @@ button { font-family: inherit; }
   margin: 0 0 12px; font-size: 14px; line-height: 1.6; color: var(--bx-ink-2);
 }
 .bx-guide .bx-guide-body p:last-of-type { margin-bottom: 0; }
+
+/* Slide-text editor in a centered modal (Fix 1) — used for slides that
+   carry a list editor (timeline events etc.) where the 360px side popover
+   is far too cramped. We reuse the popover node verbatim, but it brings its
+   own head + chrome, so neutralise those: the modal already supplies a
+   titled head + close button, and the body owns scrolling/padding. */
+.bx-modal-card.bx-edit-modal { max-width: 640px; }
+.bx-edit-modal .bx-modal-body { padding: 0; }
+.bx-edit-modal .bx-pop-edit {
+  position: static;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  max-height: none;
+  width: 100%;
+}
+/* The modal head already shows the title + ×; hide the popover's own. */
+.bx-edit-modal .bx-pop-edit-head { display: none; }
+.bx-edit-modal .bx-pop-edit-body { padding: 16px 20px; gap: 16px; }
+.bx-edit-modal .bx-pop-edit-foot { padding: 10px 20px 12px; }
+/* Let each timeline row breathe: text inputs hold a readable floor, the
+   emoji channel picker sits as its own labelled cell, reorder controls trail.
+   The 640px modal gives the row room so nothing collapses per-character. */
+.bx-edit-modal .bx-pop-edit-list-row {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--bx-line);
+  border-radius: 8px;
+  background: var(--bx-bg-2);
+}
+.bx-edit-modal .bx-pop-edit-list-input { flex: 1 1 200px; min-width: 160px; }
+.bx-edit-modal .bx-pop-edit-icon-cell { flex: 1 1 100%; }
+.bx-edit-modal .bx-pop-edit-icon-btn { width: 28px; height: 28px; font-size: 16px; }
 .bx-guide-foot {
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; margin-top: var(--bx-sp-5);

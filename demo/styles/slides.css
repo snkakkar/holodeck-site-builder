@@ -737,6 +737,12 @@
    letterboxing. (cover/top would double-crop mockups and distort them.) */
 .dd-phone-screen > .dd-media > .dd-media-img,
 .dd-laptop-screen > .dd-media > .dd-media-img { object-fit:contain; object-position:center; background:#fff; }
+/* is-fill (deviceMoment real-still path): a SE-assigned screenshot is meant to
+   BE the screen, so fill edge-to-edge like the Agent Conversation phone — no
+   white letterbox bars. It fills the area below the status bar (flex:1 already)
+   with cover; generated phone stills are 9:16 so cover barely crops. */
+.dd-phone-screen > .dd-media.is-fill > .dd-media-img,
+.dd-laptop-screen > .dd-media.is-fill > .dd-media-img { object-fit:cover; object-position:top; background:#fff; }
 
 /* ── Phone "screen" content modules ──────────────────────────── */
 .dd-screen { display:flex; flex-direction:column; gap:8px; padding:14px 18px; flex:1; }
@@ -782,6 +788,26 @@
 }
 .dd-chat-them { background:#f1f4f9; color:var(--navy, #0d1b2e); border:1px solid #e5ebf2; align-self:flex-start; border-top-left-radius:4px; }
 .dd-chat-me   { background: linear-gradient(135deg,var(--blue, #1a5fa0),#0d3d7a); color:#fff; align-self:flex-end; border-top-right-radius:4px; }
+/* Rich agent message: product-recommendation card. Reuses the agent (them)
+   palette so it reads as an agent bubble, sized to fit the phone screen. */
+.dd-chat-card {
+  display:flex; gap:10px; align-items:flex-start;
+  max-width:94%; padding:9px 10px;
+}
+.dd-chat-card-media {
+  flex:0 0 auto; width:44px; height:44px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:24px; line-height:1;
+  background: linear-gradient(135deg,#eef3fb,#dbe6f5);
+  border:1px solid #e5ebf2;
+}
+.dd-chat-card-body { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
+.dd-chat-card-eyebrow { font-size:8.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--blue, #1a5fa0); }
+.dd-chat-card-title { font-size:13px; font-weight:800; color:var(--navy, #0d1b2e); line-height:1.2; }
+.dd-chat-card-sub { font-size:10.5px; color:#5c6776; line-height:1.35; }
+.dd-chat-card-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px; }
+.dd-chat-card-price { font-size:10.5px; font-weight:700; color:var(--navy, #0d1b2e); }
+.dd-chat-card-cta { font-size:10.5px; font-weight:800; color:#fff; background:var(--blue, #1a5fa0); padding:4px 9px; border-radius:999px; white-space:nowrap; }
 .dd-chat-typing { padding:10px 12px; display:flex; gap:4px; align-items:center; min-height:14px; }
 .dd-typing-dot {
   width:6px; height:6px; border-radius:50%;

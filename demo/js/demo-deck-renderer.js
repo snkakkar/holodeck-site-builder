@@ -324,7 +324,7 @@
       // the Step 8 preview show identical copy (single source of truth).
       // Reconstruct the state shape the shared helper reads.
       const chat = SHARED.agentChat
-        ? SHARED.agentChat({ story: plan.story || {}, personas: plan.personas || [], project: { industry: customer.industry || "" } })
+        ? SHARED.agentChat({ story: plan.story || {}, personas: plan.personas || [], project: { industry: customer.industry || "", customerName: customer.name || "" } })
         : {
             user:  (persona && persona.painPoints) ? truncate(persona.painPoints, 80) : "Can you help me find what I left behind?",
             agent: (acts[0] && acts[0].businessValue) ? truncate(acts[0].businessValue, 100)
@@ -354,7 +354,26 @@
       );
       const bubbles = turns.map(function (t) {
         const side = t.from === "user" ? "dd-chat-me" : "dd-chat-them";
-        const b = el("div", { class: "dd-chat-bubble " + side, text: t.text || "" });
+        let b;
+        if (t.kind === "card" && t.card) {
+          // Rich agent message: a product-recommendation card (emoji tile +
+          // "Recommended for you" eyebrow + title + detail + price · CTA row).
+          const c = t.card;
+          b = el("div", { class: "dd-chat-bubble " + side + " dd-chat-card" }, [
+            el("div", { class: "dd-chat-card-media", text: c.emoji || "🛍️" }),
+            el("div", { class: "dd-chat-card-body" }, [
+              c.eyebrow ? el("div", { class: "dd-chat-card-eyebrow", text: c.eyebrow }) : null,
+              el("div", { class: "dd-chat-card-title", text: c.title || "Your top match" }),
+              c.sub ? el("div", { class: "dd-chat-card-sub", text: c.sub }) : null,
+              el("div", { class: "dd-chat-card-foot" }, [
+                el("span", { class: "dd-chat-card-price", text: c.price || "" }),
+                el("span", { class: "dd-chat-card-cta", text: (c.cta || "Shop now") + " ›" }),
+              ]),
+            ]),
+          ]);
+        } else {
+          b = el("div", { class: "dd-chat-bubble " + side, text: t.text || "" });
+        }
         b.style.display = "none";
         thread.appendChild(b);
         return b;
@@ -601,38 +620,52 @@
       const globalStill = isMobile
         ? (demoAssets.cxInstagramAd || demoAssets.cxShopperAgent || demoAssets.cxTextConvo || demoAssets.iPhoneRec)
         : (demoAssets.laptopBrowsingGif || demoAssets.webBrowseGif);
-      const screenMedia = hasStill(assignedStill)
-        ? mediaTile({ src: assignedStill, kind: "image", alt: act.demoMoment || act.title || "Demo moment" })
-        : (cxComp && cxComp.url && /^https?:\/\//.test(cxComp.url))
-        ? renderCxIframe(cxComp)
-        : mediaTile({
+      // When the slide carries REAL media — an explicitly assigned still or a
+      // live CX iframe — fill the device screen edge-to-edge with just that
+      // media (like the Agent Conversation phone), dropping the skeleton
+      // eyebrow/heading/rows/CTA chrome. The chrome is only an authoring cue,
+      // so keep it ONLY for the empty/fallback state (no still, no iframe) so
+      // an unconfigured slide still shows a meaningful skeleton.
+      const hasAssigned = hasStill(assignedStill);
+      const hasLiveIframe = !hasAssigned && cxComp && cxComp.url && /^https?:\/\//.test(cxComp.url);
+      let screenInner;
+      if (hasAssigned) {
+        screenInner = mediaTile({
+          src: assignedStill, kind: "image", fill: true,
+          alt: act.demoMoment || act.title || "Demo moment",
+        });
+      } else if (hasLiveIframe) {
+        screenInner = renderCxIframe(cxComp);
+      } else {
+        // Empty/fallback: full skeleton chrome + cue so the SE knows what to add.
+        screenInner = el("div", { class: "dd-screen" }, [
+          el("div", { class: "dd-screen-eyebrow", text: (act.channel || "Salesforce").toUpperCase() }),
+          el("div", { class: "dd-screen-h", text: act.demoMoment || act.title || s.title || "Moment" }),
+          mediaTile({
             src: globalStill,
             kind: "gif",
             alt: act.demoMoment || act.title || "Demo moment",
             cue: "Add a screen recording or still in Step 7",
-          });
-      const screenInner = el("div", { class: "dd-screen" }, [
-        el("div", { class: "dd-screen-eyebrow", text: (act.channel || "Salesforce").toUpperCase() }),
-        el("div", { class: "dd-screen-h", text: act.demoMoment || act.title || s.title || "Moment" }),
-        screenMedia,
-        el("div", { class: "dd-screen-rows" }, [
-          el("div", { class: "dd-screen-row" }, [
-            el("div", { class: "dd-skel dd-skel-tile" }, [skeletonShimmer()]),
-            el("div", { class: "dd-skel-lines" }, [
-              el("div", { class: "dd-skel-line" }),
-              el("div", { class: "dd-skel-line dd-skel-line-short" }),
+          }),
+          el("div", { class: "dd-screen-rows" }, [
+            el("div", { class: "dd-screen-row" }, [
+              el("div", { class: "dd-skel dd-skel-tile" }, [skeletonShimmer()]),
+              el("div", { class: "dd-skel-lines" }, [
+                el("div", { class: "dd-skel-line" }),
+                el("div", { class: "dd-skel-line dd-skel-line-short" }),
+              ]),
+            ]),
+            el("div", { class: "dd-screen-row" }, [
+              el("div", { class: "dd-skel dd-skel-tile" }, [skeletonShimmer()]),
+              el("div", { class: "dd-skel-lines" }, [
+                el("div", { class: "dd-skel-line" }),
+                el("div", { class: "dd-skel-line dd-skel-line-short" }),
+              ]),
             ]),
           ]),
-          el("div", { class: "dd-screen-row" }, [
-            el("div", { class: "dd-skel dd-skel-tile" }, [skeletonShimmer()]),
-            el("div", { class: "dd-skel-lines" }, [
-              el("div", { class: "dd-skel-line" }),
-              el("div", { class: "dd-skel-line dd-skel-line-short" }),
-            ]),
-          ]),
-        ]),
-        el("div", { class: "dd-screen-cta", text: act.businessValue ? truncate(act.businessValue, 28).toUpperCase() : "TAKE ACTION" }),
-      ]);
+          el("div", { class: "dd-screen-cta", text: act.businessValue ? truncate(act.businessValue, 28).toUpperCase() : "TAKE ACTION" }),
+        ]);
+      }
       return twoPanel({
         left: isMobile ? phoneFrame(screenInner) : laptopFrame(screenInner),
         right: rightCopy({
@@ -956,7 +989,9 @@
     var usable = typeof src === "string" && src.trim() &&
                  src.indexOf("[TODO") === -1;
     if (!usable) return mediaFallback(cue);
-    var host = el("div", { class: "dd-media" });
+    // opts.fill → the media should cover its container edge-to-edge (used by
+    // deviceMoment so a real screenshot fills the phone like the chat does).
+    var host = el("div", { class: "dd-media" + (opts.fill ? " is-fill" : "") });
     var img = document.createElement("img");
     img.className = "dd-media-img";
     img.alt = opts.alt || "";

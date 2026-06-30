@@ -1061,51 +1061,127 @@
   // agentConversation: the two chat bubbles. Derives from state the same
   // way the preview's pickUserMessage/pickAgentMessage did, so export and
   // preview show identical copy. Accepts the builder state.
+  // Industry → a short, clean noun phrase for the agent's greeting use-case
+  // ("…here to help with <X>"). Always reads as a phrase, never a sentence.
+  function agentUseCase(industry) {
+    return ({
+      "Retail":             "your shopping",
+      "Consumer Goods":     "your shopping",
+      "Hospitality":        "your stay",
+      "Travel":             "your trip",
+      "Financial Services": "your accounts",
+      "Healthcare":         "your care",
+    })[industry] || "what you need";
+  }
+
   function agentChat(state) {
     state = state || {};
     const story = state.story || {};
     const persona = (state.personas || [])[0] || null;
     const industry = (state.project && state.project.industry) || "";
-    let user;
-    if (story.agentforceMoments) {
-      const t = String(story.agentforceMoments).split(/[.!?\n]/)[0];
-      if (t && t.trim().length > 8) user = t.trim() + "?";
-    }
-    if (!user) {
-      user = (persona && persona.painPoints)
-        ? truncate(persona.painPoints, 80)
-        : "I need help with " + (industry ? industry.toLowerCase() : "this") + ". Where do I start?";
-    }
-    const agent = story.futureVision
-      ? truncate(story.futureVision, 140)
-      : (story.businessValueMoments
-          ? truncate(story.businessValueMoments, 140)
-          : "Here's what I'd recommend, grounded in your unified profile and your last interaction.");
+    // {user, agent} are kept for back-compat (the Step 8 static preview reads
+    // them); the interactive slide uses `turns`. `user`/`agent` mirror the
+    // first customer ask + the agent's grounded reply below.
+    const company = (state.project && state.project.customerName) || "Salesforce";
+    const hasName = persona && persona.name && String(persona.name).trim();
+    const firstName = hasName
+      ? (String(persona.name).split(/\s+/)[0] || persona.name)
+      : "";
 
-    // Ordered, multi-turn script for the interactive click-through chat (the
-    // agentConversation slide reveals these one tap at a time). Derived from
-    // the same state fields as {user, agent} so preview and export match.
-    // Always opens with the customer; the agent's first reply grounds the
-    // answer in the unified profile; a short follow-up closes the loop.
-    const name = (persona && persona.name) || (state.project && state.project.customerName) || "there";
+    // ── Conversational script (revealed one tap at a time). Every beat is a
+    // SHORT spoken line: field-sourced turns go through oneSentence(...) and
+    // are wrapped in chat phrasing so the thread reads like a real back-and-
+    // forth, not a recitation of story fields. No two turns echo one source.
+
+    // 1. Agent greets first — "Hello, I'm the <Company> Agent — here to help…".
+    const greeting = "Hello, I'm the " + company + " Agent — here to help with " +
+      agentUseCase(industry) + ".";
+
+    // 2. Customer opens with their pain, phrased as a first-person complaint.
+    const painLine = (persona && persona.painPoints)
+      ? oneSentence(persona.painPoints, 70)
+      : "";
+    const user = painLine
+      ? ("Hi — honestly, my problem is " + lowerFirst(painLine))
+      : "Hi — can you help me find the right thing?";
+
+    // 3. Agent acknowledges and grounds in the profile (spoken, not a dump).
+    // Hard-cap short so a long futureVision paragraph never reads as a dump;
+    // if it's still long after one sentence, fall back to the spoken default.
+    const visionLine = oneSentence(story.futureVision || story.agentforceMoments || "", 80);
+    const agent = (visionLine && visionLine.length <= 78 && visionLine.indexOf("…") === -1)
+      ? ("I've got your full profile here. " + visionLine)
+      : "I've got your full profile and recent activity right here — let's find the right fit.";
+
     const turns = [
+      { from: "agent", text: greeting },
       { from: "user",  text: user },
       { from: "agent", text: agent },
     ];
-    // A second customer beat — surfaced from a distinct source so it doesn't
-    // echo the opener. Falls back to a natural acknowledgement.
-    const userFollow = (persona && persona.goals)
-      ? truncate(persona.goals, 90)
-      : (story.commerceMoments ? truncate(story.commerceMoments, 90)
-          : "That's exactly what I needed — can you set it up?");
-    turns.push({ from: "user", text: userFollow });
-    // Closing agent turn — confirms the action, personalized by name.
-    const agentClose = story.businessValueMoments && story.futureVision
-      ? truncate(story.businessValueMoments, 120)
-      : "Done, " + name + ". I've personalized everything to your profile — you're all set.";
-    turns.push({ from: "agent", text: agentClose });
+
+    // 4. Customer clarifies what they're after (distinct source: goals).
+    turns.push({ from: "user", text: (persona && persona.goals)
+      ? ("I'm trying to " + lowerFirst(oneSentence(persona.goals, 70)))
+      : "What would you recommend for me?" });
+
+    // 5. Agent leads into the recommendation.
+    turns.push({ from: "agent", text: "Based on that, here's a strong match for you:" });
+
+    // 6. The rich beat: a product-recommendation card sent BY the agent.
+    const cardTitle = (Array.isArray(state.wishlist) && state.wishlist[0] && state.wishlist[0].name)
+      ? String(state.wishlist[0].name)
+      : (story.commerceMoments ? oneSentence(story.commerceMoments, 36) : "Your top match");
+    const cardSub = (persona && persona.goals)
+      ? oneSentence(persona.goals, 60)
+      : "Matched to your profile and recent activity";
+    turns.push({ from: "agent", kind: "card", card: {
+      eyebrow: "Recommended for you",
+      title: cardTitle,
+      sub: cardSub,
+      price: "In your range",
+      cta: "Shop now",
+      emoji: "🛍️",
+    } });
+
+    // 7. Customer reacts positively (short, natural).
+    turns.push({ from: "user", text: "Love it — that's exactly what I had in mind." });
+
+    // 8. Agent offers the next action, naming a business-value benefit as a
+    // single phrase (NOT the raw "A; B; C" list the field often holds). The
+    // clause keeps its own casing (often Title Case), so don't lowercase it.
+    const benefit = firstClause(story.businessValueMoments || "", 48);
+    turns.push({ from: "agent", text: benefit
+      ? ("I can set that up — it's a quick win for " + benefit + ". Want me to?")
+      : "I can set that up and apply your perks — want me to?" });
+
+    // 9. Customer confirms.
+    turns.push({ from: "user", text: "Yes, please." });
+
+    // 10. Agent closes, personalized by first name when we have one.
+    turns.push({ from: "agent", text: (firstName ? "Done, " + firstName + ". " : "Done! ") +
+      "Everything's personalized to your profile — you're all set." });
 
     return { user: user, agent: agent, turns: turns };
+  }
+
+  // Lowercase the first character (so a field sentence reads naturally mid-line,
+  // e.g. "I'm trying to throw the perfect party"). Leaves acronyms-ish all-caps
+  // openers ("AI…", "RFP…") alone so they don't get mangled.
+  function lowerFirst(s) {
+    s = String(s || "");
+    if (!s) return s;
+    const head = s.slice(0, 2);
+    if (head === head.toUpperCase() && /[A-Z]/.test(head)) return s; // ACRONYM…
+    return s.charAt(0).toLowerCase() + s.slice(1);
+  }
+
+  // First clause of a list-ish field ("Account Growth; Dynamic Personalization;…"
+  // → "Account Growth"), capped — so semicolon/comma lists become one benefit.
+  function firstClause(s, max) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    if (!s) return "";
+    const first = s.split(/[;\n]|,(?=\s*[A-Z])/)[0].trim();
+    return truncate(first || s, max);
   }
 
   // nextSteps: the roadmap phase list (preview renders these as an <ol>).
