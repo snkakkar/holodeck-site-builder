@@ -2638,15 +2638,19 @@
             })).then(function () { return runBatch(start + IMG_BATCH); });
           };
 
-          // 1) Persona copy first (writes to state in place), then
-          // 2) the empty image slots in batched-parallel waves.
-          genAllLabel.textContent = "Filling persona copy…";
-          pb.indeterminate("Filling persona copy…");
-          runPersonaCopyFill(s)
-            .then(function (personasUpdated) {
-              if (total) { pb.set(0, "Generating image 0 / " + total + "…"); }
-              else { pb.set(1, "No empty image slots"); }
-              return runBatch(0).then(function () { return personasUpdated; });
+          // 1) Empty image slots first, in batched-parallel waves, then
+          // 2) persona copy (writes to state in place).
+          if (total) {
+            genAllLabel.textContent = "Generating image 0 / " + total + "…";
+            pb.set(0, "Generating image 0 / " + total + "…");
+          } else {
+            pb.set(0, "No empty image slots");
+          }
+          runBatch(0)
+            .then(function () {
+              genAllLabel.textContent = "Filling persona copy…";
+              pb.indeterminate("Filling persona copy…");
+              return runPersonaCopyFill(s);
             })
             .then(function (personasUpdated) {
               commit();

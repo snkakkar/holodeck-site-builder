@@ -185,8 +185,36 @@
       at: Date.now(),
     };
   }
+  // Large AI/uploaded images are stored as base64 data: URLs inside the state
+  // blob. The cloud row keeps them in full; the device cache only needs a
+  // lightweight offline fallback, so we drop big data: URLs before writing to
+  // localStorage (a few stills otherwise blow past the ~5MB quota and ALL local
+  // saves start failing). We empty the slot rather than leave a sentinel so the
+  // offline UI/renderer treats it as "no image" (mock/placeholder) instead of a
+  // broken <img>; the real bytes rehydrate from the cloud on next online load.
+  const CACHE_DATAURL_MAX = 2048; // keep tiny inline images; drop the heavy ones
+  function isHeavyDataUrl(v) {
+    return typeof v === "string" && v.lastIndexOf("data:", 0) === 0 && v.length > CACHE_DATAURL_MAX;
+  }
+  function slimForCache(state) {
+    // Structural clone with heavy data: URLs emptied out.
+    let slim;
+    try { slim = JSON.parse(JSON.stringify(state)); }
+    catch (e) { return state; } // non-serializable → fall back to raw
+    if (slim.assetLibrary && typeof slim.assetLibrary === "object") {
+      Object.keys(slim.assetLibrary).forEach(function (k) {
+        if (isHeavyDataUrl(slim.assetLibrary[k])) slim.assetLibrary[k] = "";
+      });
+    }
+    if (slim.brand) {
+      if (isHeavyDataUrl(slim.brand.logoPath)) slim.brand.logoPath = "";
+      if (isHeavyDataUrl(slim.brand.customerLogoPath)) slim.brand.customerLogoPath = "";
+    }
+    // Persona portraits live in assetLibrary["persona.portrait"] (handled above).
+    return slim;
+  }
   function cacheWrite(state) {
-    const ok = writeJSON(KEY_PREFIX + state.id, state);
+    const ok = writeJSON(KEY_PREFIX + state.id, slimForCache(state));
     _lastCacheWriteFailed = !ok;
     upsertIndex(summaryFromState(state));
   }
