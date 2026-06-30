@@ -2072,8 +2072,8 @@
       help: "Shopper / commerce agent chat screenshot. Shows inside the phone frame.",
       layouts: ["embeddedCxComponent", "deviceMoment"], always: true, accept: "image/*" },
     { slot: "cxTextConvo", group: "CX component stills", label: "Agentic text thread still",
-      help: "SMS / agentic text-message thread. Shows inside the phone frame on the Agent Conversation slide (replaces the chat mock).",
-      layouts: ["agentConversation", "embeddedCxComponent"], always: true, accept: "image/*" },
+      help: "SMS / agentic text-message thread. Shows inside the phone frame on Embedded CX slides. (The Agent Conversation slide now renders an interactive scripted chat, so no still is used there.)",
+      layouts: ["embeddedCxComponent"], always: true, accept: "image/*" },
   ];
 
   // Compute which assets should show given the current slide plan.
@@ -3086,8 +3086,11 @@
     return out;
   }
 
-  // Which slide (id) currently shows the given still slot, by scanning the
-  // components' per-slide maps. "" = not attached to any slide.
+  // Which slide (id) currently shows the given still slot. Two binding styles:
+  //   • CX-linked slides bind via the component's imageSlotsBySlide map;
+  //   • deviceMoment slides (no linked component) bind via the slide's own
+  //     s.imageSlot, which the deviceMoment renderer reads directly.
+  // "" = not attached to any slide.
   function cxSlideForSlot(s, slot) {
     const comps = s.cxComponents || [];
     for (let i = 0; i < comps.length; i++) {
@@ -3095,14 +3098,21 @@
       const sid = Object.keys(m).filter(function (k) { return m[k] === slot; })[0];
       if (sid) return sid;
     }
-    return "";
+    const direct = (s.slides || []).filter(function (sl) {
+      return (sl.imageSlot || "") === slot;
+    })[0];
+    return direct ? direct.id : "";
   }
 
   // Attach `slot` to `slideId` (or detach when slideId is ""). Clears this
-  // slot from every component first so a slot maps to at most one slide,
-  // then writes it onto the component that renders on the chosen slide —
-  // the one linked to it, or the first component (which the renderer falls
-  // back to: c = linked[0] || cxList[0]).
+  // slot from every component AND from every slide's direct s.imageSlot first,
+  // so a slot maps to at most one slide. Then binds it using the style the
+  // target slide supports:
+  //   • a slide with a linked CX component → the component's imageSlotsBySlide
+  //     (the one linked to it, or the first component the renderer falls back
+  //     to: c = linked[0] || cxList[0]);
+  //   • a deviceMoment / other slide with no linked component → the slide's own
+  //     s.imageSlot, which the deviceMoment renderer reads directly.
   function cxAttachSlotToSlide(s, slot, slideId) {
     const comps = s.cxComponents || [];
     comps.forEach(function (c) {
@@ -3110,12 +3120,23 @@
       Object.keys(m).forEach(function (k) { if (m[k] === slot) delete m[k]; });
       c.imageSlotsBySlide = m;
     });
+    (s.slides || []).forEach(function (sl) {
+      if ((sl.imageSlot || "") === slot) sl.imageSlot = "";
+    });
     if (slideId) {
       const linked = comps.filter(function (c) {
         return (c.linkedSlideIds && c.linkedSlideIds[0]) === slideId;
       })[0];
       const target = linked || comps[0];
-      if (target) {
+      const slide = (s.slides || []).filter(function (sl) { return sl.id === slideId; })[0];
+      // Prefer the direct s.imageSlot binding when the chosen slide has no CX
+      // component of its own to carry the map — i.e. a deviceMoment still.
+      const slideHasLinkedComp = comps.some(function (c) {
+        return (c.linkedSlideIds && c.linkedSlideIds[0]) === slideId;
+      });
+      if (slide && !slideHasLinkedComp) {
+        slide.imageSlot = slot;
+      } else if (target) {
         target.imageSlotsBySlide = target.imageSlotsBySlide || {};
         target.imageSlotsBySlide[slideId] = slot;
       }

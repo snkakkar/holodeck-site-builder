@@ -330,27 +330,62 @@
             agent: (acts[0] && acts[0].businessValue) ? truncate(acts[0].businessValue, 100)
                    : (f.futureStateVision ? truncate(f.futureStateVision, 100) : "Here's a recommendation grounded in your unified profile."),
           };
-      const userMsg  = chat.user;
-      const agentMsg = chat.agent;
+      // Build the scripted click-through. `turns` is an ordered array
+      // [{from:"user"|"agent", text}] from the shared agentChat helper; we
+      // fall back to a two-turn script from {user, agent} for back-compat.
+      const turns = (chat.turns && chat.turns.length)
+        ? chat.turns
+        : [
+            { from: "agent", text: chat.agent },
+            { from: "user",  text: chat.user },
+          ];
+
+      // Render every bubble up front, then reveal progressively on tap —
+      // mirrors unifiedProfile's pre-build + show(i) toggle. A trailing
+      // typing indicator hints "tap to continue"; the slide's click-to-
+      // advance listener is suppressed via e.stopPropagation() while turns
+      // remain so taps walk the conversation instead of the deck.
+      const thread = el("div", { class: "dd-chat-thread dd-chat-scripted" });
+      thread.appendChild(
+        el("div", { class: "dd-chat-head" }, [
+          el("div", { class: "dd-chat-headline", text: "Agentforce" }),
+          el("div", { class: "dd-chat-sub",      text: "Live chat" }),
+        ])
+      );
+      const bubbles = turns.map(function (t) {
+        const side = t.from === "user" ? "dd-chat-me" : "dd-chat-them";
+        const b = el("div", { class: "dd-chat-bubble " + side, text: t.text || "" });
+        b.style.display = "none";
+        thread.appendChild(b);
+        return b;
+      });
+      const typing = el("div", { class: "dd-chat-bubble dd-chat-them dd-chat-typing" }, [
+        el("span", { class: "dd-typing-dot" }),
+        el("span", { class: "dd-typing-dot" }),
+        el("span", { class: "dd-typing-dot" }),
+      ]);
+      thread.appendChild(typing);
+
+      let revealed = 0;
+      function reveal() {
+        if (revealed < bubbles.length) {
+          bubbles[revealed].style.display = "";
+          revealed += 1;
+        }
+        // Show the typing indicator only while more turns remain.
+        typing.style.display = (revealed < bubbles.length) ? "" : "none";
+        thread.classList.toggle("is-complete", revealed >= bubbles.length);
+      }
+      reveal(); // first turn visible immediately (and in the static preview)
+      thread.addEventListener("click", function (e) {
+        if (revealed < bubbles.length) {
+          e.stopPropagation();
+          reveal();
+        }
+      });
+
       return twoPanel({
-        // A generated/uploaded text-thread still replaces the chat mock.
-        left: hasStill(demoAssets.cxTextConvo)
-          ? phoneFrame(mediaTile({ src: demoAssets.cxTextConvo, kind: "image", alt: "Agentic text conversation" }))
-          : phoneFrame(
-          el("div", { class: "dd-chat-thread" }, [
-            el("div", { class: "dd-chat-head" }, [
-              el("div", { class: "dd-chat-headline", text: "Agentforce" }),
-              el("div", { class: "dd-chat-sub",      text: "Live chat" }),
-            ]),
-            el("div", { class: "dd-chat-bubble dd-chat-them", text: agentMsg }),
-            el("div", { class: "dd-chat-bubble dd-chat-me",   text: userMsg }),
-            el("div", { class: "dd-chat-bubble dd-chat-them dd-chat-typing" }, [
-              el("span", { class: "dd-typing-dot" }),
-              el("span", { class: "dd-typing-dot" }),
-              el("span", { class: "dd-typing-dot" }),
-            ]),
-          ])
-        ),
+        left: phoneFrame(thread),
         right: rightCopy({
           eyebrow:  "Agentforce moment",
           headlineHtml: s.title
@@ -553,17 +588,33 @@
       const act = (s.linkedActId && acts.find(function(a){return a.id===s.linkedActId;})) || acts[0] || {};
       const isMobile = (s && s.deviceFrame === "mobile") ||
                        (act.channel && /phone|sms|imessage|app|mobile/i.test(act.channel));
+      // Resolve the device "screen" with the same precedence embeddedCxComponent
+      // uses, so a deviceMoment slide can show EITHER an assigned still or a live
+      // iframe — whatever is bound to it:
+      //   (a) a per-slide still explicitly assigned to this slide (s.imageSlot);
+      //   (b) a live CX iframe if the slide links a component carrying a URL;
+      //   (c) the device-appropriate global still by slot (phone vs laptop);
+      //   (d) the skeleton + cue.
+      const linkedCx = (s.linkedCxComponentIds || []).map(cxById).filter(Boolean);
+      const cxComp = linkedCx[0] || null;
+      const assignedStill = (s.imageSlot && demoAssets[s.imageSlot]) || "";
+      const globalStill = isMobile
+        ? (demoAssets.cxInstagramAd || demoAssets.cxShopperAgent || demoAssets.cxTextConvo || demoAssets.iPhoneRec)
+        : (demoAssets.laptopBrowsingGif || demoAssets.webBrowseGif);
+      const screenMedia = hasStill(assignedStill)
+        ? mediaTile({ src: assignedStill, kind: "image", alt: act.demoMoment || act.title || "Demo moment" })
+        : (cxComp && cxComp.url && /^https?:\/\//.test(cxComp.url))
+        ? renderCxIframe(cxComp)
+        : mediaTile({
+            src: globalStill,
+            kind: "gif",
+            alt: act.demoMoment || act.title || "Demo moment",
+            cue: "Add a screen recording or still in Step 7",
+          });
       const screenInner = el("div", { class: "dd-screen" }, [
         el("div", { class: "dd-screen-eyebrow", text: (act.channel || "Salesforce").toUpperCase() }),
         el("div", { class: "dd-screen-h", text: act.demoMoment || act.title || s.title || "Moment" }),
-        // Real screenshot/GIF when uploaded for this device, else skeleton + cue.
-        mediaTile({
-          src: isMobile ? (demoAssets.cxShopperAgent || demoAssets.cxTextConvo || demoAssets.iPhoneRec)
-                        : (demoAssets.laptopBrowsingGif || demoAssets.webBrowseGif),
-          kind: "gif",
-          alt: act.demoMoment || act.title || "Demo moment",
-          cue: "Add a screen recording in Step 7",
-        }),
+        screenMedia,
         el("div", { class: "dd-screen-rows" }, [
           el("div", { class: "dd-screen-row" }, [
             el("div", { class: "dd-skel dd-skel-tile" }, [skeletonShimmer()]),

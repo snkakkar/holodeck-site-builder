@@ -794,6 +794,18 @@
   0%,80%,100% { opacity:.3; transform:translateY(0); }
   40%         { opacity:1;  transform:translateY(-3px); }
 }
+/* Scripted click-through: each tap reveals the next turn. The thread shows a
+   tap affordance while turns remain (the typing indicator doubles as the cue);
+   once complete it stops inviting taps so the deck advances normally. */
+.dd-chat-scripted { cursor:pointer; }
+.dd-chat-scripted.is-complete { cursor:default; }
+.dd-chat-scripted .dd-chat-bubble {
+  animation: ddBubbleIn .26s ease-out both;
+}
+@keyframes ddBubbleIn {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
 
 /* CDP unified profile screen on laptop */
 .dd-cdp { display:flex; flex-direction:column; height:100%; background:#fff; }

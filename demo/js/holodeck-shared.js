@@ -1081,7 +1081,31 @@
       : (story.businessValueMoments
           ? truncate(story.businessValueMoments, 140)
           : "Here's what I'd recommend, grounded in your unified profile and your last interaction.");
-    return { user: user, agent: agent };
+
+    // Ordered, multi-turn script for the interactive click-through chat (the
+    // agentConversation slide reveals these one tap at a time). Derived from
+    // the same state fields as {user, agent} so preview and export match.
+    // Always opens with the customer; the agent's first reply grounds the
+    // answer in the unified profile; a short follow-up closes the loop.
+    const name = (persona && persona.name) || (state.project && state.project.customerName) || "there";
+    const turns = [
+      { from: "user",  text: user },
+      { from: "agent", text: agent },
+    ];
+    // A second customer beat — surfaced from a distinct source so it doesn't
+    // echo the opener. Falls back to a natural acknowledgement.
+    const userFollow = (persona && persona.goals)
+      ? truncate(persona.goals, 90)
+      : (story.commerceMoments ? truncate(story.commerceMoments, 90)
+          : "That's exactly what I needed — can you set it up?");
+    turns.push({ from: "user", text: userFollow });
+    // Closing agent turn — confirms the action, personalized by name.
+    const agentClose = story.businessValueMoments && story.futureVision
+      ? truncate(story.businessValueMoments, 120)
+      : "Done, " + name + ". I've personalized everything to your profile — you're all set.";
+    turns.push({ from: "agent", text: agentClose });
+
+    return { user: user, agent: agent, turns: turns };
   }
 
   // nextSteps: the roadmap phase list (preview renders these as an <ol>).

@@ -524,8 +524,20 @@
           "Headline":  "__slide.headline",
           "Sub-line":  "__slide.sub",
         };
-      case "deviceMoment":
       case "journeyTimeline":
+        // The timeline carries its own copy (eyebrow / headline / sub) plus a
+        // fully editable events array (add / remove / reorder + icon picker),
+        // all in storyFoundations.* — decoupled from storyActs so editing the
+        // timeline never disturbs the demoMap / scenePhoto slides. Mirrors the
+        // synthetic _rt_journey_timeline editorPaths so an SE-authored
+        // journeyTimeline slide gets the same rich editor, not just title/notes.
+        return {
+          "Eyebrow":         "storyFoundations.journeyTimelineEyebrow",
+          "Headline":        "storyFoundations.journeyTimelineHeadline",
+          "Sub-line":        "storyFoundations.journeyTimelineSub",
+          "Timeline events": "storyFoundations.timelineEvents",
+        };
+      case "deviceMoment":
       case "demoMap":
       case "embeddedCxComponent":
       case "nextSteps":
