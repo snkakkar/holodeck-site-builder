@@ -53,6 +53,20 @@
   <script src="gemini-client.js"></script>
   <!-- module: uses dynamic import()/import.meta to lazy-load vendored pdf.js -->
   <script type="module" src="doc-extract.js"></script>
+  <!-- Scale the authoring UI with the viewport. Sets --bx-scale on <html>;
+       builder.css reads it via calc(<px> * var(--bx-scale,1)). Mirrors the deck's ddScale;
+       gentle clamp [0.9, 1.15] keeps an authoring tool legible and stable. -->
+  <script>
+  (function bxScale() {
+    function setBuilderScale() {
+      var scale = Math.min(window.innerWidth / 1440, window.innerHeight / 900);
+      scale = Math.max(0.9, Math.min(scale, 1.15));
+      document.documentElement.style.setProperty('--bx-scale', scale);
+    }
+    setBuilderScale();
+    window.addEventListener('resize', setBuilderScale);
+  })();
+  </script>
   <script src="builder.js"></script>
 </body>
 </html>

@@ -2521,12 +2521,13 @@
 
       // No "cxUnifiedProfile" prompt — the Unified Profile slide always renders
       // the interactive carousel, so a generated still for it is never shown.
-      "cxInstagramAd": UI_ART + " A single Instagram-style paid social ad creative" +
+      "cxInstagramAd": UI_ART + " A single full-screen Instagram Story / Reel paid social ad creative" +
         (customer ? " for \"" + customer + "\"" : "") +
-        ". A bold hero product/lifestyle image filling the frame, a small brand handle row at top, " +
+        ". A bold hero product/lifestyle image that bleeds edge-to-edge and fills the ENTIRE vertical frame " +
+        "with no borders, no margins and no letterbox bars, a small brand handle row at top, " +
         "like/comment/share icons, a 'Sponsored' tag, one short large headline and a Shop Now button" +
         (firstFew(f.commerceMoments, 1).length ? " promoting " + firstFew(f.commerceMoments, 1)[0] : "") +
-        ". 9:16 vertical mobile composition.",
+        ". Tall 9:19 full-bleed vertical mobile story composition that fills the whole phone screen edge to edge.",
       "cxShopperAgent": UI_ART + " A shopping/commerce assistant chat screen on a phone" +
         (customer ? " for \"" + customer + "\"" : "") +
         ". Header with an agent name, two or three short chat bubbles, and a horizontal row of product " +

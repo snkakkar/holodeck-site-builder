@@ -575,6 +575,25 @@
   })();
 
   // ═══════════════════════════════════════
+  //  GLOBAL DECK SCALE
+  // ═══════════════════════════════════════
+  // Sets --dd-scale on <html>; slides.css reads it via calc(<px> * var(--dd-scale,1))
+  // so device frames, type, and padding grow/shrink together with the viewport.
+  // Width-basis 1440 (deck design width) with a height guard (820) so short windows
+  // scale down too. Clamped [0.8, 1.35]. Independent of the journey-map fitMap zoom.
+  (function ddScale() {
+    function setDeckScale() {
+      var vw = window.innerWidth;
+      var vh = window.innerHeight - 52;            // minus the 52px top bar
+      var scale = Math.min(vw / 1440, vh / 820);
+      scale = Math.max(0.8, Math.min(scale, 1.35));
+      document.documentElement.style.setProperty('--dd-scale', scale);
+    }
+    setDeckScale();
+    window.addEventListener('resize', setDeckScale);
+  })();
+
+  // ═══════════════════════════════════════
   //  BUILD INTRO DECK
   // ═══════════════════════════════════════
   (function buildIntro() {

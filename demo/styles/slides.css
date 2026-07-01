@@ -482,8 +482,8 @@
   pointer-events:none;
 }
 .dd-right {
-  padding:64px 72px;
-  display:flex; flex-direction:column; justify-content:center; gap:18px;
+  padding:calc(64px * var(--dd-scale,1)) calc(72px * var(--dd-scale,1));
+  display:flex; flex-direction:column; justify-content:center; gap:calc(18px * var(--dd-scale,1));
   background:#fff;
   max-width:780px;
 }
@@ -491,21 +491,21 @@
 
 /* ── Display typography ──────────────────────────────────────── */
 .dd-eyebrow {
-  font-size:12px; font-weight:700; letter-spacing:.22em;
+  font-size:calc(12px * var(--dd-scale,1)); font-weight:700; letter-spacing:.22em;
   color:var(--red, #b22234); text-transform:uppercase; margin:0;
 }
 .dd-display {
   font-family: var(--font-sans, "Inter", -apple-system, BlinkMacSystemFont, sans-serif);
-  font-size:64px; line-height:1.04; letter-spacing:-.025em;
+  font-size:calc(64px * var(--dd-scale,1)); line-height:1.04; letter-spacing:-.025em;
   color:var(--navy, #0d1b2e); margin:0; font-weight:800;
 }
 .dd-display em {
   font-family: var(--font-serif, "Playfair Display", Georgia, serif);
   font-style:italic; color:var(--red, #b22234); font-weight:600;
 }
-.dd-display-mid { font-size:54px; }
+.dd-display-mid { font-size:calc(54px * var(--dd-scale,1)); }
 .dd-sub {
-  font-size:17px; line-height:1.65; color:#5a6b80; max-width:560px; margin:0;
+  font-size:calc(17px * var(--dd-scale,1)); line-height:1.65; color:#5a6b80; max-width:560px; margin:0;
 }
 .dd-sub-center { font-size:17px; line-height:1.6; color:#5a6b80; max-width:680px; margin:0 auto; text-align:center; }
 .dd-disclaimer { font-size:10.5px; font-weight:700; letter-spacing:.18em; color:#a0a8b5; text-transform:uppercase; margin-top:14px; text-align:center; padding:0 72px 32px; }
@@ -653,14 +653,14 @@
 .dd-scene-photo .dd-skel-media { position:absolute; inset:0; min-height:100%; border-radius:0; }
 
 /* ── Phone frame (used by personaCard, agentConversation, deviceMoment) */
-.dd-left-device { padding:32px; flex-direction:column; gap:0; min-height:0; }
+.dd-left-device { padding:calc(32px * var(--dd-scale,1)); flex-direction:column; gap:0; min-height:0; }
 .dd-phone-frame {
   /* Height-driven (mirrors .dd-laptop-frame): the frame is sized by HEIGHT and
      capped, so a tall chat thread can NEVER stretch it — the thread scrolls
      internally instead. 591px ≈ the original 280px × 19/9 visual size. */
-  height:min(100%, 591px);
+  height:min(100%, calc(591px * var(--dd-scale,1)));
   aspect-ratio: 9/19;
-  width:auto; max-width:280px;
+  width:auto; max-width:calc(280px * var(--dd-scale,1));
   flex:0 0 auto;                       /* don't let the device column stretch it */
   background:#1a232f;
   border-radius:42px;
@@ -690,7 +690,7 @@
 
 /* ── Laptop frame (synthetic mock screens: unifiedProfile, deviceMoment) */
 .dd-laptop-frame {
-  height:min(100%, 460px);            /* height-driven: never overflow a short panel */
+  height:min(100%, calc(460px * var(--dd-scale,1)));            /* height-driven: never overflow a short panel */
   aspect-ratio: 16/10;
   width:auto; max-width:100%;         /* width follows from height; cap on narrow panels */
   flex:0 0 auto;                      /* don't let the column flex stretch/shrink it */
@@ -1115,7 +1115,7 @@
 }
 
 /* ── Story / context interstitial ────────────────────────────── */
-.dd-display-lg { font-size:72px; line-height:1.02; }
+.dd-display-lg { font-size:calc(72px * var(--dd-scale,1)); line-height:1.02; }
 .dd-interstitial { height:100%; }
 .dd-interstitial-solo {
   display:flex; flex-direction:column; align-items:center; justify-content:center;

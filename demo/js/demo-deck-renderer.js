@@ -845,9 +845,12 @@
         /sms|text|message/.test(tn)             ? demoAssets.cxTextConvo    :
         /agent|shopper|chat|commerce/.test(tn)  ? demoAssets.cxShopperAgent :
         (demoAssets.cxShopperAgent || demoAssets.cxInstagramAd || demoAssets.cxTextConvo);
+      // The Instagram ad is authored full-bleed 9:19 (Step 7 prompt), so fill the
+      // phone screen edge-to-edge (cover) instead of letterboxing (contain).
+      const isInstagramAd = hasStill(still) && still === demoAssets.cxInstagramAd;
       // A generated/uploaded still wins over the live iframe / skeleton.
       const inner = hasStill(still)
-        ? mediaTile({ src: still, kind: "image", alt: (c && c.name) || "CX component" })
+        ? mediaTile({ src: still, kind: "image", fill: isInstagramAd, alt: (c && c.name) || "CX component" })
         : c && c.url && /^https?:\/\//.test(c.url)
         ? renderCxIframe(c)
         : el("div", { class: "dd-skel dd-skel-screen" }, [

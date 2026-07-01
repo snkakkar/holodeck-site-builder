@@ -47,27 +47,27 @@
   --bx-type-eyebrow:  700 11px/1.4  var(--bx-font-sans);
 
   /* ── Spacing scale ──────────────────────────────────────────── */
-  --bx-sp-1:  4px;
-  --bx-sp-2:  8px;
-  --bx-sp-3:  12px;
-  --bx-sp-4:  16px;
-  --bx-sp-5:  20px;
-  --bx-sp-6:  24px;
-  --bx-sp-7:  32px;
-  --bx-sp-8:  40px;
-  --bx-sp-9:  56px;
+  --bx-sp-1:  calc(4px * var(--bx-scale, 1));
+  --bx-sp-2:  calc(8px * var(--bx-scale, 1));
+  --bx-sp-3:  calc(12px * var(--bx-scale, 1));
+  --bx-sp-4:  calc(16px * var(--bx-scale, 1));
+  --bx-sp-5:  calc(20px * var(--bx-scale, 1));
+  --bx-sp-6:  calc(24px * var(--bx-scale, 1));
+  --bx-sp-7:  calc(32px * var(--bx-scale, 1));
+  --bx-sp-8:  calc(40px * var(--bx-scale, 1));
+  --bx-sp-9:  calc(56px * var(--bx-scale, 1));
 
   /* ── Radius & shadow ────────────────────────────────────────── */
-  --bx-radius:      14px;
-  --bx-radius-s:    10px;
-  --bx-radius-pill: 22px;
+  --bx-radius:      calc(14px * var(--bx-scale, 1));
+  --bx-radius-s:    calc(10px * var(--bx-scale, 1));
+  --bx-radius-pill: calc(22px * var(--bx-scale, 1));
   --bx-shadow:      0 6px 24px rgba(13, 27, 46, 0.08);
   --bx-shadow-2:    0 14px 40px rgba(13, 27, 46, 0.18);
 
   /* ── Surface (canonical card geometry) ──────────────────────── */
-  --bx-surface-pad:     20px 22px;     /* default card padding */
-  --bx-surface-pad-lg:  24px 26px;     /* large/feature cards */
-  --bx-surface-pad-sm:  16px 18px;     /* compact items in lists */
+  --bx-surface-pad:     calc(20px * var(--bx-scale, 1)) calc(22px * var(--bx-scale, 1));     /* default card padding */
+  --bx-surface-pad-lg:  calc(24px * var(--bx-scale, 1)) calc(26px * var(--bx-scale, 1));     /* large/feature cards */
+  --bx-surface-pad-sm:  calc(16px * var(--bx-scale, 1)) calc(18px * var(--bx-scale, 1));     /* compact items in lists */
   --bx-surface-bg:      var(--bx-card);
   --bx-surface-border:  1px solid var(--bx-line);
   --bx-surface-radius:  var(--bx-radius);
@@ -77,9 +77,9 @@
   --bx-font-serif: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 
   /* ── Layout ─────────────────────────────────────────────────── */
-  --bx-topbar-h: 60px;
-  --bx-stepper-w: 260px;
-  --bx-side-w: 240px;   /* narrower "Live Suggestions" panel → wider main column */
+  --bx-topbar-h: 60px;   /* NOT scaled: sticky panels use 100vh - this; must stay real px */
+  --bx-stepper-w: calc(260px * var(--bx-scale, 1));
+  --bx-side-w: calc(240px * var(--bx-scale, 1));   /* narrower "Live Suggestions" panel → wider main column */
 }
 
 * { box-sizing: border-box; }
@@ -90,7 +90,7 @@ html, body {
   background: var(--bx-bg);
   color: var(--bx-ink);
   font-family: var(--bx-font-sans);
-  font-size: 14px;
+  font-size: calc(14px * var(--bx-scale, 1));
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -111,7 +111,7 @@ button { font-family: inherit; }
 }
 .bx-mark-h {
   font-family: var(--bx-font-serif);
-  font-size: 22px; font-weight: 700;
+  font-size: calc(22px * var(--bx-scale, 1)); font-weight: 700;
   color: var(--bx-navy);
   letter-spacing: -0.01em;
 }
@@ -279,20 +279,20 @@ button { font-family: inherit; }
 }
 .bx-main-head { margin-bottom: var(--bx-sp-7); }
 .bx-main-eyebrow {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.16em;
+  font-size: calc(11px * var(--bx-scale, 1)); font-weight: 700; letter-spacing: 0.16em;
   color: var(--bx-action);
   text-transform: uppercase;
 }
 .bx-main-title {
   font-family: var(--bx-font-serif);
-  font-size: 30px; font-weight: 700;
+  font-size: calc(30px * var(--bx-scale, 1)); font-weight: 700;
   color: var(--bx-navy);
   margin: 4px 0 8px;
   line-height: 1.15;
   letter-spacing: -0.01em;
 }
 .bx-main-sub {
-  font-size: 14px; color: var(--bx-ink-2);
+  font-size: calc(14px * var(--bx-scale, 1)); color: var(--bx-ink-2);
   line-height: 1.6;
   max-width: 64ch;
 }
