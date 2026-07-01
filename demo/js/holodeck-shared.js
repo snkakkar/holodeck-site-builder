@@ -192,34 +192,55 @@
   }
 
   // ─── Three-acts (vi-3) overview ───────────────────────────────
-  // Act titles are overridable via storyFoundations.threeActTitles[i]
-  // (editor "Act N title"); descriptions come 1:1 from the moments arrays.
-  function threeActsFor(f) {
+  // The three acts are DERIVED FROM the Journey Map so the two slides can
+  // never drift: the map is the single source of truth. We take the same
+  // bucketActsIntoFive() phases the map renders and GROUP consecutive phases
+  // into exactly 3 acts (title + description come from the grouped phases, so
+  // act copy == map copy). Act titles stay overridable via
+  // storyFoundations.threeActTitles[i] (editor "Act N title") and are clamped
+  // to ≤3-4 words. `acts`/`prods` default to f.__acts/f.__prods when the caller
+  // can't pass them (e.g. editor prefills), so the fallback still renders.
+  //
+  // Grouping by bucket count n (decided): n=5 → [0,1][2,3][4]; n=4 → [0,1][2][3];
+  // n=3 → [0][1][2]. Each act reads its GROUP'S LEAD bucket.
+  const THREE_ACT_DEFAULT_TAGS = [
+    ["Data Cloud", "Email", "Paid Media", "Anonymous → Known"],
+    ["Commerce", "AI Search", "Agentic SMS", "MCP"],
+    ["Agentforce", "Commerce", "Clicks not code", "GA today"],
+  ];
+  const THREE_ACT_DEFAULT_TITLES = ["Know & Reach", "Engage & Recover", "Convert"];
+  function groupBucketsIntoThree(n) {
+    // Return the LEAD bucket index for each of the 3 acts, grouping consecutive
+    // phases. Falls back gracefully for n<3.
+    if (n >= 5) return [0, 2, 4];
+    if (n === 4) return [0, 2, 3];
+    return [0, 1, 2];               // n<=3: 1:1 (indices clamp below)
+  }
+  function threeActsFor(f, acts, prods) {
     f = f || {};
+    acts  = acts  || f.__acts  || [];
+    prods = prods || f.__prods || [];
     const tOv = Array.isArray(f.threeActTitles) ? f.threeActTitles : [];
-    function actTitle(i, def) { return (tOv[i] && String(tOv[i]).trim()) || def; }
-    return [
-      {
-        title: actTitle(0, "Know & Reach"),
-        description: (f.dataCloudMoments && f.dataCloudMoments[0])
-          || "Data Cloud unifies the customer's signals across channels — a foundation for every downstream moment.",
-        tags: ["Data Cloud", "Email", "Paid Media", "Anonymous → Known"],
-      },
-      {
-        title: actTitle(1, "Engage & Recover"),
-        description: (f.commerceMoments && f.commerceMoments[0])
-          || (f.marketingMoments && f.marketingMoments[0])
-          || "Personalized engagement adapts to the customer's intent in real time. Proactive re-engagement closes near-misses.",
-        tags: ["Commerce", "AI Search", "Agentic SMS", "MCP"],
-      },
-      {
-        title: actTitle(2, "Convert"),
-        description: (f.agentforceMoments && f.agentforceMoments[0])
-          || (f.serviceMoments && f.serviceMoments[0])
-          || "An agentic moment closes the loop with the customer.",
-        tags: ["Agentforce", "Commerce", "Clicks not code", "GA today"],
-      },
-    ];
+    const buckets = bucketActsIntoFive(acts, prods);   // 3–5 phases, same as map
+    const lead = groupBucketsIntoThree(buckets.length);
+    return [0, 1, 2].map(function (i) {
+      const b = buckets[Math.min(lead[i], buckets.length - 1)] || null;
+      // Title: author override wins; else the bucket's own (already-punchy)
+      // title, clamped to ≤4 words; else the canonical act default.
+      const derived = b && b.title ? clampWords(b.title, 4, 26) : "";
+      const title = (tOv[i] && String(tOv[i]).trim())
+        || derived
+        || THREE_ACT_DEFAULT_TITLES[i];
+      // Description: the bucket's description (== the map's copy) so the two
+      // slides say the same thing; fall back to the canonical act copy.
+      const description = (b && b.description)
+        || [
+            "Data Cloud unifies the customer's signals across channels — a foundation for every downstream moment.",
+            "Personalized engagement adapts to the customer's intent in real time. Proactive re-engagement closes near-misses.",
+            "An agentic moment closes the loop with the customer.",
+          ][i];
+      return { title: title, description: description, tags: THREE_ACT_DEFAULT_TAGS[i] };
+    });
   }
 
   // ─── Intro vignettes (vi-4..6) ────────────────────────────────
@@ -229,9 +250,9 @@
   // eyebrow stay overridable via storyFoundations.vignetteTitles[i] /
   // vignetteEyebrows[i]; the default eyebrow comes from the act's product
   // tags so it reflects the act's actual products.
-  function vignettesFor(f) {
+  function vignettesFor(f, acts, prods) {
     f = f || {};
-    const acts = threeActsFor(f);
+    const threeActs = threeActsFor(f, acts, prods);
     const eOv = Array.isArray(f.vignetteEyebrows) ? f.vignetteEyebrows : [];
     const vtOv = Array.isArray(f.vignetteTitles) ? f.vignetteTitles : [];
     function ov(arr, i, def) { return (arr[i] && String(arr[i]).trim()) || def; }
@@ -239,7 +260,7 @@
       const t = Array.isArray(tags) ? tags.slice(0, 2) : [];
       return t.length ? t.join(" · ").toUpperCase() : "SALESFORCE";
     }
-    return acts.map(function (act, i) {
+    return threeActs.map(function (act, i) {
       return {
         eyebrow:  ov(eOv, i, eyebrowFromTags(act.tags)),
         title:    ov(vtOv, i, punchyTitle(act.title)),
@@ -663,6 +684,23 @@
   function buildSlideManifest(state, opts) {
     state = state || {};
     const out = [];
+    // Prefill helpers: the three-acts / vignette editor fields must show the
+    // SAME acts the renderer produces, which now derive from the journey
+    // buckets — so we thread the state's storyActs + product list into
+    // threeActsFor/vignettesFor exactly as the adapter/preview do. (`st` is
+    // the full editor state passed to each prefill as its 2nd arg.)
+    function actsFromState(st) {
+      st = st || {};
+      return threeActsFor(st.storyFoundations || {},
+                          st.storyActs || [],
+                          (st.project && st.project.products) || []);
+    }
+    function vignettesFromState(st) {
+      st = st || {};
+      return vignettesFor(st.storyFoundations || {},
+                          st.storyActs || [],
+                          (st.project && st.project.products) || []);
+    }
     // includeDeselected: when true, emit EVERY synthetic slide regardless of
     // selection. The Step-5 selector passes this so deselected slides stay
     // visible (parked) and re-selectable. The runtime/preview/export paths
@@ -746,27 +784,27 @@
             // title + description with the rendered default.
             "Act 1 title":              { path: "storyFoundations.threeActTitles[0]",
                                           prefill: function (sl, st) {
-                                            return threeActsFor((st || {}).storyFoundations || {})[0].title;
+                                            return actsFromState(st)[0].title;
                                           } },
             "Act 1 · Know & Reach":     { path: "storyFoundations.dataCloudMoments[0]",
                                           prefill: function (sl, st) {
-                                            return threeActsFor((st || {}).storyFoundations || {})[0].description;
+                                            return actsFromState(st)[0].description;
                                           } },
             "Act 2 title":              { path: "storyFoundations.threeActTitles[1]",
                                           prefill: function (sl, st) {
-                                            return threeActsFor((st || {}).storyFoundations || {})[1].title;
+                                            return actsFromState(st)[1].title;
                                           } },
             "Act 2 · Engage & Recover": { path: "storyFoundations.commerceMoments[0]",
                                           prefill: function (sl, st) {
-                                            return threeActsFor((st || {}).storyFoundations || {})[1].description;
+                                            return actsFromState(st)[1].description;
                                           } },
             "Act 3 title":              { path: "storyFoundations.threeActTitles[2]",
                                           prefill: function (sl, st) {
-                                            return threeActsFor((st || {}).storyFoundations || {})[2].title;
+                                            return actsFromState(st)[2].title;
                                           } },
             "Act 3 · Convert":          { path: "storyFoundations.agentforceMoments[0]",
                                           prefill: function (sl, st) {
-                                            return threeActsFor((st || {}).storyFoundations || {})[2].description;
+                                            return actsFromState(st)[2].description;
                                           } },
           } });
     [0, 1, 2].forEach(function (i) {
@@ -785,17 +823,17 @@
               ep["Eyebrow (small label above the title)"] =
                 { path: "storyFoundations.vignetteEyebrows[" + i + "]",
                   prefill: function (sl, st) {
-                    return vignettesFor((st || {}).storyFoundations || {})[i].eyebrow;
+                    return vignettesFromState(st)[i].eyebrow;
                   } };
               ep["Title"] =
                 { path: "storyFoundations.vignetteTitles[" + i + "]",
                   prefill: function (sl, st) {
-                    return vignettesFor((st || {}).storyFoundations || {})[i].title;
+                    return vignettesFromState(st)[i].title;
                   } };
               ep[vigLabel] =
                 { path: "storyFoundations." + vigField + "[0]",
                   prefill: function (sl, st) {
-                    return vignettesFor((st || {}).storyFoundations || {})[i].subtitle;
+                    return vignettesFromState(st)[i].subtitle;
                   } };
               return ep;
             })() });

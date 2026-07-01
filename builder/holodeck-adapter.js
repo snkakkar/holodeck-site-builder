@@ -73,8 +73,8 @@
       persona:           buildPersona(persona, project, state),
       journey:           buildJourney(state, f, products, acts),
       customer_narrative: buildCustomerNarrative(project, f),
-      demoStructure:     buildDemoStructure(state, f),
-      vignetteSections:  buildVignetteSections(state, f),
+      demoStructure:     buildDemoStructure(state, f, acts, products),
+      vignetteSections:  buildVignetteSections(state, f, acts, products),
       slides:            buildSlidesStub(state, acts, persona),
       mcpStates:         buildMcpStates(),
       technologies:      buildTechnologies(state, products),
@@ -516,9 +516,9 @@
   // demoStructure + vignettes default copy lives in HOLO_SHARED so
   // the in-builder Step 8 preview shows the same lines the export
   // produces. Adapter just truncates per its slot widths.
-  function buildDemoStructure(state, f) {
-    const acts = SHARED.threeActsFor ? SHARED.threeActsFor(f) : [];
-    return acts.map(function (a) {
+  function buildDemoStructure(state, f, acts, prods) {
+    const threeActs = SHARED.threeActsFor ? SHARED.threeActsFor(f, acts, prods) : [];
+    return threeActs.map(function (a) {
       return {
         title:       a.title,
         description: truncate(a.description, 200),
@@ -526,8 +526,8 @@
       };
     });
   }
-  function buildVignetteSections(state, f) {
-    return SHARED.vignettesFor ? SHARED.vignettesFor(f) : [];
+  function buildVignetteSections(state, f, acts, prods) {
+    return SHARED.vignettesFor ? SHARED.vignettesFor(f, acts, prods) : [];
   }
 
   // ─── slides (Demo deck slide payload) ────────────────────────

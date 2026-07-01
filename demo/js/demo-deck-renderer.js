@@ -662,8 +662,14 @@
       const hasLiveIframe = !hasAssigned && cxComp && cxComp.url && /^https?:\/\//.test(cxComp.url);
       let screenInner;
       if (hasAssigned) {
+        // If the assigned still IS the Instagram ad, route it through the same
+        // adFill path embeddedCxComponent uses (identity check, mirrors L888) so
+        // both slide types size the ad identically: .is-ad-fill fills the 9:19
+        // screen with `contain` — never a divergent per-path crop. A non-ad
+        // still keeps fill:true (.is-fill cover).
+        const isAd = assignedStill === demoAssets.cxInstagramAd;
         screenInner = mediaTile({
-          src: assignedStill, kind: "image", fill: true,
+          src: assignedStill, kind: "image", fill: true, adFill: isAd,
           alt: act.demoMoment || act.title || "Demo moment",
         });
       } else if (hasLiveIframe) {

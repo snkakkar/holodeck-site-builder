@@ -749,10 +749,13 @@
    with cover; generated phone stills are 9:16 so cover barely crops. */
 .dd-phone-screen > .dd-media.is-fill > .dd-media-img,
 .dd-laptop-screen > .dd-media.is-fill > .dd-media-img { object-fit:cover; object-position:top; background:#fff; }
-/* is-ad-fill (Instagram ad): full-bleed top-to-bottom, but the authored 9:19
-   still is a touch wider than the screen — render it slightly thinner (centered)
-   so the sides aren't over-cropped. Overrides the is-fill width above. */
-.dd-phone-screen > .dd-media.is-ad-fill > .dd-media-img { width:94%; margin:0 auto; object-fit:cover; }
+/* is-ad-fill (Instagram ad): the ad is authored full-bleed 9:19 to BE the phone
+   screen (same ratio as the frame). Fill the screen box and `contain` so the
+   WHOLE ad is always visible — brand handle + Shop Now CTA are never cropped,
+   regardless of the exact pixel ratio the generator returns. Any residual ratio
+   mismatch shows as a thin white bar that reads as screen bezel. Deterministic
+   every render; overrides the is-fill cover rule above. */
+.dd-phone-screen > .dd-media.is-ad-fill > .dd-media-img { width:100%; height:100%; object-fit:contain; object-position:center; background:#fff; }
 
 /* ── Phone "screen" content modules ──────────────────────────── */
 .dd-screen { display:flex; flex-direction:column; gap:8px; padding:14px 18px; flex:1; }

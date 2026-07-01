@@ -2558,7 +2558,11 @@
         "with no borders, no margins and no letterbox bars, a small brand handle row at top, " +
         "like/comment/share icons, a 'Sponsored' tag, one short large headline and a Shop Now button" +
         (firstFew(f.commerceMoments, 1).length ? " promoting " + firstFew(f.commerceMoments, 1)[0] : "") +
-        ". Tall 9:19 full-bleed vertical mobile story composition that fills the whole phone screen edge to edge.",
+        ". The composition MUST be an EXACT 9:19 vertical (portrait) aspect ratio to match the phone " +
+        "screen. Keep all critical elements inside a center-safe area: the brand handle at top and the " +
+        "Shop Now button at bottom must sit within a comfortable margin from every edge (not flush to the " +
+        "edges) so nothing important is clipped if the screen letterboxes. Tall 9:19 full-bleed vertical " +
+        "mobile story composition that fills the whole phone screen edge to edge.",
       "cxShopperAgent": UI_ART + " A shopping/commerce assistant chat screen on a phone" +
         (customer ? " for \"" + customer + "\"" : "") +
         ". Header with an agent name, two or three short chat bubbles, and a horizontal row of product " +

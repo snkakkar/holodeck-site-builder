@@ -1750,7 +1750,7 @@
     // Reads HOLO_SHARED.threeActsFor() — same source the adapter's
     // buildDemoStructure() uses, so preview = export.
     introThreeActs: function (data, mode) {
-      const acts = SHARED.threeActsFor ? SHARED.threeActsFor(data.foundations) : [];
+      const acts = SHARED.threeActsFor ? SHARED.threeActsFor(data.foundations, data.acts || [], data.products || []) : [];
       const root = el("div", { class: "hp hp-three-acts" });
       root.appendChild(el("div", { class: "hp-eyebrow", text: fOr(data, "threeActsEyebrow", "What you'll see today") }));
       root.appendChild(el("h3", { class: "hp-h3", text: fOr(data, "threeActsHeadline", "Three acts. One agentic journey.") }));
@@ -1771,7 +1771,7 @@
     // polished template's three vignette rows.
     introVignette: function (data, mode) {
       const idx = (data.slide && data.slide.runtimeIndex) || 0;
-      const list = SHARED.vignettesFor ? SHARED.vignettesFor(data.foundations) : [];
+      const list = SHARED.vignettesFor ? SHARED.vignettesFor(data.foundations, data.acts || [], data.products || []) : [];
       const v = list[idx] || list[0] || { eyebrow: "DATA CLOUD", title: "Know & Reach", subtitle: "" };
       const root = el("div", { class: "hp hp-vignette" });
       root.appendChild(el("div", { class: "hp-eyebrow", text: v.eyebrow }));
