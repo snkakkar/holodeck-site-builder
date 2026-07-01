@@ -652,9 +652,6 @@
       const linkedCx = (s.linkedCxComponentIds || []).map(cxById).filter(Boolean);
       const cxComp = linkedCx[0] || null;
       const assignedStill = (s.imageSlot && demoAssets[s.imageSlot]) || "";
-      const globalStill = isMobile
-        ? (demoAssets.cxInstagramAd || demoAssets.cxShopperAgent || demoAssets.cxTextConvo || demoAssets.iPhoneRec)
-        : (demoAssets.laptopBrowsingGif || demoAssets.webBrowseGif);
       // When the slide carries REAL media — an explicitly assigned still or a
       // live CX iframe — fill the device screen edge-to-edge with just that
       // media (like the Agent Conversation phone), dropping the skeleton
@@ -682,8 +679,13 @@
             if (act.demoMoment) return SHARED.oneSentence  ? SHARED.oneSentence(act.demoMoment, 42) : act.demoMoment;
             return s.title || "Moment";
           })() }),
+          // Deterministic empty state: render the neutral skeleton cue, NOT a
+          // borrowed global CX still. An ad/screenshot appears in the phone ONLY
+          // when explicitly assigned to THIS slide (the hasAssigned branch above)
+          // or via a linked CX iframe — never because some other deck asset
+          // (e.g. demoAssets.cxInstagramAd) happens to exist.
           mediaTile({
-            src: globalStill,
+            src: "",
             kind: "gif",
             alt: act.demoMoment || act.title || "Demo moment",
             cue: "Add a screen recording or still in Step 7",
@@ -741,8 +743,13 @@
         const out = SHARED && SHARED.cleanHeadline ? SHARED.cleanHeadline(clamped, max || 56) : truncate(clamped, max || 56);
         return out || fb;
       };
+      // Sub-lines must read as a COMPLETE thought — oneSentence stops at the
+      // first .?! and the generous char budget (150) means a normal sentence
+      // fits whole with NO mid-sentence "…". The row's CSS 2-line clamp bounds
+      // any genuinely long sentence visually (clean line-end trim), so the
+      // underlying text is never fragmented.
       const tSub = function (v, max, fb) {
-        const out = SHARED && SHARED.oneSentence ? SHARED.oneSentence(v, max || 70) : truncate(v, max || 70);
+        const out = SHARED && SHARED.oneSentence ? SHARED.oneSentence(v, max || 150) : truncate(v, max || 150);
         return out || fb;
       };
       // Icons derive from the act's channel (semantic, story-driven) rather than
@@ -770,24 +777,24 @@
       const rows = [
         { eyebrow:"When",              icon:"🗓️",
           title: act.timing || act.month || "Opening",
-          sub:   act.location || tSub(act.summary, 60, "The opening moment") },
+          sub:   act.location || tSub(act.summary, 150, "The opening moment") },
         { eyebrow:"The moment",        icon: ic(act.channel),
           // Contextual precedence: a real (non-mechanical) act title first, then
           // the opening clause of the narrative summary, then demoMoment. The
           // raw scene label is no longer a title source. Sub carries the fuller
           // narrative so title + sub don't echo the same clause.
           title: tTitle(goodTitle(act) || narrativeTitle(act), 46, "The key moment"),
-          sub:   tSub(act.demoMoment || act.summary, 70, "Where the story begins") },
+          sub:   tSub(act.demoMoment || act.summary, 150, "Where the story begins") },
         hasNext
           ? { eyebrow:"What happens next", icon: ic(sceneNext.channel || act.channel),
               title: tTitle(goodTitle(sceneNext) || narrativeTitle(sceneNext) || act.salesforceCapabilities, 46, "What happens next"),
-              sub:   tSub(sceneNext.demoMoment || sceneNext.summary, 70, "The story continues") }
+              sub:   tSub(sceneNext.demoMoment || sceneNext.summary, 150, "The story continues") }
           : { eyebrow:"Where it leads",    icon: ic(act.channel),
               title: tTitle(act.salesforceCapabilities || act.businessValue, 42, "Where it leads"),
-              sub:   tSub(act.businessValue || f.executiveTakeaway, 70, "The story continues") },
+              sub:   tSub(act.businessValue || f.executiveTakeaway, 150, "The story continues") },
         { eyebrow:"Why it matters",    icon:"🎯",
           title: tTitle(act.businessValue || f.executiveTakeaway, 42, "Why it matters"),
-          sub:   tSub(f.businessProblem || f.executiveTakeaway, 70, "The outcome that counts") },
+          sub:   tSub(f.businessProblem || f.executiveTakeaway, 150, "The outcome that counts") },
       ];
       return [
         el("div", { class: "dd-scene" }, [
@@ -1180,7 +1187,7 @@
     // Let the GRID divide the width; just cap + center the wrapper. No computed
     // px width (the old n*200px min-width forced a narrow track that collapsed).
     const wrapStyle = "max-width:min(100%, 980px);margin-left:auto;margin-right:auto;";
-    const rowStyle = "grid-template-columns:repeat(" + n + ",minmax(0,1fr));";
+    const rowStyle = "grid-template-columns:repeat(" + n + ",minmax(0,1fr));grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);";
     const nodes = milestones.map(function (m, i) {
       // single → all above; alternating → even index above, odd below.
       return timelineNode(m, single ? "above" : (i % 2 === 0 ? "above" : "below"));
@@ -1189,8 +1196,11 @@
       class: "dd-jt dd-jt-cols" + (single ? " dd-jt-single" : " dd-jt-alt") + " dd-jt-n" + n,
       style: wrapStyle,
     }, [
-      el("div", { class: "dd-jt-track" }),
-      el("div", { class: "dd-jt-row", style: rowStyle }, nodes),
+      // The connector line lives INSIDE the row (its positioning context) so its
+      // top:50% resolves against the fixed-height nodes — the true dot-band center
+      // — instead of the wrapper's asymmetrically-padded box. This lands every dot
+      // (hero and non-hero) exactly on the line.
+      el("div", { class: "dd-jt-row", style: rowStyle }, [el("div", { class: "dd-jt-track" })].concat(nodes)),
     ]);
   }
 
