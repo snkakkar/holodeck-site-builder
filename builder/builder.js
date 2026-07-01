@@ -1808,6 +1808,37 @@
     renderMain(); commit();
   }
 
+  // Move a slide up/down WITHIN its section in the manifest order. The polished
+  // /demo renders sections in a fixed order, so reorder never crosses sections.
+  // state.slideOrder is the persisted id list; seed it from the current runtime
+  // manifest order (what the SE sees) the first time they reorder, then swap the
+  // target with its in-section neighbor.
+  function moveSlideInOrder(id, delta) {
+    const manifest = (PREVIEW.enumerateRuntimeSlides
+      ? PREVIEW.enumerateRuntimeSlides(app.state)
+      : (app.state.slides || []));
+    // Seed / refresh the order from the current displayed sequence.
+    let order = Array.isArray(app.state.slideOrder) && app.state.slideOrder.length
+      ? app.state.slideOrder.slice()
+      : manifest.map(function (sl) { return sl.id; });
+    // Ensure every currently-shown slide is represented (append any newcomers).
+    manifest.forEach(function (sl) { if (order.indexOf(sl.id) < 0) order.push(sl.id); });
+
+    const secOf = {};
+    manifest.forEach(function (sl) { secOf[sl.id] = sl.sectionId || "demo"; });
+
+    const i = order.indexOf(id);
+    if (i < 0) return;
+    // Find the nearest neighbor in the SAME section in the move direction.
+    let j = i + delta;
+    while (j >= 0 && j < order.length && secOf[order[j]] !== secOf[id]) j += delta;
+    if (j < 0 || j >= order.length || secOf[order[j]] !== secOf[id]) return; // no in-section neighbor
+    const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+
+    app.state.slideOrder = order;
+    renderMain(); renderSide(); commit();
+  }
+
   // ─── STEP 3: CX COMPONENTS (AubreyDemo) ───────────────────────
   function viewCxComponents() {
     const wrap = el("div");
@@ -3565,6 +3596,20 @@
       row.appendChild(el("span", { class: "bx-rec-hidden-tag", text: "Hidden from deck" }));
     }
 
+    // Reorder controls (only for slides that will actually render). Reorder is
+    // within-section — moveSlideInOrder enforces that. Buttons stop propagation
+    // so they don't toggle the card's select-on-click label.
+    if (isOn) {
+      const reorder = el("div", { class: "bx-rec-reorder" });
+      const up = upBtn(function (e) { e.stopPropagation(); moveSlideInOrder(r.id, -1); });
+      const dn = downBtn(function (e) { e.stopPropagation(); moveSlideInOrder(r.id, 1); });
+      up.setAttribute("title", "Move up (within section)");
+      dn.setAttribute("title", "Move down (within section)");
+      reorder.appendChild(up);
+      reorder.appendChild(dn);
+      row.appendChild(reorder);
+    }
+
     body.appendChild(row);
     body.appendChild(el("div", { class: "bx-rec-why", text: r.rationale || "Suggested based on your inputs." }));
 
@@ -3902,12 +3947,14 @@
       handlers.onEdit = function (s, anchorBtn) {
         openSlideTextPopover(s, anchorBtn);
       };
+      // Move works for ALL slides (including synthetic/manifest) via the
+      // section-scoped slideOrder. Remove stays limited to real state.slides.
+      handlers.onMoveUp   = function (id) { moveSlideInOrder(id, -1); };
+      handlers.onMoveDown = function (id) { moveSlideInOrder(id, 1); };
       if (!slide.synthetic) {
-        handlers.onMoveUp   = function (id) { moveItem(app.state.slides, id, -1); renderSide(); };
-        handlers.onMoveDown = function (id) { moveItem(app.state.slides, id, 1); renderSide(); };
         handlers.onRemove   = function (id) {
           app.state.slides = app.state.slides.filter(function (x) { return x.id !== id; });
-          renderMain(); renderSide(); commit();
+          renderMain(); commit();
         };
       }
       return PREVIEW.renderPreviewCard(slide, app.state, handlers);
@@ -4066,6 +4113,20 @@
       if (b.id === "slide-executive-takeaway" && a.id !== "slide-executive-takeaway") return -1;
       return b.priority - a.priority;
     });
+
+    // Honor the SE's manual reorder (state.slideOrder) for the demo slides: a
+    // stable re-sort by slideOrder index. Ids absent from slideOrder keep the
+    // priority order above (ranked Infinity → tail). Keeps preview↔export in
+    // lock-step with buildSlideManifest, which applies the same order.
+    if (Array.isArray(s.slideOrder) && s.slideOrder.length) {
+      const rank = {};
+      s.slideOrder.forEach(function (id, i) { rank[id] = i; });
+      ordered.sort(function (a, b) {
+        const ra = (a.id in rank) ? rank[a.id] : Infinity;
+        const rb = (b.id in rank) ? rank[b.id] : Infinity;
+        return ra - rb;
+      });
+    }
 
     // Build map of slide.id -> [cxComponentId] from explicit user links.
     // Components without a linkedSlideIds entry fall back to "first embedded slot".

@@ -37,6 +37,23 @@
     if (out.length > max) out = out.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
     return out;
   }
+  // Clamp to at most maxWords words (and optionally maxChars). Used for the
+  // journey-timeline milestones, which must stay VERY short: titles ≤ 3-4
+  // words, sub-lines ≤ 15-20 words. Adds an ellipsis only when it actually cut.
+  function clampWords(s, maxWords, maxChars) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    if (!s) return "";
+    const words = s.split(" ");
+    let cut = words.length > maxWords;
+    let out = words.slice(0, maxWords).join(" ");
+    if (maxChars && out.length > maxChars) {
+      out = out.slice(0, maxChars - 1).replace(/\s+\S*$/, "");
+      cut = true;
+    }
+    // Drop a trailing connector/punctuation before appending the ellipsis.
+    out = out.replace(/[\s,;:–—-]+$/, "");
+    return cut ? out + "…" : out;
+  }
   function shortenTitle(s) {
     s = String(s || "").replace(/\s+/g, " ").trim();
     if (s.length > 22) s = s.slice(0, 22).replace(/\s+\S*$/, "");
@@ -66,7 +83,15 @@
   // canonical stage name (PHASE_TITLES) instead of echoing "ACT N".
   function isGenericTitle(t) {
     t = String(t || "").trim();
-    return !t || /^act\s*\d/i.test(t) || isHeaderTitle(t);
+    // Also reject mechanical SCENE LABELS ("Split-Screen 1: …", "Screen 1 – …",
+    // "Slide 2", "Scene 3", "Frame 1", "Panel 2 …"). These are production
+    // shot-list labels, not customer-facing narrative — they should never leak
+    // into a slide row title. The renderer falls back to the act's contextual
+    // fields (summary / demoMoment) when a title is generic.
+    return !t
+      || /^act\s*\d/i.test(t)
+      || /^(?:split[- ]?screen|screen|slide|scene|frame|panel|shot|view)\s*\d/i.test(t)
+      || isHeaderTitle(t);
   }
   function titleCase(s) {
     return String(s || "").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
@@ -796,46 +821,6 @@
                                          return t.trim() || "A connected journey";
                                        } },
           } });
-    // Journey timeline (above/below-the-line milestones). Recommended (not
-    // required) so SEs can trim it. Its editor only surfaces when the slide
-    // is kept. Timeline events live in storyFoundations.timelineEvents — a
-    // dedicated override array so the timeline editor never mutates
-    // storyActs (which demoMap + scenePhoto also read).
-    add({ id: "_rt_journey_timeline", synthetic: true, sectionId: "journey-map",
-          layout: "journeyTimeline", title: "Journey timeline",
-          editorPaths: {
-            "Eyebrow (small label above the title)":
-                                  { path: "storyFoundations.journeyTimelineEyebrow",
-                                    prefill: function () { return "The Customer Journey"; } },
-            "Headline":           { path: "storyFoundations.journeyTimelineHeadline",
-                                    prefill: function () { return "One journey. Every channel. Always personal."; } },
-            "Sub-line":           { path: "storyFoundations.journeyTimelineSub",
-                                    prefill: function (sl, st) {
-                                      st = st || {};
-                                      const t = (st.storyFoundations && st.storyFoundations.transformationThesis) || "";
-                                      return t.trim() || "From one moment, AI turns identity into months of personalized engagement.";
-                                    } },
-            // Timeline events — resolves to the dynamic list-objects editor
-            // (add / remove / reorder + per-row icon picker). Blank = fall
-            // back to storyActs at render time, so legacy projects are
-            // unchanged. Prefill seeds the rows from storyActs so the SE
-            // edits real moments instead of an empty list.
-            "Timeline events":    { path: "storyFoundations.timelineEvents",
-                                    prefill: function (sl, st) {
-                                      st = st || {};
-                                      const acts = (st.storyActs || []).slice(0, 7);
-                                      const months = ["DEC","JAN","FEB","MAR","APR","MAY","JUN","JUL"];
-                                      return acts.map(function (a, i) {
-                                        return {
-                                          month:   a.timing || months[i] || "",
-                                          label:   a.title || a.demoMoment || ("Moment " + (i + 1)),
-                                          sub:     a.channel || "",
-                                          channel: a.channel || "",
-                                          icon:    "",
-                                        };
-                                      });
-                                    } },
-          } });
 
     // MEET PERSONA ─ mr-1 intro, mr-2 spotlight, mr-3 wishlist, mr-4 CTA
     add({ id: "_rt_persona_intro", synthetic: true, sectionId: "meet-persona",
@@ -969,6 +954,49 @@
               "Persona name":  "personas[0].name",
             } });
     }
+    // Journey timeline (above/below-the-line milestones). Lives in the DEMO
+    // section — emitted FIRST (right after the chapter opener, before the
+    // authored demo slides) so it lands ahead of the Agent Moments slide.
+    // Recommended (not required) so SEs can trim it via the Step-5 gate; its
+    // editor only surfaces when kept. Timeline events live in
+    // storyFoundations.timelineEvents — a dedicated override array so the
+    // timeline editor never mutates storyActs (which demoMap + scenePhoto read).
+    add({ id: "_rt_journey_timeline", synthetic: true, sectionId: "demo",
+          layout: "journeyTimeline", title: "Journey timeline",
+          editorPaths: {
+            "Eyebrow (small label above the title)":
+                                  { path: "storyFoundations.journeyTimelineEyebrow",
+                                    prefill: function () { return "The Customer Journey"; } },
+            "Headline":           { path: "storyFoundations.journeyTimelineHeadline",
+                                    prefill: function () { return "One journey. Every channel. Always personal."; } },
+            "Sub-line":           { path: "storyFoundations.journeyTimelineSub",
+                                    prefill: function (sl, st) {
+                                      st = st || {};
+                                      const t = (st.storyFoundations && st.storyFoundations.transformationThesis) || "";
+                                      return t.trim() || "From one moment, AI turns identity into months of personalized engagement.";
+                                    } },
+            // Timeline events — resolves to the dynamic list-objects editor
+            // (add / remove / reorder + per-row icon picker). Blank = fall
+            // back to storyActs at render time, so legacy projects are
+            // unchanged. Prefill seeds the rows from storyActs so the SE
+            // edits real moments instead of an empty list.
+            "Timeline events":    { path: "storyFoundations.timelineEvents",
+                                    prefill: function (sl, st) {
+                                      st = st || {};
+                                      const acts = (st.storyActs || []).slice(0, 7);
+                                      const months = ["DEC","JAN","FEB","MAR","APR","MAY","JUN","JUL"];
+                                      return acts.map(function (a, i) {
+                                        return {
+                                          // Short & sweet: title ≤ 4 words, sub ≤ 20 words.
+                                          month:   a.timing || months[i] || "",
+                                          label:   clampWords(a.title || a.demoMoment || ("Moment " + (i + 1)), 4, 28),
+                                          sub:     clampWords(a.channel || "", 20, 130),
+                                          channel: a.channel || "",
+                                          icon:    "",
+                                        };
+                                      });
+                                    } },
+          } });
     demoSlides.forEach(function (sl) {
       out.push(Object.assign({ assets: [], capabilities: [] }, sl, { sectionId: "demo" }));
     });
@@ -1036,7 +1064,59 @@
             "Executive takeaway": "storyFoundations.executiveTakeaway",
           } });
 
+    // Apply the SE's manual reorder (state.slideOrder = array of slide ids).
+    // Reorder is WITHIN a section only — the polished /demo renders sections in
+    // a fixed order, so we keep each section's block in place and re-sort the
+    // slides inside it by their index in slideOrder. Ids absent from slideOrder
+    // keep their natural (manifest) position at the end of their section.
+    const order = state.slideOrder;
+    if (Array.isArray(order) && order.length) {
+      const rank = {};
+      order.forEach(function (id, i) { rank[id] = i; });
+      // Section appearance order = first time each section shows up in `out`.
+      const sectionSeq = [];
+      out.forEach(function (sl) {
+        const sec = sl.sectionId || "demo";
+        if (sectionSeq.indexOf(sec) < 0) sectionSeq.push(sec);
+      });
+      const reordered = [];
+      sectionSeq.forEach(function (sec) {
+        const block = out.filter(function (sl) { return (sl.sectionId || "demo") === sec; });
+        // Synthetic slides (e.g. the journey timeline) are NOT in slideOrder
+        // and must NOT be dragged to the tail of the block — they're emitted at
+        // a deliberate position (timeline first, before Agent Moments). So we
+        // reorder ONLY the ranked (authored) slides among themselves, and leave
+        // every unranked slide pinned to its original slot. Walking the block in
+        // place: unranked slots stay put; ranked slots are refilled in ascending
+        // slideOrder rank.
+        const rankedSorted = block
+          .filter(function (sl) { return sl.id in rank; })
+          .sort(function (a, b) { return rank[a.id] - rank[b.id]; });
+        let ri = 0;
+        block.forEach(function (sl) {
+          reordered.push((sl.id in rank) ? rankedSorted[ri++] : sl);
+        });
+      });
+      return reordered;
+    }
+
     return out;
+  }
+
+  // Demo-section slide list for EXPORT (builderPlan.slides). The exported
+  // /demo renderer walks builderPlan.slides and renders each demo-section
+  // entry — but builderPlan historically carried only state.slides, so
+  // synthetic demo slides (the journey timeline) and the SE's manual reorder
+  // (state.slideOrder) never reached the export. Derive the demo block from
+  // the manifest instead: it already injects the synthetic journey-timeline
+  // FIRST, honors the Step-5 selection gate, and applies slideOrder. We drop
+  // the auto chapter-opener here because the demo renderer injects its own
+  // (ensureChapterOpener), so keeping it would double it up.
+  function demoSlidesForExport(state) {
+    const manifest = buildSlideManifest(state || {});
+    return manifest.filter(function (sl) {
+      return (sl.sectionId || "demo") === "demo" && sl.layout !== "chapterOpener";
+    });
   }
 
   // ─── Demo-section SE layouts (shared preview ↔ export) ───────
@@ -1271,6 +1351,7 @@
     truncate:                truncate,
     cleanHeadline:           cleanHeadline,
     oneSentence:             oneSentence,
+    clampWords:              clampWords,
     shortenTitle:            shortenTitle,
     isHeaderTitle:           isHeaderTitle,
     isGenericTitle:          isGenericTitle,
@@ -1320,5 +1401,6 @@
     emojiForIndustry:        emojiForIndustry,
     // slide manifest
     buildSlideManifest:      buildSlideManifest,
+    demoSlidesForExport:     demoSlidesForExport,
   };
 })(typeof window !== "undefined" ? window : globalThis);

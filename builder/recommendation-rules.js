@@ -988,7 +988,7 @@
       storyFoundation:     "intro",
       currentFutureState:  "intro",
       futureState:         "intro",
-      journeyTimeline:     "journey-map",
+      journeyTimeline:     "demo",
       demoMap:             "journey-map",
       scenePhoto:          "demo",
       storyInterstitial:   "demo",

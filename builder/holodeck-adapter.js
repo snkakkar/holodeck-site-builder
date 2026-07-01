@@ -536,8 +536,28 @@
   // can't generate that level of detail. We emit a deckOutline-shaped
   // slides[] so the legacy renderer at least has structure, and we
   // mark with [TODO:] for the SE.
+  // Stable re-sort of state.slides by the SE's manual reorder
+  // (state.slideOrder = array of slide ids). Ids absent from slideOrder keep
+  // their relative order at the tail. Mirrors buildSlideManifest / preview.
+  function orderSlides(state) {
+    const slides = (state.slides || []).slice();
+    const order = state.slideOrder;
+    if (Array.isArray(order) && order.length) {
+      const rank = {};
+      order.forEach(function (id, i) { rank[id] = i; });
+      slides.sort(function (a, b) {
+        const ra = (a.id in rank) ? rank[a.id] : Infinity;
+        const rb = (b.id in rank) ? rank[b.id] : Infinity;
+        return ra - rb;
+      });
+    }
+    return slides;
+  }
+
   function buildSlidesStub(state, acts, persona) {
-    const slides = state.slides || [];
+    // Honor the SE's manual reorder (state.slideOrder) here too so the legacy
+    // slides[] stub matches builderPlan.slides ordering.
+    const slides = orderSlides(state);
     if (!slides.length) {
       return [{
         type:     "title",
@@ -703,7 +723,9 @@
       "vi-4":  on("_rt_intro_vig_0"),
       "vi-5":  on("_rt_intro_vig_1"),
       "vi-6":  on("_rt_intro_vig_2"),
-      "sec-map": on("_rt_journey_matrix"),
+      // Journey map is a REQUIRED manifest slide — never gate it off, even if a
+      // stale selectedRecIds carries _rt_journey_matrix:false from an older project.
+      "sec-map": true,
       "mr-1":  on("_rt_persona_intro"),
       "mr-2":  on("_rt_persona_card"),
       "mr-3":  on("_rt_persona_wishlist"),
@@ -942,37 +964,55 @@
       cxComponents:     cxAll,
       assetLibrary:     state.assetLibrary || {},
       slideSections:    state.slideSections || [],
-      slides:           (state.slides || []).map(function (s, i) {
-        const explicitCx = explicitBySlide[s.id] || [];
-        // Merge: explicit links win, but preserve any pre-existing
-        // linkedCxComponentIds (e.g. for native embeddedCxComponent
-        // slides whose links were stamped earlier without going
-        // through the explicit picker).
-        const mergedCx = explicitCx.length
-          ? explicitCx
-          : (s.linkedCxComponentIds || []);
-        const promotedLayout = (explicitCx.length || s.layout === "embeddedCxComponent")
-          ? "embeddedCxComponent"
-          : s.layout;
-        return {
-          order: i + 1, id: s.id, title: s.title, layout: promotedLayout,
-          sectionId: s.sectionId || "",
-          selectionStatus: s.selectionStatus || "",
-          selectionRationale: s.selectionRationale || "",
-          capabilities: s.capabilities || [],
-          persona: s.persona || null,
-          linkedCxComponentIds: mergedCx,
-          deviceFrame: s.deviceFrame || "",
-          speakerNotes: s.speakerNotes || "",
-          // Per-slide narrative copy for the storyInterstitial layout (and any
-          // future per-slide-text layouts). Harmless/empty for other layouts;
-          // must round-trip so the exported /demo deck matches the preview.
-          kicker:   s.kicker   || "",
-          headline: s.headline || "",
-          sub:      s.sub      || "",
-          imageSlot: s.imageSlot || "",
-        };
-      }),
+      // The exported /demo Demo section renders builderPlan.slides. Two things
+      // never used to reach it: the synthetic journey timeline (manifest-only)
+      // and the SE's manual reorder (state.slideOrder). Derive the demo-section
+      // entries from the shared manifest helper — it injects the timeline FIRST
+      // (before Agent Moments), honors the Step-5 selection gate, and applies
+      // slideOrder. Non-demo authored slides pass through raw.
+      slides:           (function () {
+        const SHARED = (typeof global !== "undefined" && global.HOLO_SHARED) ||
+                       (typeof window !== "undefined" && window.HOLO_SHARED) || null;
+        const demoOrdered = (SHARED && SHARED.demoSlidesForExport)
+          ? SHARED.demoSlidesForExport(state)
+          : (state.slides || []).filter(function (s) {
+              return !s.sectionId || s.sectionId === "demo";
+            });
+        const nonDemo = (state.slides || []).filter(function (s) {
+          return s.sectionId && s.sectionId !== "demo";
+        });
+        return nonDemo.concat(demoOrdered).map(function (s, i) {
+          const explicitCx = explicitBySlide[s.id] || [];
+          // Merge: explicit links win, but preserve any pre-existing
+          // linkedCxComponentIds (e.g. for native embeddedCxComponent
+          // slides whose links were stamped earlier without going
+          // through the explicit picker).
+          const mergedCx = explicitCx.length
+            ? explicitCx
+            : (s.linkedCxComponentIds || []);
+          const promotedLayout = (explicitCx.length || s.layout === "embeddedCxComponent")
+            ? "embeddedCxComponent"
+            : s.layout;
+          return {
+            order: i + 1, id: s.id, title: s.title, layout: promotedLayout,
+            sectionId: s.sectionId || "demo",
+            selectionStatus: s.selectionStatus || "",
+            selectionRationale: s.selectionRationale || "",
+            capabilities: s.capabilities || [],
+            persona: s.persona || null,
+            linkedCxComponentIds: mergedCx,
+            deviceFrame: s.deviceFrame || "",
+            speakerNotes: s.speakerNotes || "",
+            // Per-slide narrative copy for the storyInterstitial layout (and any
+            // future per-slide-text layouts). Harmless/empty for other layouts;
+            // must round-trip so the exported /demo deck matches the preview.
+            kicker:   s.kicker   || "",
+            headline: s.headline || "",
+            sub:      s.sub      || "",
+            imageSlot: s.imageSlot || "",
+          };
+        });
+      })(),
     };
   }
 

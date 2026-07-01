@@ -172,25 +172,44 @@
             };
           }),
           slideSections:    state.slideSections || [],
-          slides:     (state.slides || []).map(function (s, i) {
-            const explicitCx = explicitBySlide[s.id] || [];
-            const mergedCx = explicitCx.length ? explicitCx : (s.linkedCxComponentIds || []);
-            const promotedLayout = (explicitCx.length || s.layout === "embeddedCxComponent")
-              ? "embeddedCxComponent"
-              : s.layout;
-            return {
-              order: i + 1, id: s.id, title: s.title, layout: promotedLayout,
-              sectionId: s.sectionId || layoutSection(promotedLayout),
-              selectionStatus: s.selectionStatus || "",
-              selectionRationale: s.selectionRationale || "",
-              readinessStatus: s.readinessStatus || "",
-              capabilities: s.capabilities || [], persona: s.persona || null,
-              linkedCxComponentIds: mergedCx,
-              deviceFrame: s.deviceFrame || "",
-              speakerNotes: s.speakerNotes || "",
-              missingInputs: s.missingInputs || [],
-            };
-          }),
+          // The exported /demo Demo section renders builderPlan.slides. Two
+          // things historically never reached it: the synthetic journey
+          // timeline (it lives only in the manifest) and the SE's manual
+          // reorder (state.slideOrder). Derive the demo-section entries from
+          // the shared manifest helper — it injects the timeline FIRST (before
+          // Agent Moments), honors the Step-5 selection gate, and applies
+          // slideOrder. Non-demo slides (if any authored) pass through raw so
+          // other sections are unaffected.
+          slides:     (function () {
+            const SHARED = global.HOLO_SHARED || {};
+            const demoOrdered = SHARED.demoSlidesForExport
+              ? SHARED.demoSlidesForExport(state)
+              : (state.slides || []).filter(function (s) {
+                  return !s.sectionId || s.sectionId === "demo";
+                });
+            const nonDemo = (state.slides || []).filter(function (s) {
+              return s.sectionId && s.sectionId !== "demo";
+            });
+            return nonDemo.concat(demoOrdered).map(function (s, i) {
+              const explicitCx = explicitBySlide[s.id] || [];
+              const mergedCx = explicitCx.length ? explicitCx : (s.linkedCxComponentIds || []);
+              const promotedLayout = (explicitCx.length || s.layout === "embeddedCxComponent")
+                ? "embeddedCxComponent"
+                : s.layout;
+              return {
+                order: i + 1, id: s.id, title: s.title, layout: promotedLayout,
+                sectionId: s.sectionId || layoutSection(promotedLayout),
+                selectionStatus: s.selectionStatus || "",
+                selectionRationale: s.selectionRationale || "",
+                readinessStatus: s.readinessStatus || "",
+                capabilities: s.capabilities || [], persona: s.persona || null,
+                linkedCxComponentIds: mergedCx,
+                deviceFrame: s.deviceFrame || "",
+                speakerNotes: s.speakerNotes || "",
+                missingInputs: s.missingInputs || [],
+              };
+            });
+          })(),
         };
       })(),
     };

@@ -839,6 +839,9 @@ button { font-family: inherit; }
 .bx-rec-detail-value { color: var(--bx-ink); }
 .bx-rec-body { flex: 1; min-width: 0; }
 .bx-rec-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Reorder ▲/▼ cluster: pushed to the right edge of the rec row. */
+.bx-rec-reorder { display: inline-flex; gap: 4px; margin-left: auto; }
+.bx-rec-reorder .bx-mini-btn { padding: 2px 8px; line-height: 1.2; }
 .bx-rec-title {
   font-size: 13px; font-weight: 700; color: var(--bx-navy);
 }

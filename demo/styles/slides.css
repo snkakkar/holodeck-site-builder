@@ -749,6 +749,10 @@
    with cover; generated phone stills are 9:16 so cover barely crops. */
 .dd-phone-screen > .dd-media.is-fill > .dd-media-img,
 .dd-laptop-screen > .dd-media.is-fill > .dd-media-img { object-fit:cover; object-position:top; background:#fff; }
+/* is-ad-fill (Instagram ad): full-bleed top-to-bottom, but the authored 9:19
+   still is a touch wider than the screen — render it slightly thinner (centered)
+   so the sides aren't over-cropped. Overrides the is-fill width above. */
+.dd-phone-screen > .dd-media.is-ad-fill > .dd-media-img { width:94%; margin:0 auto; object-fit:cover; }
 
 /* ── Phone "screen" content modules ──────────────────────────── */
 .dd-screen { display:flex; flex-direction:column; gap:8px; padding:14px 18px; flex:1; }
@@ -986,42 +990,60 @@
 .dd-twostate-text { font-size:15.5px; line-height:1.5; color:var(--navy, #0d1b2e); }
 .dd-twostate-arrow { color:#fff; font-size:22px; align-self:center; padding:6px 0; opacity:.55; }
 
-/* ── Journey Timeline (above + track + below) ────────────────── */
+/* ── Journey Timeline (equal columns · alternating above/below) ──
+   ONE row of N nodes, each an equal 1/N column (flex:1 1 0), so milestones are
+   ALWAYS evenly spaced regardless of count. The track line is absolutely
+   centered behind the row; each node pins its dot to that center line and grows
+   its copy up (.dd-jt-above) or down (.dd-jt-below). */
 .dd-jt {
   position:relative;
   padding:16px 56px 56px;
-  display:flex; flex-direction:column; align-items:stretch; gap:0;
 }
-.dd-jt-row { display:flex; justify-content:space-around; align-items:center; gap:12px; padding:0 28px; min-height:80px; }
-/* Few-event (≤3) timelines render a single row of milestones above one track,
-   evenly spread so 2 events read as two spaced nodes — not a vertical stack. */
-.dd-jt-single .dd-jt-row { justify-content:space-evenly; gap:40px; }
-.dd-jt-single .dd-jt-node { max-width:200px; }
-.dd-jt-above { align-items:flex-end; }
-.dd-jt-below { align-items:flex-start; }
+/* Center track line — full width, behind the nodes, vertically centered. */
 .dd-jt-track {
-  height:2px;
+  position:absolute;
+  left:56px; right:56px; top:50%;
+  height:2px; transform:translateY(-1px);
   background: linear-gradient(90deg, var(--red, #b22234) 0%, rgba(var(--blue-rgb, 26,95,160), .7) 50%, rgba(var(--gold-rgb, 245,192,106), .4) 100%);
-  position:relative; margin: 0 28px;
 }
-.dd-jt-node { flex:1 1 0; display:flex; flex-direction:column; align-items:center; text-align:center; max-width:140px; gap:4px; }
+.dd-jt-row {
+  position:relative;
+  display:flex; align-items:stretch; gap:12px;
+  height:220px;
+}
+/* Equal columns: every node takes an identical slice of the row width. The
+   node fills the full row height and is a positioning context; the dot pins to
+   the vertical center (the track line) and the copy stacks into the top or
+   bottom half via absolute positioning — so copy length never nudges the dot
+   off the line. */
+.dd-jt-node {
+  flex:1 1 0; min-width:0; max-width:none;
+  position:relative;
+}
+/* Dot — always centered on the track line for every node. */
+.dd-jt-dot {
+  position:absolute; top:50%; left:50%;
+  width:12px; height:12px; margin:-6px 0 0 -6px;
+  border-radius:50%; background:#f5f7ff;
+  border:2px solid rgba(var(--navy-rgb, 13,27,46), .25);
+  z-index:1;
+}
+/* Copy block: a centered column, half the node, pinned above or below center. */
+.dd-jt-copy {
+  position:absolute; left:0; right:0;
+  display:flex; flex-direction:column; align-items:center; text-align:center; gap:4px;
+  padding:0 6px;
+}
+.dd-jt-node.dd-jt-above .dd-jt-copy { bottom:calc(50% + 14px); justify-content:flex-end; }
+.dd-jt-node.dd-jt-below .dd-jt-copy { top:calc(50% + 14px);    justify-content:flex-start; }
+/* Below nodes lead with the dot then month/icon; above nodes end with them —
+   handled by DOM order in the copy block (see timelineNode). */
 .dd-jt-month { font-size:10px; font-weight:800; letter-spacing:.16em; color:#b0bfcc; text-transform:uppercase; }
 .dd-jt-icon  { font-size:22px; line-height:1; }
-.dd-jt-dot   { width:12px; height:12px; border-radius:50%; background:#f5f7ff; border:2px solid rgba(var(--navy-rgb, 13,27,46), .25); }
-.dd-jt-hero  .dd-jt-dot { width:16px; height:16px; background:var(--red, #b22234); border-color:var(--red, #b22234); box-shadow:0 0 0 4px rgba(var(--red-rgb, 178,34,52), .18); }
+.dd-jt-hero  .dd-jt-dot { width:16px; height:16px; margin:-8px 0 0 -8px; background:var(--red, #b22234); border-color:var(--red, #b22234); box-shadow:0 0 0 4px rgba(var(--red-rgb, 178,34,52), .18); }
 .dd-jt-hero  .dd-jt-month { color:var(--red, #b22234); }
 .dd-jt-label { font-size:12.5px; font-weight:700; color:var(--navy, #0d1b2e); line-height:1.25; }
 .dd-jt-sub   { font-size:10.5px; color:#7a8696; }
-.dd-jt-above .dd-jt-icon  { order:1; }
-.dd-jt-above .dd-jt-month { order:2; }
-.dd-jt-above .dd-jt-label { order:3; }
-.dd-jt-above .dd-jt-sub   { order:4; }
-.dd-jt-above .dd-jt-dot   { order:5; }
-.dd-jt-below .dd-jt-dot   { order:1; }
-.dd-jt-below .dd-jt-month { order:2; }
-.dd-jt-below .dd-jt-icon  { order:3; }
-.dd-jt-below .dd-jt-label { order:4; }
-.dd-jt-below .dd-jt-sub   { order:5; }
 
 /* ── Demo Map (3-up moments) ─────────────────────────────────── */
 .dd-mapgrid {
@@ -1149,7 +1171,7 @@
   font-size:18px;
 }
 .dd-iconrow-body { display:flex; flex-direction:column; gap:2px; }
-.dd-iconrow-eyebrow { font-size:10px; font-weight:800; letter-spacing:.2em; color:var(--red, #b22234); text-transform:uppercase; }
+.dd-iconrow-eyebrow { font-size:10px; font-weight:800; letter-spacing:.2em; color:var(--red, #b22234); }
 .dd-iconrow-title   { font-size:14.5px; font-weight:700; color:var(--navy, #0d1b2e); }
 .dd-iconrow-sub     { font-size:13px; color:#5a6b80; line-height:1.45; }
 

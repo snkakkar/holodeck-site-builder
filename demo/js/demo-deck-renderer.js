@@ -738,23 +738,43 @@
       // hardcoded retail glyphs. channelIcon falls back to a neutral dot/🤖.
       const ic = function (ch) { return (SHARED && SHARED.channelIcon ? SHARED.channelIcon(ch || "") : "") || "•"; };
       const hasNext = !!(sceneNext && (sceneNext.title || sceneNext.demoMoment || sceneNext.summary));
+      // Skip generic placeholder titles ("Act 1", "Act 2", bare section headers)
+      // AND mechanical scene labels ("Split-Screen 1", "Screen 1") so they never
+      // leak into the row lines — isGenericTitle now rejects both. When the title
+      // is mechanical we fall back to a contextual narrative source below.
+      const goodTitle = function (a) {
+        return a && a.title && !(SHARED && SHARED.isGenericTitle && SHARED.isGenericTitle(a.title))
+          ? a.title : "";
+      };
+      // The opening clause of a narrative summary reads FAR better as a row
+      // title than a scene label: "A complex inbound corporate RFP is instantly
+      // qualified…" → "A complex inbound corporate RFP is instantly qualified".
+      // cleanHeadline trims to a word boundary; oneSentence stops at the first
+      // sentence so the title stays a single clause.
+      const narrativeTitle = function (a) {
+        const src = (a && a.summary) || (a && a.demoMoment) || "";
+        const one = SHARED && SHARED.oneSentence ? SHARED.oneSentence(src, 46) : truncate(src, 46);
+        return one || "";
+      };
       const rows = [
-        { eyebrow:"WHEN",              icon:"🗓️",
+        { eyebrow:"When",              icon:"🗓️",
           title: act.timing || act.month || "Opening",
           sub:   act.location || tSub(act.summary, 60, "The opening moment") },
-        { eyebrow:"THE MOMENT",        icon: ic(act.channel),
-          // Prefer the act TITLE (short — "In-store identity capture") over the
-          // demoMoment paragraph for the headline; demoMoment fills the sub.
-          title: tTitle(act.title || act.demoMoment, 42, "The key moment"),
-          sub:   tSub(act.summary || act.demoMoment, 70, "Where the story begins") },
+        { eyebrow:"The moment",        icon: ic(act.channel),
+          // Contextual precedence: a real (non-mechanical) act title first, then
+          // the opening clause of the narrative summary, then demoMoment. The
+          // raw scene label is no longer a title source. Sub carries the fuller
+          // narrative so title + sub don't echo the same clause.
+          title: tTitle(goodTitle(act) || narrativeTitle(act), 46, "The key moment"),
+          sub:   tSub(act.demoMoment || act.summary, 70, "Where the story begins") },
         hasNext
-          ? { eyebrow:"WHAT HAPPENS NEXT", icon: ic(sceneNext.channel || act.channel),
-              title: tTitle(sceneNext.title || sceneNext.demoMoment || act.salesforceCapabilities, 42, "What happens next"),
-              sub:   tSub(sceneNext.summary || sceneNext.demoMoment, 70, "The story continues") }
-          : { eyebrow:"WHERE IT LEADS",    icon: ic(act.channel),
+          ? { eyebrow:"What happens next", icon: ic(sceneNext.channel || act.channel),
+              title: tTitle(goodTitle(sceneNext) || narrativeTitle(sceneNext) || act.salesforceCapabilities, 46, "What happens next"),
+              sub:   tSub(sceneNext.demoMoment || sceneNext.summary, 70, "The story continues") }
+          : { eyebrow:"Where it leads",    icon: ic(act.channel),
               title: tTitle(act.salesforceCapabilities || act.businessValue, 42, "Where it leads"),
               sub:   tSub(act.businessValue || f.executiveTakeaway, 70, "The story continues") },
-        { eyebrow:"WHY IT MATTERS",    icon:"🎯",
+        { eyebrow:"Why it matters",    icon:"🎯",
           title: tTitle(act.businessValue || f.executiveTakeaway, 42, "Why it matters"),
           sub:   tSub(f.businessProblem || f.executiveTakeaway, 70, "The outcome that counts") },
       ];
@@ -850,7 +870,7 @@
       const isInstagramAd = hasStill(still) && still === demoAssets.cxInstagramAd;
       // A generated/uploaded still wins over the live iframe / skeleton.
       const inner = hasStill(still)
-        ? mediaTile({ src: still, kind: "image", fill: isInstagramAd, alt: (c && c.name) || "CX component" })
+        ? mediaTile({ src: still, kind: "image", fill: isInstagramAd, adFill: isInstagramAd, alt: (c && c.name) || "CX component" })
         : c && c.url && /^https?:\/\//.test(c.url)
         ? renderCxIframe(c)
         : el("div", { class: "dd-skel dd-skel-screen" }, [
@@ -1060,7 +1080,11 @@
     if (!usable) return mediaFallback(cue);
     // opts.fill → the media should cover its container edge-to-edge (used by
     // deviceMoment so a real screenshot fills the phone like the chat does).
-    var host = el("div", { class: "dd-media" + (opts.fill ? " is-fill" : "") });
+    // opts.adFill → the Instagram ad: full-bleed top-to-bottom but rendered a
+    // touch thinner so the over-wide 9:19 still isn't over-cropped at the sides.
+    var host = el("div", { class: "dd-media"
+      + (opts.fill ? " is-fill" : "")
+      + (opts.adFill ? " is-ad-fill" : "") });
     var img = document.createElement("img");
     img.className = "dd-media-img";
     img.alt = opts.alt || "";
@@ -1074,13 +1098,27 @@
     return host;
   }
 
-  function timelineNode(m) {
-    return el("div", { class: "dd-jt-node" + (m.hero ? " dd-jt-hero" : "") }, [
-      el("div", { class: "dd-jt-month", text: m.month }),
-      el("div", { class: "dd-jt-icon",  text: m.icon || "•" }),
+  // pos: "above" | "below" — placement relative to the center track. Carried
+  // on the NODE itself (not the row) so a single equal-column row can alternate
+  // node-by-node and every node still occupies an equal 1/N column. The dot is
+  // a sibling of the copy block so CSS can pin it to the center line while the
+  // copy stacks into the top/bottom half.
+  function timelineNode(m, pos) {
+    const above = (pos || "above") !== "below";
+    // Copy stacks toward the line: above → icon/month/label/sub (label nearest
+    // the line); below → month/icon/label/sub (month nearest the line).
+    const copyKids = above
+      ? [ el("div", { class: "dd-jt-icon",  text: m.icon || "•" }),
+          el("div", { class: "dd-jt-month", text: m.month }),
+          el("div", { class: "dd-jt-label", text: m.label }),
+          m.sub ? el("div", { class: "dd-jt-sub", text: m.sub }) : null ]
+      : [ el("div", { class: "dd-jt-month", text: m.month }),
+          el("div", { class: "dd-jt-icon",  text: m.icon || "•" }),
+          el("div", { class: "dd-jt-label", text: m.label }),
+          m.sub ? el("div", { class: "dd-jt-sub", text: m.sub }) : null ];
+    return el("div", { class: "dd-jt-node dd-jt-" + (above ? "above" : "below") + (m.hero ? " dd-jt-hero" : "") }, [
+      el("div", { class: "dd-jt-copy" }, copyKids),
       el("div", { class: "dd-jt-dot" }),
-      el("div", { class: "dd-jt-label", text: m.label }),
-      m.sub ? el("div", { class: "dd-jt-sub", text: m.sub }) : null,
     ]);
   }
 
@@ -1099,6 +1137,11 @@
     const evts = hasAuthoredTimeline()
       ? f.timelineEvents
       : (acts.length ? acts : Array.from({length:5},function(_,i){return{label:"Moment "+(i+1)};}));
+    // Timeline copy must stay VERY short & sweet: titles ≤ 4 words, sub-lines
+    // ≤ 20 words. clampWords enforces it at render time regardless of source
+    // (SE-authored event, story act, or placeholder) so a long "ACT 2: ONSITE
+    // EXPERIENCE & DYNAMIC PERSONALIZATION" collapses to a tidy stub.
+    const cw = SHARED && SHARED.clampWords ? SHARED.clampWords : function (s) { return String(s || ""); };
     const milestones = evts.slice(0, 8).map(function (e, i) {
       e = e || {};
       const channel = e.channel || "";
@@ -1106,43 +1149,36 @@
         month: e.month || e.timing || months[i % 12] || ("M" + (i+1)),
         // An explicit picked icon wins; otherwise derive from the channel.
         icon:  (e.icon && String(e.icon).trim()) || channelIcon(channel),
-        label: e.label || e.title || e.demoMoment || ("Moment " + (i+1)),
-        sub:   e.sub || channel || "",
+        label: cw(e.label || e.title || e.demoMoment || ("Moment " + (i+1)), 4, 28),
+        sub:   cw(e.sub || channel || "", 20, 130),
         hero:  i === 0 || e.hero === true || e.heroMoment === true,
       };
     });
     const n = milestones.length;
-    // Few events (≤3) read as a cramped vertical stack when split above/below
-    // (1 above + 1 below the SAME center). Lay them out in a single row so they
-    // become side-by-side milestones with real horizontal spacing. ≥4 keeps the
-    // alternating above/below layout so a long journey stays compact.
+    // ALL layouts use ONE equal-column row so nodes are always evenly spaced:
+    // each node gets an identical 1/N slice of the track width (flex:1 1 0 in
+    // CSS), and the track line runs through the vertical center behind them.
+    // ≤3 events all sit above the line (reads as clean side-by-side stops);
+    // ≥4 events alternate above/below by index parity so a long journey stays
+    // compact — but every node still owns an equal column, so DEC·JAN·FEB·MAR
+    // land as 4 evenly-spaced points instead of two clustered half-rows.
     const single = n <= 3;
     // Scale the timeline width to the node count so a 2-event journey doesn't
-    // stretch a near-empty line across the page; clamp to 100% so a full 8-event
-    // journey still spans edge-to-edge, and floor at 420px so 2 events still
-    // spread. Width is driven by the row that carries the most nodes.
-    const widest = single ? n : Math.max(Math.ceil(n / 2), n - Math.ceil(n / 2), 1);
-    const trackWidth = "min(100%, max(420px, " + (widest * 260) + "px))";
+    // stretch a near-empty line across the page; clamp to 100% so a full
+    // 8-event journey still spans edge-to-edge, and floor at 420px so 2 events
+    // still spread. One row now, so width is driven by n directly.
+    const trackWidth = "min(100%, max(420px, " + (n * 200) + "px))";
     const wrapStyle = "max-width:" + trackWidth + ";margin-left:auto;margin-right:auto;";
-    if (single) {
-      return el("div", {
-        class: "dd-jt dd-jt-single dd-jt-n" + n,
-        style: wrapStyle,
-      }, [
-        el("div", { class: "dd-jt-row dd-jt-above" }, milestones.map(timelineNode)),
-        el("div", { class: "dd-jt-track" }),
-      ]);
-    }
-    const half = Math.ceil(n / 2);
-    const above = milestones.slice(0, half);
-    const below = milestones.slice(half);
+    const nodes = milestones.map(function (m, i) {
+      // single → all above; alternating → even index above, odd below.
+      return timelineNode(m, single ? "above" : (i % 2 === 0 ? "above" : "below"));
+    });
     return el("div", {
-      class: "dd-jt dd-jt-n" + n,
+      class: "dd-jt dd-jt-cols" + (single ? " dd-jt-single" : " dd-jt-alt") + " dd-jt-n" + n,
       style: wrapStyle,
     }, [
-      el("div", { class: "dd-jt-row dd-jt-above" }, above.map(timelineNode)),
       el("div", { class: "dd-jt-track" }),
-      el("div", { class: "dd-jt-row dd-jt-below" }, below.map(timelineNode)),
+      el("div", { class: "dd-jt-row" }, nodes),
     ]);
   }
 
