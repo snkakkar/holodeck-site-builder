@@ -990,11 +990,16 @@
 .dd-twostate-text { font-size:15.5px; line-height:1.5; color:var(--navy, #0d1b2e); }
 .dd-twostate-arrow { color:#fff; font-size:22px; align-self:center; padding:6px 0; opacity:.55; }
 
-/* ── Journey Timeline (equal columns · alternating above/below) ──
-   ONE row of N nodes, each an equal 1/N column (flex:1 1 0), so milestones are
-   ALWAYS evenly spaced regardless of count. The track line is absolutely
-   centered behind the row; each node pins its dot to that center line and grows
-   its copy up (.dd-jt-above) or down (.dd-jt-below). */
+/* ── Journey Timeline (CSS-grid equal columns · alternating above/below) ──
+   ONE grid row of N columns (grid-template-columns:repeat(N,minmax(0,1fr)) set
+   inline from the node count), so milestones are ALWAYS evenly spaced regardless
+   of count. minmax(0,1fr) is what makes it robust: the column width comes from
+   the grid track, not from the child's intrinsic width, so long labels WRAP
+   inside their cell instead of blowing the column out (the old flex:1 1 0 +
+   absolute-copy approach collapsed every column to ~0 and piled the dots up).
+   The track line is absolutely centered behind the row; each node pins its dot
+   to that center line and stacks its copy into the top (.dd-jt-above) or bottom
+   (.dd-jt-below) half. */
 .dd-jt {
   position:relative;
   padding:16px 56px 56px;
@@ -1006,19 +1011,19 @@
   height:2px; transform:translateY(-1px);
   background: linear-gradient(90deg, var(--red, #b22234) 0%, rgba(var(--blue-rgb, 26,95,160), .7) 50%, rgba(var(--gold-rgb, 245,192,106), .4) 100%);
 }
+/* grid-template-columns is set INLINE (repeat(N,minmax(0,1fr))) by
+   buildTimelineTrack so N columns always divide the row evenly. */
 .dd-jt-row {
   position:relative;
-  display:flex; align-items:stretch; gap:12px;
+  display:grid; align-items:stretch; column-gap:12px;
   height:220px;
 }
-/* Equal columns: every node takes an identical slice of the row width. The
-   node fills the full row height and is a positioning context; the dot pins to
-   the vertical center (the track line) and the copy stacks into the top or
-   bottom half via absolute positioning — so copy length never nudges the dot
-   off the line. */
+/* Each node owns one grid cell (real, equal width). It's a positioning context:
+   the dot pins to the vertical center (the track line) and the copy stacks into
+   the top or bottom half — so copy length never nudges the dot off the line. */
 .dd-jt-node {
-  flex:1 1 0; min-width:0; max-width:none;
   position:relative;
+  min-width:0;
 }
 /* Dot — always centered on the track line for every node. */
 .dd-jt-dot {
@@ -1028,7 +1033,9 @@
   border:2px solid rgba(var(--navy-rgb, 13,27,46), .25);
   z-index:1;
 }
-/* Copy block: a centered column, half the node, pinned above or below center. */
+/* Copy block: a centered column, half the node, pinned above or below center.
+   It's absolutely positioned WITHIN the grid cell — the cell already has real
+   width from the grid track, so text wraps normally inside left:0/right:0. */
 .dd-jt-copy {
   position:absolute; left:0; right:0;
   display:flex; flex-direction:column; align-items:center; text-align:center; gap:4px;
@@ -1042,8 +1049,18 @@
 .dd-jt-icon  { font-size:22px; line-height:1; }
 .dd-jt-hero  .dd-jt-dot { width:16px; height:16px; margin:-8px 0 0 -8px; background:var(--red, #b22234); border-color:var(--red, #b22234); box-shadow:0 0 0 4px rgba(var(--red-rgb, 178,34,52), .18); }
 .dd-jt-hero  .dd-jt-month { color:var(--red, #b22234); }
-.dd-jt-label { font-size:12.5px; font-weight:700; color:var(--navy, #0d1b2e); line-height:1.25; }
-.dd-jt-sub   { font-size:10.5px; color:#7a8696; }
+/* Label/sub wrap to at most 2 lines inside the cell — overflow-wrap breaks long
+   words so a title can never stack one-word-per-line down a narrow column. */
+.dd-jt-label {
+  font-size:12.5px; font-weight:700; color:var(--navy, #0d1b2e); line-height:1.25;
+  max-width:100%; overflow-wrap:break-word; word-break:break-word;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.dd-jt-sub {
+  font-size:10.5px; color:#7a8696; line-height:1.3;
+  max-width:100%; overflow-wrap:break-word; word-break:break-word;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
 
 /* ── Demo Map (3-up moments) ─────────────────────────────────── */
 .dd-mapgrid {

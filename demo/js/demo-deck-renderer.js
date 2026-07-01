@@ -40,6 +40,14 @@
   // SE-layout copy (agent chat, demo-flow steps, next-steps phases) from one
   // source and can't drift. Loaded via <script src="js/holodeck-shared.js">.
   const SHARED = window.HOLO_SHARED || {};
+  // Deck-wide length clamps: eyebrows (small-caps) ≤6 words, titles/headlines
+  // ≤8 words. Route EVERY eyebrow/title assignment through these so no raw long
+  // field (a comma-list of capabilities, a narrative thesis, an unbounded
+  // AI/user title) ever reaches an eyebrow or headline. clampWords trims to the
+  // word limit first, then a char cap as a hard backstop.
+  const _cw = SHARED.clampWords ? SHARED.clampWords : function (s) { return String(s || ""); };
+  function ebrow(v) { return _cw(v, 6, 42); }
+  function ttl(v, fb) { return _cw(v, 8, 60) || fb || ""; }
   // Guard against a malformed config where slides is present but not an
   // array — degrade to an empty deck instead of throwing on .filter below.
   const allSlides = Array.isArray(plan.slides) ? plan.slides : [];
@@ -163,8 +171,8 @@
     hero: function (s) {
       return [
         el("div", { class: "dd-hero" }, [
-          el("p", { class: "dd-eyebrow",  text: deriveEyebrow(s) }),
-          el("h1", { class: "dd-display", html: deriveHeadline(s) }),
+          el("p", { class: "dd-eyebrow",  text: ebrow(deriveEyebrow(s)) }),
+          el("h1", { class: "dd-display", html: ttl(deriveHeadline(s), "Demo moment") }),
           el("p", { class: "dd-hero-sub", html: deriveSub(s) }),
           poweredBy.length
             ? el("div", { class: "dd-poweredby dd-poweredby-center" }, [
@@ -189,8 +197,8 @@
       if (f.currentStatePain)   stats.push({ val: "Today",    label: truncate(f.currentStatePain, 46) });
       if (f.futureStateVision)  stats.push({ val: "Tomorrow", label: truncate(f.futureStateVision,46) });
       const headline = f.transformationThesis
-        ? f.transformationThesis
-        : (s.title || "From a single moment to a connected future.");
+        ? ttl(f.transformationThesis)
+        : (ttl(s.title) || "From a single moment to a connected future.");
       return twoPanel({
         left: leftQuote({
           tag:   "Strategic foundation",
@@ -244,9 +252,9 @@
     journeyTimeline: function (s) {
       return [
         el("div", { class: "dd-stack-center" }, [
-          el("p", { class: "dd-eyebrow", text: f.journeyTimelineEyebrow || deriveEyebrow(s) }),
+          el("p", { class: "dd-eyebrow", text: ebrow(f.journeyTimelineEyebrow || deriveEyebrow(s)) }),
           el("h2", { class: "dd-display dd-display-mid",
-            html: escapeHtml(f.journeyTimelineHeadline || "") || "One journey. Every channel. <em>Always personal.</em>" }),
+            html: escapeHtml(ttl(f.journeyTimelineHeadline || "")) || "One journey. Every channel. <em>Always personal.</em>" }),
           el("p", { class: "dd-sub-center",
             text: f.journeyTimelineSub || f.transformationThesis || "From one moment, AI turns identity into months of personalized engagement." }),
         ]),
@@ -268,7 +276,7 @@
       return [
         el("div", { class: "dd-stack-center" }, [
           el("p", { class: "dd-eyebrow", text: "Demo Map" }),
-          el("h2", { class: "dd-display dd-display-mid", html: s.title || "End-to-end <em>demo flow</em>" }),
+          el("h2", { class: "dd-display dd-display-mid", html: ttl(s.title) || "End-to-end <em>demo flow</em>" }),
         ]),
         el("div", { class: "dd-mapgrid" }, items.map(function (a, i) {
           return el("div", { class: "dd-mapcard" }, [
@@ -418,7 +426,7 @@
         right: rightCopy({
           eyebrow:  "Agentforce moment",
           headlineHtml: s.title
-            ? escapeHtml(s.title)
+            ? escapeHtml(ttl(s.title))
             : ("She left.<br/><em>" + escapeHtml(personaName) + " comes back.</em>"),
           sub:      "An agent reaches " + escapeHtml(personaName) + " in the channel she's already in — grounded in her unified profile.",
           stats: [
@@ -576,7 +584,7 @@
         right: rightCopy({
           eyebrow:  "Data Cloud · Unified Profile",
           headlineHtml: s.title
-            ? escapeHtml(s.title)
+            ? escapeHtml(ttl(s.title))
             : "Who is she,<br/><em>really?</em>",
           sub:      "Data Cloud builds a rich affinity profile from " + (p.name || "her") + "'s behavior — past purchases, browse duration, categories explored. Over time, it scores against hundreds of attributes.",
           stats: [
@@ -596,7 +604,7 @@
       return [
         el("div", { class: "dd-stack-center" }, [
           el("p", { class: "dd-eyebrow", text: "Solution Architecture" }),
-          el("h2", { class: "dd-display dd-display-mid", html: s.title || "One platform. <em>Every layer.</em>" }),
+          el("h2", { class: "dd-display dd-display-mid", html: ttl(s.title) || "One platform. <em>Every layer.</em>" }),
         ]),
         el("div", { class: "dd-arch" }, [
           archTier("Data Sources",    ["Web", "Mobile", "POS", "Email", "Service"], "blue"),
@@ -666,7 +674,7 @@
       } else {
         // Empty/fallback: full skeleton chrome + cue so the SE knows what to add.
         screenInner = el("div", { class: "dd-screen" }, [
-          el("div", { class: "dd-screen-eyebrow", text: (act.channel || "Salesforce").toUpperCase() }),
+          el("div", { class: "dd-screen-eyebrow", text: act.channel || "Salesforce" }),
           el("div", { class: "dd-screen-h", text: (function () {
             // SHORT screen heading — prefer the brief act title; never dump the
             // multi-sentence demoMoment script into the tiny phone screen.
@@ -702,10 +710,10 @@
       return twoPanel({
         left: isMobile ? phoneFrame(screenInner) : laptopFrame(screenInner),
         right: rightCopy({
-          eyebrow:  (act.salesforceCapabilities || (s && s.capabilities && s.capabilities[0]) || "Live moment").toUpperCase(),
+          eyebrow:  ebrow(act.salesforceCapabilities || (s && s.capabilities && s.capabilities[0]) || "Live moment"),
           headlineHtml: s.title
-            ? escapeHtml(s.title)
-            : (act.title ? escapeHtml(act.title) : "A moment that <em>matters.</em>"),
+            ? escapeHtml(ttl(s.title))
+            : (act.title ? escapeHtml(ttl(act.title)) : "A moment that <em>matters.</em>"),
           sub:      act.summary || act.demoMoment || f.businessProblem || "Add a story act in Step 2 to fill this slide.",
           chips:    capsList(s).map(function (c) { return { type:"blue", label:c }; }),
         }),
@@ -727,7 +735,10 @@
       // stub, which cuts "Split-Screen 1: Customer View…" down to the
       // meaningless "Split-Screen 1"). cleanHeadline trims to a word boundary.
       const tTitle = function (v, max, fb) {
-        const out = SHARED && SHARED.cleanHeadline ? SHARED.cleanHeadline(v, max || 42) : truncate(v, max || 42);
+        // Word-clamp FIRST (≤8 words) so a row title never runs long, then
+        // cleanHeadline trims to a word boundary within the char budget.
+        const clamped = _cw(v, 8, max || 56);
+        const out = SHARED && SHARED.cleanHeadline ? SHARED.cleanHeadline(clamped, max || 56) : truncate(clamped, max || 56);
         return out || fb;
       };
       const tSub = function (v, max, fb) {
@@ -793,8 +804,8 @@
           ]),
           // RIGHT: copy + icon list
           el("div", { class: "dd-scene-copy" }, [
-            el("p", { class: "dd-eyebrow", text: deriveEyebrow(s).toUpperCase() }),
-            el("h2", { class: "dd-display dd-display-mid", html: s.title || "One visit.<br/>One email." }),
+            el("p", { class: "dd-eyebrow", text: ebrow(deriveEyebrow(s)) }),
+            el("h2", { class: "dd-display dd-display-mid", html: ttl(s.title) || "One visit.<br/>One email." }),
             el("p", { class: "dd-sub",
               text: act.summary || ("A digital receipt becomes the first data point in " + ((persona && persona.name) || "her") + "'s unified profile.") }),
             el("div", { class: "dd-iconlist" }, rows.map(function (r) {
@@ -818,7 +829,7 @@
     // kicker eyebrow + big headline + sub-line, with an optional image
     // panel. When no image is linked it centers the copy full-width.
     storyInterstitial: function (s) {
-      const kicker   = s.kicker   || s.eyebrow || deriveEyebrow(s).toUpperCase();
+      const kicker   = s.kicker   || s.eyebrow || deriveEyebrow(s);
       const headline = s.headline || s.title   || "Two months have passed.";
       const sub      = s.sub      || s.subline || s.summary || "";
       // Optional image — a per-slide asset slot or any linked demo asset.
@@ -826,8 +837,8 @@
       const src      = (imgSlot && demoAssets[imgSlot]) || s.imageUrl || "";
       const hasImg   = hasStill(src);
       const copy = el("div", { class: "dd-interstitial-copy" }, [
-        kicker   ? el("p", { class: "dd-eyebrow", text: String(kicker).toUpperCase() }) : null,
-        el("h2", { class: "dd-display dd-display-lg", html: escapeHtml(headline) }),
+        kicker   ? el("p", { class: "dd-eyebrow", text: ebrow(kicker) }) : null,
+        el("h2", { class: "dd-display dd-display-lg", html: escapeHtml(ttl(headline)) }),
         sub ? el("p", { class: "dd-sub-center", text: sub }) : null,
       ]);
       if (!hasImg) {
@@ -886,8 +897,8 @@
       return twoPanel({
         left:  useLaptop ? laptopFrame(inner) : phoneFrame(inner),
         right: rightCopy({
-          eyebrow:  c && c.type ? ("Live · " + c.type.toUpperCase()) : "LIVE CX MOMENT",
-          headlineHtml: s.title ? escapeHtml(s.title) : (c && c.name ? escapeHtml(c.name) : "Embedded demo screen"),
+          eyebrow:  ebrow(c && c.type ? ("Live · " + c.type) : "Live CX moment"),
+          headlineHtml: s.title ? escapeHtml(ttl(s.title)) : (c && c.name ? escapeHtml(ttl(c.name)) : "Embedded demo screen"),
           sub:      c && c.description ? c.description : "A live, click-through Aubrey demo screen embedded right inside the deck.",
           chips:    capsList(s).map(function (cap) { return { type:"blue", label:cap }; }),
         }),
@@ -901,7 +912,7 @@
       return [
         el("div", { class: "dd-stack-center" }, [
           el("p", { class: "dd-eyebrow", text: "Business Value" }),
-          el("h2", { class: "dd-display dd-display-mid", html: s.title || (customer.name ? "Why <em>" + escapeHtml(customer.name) + "</em> wins." : "Why this matters.") }),
+          el("h2", { class: "dd-display dd-display-mid", html: ttl(s.title) || (customer.name ? "Why <em>" + escapeHtml(customer.name) + "</em> wins." : "Why this matters.") }),
           el("p", { class: "dd-sub-center", text: "Higher conversion. Bigger AOV. Lifelong loyalty." }),
         ]),
         el("div", { class: "dd-kpi-grid" }, kpis.map(function (k) {
@@ -928,7 +939,7 @@
         }),
         right: el("div", { class: "dd-right" }, [
           el("p", { class: "dd-eyebrow", text: "The Takeaway" }),
-          el("h2", { class: "dd-display dd-display-mid", html: s.title || "Three things that <em>compound.</em>" }),
+          el("h2", { class: "dd-display dd-display-mid", html: ttl(s.title) || "Three things that <em>compound.</em>" }),
           el("div", { class: "dd-exec-cols" }, [
             execCol("Challenge",    f.businessProblem    || f.currentStatePain || "Add a customer challenge in Step 3."),
             execCol("Future state", f.futureStateVision  || "Add the future-state vision in Step 3."),
@@ -950,7 +961,7 @@
         }),
         right: el("div", { class: "dd-right" }, [
           el("p", { class: "dd-eyebrow", text: "Roadmap & next steps" }),
-          el("h2", { class: "dd-display dd-display-mid", html: s.title || "From <em>today</em> to launch." }),
+          el("h2", { class: "dd-display dd-display-mid", html: ttl(s.title) || "From <em>today</em> to launch." }),
           el("ol", { class: "dd-next-list" },
             (SHARED.nextStepsPhases
               ? SHARED.nextStepsPhases()
@@ -968,7 +979,7 @@
       return [
         el("div", { class: "dd-hero" }, [
           el("p", { class: "dd-eyebrow",  text: "Slide" }),
-          el("h1", { class: "dd-display", html: s.title || "Untitled slide" }),
+          el("h1", { class: "dd-display", html: ttl(s.title) || "Untitled slide" }),
           el("p", { class: "dd-hero-sub",
             text: "Pick a specific layout in the Builder so this slide can render with full detail." }),
         ]),
@@ -1150,25 +1161,26 @@
         // An explicit picked icon wins; otherwise derive from the channel.
         icon:  (e.icon && String(e.icon).trim()) || channelIcon(channel),
         label: cw(e.label || e.title || e.demoMoment || ("Moment " + (i+1)), 4, 28),
-        sub:   cw(e.sub || channel || "", 20, 130),
+        // Narrow columns — keep the sub tight so it fits ≤2 lines per column.
+        sub:   cw(e.sub || channel || "", 12, 80),
         hero:  i === 0 || e.hero === true || e.heroMoment === true,
       };
     });
     const n = milestones.length;
-    // ALL layouts use ONE equal-column row so nodes are always evenly spaced:
-    // each node gets an identical 1/N slice of the track width (flex:1 1 0 in
-    // CSS), and the track line runs through the vertical center behind them.
-    // ≤3 events all sit above the line (reads as clean side-by-side stops);
-    // ≥4 events alternate above/below by index parity so a long journey stays
-    // compact — but every node still owns an equal column, so DEC·JAN·FEB·MAR
-    // land as 4 evenly-spaced points instead of two clustered half-rows.
+    // ONE CSS-GRID row of N equal columns (grid-template-columns:repeat(N,
+    // minmax(0,1fr))) so every milestone owns an identical, real-width column —
+    // the track line runs through the vertical center behind them. Grid (not
+    // flex-with-absolute-copy) is what guarantees the columns can't collapse:
+    // minmax(0,1fr) forces long labels to WRAP inside their cell instead of
+    // blowing the column out. ≤3 events all sit above the line (clean
+    // side-by-side stops); ≥4 alternate above/below by index parity so a long
+    // journey stays compact — but every node still owns an equal column, so
+    // DEC·JAN·FEB·MAR land as 4 evenly-spaced points, never two clustered spots.
     const single = n <= 3;
-    // Scale the timeline width to the node count so a 2-event journey doesn't
-    // stretch a near-empty line across the page; clamp to 100% so a full
-    // 8-event journey still spans edge-to-edge, and floor at 420px so 2 events
-    // still spread. One row now, so width is driven by n directly.
-    const trackWidth = "min(100%, max(420px, " + (n * 200) + "px))";
-    const wrapStyle = "max-width:" + trackWidth + ";margin-left:auto;margin-right:auto;";
+    // Let the GRID divide the width; just cap + center the wrapper. No computed
+    // px width (the old n*200px min-width forced a narrow track that collapsed).
+    const wrapStyle = "max-width:min(100%, 980px);margin-left:auto;margin-right:auto;";
+    const rowStyle = "grid-template-columns:repeat(" + n + ",minmax(0,1fr));";
     const nodes = milestones.map(function (m, i) {
       // single → all above; alternating → even index above, odd below.
       return timelineNode(m, single ? "above" : (i % 2 === 0 ? "above" : "below"));
@@ -1178,7 +1190,7 @@
       style: wrapStyle,
     }, [
       el("div", { class: "dd-jt-track" }),
-      el("div", { class: "dd-jt-row" }, nodes),
+      el("div", { class: "dd-jt-row", style: rowStyle }, nodes),
     ]);
   }
 

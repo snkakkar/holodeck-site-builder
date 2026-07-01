@@ -2615,7 +2615,9 @@
       p.industry ? ("Industry: " + p.industry) : "",
       p.theme ? ("Demo theme: " + p.theme) : "",
       f.futureStateVision ? ("Vision: " + String(f.futureStateVision).slice(0, 200)) : "",
-      (Array.isArray(p.products) && p.products.length) ? ("Products: " + p.products.join(", ")) : "",
+      // NOTE: intentionally do NOT inject the Salesforce products list here. The
+      // persona wishlist must be CONSUMER products the persona shops for; feeding
+      // the SF SKU list primed Gemini to echo "Data Cloud"/"Agentforce" into it.
     ].filter(Boolean).join("\n");
 
     const str = function (v) { return typeof v === "string" ? v.trim() : ""; };
