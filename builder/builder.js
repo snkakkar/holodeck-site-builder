@@ -1223,15 +1223,16 @@
     if (status) status.innerHTML = "";
     const origText = button.textContent;
     button.disabled = true;
-    button.textContent = "Parsing with Gemini…";
+    button.textContent = "Researching…"; // flips to "Parsing with Gemini…" for Call 2
 
-    // A single long call, so an animated (indeterminate) bar is the
-    // honest representation. Lives in the status div; cleared on the
-    // success render or replaced by the error alert below.
+    // Two sequential long calls (research → parse), so an animated
+    // (indeterminate) bar is the honest representation. Lives in the
+    // status div; cleared on the success render or replaced by the
+    // error alert below. The label updates between the two phases.
     let pb = null;
     if (status) {
-      pb = progressBar("Parsing your script with Gemini…");
-      pb.indeterminate("Parsing your script with Gemini…");
+      pb = progressBar("Researching the customer with Gemini…");
+      pb.indeterminate("Researching the customer with Gemini…");
       status.appendChild(pb.node);
     }
     const clearBar = function () { if (pb && pb.node.parentNode) pb.node.parentNode.removeChild(pb.node); };
@@ -1242,25 +1243,111 @@
       else toast("Gemini: " + msg);
     };
 
-    GEMINI.generate({
-      prompt: AI_PROMPT.getStoryParsePrompt(s.scriptText),
-      jsonMode: true,
-      fast: true,            // disable the model's thinking pass — big latency win
-      temperature: 0.2,      // extraction is deterministic, not creative
-      maxOutputTokens: 4096, // comfortably covers the storyFoundations JSON
+    // ─── Call 1 — grounded research brief (non-fatal) ──────────────
+    // Ask Gemini to research the real customer on the web (Google Search
+    // grounding on, NO JSON mode — the two are mutually exclusive on
+    // Gemini 2.x). Returns a short prose brief that Call 2 injects as
+    // verified context so every derived value is grounded in the real
+    // brand, not just the pasted script. On any error/empty result we
+    // log and continue with an empty brief — Call 2 runs exactly as it
+    // did before this feature, so a research failure never blocks parse.
+    const customerName = (s.project && s.project.customerName) || "";
+    const website = (s.project && s.project.website) || "";
+    const researchPromise = GEMINI.generate({
+      prompt: AI_PROMPT.getResearchPrompt(customerName, s.scriptText, website),
+      groundWithSearch: true, // adds tools:[{googleSearch:{}}] server-side
+      fast: false,            // let the model reason over search results
+      temperature: 0.3,
+      maxOutputTokens: 1024,  // a tight prose brief, not an essay
+    }).then(function (brief) {
+      return String(brief || "").trim();
+    }).catch(function (err) {
+      // Non-fatal — surface nothing to the SE, just fall back to no brief.
+      if (window.console && console.warn) console.warn("Gemini research pass failed; parsing without a brief:", err);
+      return "";
+    });
+
+    // ─── Call 2 — the existing JSON extractor, brief injected ──────
+    researchPromise.then(function (researchBrief) {
+      if (pb) pb.indeterminate("Parsing your script with Gemini…");
+      button.textContent = "Parsing with Gemini…";
+      return GEMINI.generate({
+        prompt: AI_PROMPT.getStoryParsePrompt(s.scriptText, researchBrief),
+        jsonMode: true,
+        fast: true,            // disable the model's thinking pass — big latency win
+        temperature: 0.2,      // extraction is deterministic, not creative
+        maxOutputTokens: 8192, // large scripts + full storyFoundations schema can exceed 4k and truncate the JSON
+      });
     })
       .then(function (text) {
-        const cleaned = String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
-        let data;
-        try { data = JSON.parse(cleaned); }
-        catch (_) { showErr("returned text that wasn't valid JSON — try the manual extractor."); return; }
-        if (!data || typeof data !== "object") { showErr("returned an unexpected shape."); return; }
+        const raw = String(text || "");
+        // Strip a ```json fence if present, then parse. If that fails
+        // (the model wrapped the JSON in prose, or added a preamble),
+        // fall back to the outermost {...} slice before giving up.
+        const fenced = raw.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+        let data = null;
+        const tryParse = function (candidate) {
+          try { return JSON.parse(candidate); } catch (_) { return null; }
+        };
+        data = tryParse(fenced.trim());
+        if (!data) {
+          const first = raw.indexOf("{");
+          const last  = raw.lastIndexOf("}");
+          if (first !== -1 && last > first) data = tryParse(raw.slice(first, last + 1));
+        }
+        if (!data) {
+          // Surface a short snippet so a truncated / prose response is
+          // diagnosable instead of an opaque "wasn't valid JSON".
+          const snippet = raw.trim().slice(0, 120).replace(/\s+/g, " ");
+          if (window.console && console.warn) console.warn("Gemini parse failed. Raw response:", raw);
+          showErr("returned text that wasn't valid JSON — try the manual extractor. (Got: “" +
+            (snippet || "empty response") + "…”)");
+          return;
+        }
+        if (typeof data !== "object") { showErr("returned an unexpected shape."); return; }
 
         // Coerce into the storyFoundations shape mergeExtractedStory-
         // IntoState expects — every array MUST exist (it calls .join
         // on several), and strings must be strings.
         const str = function (v) { return typeof v === "string" ? v : ""; };
         const arr = function (v) { return Array.isArray(v) ? v.filter(function (x) { return x != null && x !== ""; }) : []; };
+        // Object coercion for imageCues — keep only string values, drop
+        // [TODO…] placeholders so buildAssetPrompt's `cue()` reader can
+        // treat "missing" and "placeholder" identically.
+        const obj = function (v) {
+          if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+          const out = {};
+          Object.keys(v).forEach(function (k) {
+            const val = str(v[k]).trim();
+            if (val && !/^\[TODO/i.test(val)) out[k] = val;
+          });
+          return out;
+        };
+        // A story-driven wishlist row: name + optional badge/emoji/detail,
+        // dropping [TODO…] placeholders (consumed by the wishlist chrome).
+        const wishRow = function (r) {
+          if (!r || typeof r !== "object") return null;
+          const name = str(r.name).trim();
+          if (!name || /^\[TODO/i.test(name)) return null;
+          const clean = function (v) { const t = str(v).trim(); return /^\[TODO/i.test(t) ? "" : t; };
+          return { name: name, tag: clean(r.tag), emoji: clean(r.emoji), detail: clean(r.detail) };
+        };
+        // Presenter preamble ("Hi everyone, my name is [PRESENTER NAME], I'm a
+        // [TITLE] here at Salesforce…", agenda, thank-yous) is housekeeping —
+        // never the customer's story. Drop any act whose title/summary reads as
+        // preamble so it can't become act 1 or the opening moment even if Gemini
+        // slips a section header through. Conservative: only obvious preamble.
+        const PREAMBLE_RE = /\b(?:my name is|i'?m a\b|here at salesforce|thanks?\b|welcome everyone|agenda)\b/i;
+        const GREETING_RE = /^\s*(?:hi|hello|hey)\b/i;
+        const isStoryAct = function (a) {
+          if (!a || typeof a !== "object") return false;
+          const t = str(a.title).trim();
+          const sm = str(a.summary).trim();
+          if (!t && !sm) return false;
+          if (GREETING_RE.test(t) || GREETING_RE.test(sm)) return false;
+          if (PREAMBLE_RE.test(t) || PREAMBLE_RE.test(sm)) return false;
+          return true;
+        };
         const f = {
           businessProblem:      str(data.businessProblem),
           currentStatePain:     str(data.currentStatePain),
@@ -1280,14 +1367,27 @@
           valueDrivers:         arr(data.valueDrivers),
           assumptions:          arr(data.assumptions),
           openQuestions:        arr(data.openQuestions),
+          // ─── Round-6 story-driven fields (all optional) ──────────
+          // Gemini derives these from the research brief + this story;
+          // downstream generators read them when present and fall back
+          // to neutral defaults otherwise (see holodeck-shared.js).
+          journeyPhases:        arr(data.journeyPhases),
+          wishlistEyebrow:      str(data.wishlistEyebrow),
+          wishlistHeadline:     str(data.wishlistHeadline),
+          wishlist:             arr(data.wishlist).map(wishRow).filter(Boolean),
+          imageCues:            obj(data.imageCues),
         };
 
         // Pre-populate acts/personas/customer/products from the
         // Gemini result so applyExtractionToState's regex fallbacks
         // are skipped and the structured output wins.
         s.project = s.project || {};
-        const acts = arr(data.storyActs);
-        if (acts.length && !(s.storyActs || []).length) {
+        // The SE explicitly clicked "Parse with Gemini" — its story-aware acts
+        // (a narrative arc, preamble excluded) WIN over any regex section-split
+        // already in s.storyActs. Only replace when Gemini actually returned
+        // usable acts, so a failed/empty parse never wipes good regex acts.
+        const acts = arr(data.storyActs).filter(isStoryAct);
+        if (acts.length) {
           s.storyActs = acts.map(function (a) {
             return {
               id: uid("act_"),
@@ -1299,8 +1399,10 @@
             };
           });
         }
+        // Personas: same rule — an explicit Gemini parse replaces prior
+        // (regex-derived) personas when it returned any.
         const ppl = arr(data.personas);
-        if (ppl.length && !(s.personas || []).length) {
+        if (ppl.length) {
           s.personas = ppl.map(function (p) {
             return {
               id: uid("persona_"),
@@ -2476,6 +2578,17 @@
     const theme = p.theme || "";
     const products = (Array.isArray(p.products) ? p.products : []).filter(Boolean);
 
+    // Story-specific scene cues the AI extractor derived for THIS customer
+    // (storyFoundations.imageCues). Each is a short scene phrase for one asset
+    // slot (venue / mobileScreen / webScreen / assistant / socialAd / socialCta
+    // / hero). When present they DE-RETAIL the generic defaults below — e.g. an
+    // event customer gets a venue exterior + "Book Your Event" CTA instead of a
+    // storefront + "Shop Now". Absent (Gemini off, or field missing) → the
+    // neutral fallbacks in each intent apply. cue() returns "" for missing/TODO.
+    const cues = (f && typeof f.imageCues === "object" && f.imageCues) || {};
+    const cue = function (k) { const t = String(cues[k] || "").trim(); return /^\[TODO/i.test(t) ? "" : t; };
+    const socialCta = cue("socialCta") || "Learn More"; // neutral default (was hardcoded "Shop Now")
+
     // Helpers: drop [TODO:] placeholders, take the first N array
     // entries, and trim a long paragraph to a short visual cue.
     const clean = function (v) { const t = String(v || "").trim(); return /^\[TODO/i.test(t) ? "" : t; };
@@ -2529,22 +2642,29 @@
         (personaPain ? ", helping with " + personaPain : "") +
         (products.length ? " (powered by " + products.slice(0, 2).join(", ") + ")" : "") +
         ". 9:16 vertical mobile composition.",
-      "storeExterior": "an inviting storefront / building exterior photo" +
+      "storeExterior": "an inviting " + (cue("venue") || "building / venue exterior") + " photo" +
         (customer ? " for \"" + customer + "\"" : "") +
         (industry ? " in the " + industry + " industry" : "") + ", daytime, no people",
-      "storeInterior": "a bright, modern interior photo of a " +
-        (industry ? industry + " " : "") + "retail or service space, no people, clean composition",
-      "productHero": "a premium product hero shot" +
-        (theme ? " illustrating \"" + theme + "\"" : "") +
-        (firstFew(f.commerceMoments, 1).length ? " — " + firstFew(f.commerceMoments, 1)[0] : "") +
+      "storeInterior": "a bright, modern interior photo of " +
+        (cue("venue")
+          ? "a " + cue("venue")
+          : (industry ? "a " + industry + " space where customers are served" : "a space where customers are served")) +
+        ", no people, clean composition",
+      "productHero": "a premium hero shot" +
+        (cue("hero") ? " of " + cue("hero") : (theme ? " illustrating \"" + theme + "\"" : "")) +
+        (!cue("hero") && firstFew(f.commerceMoments, 1).length ? " — " + firstFew(f.commerceMoments, 1)[0] : "") +
         ", studio lighting on a clean background",
-      "iPhoneRec": UI_ART + " A mobile app product-recommendation screen" +
-        (firstFew(f.customerMoments, 1).length ? " showing " + firstFew(f.customerMoments, 1)[0] : "") +
+      "iPhoneRec": UI_ART + " A mobile app screen" +
+        (cue("mobileScreen")
+          ? " showing " + cue("mobileScreen")
+          : (firstFew(f.customerMoments, 1).length
+              ? " showing " + firstFew(f.customerMoments, 1)[0]
+              : " showing personalized recommendations")) +
         (products.length ? " (powered by " + products.slice(0, 2).join(", ") + ")" : "") +
         ". 9:16 vertical mobile composition.",
-      "webBrowseGif": UI_ART + " A modern e-commerce / web storefront browsing screen" +
+      "webBrowseGif": UI_ART + " A modern " + (cue("webScreen") || "web app / website") + " screen" +
         (customer ? " for \"" + customer + "\"" : "") +
-        (firstFew(f.commerceMoments, 1).length ? " showing " + firstFew(f.commerceMoments, 1)[0] : "") +
+        (!cue("webScreen") && firstFew(f.customerMoments, 1).length ? " showing " + firstFew(f.customerMoments, 1)[0] : "") +
         ". 16:10 desktop browser composition.",
       "laptopBrowsingGif": UI_ART + " A modern web application screen on a laptop" +
         (firstFew(f.customerMoments, 1).length ? " showing " + firstFew(f.customerMoments, 1)[0] : "") +
@@ -2554,19 +2674,20 @@
       // the interactive carousel, so a generated still for it is never shown.
       "cxInstagramAd": UI_ART + " A single full-screen Instagram Story / Reel paid social ad creative" +
         (customer ? " for \"" + customer + "\"" : "") +
-        ". A bold hero product/lifestyle image that bleeds edge-to-edge and fills the ENTIRE vertical frame " +
-        "with no borders, no margins and no letterbox bars, a small brand handle row at top, " +
-        "like/comment/share icons, a 'Sponsored' tag, one short large headline and a Shop Now button" +
-        (firstFew(f.commerceMoments, 1).length ? " promoting " + firstFew(f.commerceMoments, 1)[0] : "") +
+        ". A bold hero " + (cue("socialAd") || "product/lifestyle") + " image that bleeds edge-to-edge and " +
+        "fills the ENTIRE vertical frame with no borders, no margins and no letterbox bars, a small brand " +
+        "handle row at top, like/comment/share icons, a 'Sponsored' tag, one short large headline and a \"" +
+        socialCta + "\" button" +
+        (!cue("socialAd") && firstFew(f.commerceMoments, 1).length ? " promoting " + firstFew(f.commerceMoments, 1)[0] : "") +
         ". The composition MUST be an EXACT 9:19 vertical (portrait) aspect ratio to match the phone " +
-        "screen. Keep all critical elements inside a center-safe area: the brand handle at top and the " +
-        "Shop Now button at bottom must sit within a comfortable margin from every edge (not flush to the " +
-        "edges) so nothing important is clipped if the screen letterboxes. Tall 9:19 full-bleed vertical " +
+        "screen. Keep all critical elements inside a center-safe area: the brand handle at top and the \"" +
+        socialCta + "\" button at bottom must sit within a comfortable margin from every edge (not flush to " +
+        "the edges) so nothing important is clipped if the screen letterboxes. Tall 9:19 full-bleed vertical " +
         "mobile story composition that fills the whole phone screen edge to edge.",
-      "cxShopperAgent": UI_ART + " A shopping/commerce assistant chat screen on a phone" +
+      "cxShopperAgent": UI_ART + " " + (cue("assistant") || "An AI assistant chat screen on a phone") +
         (customer ? " for \"" + customer + "\"" : "") +
-        ". Header with an agent name, two or three short chat bubbles, and a horizontal row of product " +
-        "recommendation cards (image + short price-style label)" +
+        ". Header with an agent name, two or three short chat bubbles, and a horizontal row of " +
+        "recommendation cards (image + short label)" +
         (personaPain ? " helping with " + personaPain : "") +
         ". Friendly, on-brand. 9:16 vertical mobile composition.",
       "cxTextConvo": UI_ART + " An SMS / iMessage-style text thread on a phone between " +
@@ -6549,11 +6670,12 @@
         // since Scriptwriter only carries name + logo, not hexes.
         seedBrandFromScript(sc, creds);
 
-        // If we pulled from Connect (Step 1), jump straight to
-        // Foundations review — that's the point of the Aubrey
-        // happy path. From Step 2, stay on Script so the user can
-        // tweak personas/acts before moving on.
-        if (s.step === "connect" && ok) s.step = "foundations";
+        // If we pulled from Connect (Step 1), advance to the Script
+        // step (Step 2) rather than skipping ahead to Foundations —
+        // the SE lands on the pasted script with the "Parse with
+        // Gemini" option available, so they can choose the grounded
+        // AI parser instead of only the regex extraction that just ran.
+        if (s.step === "connect") s.step = "script";
 
         closeModal();
         recompute(); renderShell(); commit();

@@ -62,6 +62,12 @@
     if (opts.fast) payload.fast = true;
     if (typeof opts.temperature === "number") payload.temperature = opts.temperature;
     if (typeof opts.maxOutputTokens === "number") payload.maxOutputTokens = opts.maxOutputTokens;
+    // Opt-in Google Search grounding — the proxy adds the google_search tool
+    // so Gemini researches the customer on the web before answering. NOTE:
+    // on Gemini 2.x this is mutually exclusive with strict JSON mode
+    // (responseMimeType/responseSchema), so callers use it for the free-text
+    // research pass, NOT the JSON extraction. See server.js.
+    if (opts.groundWithSearch) payload.groundWithSearch = true;
 
     // The proxy streams a newline-delimited JSON (NDJSON) response —
     // a {type:"start"} line, periodic {type:"ping"} heartbeats while

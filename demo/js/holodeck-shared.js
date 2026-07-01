@@ -57,7 +57,7 @@
   function shortenTitle(s) {
     s = String(s || "").replace(/\s+/g, " ").trim();
     if (s.length > 22) s = s.slice(0, 22).replace(/\s+\S*$/, "");
-    return s;
+    return titleCase(s);
   }
   // Punchy 1-2 word title via "educated consolidation": keep the first meaningful
   // segment (cut at the first connector), drop filler stopwords, cap at 2 significant
@@ -73,7 +73,7 @@
     while (words.length && STOP[words[0].toLowerCase()]) words.shift();
     while (words.length && STOP[words[words.length - 1].toLowerCase()]) words.pop();
     if (!words.length) return shortenTitle(orig);
-    return words.slice(0, 2).join(" ");
+    return titleCase(words.slice(0, 2).join(" "));
   }
   function isHeaderTitle(t) {
     return !t || /^(intro|opening|open|chapter\s|section\s|close|closing)/i.test(t);
@@ -93,8 +93,27 @@
       || /^(?:split[- ]?screen|screen|slide|scene|frame|panel|shot|view)\s*\d/i.test(t)
       || isHeaderTitle(t);
   }
+  // Title Case that leaves filler words lowercase (except the first word,
+  // which is always capitalized). Splits on whitespace so multi-word titles
+  // read like headlines ("Automated Close", "Loyalty Loop", "Browse to Buy").
+  // Words already containing an interior capital (acronyms, "iPhone") keep
+  // their casing — we only ever uppercase the first letter, never downcase
+  // an existing capital in a non-filler word.
+  const TITLE_CASE_FILLERS = {
+    of: 1, the: 1, a: 1, an: 1, and: 1, to: 1, in: 1, for: 1,
+    "&": 1, with: 1, on: 1, at: 1, by: 1, vs: 1,
+  };
   function titleCase(s) {
-    return String(s || "").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    const words = String(s || "").split(/(\s+)/); // keep separators
+    let seen = 0;
+    return words.map(function (w) {
+      if (/^\s+$/.test(w) || w === "") return w;
+      const lower = w.toLowerCase();
+      const isFirst = seen === 0;
+      seen++;
+      if (!isFirst && TITLE_CASE_FILLERS[lower]) return lower;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join("");
   }
   function shortenDriverLabel(s) {
     s = String(s || "").replace(/\s+/g, " ").trim();
@@ -221,13 +240,13 @@
     acts  = acts  || f.__acts  || [];
     prods = prods || f.__prods || [];
     const tOv = Array.isArray(f.threeActTitles) ? f.threeActTitles : [];
-    const buckets = bucketActsIntoFive(acts, prods);   // 3–5 phases, same as map
+    const buckets = bucketActsIntoFive(acts, prods, f.journeyPhases);   // 3–5 phases, same as map
     const lead = groupBucketsIntoThree(buckets.length);
     return [0, 1, 2].map(function (i) {
       const b = buckets[Math.min(lead[i], buckets.length - 1)] || null;
       // Title: author override wins; else the bucket's own (already-punchy)
       // title, clamped to ≤4 words; else the canonical act default.
-      const derived = b && b.title ? clampWords(b.title, 4, 26) : "";
+      const derived = b && b.title ? titleCase(clampWords(b.title, 4, 26)) : "";
       const title = (tOv[i] && String(tOv[i]).trim())
         || derived
         || THREE_ACT_DEFAULT_TITLES[i];
@@ -280,12 +299,26 @@
       "Know":    "Identity captured; the journey begins from a single moment.",
       "Reach":   "Targeted, personalized outreach finds the customer where they already are.",
       "Engage":  "Personalized content adapts to the customer's intent in real time.",
-      "Recover": "Proactive re-engagement turns a near-miss into a relationship.",
-      "Convert": "An agentic moment closes the loop — purchase, service, or loyalty.",
+      "Recover": "Proactive re-engagement turns a lapse in momentum into a relationship.",
+      "Convert": "An agentic moment closes the loop — the next step, service, or loyalty.",
     })[t] || "Salesforce powers a connected moment.";
   }
-  function bucketActsIntoFive(acts, prods) {
+  // `journeyPhases` (optional) is storyFoundations.journeyPhases — a short,
+  // STORY-SPECIFIC set of phase labels the AI derived for THIS arc (e.g. an
+  // event story → Inquiry / Proposal / Booking / Event Day / Loyalty). When
+  // present, it replaces the canonical retail-shaped PHASE_TITLES as the phase
+  // label so the journey map reads in the customer's own language; absent, we
+  // fall back to Know/Reach/Engage/Recover/Convert. Backward-compatible: old
+  // 2-arg callers pass no journeyPhases and get the canonical labels.
+  function bucketActsIntoFive(acts, prods, journeyPhases) {
     prods = prods || [];
+    const jp = Array.isArray(journeyPhases) ? journeyPhases : [];
+    // Per-index phase label: story-specific journeyPhases[i] wins; else the
+    // canonical stage name. titleCase keeps it headline-cased either way.
+    const phaseLabel = function (i) {
+      const j = jp[i] && String(jp[i]).trim();
+      return j ? titleCase(clampWords(j, 3, 22)) : PHASE_TITLES[i];
+    };
     const milestones = (acts || []).filter(function (a) {
       return a && a.summary && !isHeaderTitle(a.title);
     });
@@ -297,8 +330,8 @@
       const a = milestones[i];
       out.push({
         index:        i,
-        title:        a && a.title && !isGenericTitle(a.title) ? punchyTitle(a.title) : PHASE_TITLES[i],
-        phaseTitle:   PHASE_TITLES[i],
+        title:        a && a.title && !isGenericTitle(a.title) ? punchyTitle(a.title) : phaseLabel(i),
+        phaseTitle:   phaseLabel(i),
         badge:        a && a.salesforceCapabilities ? truncate(a.salesforceCapabilities, 36) : (prods[i] || "Salesforce"),
         emoji:        PHASE_EMOJIS[i],
         circleClass:  PHASE_CIRCLE_CLASSES[i],
@@ -331,11 +364,11 @@
     if (prods.indexOf("Marketing Cloud") >= 0) productLabels.push("Personalized Ad");
     if (prods.indexOf("Commerce") >= 0)         productLabels.push("AI-Powered Search");
     if (prods.indexOf("Marketing Cloud") >= 0) productLabels.push("SMS Re-engagement");
-    if (prods.indexOf("Agentforce") >= 0)       productLabels.push("Shopper Agent");
+    if (prods.indexOf("Agentforce") >= 0)       productLabels.push("AI Assistant");
     if (prods.indexOf("Commerce") >= 0)         productLabels.push("Commerce");
-    if (prods.indexOf("Marketing Cloud") >= 0) productLabels.push("Post-Purchase Email");
-    const fallbackLabels = ["Personalized Ad", "AI-Powered Search", "SMS Re-engagement",
-                            "Shopper Agent", "Commerce", "Post-Purchase Email"];
+    if (prods.indexOf("Marketing Cloud") >= 0) productLabels.push("Follow-up Email");
+    const fallbackLabels = ["Personalized Outreach", "AI-Powered Search", "SMS Re-engagement",
+                            "AI Assistant", "Guided Journey", "Follow-up Email"];
     const out = [];
     for (let i = 0; i < 6; i++) {
       const ov = overrides[i] || {};
@@ -408,11 +441,11 @@
     const drivers  = (f.valueDrivers || []).slice(0, 5);
     const overrides = Array.isArray(f.bvsMetrics) ? f.bvsMetrics : [];
     const fallback = [
-      { value: "XX%",  label: "Conversion Lift"      },
-      { value: "+$XX", label: "Average Order Value"  },
-      { value: "XX%",  label: "Loyalty Enrollment"   },
-      { value: "XXx",  label: "Repeat Purchase Rate" },
-      { value: "XX%",  label: "Service Efficiency"   },
+      { value: "XX%",  label: "Conversion Lift"     },
+      { value: "+$XX", label: "Revenue per Customer" },
+      { value: "XX%",  label: "Loyalty Enrollment"  },
+      { value: "XXx",  label: "Repeat Rate"         },
+      { value: "XX%",  label: "Service Efficiency"  },
     ];
     return fallback.map(function (def, i) {
       const driverLabel = drivers[i] ? shortenDriverLabel(drivers[i]) : "";
@@ -547,7 +580,7 @@
         statRow(0, "Location", "Metro area · mobile-first"),
         statRow(1, "Lifecycle stage", "Active customer"),
         { label: "Preferred device", value: "Mobile (iOS)" },
-        { label: "Industry",  value: input.industry || (p.customerOf || "Retail / DTC") },
+        { label: "Industry",  value: input.industry || (p.customerOf || "Customer engagement") },
       ],
     });
 
@@ -579,8 +612,8 @@
     facets.push({
       key: "signals", label: "Real-time signals", eyebrow: "Live activity",
       rows: signalRows.length ? signalRows : [
-        { label: "Last seen",   value: "Browsing on mobile" },
-        { label: "Cart",        value: "1 item, not purchased" },
+        { label: "Last seen",   value: "Active on mobile" },
+        { label: "Open item",   value: "1 request in progress" },
         { label: "Engagement",  value: "Opened last 3 emails" },
         { label: "Recency",     value: "Active in the last hour" },
       ],
@@ -613,8 +646,8 @@
       key: "predicted", label: "Predicted needs", eyebrow: "AI propensity",
       rows: [
         { label: "Next best action", value: hasAgentforce ? "Proactive agent outreach" : "Personalized offer" },
-        { label: "Propensity to buy", value: "High — primed to convert" },
-        { label: "Predicted intent", value: "Browsing → ready to purchase" },
+        { label: "Propensity to act", value: "High — primed to convert" },
+        { label: "Predicted intent", value: "Exploring → ready to act" },
         { label: "Recommended for " + first, value: pron.poss + " top affinity" },
       ],
     });
@@ -637,7 +670,7 @@
     return {
       label:    labelOverride || "BEGIN THE JOURNEY &nbsp;→",
       headline: first ? "Let's follow " + first + "'s journey." : "Let's follow the journey.",
-      sub:      truncate(p.demoRelevance || story.futureVision || "From inspiration to purchase to loyalty.", 110),
+      sub:      truncate(p.demoRelevance || story.futureVision || "From first touch to lasting loyalty.", 110),
     };
   }
   function personaIntroSub(p, customerName) {
@@ -648,7 +681,7 @@
 
   // ─── Chapter opener (auto-prepended demo slide) ───────────────
   // Mirrors demo-deck-renderer.js defaultOpenerSub() so the preview
-  // shows the same "<timing>. A <Customer> store. <Persona>'s story
+  // shows the same "<timing>. With <Customer>. <Persona>'s story
   // begins." line the export will produce.
   function chapterOpenerCopy(opts) {
     opts = opts || {};
@@ -661,11 +694,14 @@
     const personaName = (persona && persona.name && persona.name.trim())
       || (persona ? pronounsFor(persona.pronouns).obj : "your customer");
     const when  = (acts[0] && acts[0].timing) || "December";
-    const place = customer ? customer + " store" : "this story";
+    // Industry-neutral frame: "With <Customer>." works for any business
+    // (was "A <Customer> store." — retail-only). Kept in lock-step with
+    // demo-deck-renderer.js defaultOpenerSub().
+    const place = customer ? "With " + customer : "A new story";
     return {
       eyebrow:  eyebrow,
       headline: headline,
-      sub:      when + ". A " + place + ". " + personaName + "'s story begins.",
+      sub:      when + ". " + place + ". " + personaName + "'s story begins.",
     };
   }
 
@@ -922,16 +958,23 @@
             // Seed the cards/label/headline with the same pronoun-aware
             // defaults the renderer + adapter use, so the SE edits real rows
             // (names, tags, emoji) instead of an empty list.
+            // Prefill order matches the adapter: story-driven chrome from
+            // the Gemini extraction (on storyFoundations) wins over the
+            // neutral pronoun-aware default, so the SE edits real rows.
             "Wishlist":          { path: "personas[0].wishlist",
                                    prefill: function (sl, st) {
                                      st = st || {};
                                      const p = (st.personas && st.personas[0]) || {};
+                                     const sf = st.storyFoundations || {};
+                                     if (Array.isArray(sf.wishlist) && sf.wishlist.length) return sf.wishlist;
                                      return defaultWishlist(pronounsFor(p.pronouns));
                                    } },
             "Wishlist label":    { path: "personas[0].wishlistLabel",
                                    prefill: function (sl, st) {
                                      st = st || {};
                                      const p = (st.personas && st.personas[0]) || {};
+                                     const sf = st.storyFoundations || {};
+                                     if (sf.wishlistEyebrow && String(sf.wishlistEyebrow).trim()) return String(sf.wishlistEyebrow).trim();
                                      const first = personaFirstName(p);
                                      return first ? (first + "'s Wishlist") : "Wishlist";
                                    } },
@@ -939,10 +982,11 @@
                                    prefill: function (sl, st) {
                                      st = st || {};
                                      const p = (st.personas && st.personas[0]) || {};
+                                     const sf = st.storyFoundations || {};
                                      const stored = p.wishlistHeadline;
-                                     return (stored && !isLegacyWishlistHeadline(stored))
-                                       ? String(stored).replace(/<\/?[^>]+>/g, "")
-                                       : wishlistHeadlineFor(pronounsFor(p.pronouns));
+                                     if (stored && !isLegacyWishlistHeadline(stored)) return String(stored).replace(/<\/?[^>]+>/g, "");
+                                     if (sf.wishlistHeadline && String(sf.wishlistHeadline).trim()) return String(sf.wishlistHeadline).trim();
+                                     return wishlistHeadlineFor(pronounsFor(p.pronouns));
                                    } },
             "Pronouns":          "personas[0].pronouns",
           } });
@@ -1324,9 +1368,9 @@
   function defaultWishlist(pron) {
     const firstTag = pron && pron.obj ? ("FOR " + String(pron.obj).toUpperCase()) : "PRIMARY CONSIDERATION";
     return [
-      { name: "[TODO: top product]",       tag: firstTag,           detail: "[TODO]", emoji: "🛍️" },
-      { name: "[TODO: companion]",         tag: "AI MATCH",         detail: "[TODO]", emoji: "✨" },
-      { name: "[TODO: complete-the-look]", tag: "COMPLETE THE LOOK", detail: "[TODO]", emoji: "🎁" },
+      { name: "[TODO: top recommendation]", tag: firstTag,   detail: "[TODO]", emoji: "⭐" },
+      { name: "[TODO: companion]",          tag: "AI MATCH", detail: "[TODO]", emoji: "✨" },
+      { name: "[TODO: related option]",     tag: "RELATED",  detail: "[TODO]", emoji: "➕" },
     ];
   }
 

@@ -200,10 +200,19 @@ app.post("/api/gemini/generate", async (req, res) => {
   // The schema MUST be a real OpenAPI/JSON-Schema object
   // ({type, properties, …}) — NOT a sample/example object, or
   // Gemini rejects it field-by-field.
+  // Google Search grounding: when the caller asks, attach the google_search
+  // tool so Gemini researches the customer on the web before answering. On
+  // Gemini 2.x this is MUTUALLY EXCLUSIVE with structured JSON output — the
+  // API rejects responseMimeType/responseSchema alongside a tool — so when
+  // grounding we suppress JSON mode and let the model return free-form text
+  // (the caller parses it). Syntax is `googleSearch` (2.x); the older
+  // `google_search_retrieval` is 1.5-only and would be rejected here.
+  const grounding = body.groundWithSearch === true;
+
   const generationConfig = {};
-  const wantsJson = body.jsonMode === true || (body.schema && typeof body.schema === "object");
+  const wantsJson = !grounding && (body.jsonMode === true || (body.schema && typeof body.schema === "object"));
   if (wantsJson) generationConfig.responseMimeType = "application/json";
-  if (body.schema && typeof body.schema === "object") {
+  if (!grounding && body.schema && typeof body.schema === "object") {
     generationConfig.responseSchema = body.schema;
   }
   // Opt-in latency controls (only applied when the caller asks). For a
@@ -217,6 +226,7 @@ app.post("/api/gemini/generate", async (req, res) => {
   const payload = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
   };
+  if (grounding) payload.tools = [{ googleSearch: {} }];
   if (Object.keys(generationConfig).length) payload.generationConfig = generationConfig;
 
   // Begin the NDJSON response immediately so Heroku sees a first byte

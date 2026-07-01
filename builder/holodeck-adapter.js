@@ -352,7 +352,12 @@
     const full  = p.name || "[TODO: persona full name]";
     const pron  = pronounsFor(p.pronouns);
     const stats = personaStatsFrom(p);
-    const wish  = personaWishlistFrom(p);
+    const wish  = personaWishlistFrom(p, state);
+    // Story-driven wishlist chrome (from the Gemini extraction, on
+    // storyFoundations) — used as a fallback layer below any headline
+    // the SE typed on the persona, and above the neutral default.
+    const sf    = (state && state.storyFoundations) || {};
+    const aiWishHead = (sf.wishlistHeadline && String(sf.wishlistHeadline).trim()) || "";
     return {
       name:        first,
       fullName:    full,
@@ -372,10 +377,17 @@
       // exports before the pronoun feature, and would otherwise stomp
       // on the new pronoun-aware default. Treat any custom phrasing
       // (the SE wrote their own) as authoritative.
+      // Precedence: SE's own headline → story-driven AI headline →
+      // pronoun-aware neutral default. The AI headline is authoritative
+      // custom copy, so we pass it through as-is (no <strong> wrap).
       wishlistHeadline: (p.wishlistHeadline && !isLegacyWishlistHeadline(p.wishlistHeadline))
                           ? p.wishlistHeadline
-                          : wishlistHeadlineFor(pron),
-      wishlistLabel:    p.wishlistLabel    ? p.wishlistLabel    : (first + "'s Wishlist"),
+                          : (aiWishHead || wishlistHeadlineFor(pron)),
+      // Section eyebrow: story-driven when present, else the persona's
+      // "First's Wishlist" default.
+      wishlistLabel:    p.wishlistLabel
+                          ? p.wishlistLabel
+                          : ((sf.wishlistEyebrow && String(sf.wishlistEyebrow).trim()) || (first + "'s Wishlist")),
       // CTA copy comes from SHARED so the mr-4 preview tile and the
       // exported slide stay in lock-step. Story passed through so the
       // sub falls back to story.futureVision when demoRelevance is empty.
@@ -426,9 +438,15 @@
       };
     });
   }
-  function personaWishlistFrom(p) {
+  function personaWishlistFrom(p, state) {
     const arr = Array.isArray(p.wishlist) ? p.wishlist : [];
-    const def = defaultPersonaWishlist();
+    // Default source: the story-driven wishlist from the Gemini
+    // extraction (on storyFoundations) when present, else the neutral
+    // placeholder rows. Either way `def` fills any gap the SE left in a
+    // persona row (name/tag/emoji/detail), so no cell renders blank.
+    const sf  = (state && state.storyFoundations) || {};
+    const aiWish = Array.isArray(sf.wishlist) && sf.wishlist.length ? sf.wishlist : null;
+    const def = aiWish || defaultPersonaWishlist();
     // Render every SE row, not just the first 3 — previously this mapped
     // over `def` (length 3) and silently dropped a 4th+ wishlist item.
     const n = Math.max(arr.length, def.length);
@@ -456,9 +474,9 @@
     // Single source in HOLO_SHARED so the mr-3 preview empty-state matches.
     if (SHARED.defaultWishlist) return SHARED.defaultWishlist();
     return [
-      { name: "[TODO: top product]",    tag: "PRIMARY CONSIDERATION", detail: "[TODO]", emoji: "🛍️" },
-      { name: "[TODO: companion]",      tag: "AI MATCH",              detail: "[TODO]", emoji: "✨" },
-      { name: "[TODO: complete-the-look]", tag: "COMPLETE THE LOOK",  detail: "[TODO]", emoji: "🎁" },
+      { name: "[TODO: top recommendation]", tag: "PRIMARY CONSIDERATION", detail: "[TODO]", emoji: "⭐" },
+      { name: "[TODO: companion]",          tag: "AI MATCH",              detail: "[TODO]", emoji: "✨" },
+      { name: "[TODO: related option]",     tag: "RELATED",               detail: "[TODO]", emoji: "➕" },
     ];
   }
   function cleanQuote(s) {
@@ -477,7 +495,7 @@
       : "A <strong>connected journey</strong>";
     // Phase bucketing lives in HOLO_SHARED so the preview's
     // journeyMapMatrix and the export's circle row share defaults.
-    const steps = SHARED.bucketActsIntoFive ? SHARED.bucketActsIntoFive(acts, prods) : [];
+    const steps = SHARED.bucketActsIntoFive ? SHARED.bucketActsIntoFive(acts, prods, f && f.journeyPhases) : [];
     return {
       headline: headline,
       steps:    steps,

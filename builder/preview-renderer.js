@@ -1667,11 +1667,11 @@
     // guaranteed to show identical phase titles/descriptions/badges.
     journeyMapMatrix: function (data, mode) {
       const prods = data.products || [];
+      const f = data.foundations || {};
       const phases = SHARED.bucketActsIntoFive
-        ? SHARED.bucketActsIntoFive(data.acts || [], prods)
+        ? SHARED.bucketActsIntoFive(data.acts || [], prods, f.journeyPhases)
         : [];
       const root = el("div", { class: "hp hp-jmatrix" });
-      const f = data.foundations || {};
       const headline = f.transformationThesis
         ? truncate(f.transformationThesis, 70)
         : "A connected journey";
@@ -1801,29 +1801,34 @@
     // ── Persona · Wishlist (mr-3) ──
     personaWishlist: function (data, mode) {
       const p = data.persona || {};
+      const sf = data.foundations || {};
       const pron = pronounsFor(p.pronouns);
-      // Empty-state defaults come from HOLO_SHARED.defaultWishlist so the
-      // preview matches the exported deck (same names, tags, emoji).
+      // Precedence matches the export (holodeck-adapter.js buildPersona) and
+      // the editor prefill (_rt_persona_wishlist): SE-typed persona rows →
+      // story-driven chrome from the Gemini extraction (storyFoundations) →
+      // neutral pronoun-aware default. Keeps preview ≡ exported deck even
+      // before the SE opens the wishlist editor.
+      const aiWish = (Array.isArray(sf.wishlist) && sf.wishlist.length) ? sf.wishlist : null;
       const wish = (p.wishlist && p.wishlist.length)
         ? p.wishlist
-        : (SHARED.defaultWishlist ? SHARED.defaultWishlist(pron) : [
-            { name: "[TODO: top product]",       tag: "FOR " + pron.obj.toUpperCase(), detail: "[TODO]", emoji: "🛍️" },
-            { name: "[TODO: companion]",         tag: "AI MATCH",                      detail: "[TODO]", emoji: "✨" },
-            { name: "[TODO: complete-the-look]", tag: "COMPLETE THE LOOK",             detail: "[TODO]", emoji: "🎁" },
-          ]);
+        : (aiWish || (SHARED.defaultWishlist ? SHARED.defaultWishlist(pron) : [
+            { name: "[TODO: top recommendation]", tag: "FOR " + pron.obj.toUpperCase(), detail: "[TODO]", emoji: "⭐" },
+            { name: "[TODO: companion]",          tag: "AI MATCH",                      detail: "[TODO]", emoji: "✨" },
+            { name: "[TODO: related option]",     tag: "RELATED",                       detail: "[TODO]", emoji: "➕" },
+          ]));
       const root = el("div", { class: "hp hp-wishlist" });
-      // If the SE hasn't customized the headline (or has only the
-      // legacy "Her top 3..." default), synthesize from pronouns so
-      // changes in Step 4 show up immediately in the preview.
+      // Headline: SE's own (non-legacy) → story-driven → pronoun default.
+      // The story headline is authoritative custom copy, passed as-is.
       const stored = p.wishlistHeadline;
       const headline = (stored && !isLegacyWishlistHeadline(stored))
         ? stored
-        : wishlistHeadlineFor(pron);
+        : ((sf.wishlistHeadline && String(sf.wishlistHeadline).trim())
+            || wishlistHeadlineFor(pron));
       const headlineClean = String(headline).replace(/<\/?[^>]+>/g, "");
-      // Empty-state default matches the export (buildPersona): "<First>'s
-      // Wishlist" when no label set, else the literal "Wishlist".
+      // Label/eyebrow: SE's own → story-driven eyebrow → "<First>'s Wishlist".
       const first = (SHARED.personaFirstName ? SHARED.personaFirstName(p) : "") || "";
-      const wishLabelDefault = first ? (first + "'s Wishlist") : "Wishlist";
+      const wishLabelDefault = (sf.wishlistEyebrow && String(sf.wishlistEyebrow).trim())
+        || (first ? (first + "'s Wishlist") : "Wishlist");
       root.appendChild(el("div", { class: "hp-eyebrow", text: p.wishlistLabel || wishLabelDefault }));
       root.appendChild(el("h3", { class: "hp-h3", text: headlineClean }));
       const cards = el("div", { class: "hp-wish-cards" });

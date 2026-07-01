@@ -1306,8 +1306,11 @@
   function defaultOpenerSub() {
     const who = (persona && persona.name) ? persona.name : (customer.name ? "your customer" : "her");
     const when = (acts[0] && acts[0].timing) ? acts[0].timing : "December";
-    const place = customer.name ? customer.name + " store" : "this story";
-    return "<strong>" + escapeHtml(when) + ".</strong> A " + escapeHtml(place) + ". <strong>" + escapeHtml(who) + "'s</strong> story begins.";
+    // Industry-neutral frame: "With <Customer>." works for any business
+    // (was "A <Customer> store." — retail-only). No-customer fallback keeps
+    // the original "A this story." shape.
+    const place = customer.name ? "With " + escapeHtml(customer.name) : "A new story";
+    return "<strong>" + escapeHtml(when) + ".</strong> " + place + ". <strong>" + escapeHtml(who) + "'s</strong> story begins.";
   }
   // 18 floating particle spans the CSS animates upward.
   function openerParticles() {

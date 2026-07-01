@@ -750,12 +750,13 @@
 .dd-phone-screen > .dd-media.is-fill > .dd-media-img,
 .dd-laptop-screen > .dd-media.is-fill > .dd-media-img { object-fit:cover; object-position:top; background:#fff; }
 /* is-ad-fill (Instagram ad): the ad is authored full-bleed 9:19 to BE the phone
-   screen (same ratio as the frame). Fill the screen box and `contain` so the
-   WHOLE ad is always visible — brand handle + Shop Now CTA are never cropped,
-   regardless of the exact pixel ratio the generator returns. Any residual ratio
-   mismatch shows as a thin white bar that reads as screen bezel. Deterministic
-   every render; overrides the is-fill cover rule above. */
-.dd-phone-screen > .dd-media.is-ad-fill > .dd-media-img { width:100%; height:100%; object-fit:contain; object-position:center; background:#fff; }
+   screen (same ratio as the frame), so it should fill the screen edge-to-edge
+   like a real IG Story — width AND height, no letterbox. `cover` guarantees a
+   full fill regardless of the exact pixel ratio the generator returns; the
+   round-5 asset prompt forces a center-safe margin so the brand handle + CTA
+   sit well inside the frame and `cover` only trims outer bezel, never the
+   content. Deterministic every render; overrides the is-fill cover rule above. */
+.dd-phone-screen > .dd-media.is-ad-fill > .dd-media-img { width:100%; height:100%; object-fit:cover; object-position:center; background:#fff; }
 
 /* ── Phone "screen" content modules ──────────────────────────── */
 .dd-screen { display:flex; flex-direction:column; gap:8px; padding:14px 18px; flex:1; }

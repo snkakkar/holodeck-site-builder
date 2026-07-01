@@ -304,8 +304,9 @@ CX components (AubreyDemo):
   // pipeline, so the output here must match those field names.
   const STORY_PARSE_PROMPT = [
     "You are parsing a rough Salesforce demo script into structured story",
-    "foundations for the Holodeck Builder. Read the SCRIPT below and return",
-    "ONE valid JSON object (no prose, no markdown fences) with EXACTLY these keys:",
+    "foundations for the Holodeck Builder. Read the CUSTOMER RESEARCH (if any) and",
+    "the SCRIPT below and return ONE valid JSON object (no prose, no markdown",
+    "fences, no comments) with these keys:",
     "",
     "{",
     '  "businessProblem": "<one paragraph>",',
@@ -334,7 +335,20 @@ CX components (AubreyDemo):
     '  "salesStage": "",',
     '  "tone": "",',
     '  "theme": "",',
-    '  "products": ["Agentforce", "Data Cloud", "..."]',
+    '  "products": ["Agentforce", "Data Cloud", "..."],',
+    '  "journeyPhases": ["<3-5 short phase labels for THIS story arc, e.g. an events business → Inquiry, Proposal, Booking, Event Day, Loyalty; a bank → Apply, Review, Approve, Onboard, Grow>"],',
+    '  "wishlistEyebrow": "<short label above the persona\'s top-3 list, in the buyer\'s language, e.g. \\"What Sarah is evaluating\\" (B2B) or \\"Picked for her\\" (consumer)>",',
+    '  "wishlistHeadline": "<one short line introducing the top-3 list, fitting this buyer>",',
+    '  "wishlist": [{ "name": "<real offering/option this customer provides>", "tag": "<short badge, e.g. TOP PRIORITY / BEST FIT / ADD-ON>", "emoji": "<one emoji>", "detail": "<≤8 words why it fits>" }],',
+    '  "imageCues": {',
+    '    "venue": "<the physical place scene for this business, e.g. \\"modern golf-entertainment venue exterior at dusk\\" — NOT \\"storefront\\" unless truly retail>",',
+    '    "mobileScreen": "<what the mobile app screen shows for this story>",',
+    '    "webScreen": "<what the web/site screen shows, e.g. \\"event booking site\\" — NOT \\"e-commerce\\" unless truly retail>",',
+    '    "assistant": "<one sentence describing the AI assistant chat screen for this customer>",',
+    '    "socialAd": "<the hero subject of a paid social ad for this business>",',
+    '    "socialCta": "<the ad\'s call-to-action button text, e.g. \\"Book Your Event\\", \\"Get a Quote\\" — NOT \\"Shop Now\\" unless truly retail>",',
+    '    "hero": "<subject of a hero image illustrating this story>"',
+    "  }",
     "}",
     "",
     "RULES:",
@@ -343,9 +357,19 @@ CX components (AubreyDemo):
     "   and record the assumption in assumptions[].",
     "3. products[] = only Salesforce products actually implied by the script.",
     "4. Keep prose tight; these fill form fields, not slides.",
-    "4a. storyActs[].title = a SHORT customer-facing narrative phrase (≤5 words,",
+    "4a. storyActs = the CUSTOMER'S JOURNEY ARC, not the script's sections. Read the",
+    "    whole script and distil a coherent beginning→middle→end where each act is ONE",
+    "    meaningful story beat in the customer's own experience. Do NOT emit one act",
+    "    per script section, and NEVER copy a section header or a presenter's line",
+    "    into an act. EXCLUDE all presenter/housekeeping content — introductions",
+    "    (\"Hi everyone, my name is…\", \"I'm a … here at Salesforce\"), agenda, and",
+    "    thank-yous. The story STARTS at the customer's first real moment.",
+    "    storyActs[].title = a SHORT customer-facing narrative phrase (≤5 words,",
     "    e.g. \"The abandoned cart\", \"Her welcome back\"). NEVER a production/scene",
-    "    label like \"Split-Screen 1\", \"Screen 2\", \"Act 1\", or \"Scene 3\".",
+    "    label (\"Split-Screen 1\", \"Screen 2\", \"Act 1\", \"Scene 3\") and NEVER a bare",
+    "    section header (\"Advertising\", \"Order Servicing\", \"Introduction\").",
+    "    storyActs[].summary = that beat told as the customer's story, not the",
+    "    presenter's stage directions.",
     "5. SETUP FIELDS — fill these only from what the script actually says:",
     "   • website  — a real URL/domain only if one appears or is clearly implied;",
     "     otherwise \"\".",
@@ -360,13 +384,68 @@ CX components (AubreyDemo):
     "                     Executive Readout, RFP / POV]",
     "       tone       ∈ [Executive, Tactical, Visionary, Technical, Playful,",
     "                     Premium]",
+    "6. STORY-SPECIFIC DECK COPY (journeyPhases, wishlistEyebrow, wishlistHeadline,",
+    "   wishlist[], imageCues) — ground every value in THIS customer's actual",
+    "   business and the CUSTOMER RESEARCH above. Do NOT assume a generic",
+    "   retail/online-shopping journey (no \"storefront\", \"Shop Now\", \"add to cart\",",
+    "   \"complete the look\") UNLESS the customer is genuinely a retailer. For an",
+    "   events venue use event language; for a bank use application/approval",
+    "   language; etc. These keys are OPTIONAL — omit a key, use [] or \"\" when",
+    "   you are unsure, and the builder will fall back to neutral defaults.",
+    "7. wishlist[] items must be REAL offerings this customer provides — never",
+    "   Salesforce product names.",
     "",
+    "<<RESEARCH>>",
     "── SCRIPT ──",
     "<<SCRIPT>>",
   ].join("\n");
 
-  function getStoryParsePrompt(scriptText) {
-    return STORY_PARSE_PROMPT.replace("<<SCRIPT>>", String(scriptText || ""));
+  // researchBrief (optional) is the free-text output of the grounded research
+  // pass (getResearchPrompt). Injected so the extractor can ground its
+  // story-specific copy in verified facts about the real customer. Empty brief
+  // → the block collapses to nothing and the extractor behaves as before.
+  function getStoryParsePrompt(scriptText, researchBrief) {
+    const brief = String(researchBrief || "").trim();
+    const block = brief
+      ? "── CUSTOMER RESEARCH (verified facts to ground your output) ──\n" + brief + "\n"
+      : "";
+    return STORY_PARSE_PROMPT
+      .replace("<<RESEARCH>>", block)
+      .replace("<<SCRIPT>>", String(scriptText || ""));
+  }
+
+  // ─── Grounded customer-research prompt (stage-2, call 1) ──────
+  // Runs with Google Search grounding ON (groundWithSearch) so Gemini looks
+  // the customer up on the web before the extractor parses the script. Returns
+  // FREE-FORM PROSE (grounding is incompatible with JSON mode on Gemini 2.x) —
+  // a tight brief the extractor consumes as context. Non-fatal: if this fails
+  // the extractor still runs with an empty brief.
+  const RESEARCH_PROMPT = [
+    "You are researching a company to ground a Salesforce demo deck in that",
+    "company's REAL business. Use web search. Given the company name (and any",
+    "website) plus a rough demo script, produce a TIGHT prose brief (no JSON, no",
+    "markdown headings) covering, in a few short sentences each:",
+    "  • What the company actually does; its industry and business model.",
+    "  • Who its customers/buyers are (consumer vs. business) and how they buy.",
+    "  • Its real products/services/offerings (name the actual ones).",
+    "  • The natural stages of its customer journey, in ITS language",
+    "    (e.g. an events venue: inquiry → proposal → booking → event day → loyalty).",
+    "  • Brand tone / voice.",
+    "Only state what you can verify; if the company is unknown, say so briefly and",
+    "infer conservatively from the script. Keep the whole brief under ~200 words.",
+    "",
+    "COMPANY: <<CUSTOMER>>",
+    "WEBSITE: <<WEBSITE>>",
+    "",
+    "── SCRIPT (for context) ──",
+    "<<SCRIPT>>",
+  ].join("\n");
+
+  function getResearchPrompt(customerName, scriptText, website) {
+    return RESEARCH_PROMPT
+      .replace("<<CUSTOMER>>", String(customerName || "(unknown — infer from the script)"))
+      .replace("<<WEBSITE>>", String(website || "(none provided)"))
+      .replace("<<SCRIPT>>", String(scriptText || "").slice(0, 4000));
   }
 
   // ─── Persona-card copy prompt (Assets step "Generate all") ────
@@ -515,6 +594,8 @@ CX components (AubreyDemo):
     buildInputsBlock: buildInputsBlock,
     STORY_PARSE_PROMPT: STORY_PARSE_PROMPT,
     getStoryParsePrompt: getStoryParsePrompt,
+    RESEARCH_PROMPT: RESEARCH_PROMPT,
+    getResearchPrompt: getResearchPrompt,
     PERSONA_COPY_PROMPT: PERSONA_COPY_PROMPT,
     getPersonaCopyPrompt: getPersonaCopyPrompt,
     AGENT_CHAT_PROMPT: AGENT_CHAT_PROMPT,
