@@ -289,7 +289,7 @@
         sectionId:           strOr(c && c.sectionId, "demo"),
         linkedStoryActIds:   arrOr(c && c.linkedStoryActIds, []),
         linkedSlideIds:      arrOr(c && c.linkedSlideIds, []),
-        deviceFrame:         strOr(c && c.deviceFrame, "desktop"),
+        deviceFrame:         strOr(c && c.deviceFrame, "mobile"),
         iframeAllowed:       c && c.iframeAllowed === false ? false : true,
         fallbackMode:        strOr(c && c.fallbackMode, "link-card"),
         notes:               strOr(c && c.notes, ""),

@@ -62,7 +62,7 @@
     { "id": "cx_1", "name": "Personalized storefront",
       "url": "https://aubreydemo.com/scene/123/frame", "type": "commerce",
       "sectionId": "demo", "linkedStoryActIds": ["act_2"], "linkedSlideIds": [],
-      "deviceFrame": "desktop", "iframeAllowed": true, "fallbackMode": "link-card",
+      "deviceFrame": "mobile", "iframeAllowed": true, "fallbackMode": "link-card",
       "status": "ready", "notes": "" }
   ],
   "slideSections": [
@@ -107,7 +107,7 @@
       "selectionStatus": "recommended",
       "selectionRationale": "An AubreyDemo CX component is provided.",
       "readinessStatus": "needs-iframe",
-      "linkedCxComponentIds": ["cx_1"], "deviceFrame": "desktop",
+      "linkedCxComponentIds": ["cx_1"], "deviceFrame": "mobile",
       "order": 5 }
   ],
   "assets": [
@@ -207,8 +207,9 @@ CX components (AubreyDemo):
     "   futureState for the Intro section instead.",
     "6. If the SE provides AubreyDemo CX component URLs, create a",
     "   `cxComponents` entry per URL and add an `embeddedCxComponent` slide in",
-    "   the Demo section linked to it. Pick a sensible deviceFrame:",
-    "   commerce/web → desktop, marketing/SMS/agent → mobile.",
+    "   the Demo section linked to it. DEFAULT deviceFrame to \"mobile\" for every",
+    "   CX component; only use \"desktop\"/\"tablet\" when the screen is genuinely a",
+    "   desktop console the SE explicitly wants shown in a laptop frame.",
     "7. Allowed slide layouts (use only these): hero, storyFoundation,",
     "   currentFutureState, futureState, journeyTimeline, demoMap,",
     "   personaCard, agentConversation, unifiedProfile, architecture,",

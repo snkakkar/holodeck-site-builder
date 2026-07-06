@@ -277,14 +277,16 @@
   // the existing builder.js cxComponents[] entries use, so the
   // downstream holodeck-adapter routing (instagramAd / agenticSms /
   // shopperAgent) lights up automatically.
+  // Every live CX component DEFAULTS to the mobile/phone frame; the SE can still
+  // override per component via the "Device frame" dropdown in Step 5.
   const CHANNEL_TO_CX = {
-    site:        { type: "commerce", deviceFrame: "desktop" },
-    retailcloud: { type: "service",  deviceFrame: "desktop" },
-    imessage:    { type: "agent",    deviceFrame: "mobile"  },
-    insta:       { type: "ad",       deviceFrame: "mobile"  },
+    site:        { type: "commerce", deviceFrame: "mobile" },
+    retailcloud: { type: "service",  deviceFrame: "mobile" },
+    imessage:    { type: "agent",    deviceFrame: "mobile" },
+    insta:       { type: "ad",       deviceFrame: "mobile" },
   };
   function sceneToCxComponent(scene) {
-    const fallback = { type: "web", deviceFrame: "desktop" };
+    const fallback = { type: "web", deviceFrame: "mobile" };
     const map = CHANNEL_TO_CX[scene.channel] || fallback;
     return {
       // id is added by the caller via uid("cx_") so it stays

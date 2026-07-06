@@ -902,11 +902,11 @@
             el("div", { class: "dd-skel-screen-msg",
               text: c ? "Add a URL for this component in Step 5" : "Link a CX component in Step 5" }),
           ]);
-      // Match the device frame to the component: desktop/tablet/web screens
-      // render in the laptop frame, mobile-style screens (chat, SMS, social)
-      // in the phone frame. Authored on the component as c.deviceFrame
-      // (desktop/mobile/tablet/none); falls back to the type for older configs.
-      const useLaptop = c && /desktop|tablet|web/i.test(c.deviceFrame || c.type || "");
+      // Live CX components DEFAULT to the mobile/phone frame. Only render the
+      // laptop frame when the component EXPLICITLY opts into a desktop/tablet
+      // deviceFrame — an unset deviceFrame (or a type-only older config) stays
+      // mobile rather than inferring desktop from a "web"/"commerce" type.
+      const useLaptop = c && /desktop|tablet/i.test(c.deviceFrame || "");
       return twoPanel({
         left:  useLaptop ? laptopFrame(inner) : phoneFrame(inner),
         right: rightCopy({

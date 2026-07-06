@@ -2001,7 +2001,7 @@
         id: uid("cx_"), name: "New component", url: "",
         type: "web", sectionId: "demo",
         linkedStoryActIds: [], linkedSlideIds: [],
-        deviceFrame: "desktop", iframeAllowed: true,
+        deviceFrame: "mobile", iframeAllowed: true,
         fallbackMode: "link-card", status: "ready", notes: "",
         imageSlot: "",  // "" = auto-match by type/name; else an explicit CX-still slot (component-wide default)
         imageSlotsBySlide: {},  // { [slideId]: slot } — per-slide override, wins over imageSlot
@@ -4645,7 +4645,7 @@
     components.forEach(function (c) {
       const card = el("div", { class: "bx-side-card" });
       card.appendChild(el("div", { class: "bx-side-card-t", text: c.name || "(unnamed)" }));
-      const sub = c.url ? (c.type || "web") + " · " + (c.deviceFrame || "desktop") : "URL needed";
+      const sub = c.url ? (c.type || "web") + " · " + (c.deviceFrame || "mobile") : "URL needed";
       card.appendChild(el("div", { class: "bx-side-card-s", text: sub }));
       body.appendChild(card);
     });

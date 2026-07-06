@@ -1589,7 +1589,7 @@
         const card = el("div", { class: "hp-embedded-card" });
         const head = el("div", { class: "hp-embedded-head" }, [
           el("div", { class: "hp-embedded-name", text: c.name || "(unnamed)" }),
-          el("div", { class: "hp-embedded-type", text: (c.type || "web") + " · " + (c.deviceFrame || "desktop") }),
+          el("div", { class: "hp-embedded-type", text: (c.type || "web") + " · " + (c.deviceFrame || "mobile") }),
         ]);
         card.appendChild(head);
         const safe = isSafeHttpUrl(c.url) ? c.url : "";
@@ -1600,7 +1600,7 @@
           // pasted URL can't read parent-origin cookies/storage. Trusted
           // origins (aubreydemo.com) keep allow-same-origin so their
           // scenes function normally.
-          const wrap = el("div", { class: "hp-embedded-frame is-" + (c.deviceFrame || "desktop") });
+          const wrap = el("div", { class: "hp-embedded-frame is-" + (c.deviceFrame || "mobile") });
           const ifr = el("iframe", {
             src: safe,
             sandbox: trusted
