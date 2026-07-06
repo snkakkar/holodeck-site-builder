@@ -49,24 +49,49 @@
   //   • Split into sentences (keeping their end punctuation).
   //   • Accumulate sentences while the running length stays ≤ max.
   //   • Return the accumulated COMPLETE sentence(s) — no ellipsis.
-  //   • If not even the FIRST sentence fits, fall back to oneSentence(s,max)
-  //     (which trims to a clean word + "…" as a last resort). This is rare once
-  //     source copy is budgeted to the slot.
+  //   • If not even the FIRST sentence fits (a single long run-on, which is the
+  //     common case for our one-sentence summaries), trim to the last CLAUSE
+  //     boundary (comma / semicolon / dash) that fits, add a period, and return
+  //     with NO "…" — a clause boundary reads as a finished thought. Only if
+  //     there is no clause boundary at all do we fall back to a hard word-trim
+  //     with "…" (true last resort).
   function fitSentences(s, max) {
     s = String(s || "").replace(/\s+/g, " ").trim();
     if (!s) return "";
     // Match sentences INCLUDING their terminal .?! (and any closing quote).
     const parts = s.match(/[^.!?]+[.!?]+["'”’)]*|[^.!?]+$/g);
-    if (!parts || !parts.length) return oneSentence(s, max);
-    let out = "";
-    for (let i = 0; i < parts.length; i++) {
-      const next = (out ? out + " " : "") + parts[i].trim();
-      if (next.length > max) break;
-      out = next;
+    if (parts && parts.length) {
+      let out = "";
+      for (let i = 0; i < parts.length; i++) {
+        const next = (out ? out + " " : "") + parts[i].trim();
+        if (next.length > max) break;
+        out = next;
+      }
+      if (out) return out; // one or more whole sentences fit — done, no "…".
     }
-    // First sentence itself overflows the slot → clean single-clause fallback.
-    if (!out) return oneSentence(s, max);
-    return out;
+    // Single sentence overflows the slot → clause-boundary trim, no ellipsis.
+    return clauseFit(s, max);
+  }
+  // Trim `s` to the longest prefix that (a) fits `max` and (b) ends on a natural
+  // clause boundary (, ; : — –), then finish with a period so it reads complete.
+  // No "…" ever. Falls back to a clean word-trim + "…" only when the first clause
+  // itself exceeds `max` (no earlier boundary to land on).
+  function clauseFit(s, max) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    if (!s) return "";
+    if (s.length <= max) return s;
+    // Reserve one char for the period we append.
+    const window = s.slice(0, max - 1);
+    // Last clause-boundary punctuation within the window.
+    const m = window.match(/^[\s\S]*[,;:–—-](?=\s|$)/);
+    if (m && m[0].trim().length > 0) {
+      // Drop the boundary punctuation + any dangling connector, then end clean.
+      let out = m[0].replace(/[\s,;:–—-]+$/, "");
+      out = out.replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by|so|that|which|while|when)$/i, "");
+      if (out) return out + ".";
+    }
+    // No usable clause boundary — clean word-trim with "…" (true last resort).
+    return oneSentence(s, max);
   }
   // Clamp to at most maxWords words (and optionally maxChars). Used for the
   // journey-timeline milestones, which must stay VERY short: titles ≤ 3-4
@@ -284,8 +309,14 @@
     return [0, 1, 2].map(function (i) {
       const b = buckets[Math.min(lead[i], buckets.length - 1)] || null;
       // Title: author override wins; else the bucket's own (already-punchy)
-      // title, clamped to ≤4 words; else the canonical act default.
-      const derived = b && b.title ? titleCase(clampWords(b.title, 4, 26)) : "";
+      // title, clamped to ≤4 words / 32 chars; else the canonical act default.
+      // Titles must NEVER show a mid-word "…" (a card title is not a sentence),
+      // so strip any ellipsis clampWords would add — a whole-word title reads
+      // clean even if we dropped the 4th word. 32 chars fits a 3-word title
+      // like "Discovering Festival Fashion" on one line.
+      const derived = b && b.title
+        ? titleCase(clampWords(b.title, 4, 32).replace(/…$/, "").replace(/[\s,;:–—-]+$/, ""))
+        : "";
       const title = (tOv[i] && String(tOv[i]).trim())
         || derived
         || THREE_ACT_DEFAULT_TITLES[i];
@@ -1474,6 +1505,7 @@
     cleanHeadline:           cleanHeadline,
     oneSentence:             oneSentence,
     fitSentences:            fitSentences,
+    clauseFit:               clauseFit,
     clampWords:              clampWords,
     shortenTitle:            shortenTitle,
     isHeaderTitle:           isHeaderTitle,

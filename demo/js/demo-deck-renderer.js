@@ -46,8 +46,21 @@
   // AI/user title) ever reaches an eyebrow or headline. clampWords trims to the
   // word limit first, then a char cap as a hard backstop.
   const _cw = SHARED.clampWords ? SHARED.clampWords : function (s) { return String(s || ""); };
-  function ebrow(v) { return _cw(v, 6, 42); }
-  function ttl(v, fb) { return _cw(v, 8, 60) || fb || ""; }
+  // Labels (eyebrows, kickers) and headlines are NOT sentences — they must never
+  // show a mid-word "…". clampWords adds one when it cuts, so strip it and any
+  // trailing separator: a whole-word label reads clean even one word shorter.
+  function noEllipsis(s) { return String(s || "").replace(/…$/, "").replace(/[\s,;:–—-]+$/, ""); }
+  function ebrow(v) { return noEllipsis(_cw(v, 6, 46)); }
+  function ttl(v, fb) { return noEllipsis(_cw(v, 8, 60)) || fb || ""; }
+  // Whole-sentences-that-fit, NO trailing "…" — for every narrative/prose slot
+  // (quotes, exec columns, two-state text, closing takeaway). Packs complete
+  // sentences up to `max`, and for a single long run-on trims to the last clause
+  // boundary + period. Falls back to plain truncate only if the shared helper is
+  // somehow absent.
+  function fitS(v, max) {
+    return SHARED && SHARED.fitSentences ? SHARED.fitSentences(v, max)
+         : (SHARED && SHARED.oneSentence ? SHARED.oneSentence(v, max) : truncate(v, max));
+  }
   // Guard against a malformed config where slides is present but not an
   // array — degrade to an empty deck instead of throwing on .filter below.
   const allSlides = Array.isArray(plan.slides) ? plan.slides : [];
@@ -202,13 +215,13 @@
       return twoPanel({
         left: leftQuote({
           tag:   "Strategic foundation",
-          quote: f.executiveTakeaway || f.futureStateVision || "Connect every channel into one continuous customer relationship.",
+          quote: f.executiveTakeaway ? fitS(f.executiveTakeaway, 160) : (f.futureStateVision ? fitS(f.futureStateVision, 160) : "Connect every channel into one continuous customer relationship."),
           stamp: customer.name ? customer.name + " · " + (customer.industry || "") : "",
         }),
         right: rightCopy({
           eyebrow:  "Story Foundation",
           headline: headline,
-          sub:      f.businessProblem || "Add foundation details in Step 3 of the Builder to fill this slide.",
+          sub:      f.businessProblem ? fitS(f.businessProblem, 220) : "Add foundation details in Step 3 of the Builder to fill this slide.",
           stats:    stats,
         }),
       });
@@ -223,12 +236,12 @@
         left: el("div", { class: "dd-twostate-stack" }, [
           el("div", { class: "dd-twostate-card dd-twostate-current" }, [
             el("div", { class: "dd-twostate-tag", text: "Today" }),
-            el("div", { class: "dd-twostate-text", text: truncate(f.currentStatePain || "Disconnected channels, anonymous browsers, lost revenue.", 180) }),
+            el("div", { class: "dd-twostate-text", text: f.currentStatePain ? fitS(f.currentStatePain, 180) : "Disconnected channels, anonymous browsers, lost revenue." }),
           ]),
           el("div", { class: "dd-twostate-arrow", text: "↓" }),
           el("div", { class: "dd-twostate-card dd-twostate-future" }, [
             el("div", { class: "dd-twostate-tag", text: "Tomorrow" }),
-            el("div", { class: "dd-twostate-text", text: truncate(f.futureStateVision || "One unified profile across every channel.", 180) }),
+            el("div", { class: "dd-twostate-text", text: f.futureStateVision ? fitS(f.futureStateVision, 180) : "One unified profile across every channel." }),
           ]),
         ]),
         right: rightCopy({
@@ -751,15 +764,11 @@
       };
       // Sub-lines must read as a COMPLETE thought with NO trailing "…".
       // fitSentences packs whole sentences up to the char budget (150) and ends
-      // on real punctuation — a normal one-sentence summary fits whole, and a
-      // long one is truncated to the last COMPLETE sentence that fits rather
-      // than sliced mid-word. Only if the very first sentence overflows 150 does
-      // it fall back to oneSentence's clean single-clause + "…" (rare). The row's
+      // on real punctuation with NO "…": a one-sentence summary fits whole; a
+      // long run-on is trimmed to its last clause boundary + period. The row's
       // CSS 2-line clamp bounds any residual length visually.
       const tSub = function (v, max, fb) {
-        const out = SHARED && SHARED.fitSentences ? SHARED.fitSentences(v, max || 150)
-                  : (SHARED && SHARED.oneSentence ? SHARED.oneSentence(v, max || 150) : truncate(v, max || 150));
-        return out || fb;
+        return fitS(v, max || 150) || fb;
       };
       // Icons derive from the act's channel (semantic, story-driven) rather than
       // hardcoded retail glyphs. channelIcon falls back to a neutral dot/🤖.
@@ -950,15 +959,15 @@
       return twoPanel({
         left: leftQuote({
           tag:   "Executive Takeaway",
-          quote: f.executiveTakeaway || ("A single Salesforce platform compounds every customer touch into measurable lift" + (customer.name ? " for " + customer.name + "." : ".")),
+          quote: f.executiveTakeaway ? fitS(f.executiveTakeaway, 160) : ("A single Salesforce platform compounds every customer touch into measurable lift" + (customer.name ? " for " + customer.name + "." : ".")),
           stamp: customer.name ? customer.name + " + Salesforce" : "Salesforce",
         }),
         right: el("div", { class: "dd-right" }, [
           el("p", { class: "dd-eyebrow", text: "The Takeaway" }),
           el("h2", { class: "dd-display dd-display-mid", html: ttl(s.title) || "Three things that <em>compound.</em>" }),
           el("div", { class: "dd-exec-cols" }, [
-            execCol("Challenge",    f.businessProblem    || f.currentStatePain || "Add a customer challenge in Step 3."),
-            execCol("Future state", f.futureStateVision  || "Add the future-state vision in Step 3."),
+            execCol("Challenge",    f.businessProblem ? fitS(f.businessProblem, 180) : (f.currentStatePain ? fitS(f.currentStatePain, 180) : "Add a customer challenge in Step 3.")),
+            execCol("Future state", f.futureStateVision ? fitS(f.futureStateVision, 180) : "Add the future-state vision in Step 3."),
             execCol("Capabilities", products.length ? products.slice(0,4).join(" · ") : "Pick products in Step 1."),
           ]),
         ]),
