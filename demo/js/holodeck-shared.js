@@ -36,7 +36,10 @@
     if (!s) return "";
     const m = s.match(/^[^.!?]+[.!?]/);
     let out = m ? m[0].trim() : s;
-    if (out.length > max) out = out.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+    // On overflow, trim to a word boundary then drop a trailing connector/
+    // punctuation (same rule as truncate) so the "…" never attaches to an
+    // orphaned "and"/"the"/comma — reads as a complete thought.
+    if (out.length > max) out = out.slice(0, max - 1).replace(/\s+\S*$/, "").replace(/[\s,;:–—-]+$|\s+(?:and|or|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "") + "…";
     return out;
   }
   // Clamp to at most maxWords words (and optionally maxChars). Used for the

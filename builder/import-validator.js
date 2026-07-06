@@ -16,6 +16,60 @@
   "use strict";
 
   const STORE = global.HOLO_STORE; // for uid + newBlankState
+  const SHARED = global.HOLO_SHARED || {}; // text-fit helpers (loaded before us)
+
+  // ── Stored-text re-fit (migration on every load) ───────────────
+  // Existing projects were parsed BEFORE the per-field character budgets
+  // existed, so their stored copy overflows the fixed slide slots and the
+  // renderers append a mid-thought "…". Re-fit the stored fields to complete
+  // thoughts within budget here, once, on load. These are idempotent (the
+  // helpers no-op when already within budget) and never throw if a helper is
+  // absent — they just return the input unchanged.
+  function refitSentence(s, max) { return SHARED.oneSentence ? SHARED.oneSentence(s, max) : String(s || ""); }
+  function refitText(s, max)     { return SHARED.truncate    ? SHARED.truncate(s, max)    : String(s || ""); }
+  // deviceFrame migration: flip stored explicit "desktop" → "mobile" (live CX
+  // components + device-moment slides now default to the phone frame).
+  function frameToMobile(v) { return v === "desktop" ? "mobile" : v; }
+
+  // ─── State migration (runs on BOTH import AND normal project load) ──
+  // Existing projects load straight from the store (STORE.loadProject) WITHOUT
+  // going through importConfig, so the re-fit / deviceFrame flips must be
+  // applied to an already-built state object too. This mutates `state` in place
+  // and is idempotent — the text helpers no-op when already within budget and
+  // frameToMobile no-ops on non-"desktop" values, so it's safe to run on every
+  // load. Never throws on missing fields. Returns the same state for chaining.
+  function migrateState(state) {
+    if (!state || typeof state !== "object") return state;
+    const f = state.storyFoundations;
+    if (f && typeof f === "object") {
+      if (f.businessProblem)      f.businessProblem      = refitText(f.businessProblem, 220);
+      if (f.currentStatePain)     f.currentStatePain     = refitText(f.currentStatePain, 180);
+      if (f.futureStateVision)    f.futureStateVision    = refitText(f.futureStateVision, 180);
+      if (f.primaryNarrative)     f.primaryNarrative     = refitSentence(f.primaryNarrative, 100);
+      if (f.transformationThesis) f.transformationThesis = refitSentence(f.transformationThesis, 70);
+      if (f.executiveTakeaway)    f.executiveTakeaway    = refitSentence(f.executiveTakeaway, 110);
+    }
+    (Array.isArray(state.storyActs) ? state.storyActs : []).forEach(function (a) {
+      if (!a || typeof a !== "object") return;
+      if (a.summary)                a.summary                = refitSentence(a.summary, 200);
+      if (a.demoMoment)             a.demoMoment             = refitText(a.demoMoment, 42);
+      if (a.salesforceCapabilities) a.salesforceCapabilities = refitText(a.salesforceCapabilities, 36);
+      if (a.businessValue)          a.businessValue          = refitText(a.businessValue, 28);
+    });
+    (Array.isArray(state.personas) ? state.personas : []).forEach(function (p) {
+      if (!p || typeof p !== "object") return;
+      if (p.role)       p.role       = refitText(p.role, 16);
+      if (p.goals)      p.goals      = refitText(p.goals, 140);
+      if (p.painPoints) p.painPoints = refitText(p.painPoints, 80);
+    });
+    (Array.isArray(state.slides) ? state.slides : []).forEach(function (s) {
+      if (s && typeof s === "object" && s.deviceFrame) s.deviceFrame = frameToMobile(s.deviceFrame);
+    });
+    (Array.isArray(state.cxComponents) ? state.cxComponents : []).forEach(function (c) {
+      if (c && typeof c === "object" && c.deviceFrame) c.deviceFrame = frameToMobile(c.deviceFrame);
+    });
+    return state;
+  }
 
   // ─── Public entry point ────────────────────────────────────────
   function importConfig(raw) {
@@ -134,10 +188,10 @@
       return {
         id:            strOr(p && p.id, uid("persona_")),
         name:          strOr(p && p.name, ""),
-        role:          strOr(p && p.role, p && p.jobTitle, ""),
+        role:          refitText(strOr(p && p.role, p && p.jobTitle, ""), 16),
         pronouns:      strOr(p && p.pronouns, ""),
-        goals:         strOr(p && p.goals, ""),
-        painPoints:    strOr(p && p.painPoints, ""),
+        goals:         refitText(strOr(p && p.goals, ""), 140),
+        painPoints:    refitText(strOr(p && p.painPoints, ""), 80),
         demoRelevance: strOr(p && p.demoRelevance, ""),
         stats:         stats,
         wishlist:      wishlist,
@@ -156,10 +210,10 @@
         title:                   strOr(a && a.title, ""),
         persona:                 strOr(a && a.persona, ""),
         channel:                 strOr(a && a.channel, ""),
-        summary:                 strOr(a && a.summary, ""),
-        demoMoment:              strOr(a && a.demoMoment, ""),
-        salesforceCapabilities:  strOr(a && a.salesforceCapabilities, ""),
-        businessValue:           strOr(a && a.businessValue, ""),
+        summary:                 refitSentence(strOr(a && a.summary, ""), 200),
+        demoMoment:              refitText(strOr(a && a.demoMoment, ""), 42),
+        salesforceCapabilities:  refitText(strOr(a && a.salesforceCapabilities, ""), 36),
+        businessValue:           refitText(strOr(a && a.businessValue, ""), 28),
         requiredAssets:          strOr(a && a.requiredAssets, ""),
         notes:                   strOr(a && a.notes, ""),
       };
@@ -249,7 +303,7 @@
         readinessStatus:       strOr(s && s.readinessStatus, ""),
         missingInputs:         arrOr(s && s.missingInputs, []),
         linkedCxComponentIds:  arrOr(s && s.linkedCxComponentIds, []),
-        deviceFrame:           strOr(s && s.deviceFrame, ""),
+        deviceFrame:           frameToMobile(strOr(s && s.deviceFrame, "")),
         fallbackLinks:         arrOr(s && s.fallbackLinks, []),
         subtitle:              strOr(s && s.subtitle, ""),
       };
@@ -289,7 +343,7 @@
         sectionId:           strOr(c && c.sectionId, "demo"),
         linkedStoryActIds:   arrOr(c && c.linkedStoryActIds, []),
         linkedSlideIds:      arrOr(c && c.linkedSlideIds, []),
-        deviceFrame:         strOr(c && c.deviceFrame, "mobile"),
+        deviceFrame:         frameToMobile(strOr(c && c.deviceFrame, "mobile")),
         iframeAllowed:       c && c.iframeAllowed === false ? false : true,
         fallbackMode:        strOr(c && c.fallbackMode, "link-card"),
         notes:               strOr(c && c.notes, ""),
@@ -303,12 +357,12 @@
       || null;
     if (fSrc && typeof fSrc === "object") {
       state.storyFoundations = {
-        businessProblem:        strOr(fSrc.businessProblem, ""),
-        currentStatePain:       strOr(fSrc.currentStatePain, ""),
-        futureStateVision:      strOr(fSrc.futureStateVision, ""),
-        primaryNarrative:       strOr(fSrc.primaryNarrative, ""),
-        transformationThesis:   strOr(fSrc.transformationThesis, ""),
-        executiveTakeaway:      strOr(fSrc.executiveTakeaway, ""),
+        businessProblem:        refitText(strOr(fSrc.businessProblem, ""), 220),
+        currentStatePain:       refitText(strOr(fSrc.currentStatePain, ""), 180),
+        futureStateVision:      refitText(strOr(fSrc.futureStateVision, ""), 180),
+        primaryNarrative:       refitSentence(strOr(fSrc.primaryNarrative, ""), 100),
+        transformationThesis:   refitSentence(strOr(fSrc.transformationThesis, ""), 70),
+        executiveTakeaway:      refitSentence(strOr(fSrc.executiveTakeaway, ""), 110),
         customerMoments:        arrOr(fSrc.customerMoments, []),
         operationalMoments:     arrOr(fSrc.operationalMoments, []),
         agentforceMoments:      arrOr(fSrc.agentforceMoments, []),
@@ -452,5 +506,6 @@
 
   global.HOLO_VALIDATOR = {
     importConfig: importConfig,
+    migrateState: migrateState,
   };
 })(window);

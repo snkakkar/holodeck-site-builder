@@ -235,11 +235,20 @@
       // live state so the editor/preview can display them. signAssets never
       // rejects — on failure it leaves tokens (renderer shows a placeholder).
       return STORE.signAssets(state).then(function () {
+        // Existing projects load straight from the store (bypassing
+        // VALIDATOR.importConfig), so apply the on-load migrations — re-fit
+        // overflowing stored copy to complete thoughts, and flip stored
+        // deviceFrame "desktop" → "mobile" — here too. Idempotent, so it's a
+        // no-op once a project is already migrated.
+        if (VALIDATOR && VALIDATOR.migrateState) VALIDATOR.migrateState(state);
         app.state = state;
         app.view = "builder";
         STORE.setActiveProjectId(projectId);
         // Seed presenter name/title from the synced profile if still blank.
-        if (prepopulatePresenterFromProfile(state)) saveActive();
+        prepopulatePresenterFromProfile(state);
+        // Persist unconditionally so the migration (flipped frames / re-fit
+        // copy) survives the next load and reaches export/preview.
+        saveActive();
         recompute();
         render();
       });
