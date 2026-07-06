@@ -199,11 +199,16 @@
       : "Every interaction builds context. Every context makes the next experience more personal.";
   }
   function shortClosingQuote(f) {
-    if (f.executiveTakeaway) return oneSentence(f.executiveTakeaway, 120) || truncate(f.executiveTakeaway, 120);
+    if (f.executiveTakeaway) return fitSentences(f.executiveTakeaway, 120) || truncate(f.executiveTakeaway, 120);
     return TODO + " — closing one-line takeaway";
   }
   function oneSentence(s, max) {
     return SHARED.oneSentence ? SHARED.oneSentence(s, max) : "";
+  }
+  // Whole-sentences-that-fit, NO trailing "…" (narrative slots). Falls back to
+  // oneSentence's clean single-clause when even the first sentence overflows.
+  function fitSentences(s, max) {
+    return SHARED.fitSentences ? SHARED.fitSentences(s, max) : oneSentence(s, max);
   }
   function cleanHeadline(s, max) {
     return SHARED.cleanHeadline ? SHARED.cleanHeadline(s, max) : truncate(s, max);
@@ -539,7 +544,7 @@
     return threeActs.map(function (a) {
       return {
         title:       a.title,
-        description: truncate(a.description, 200),
+        description: fitSentences(a.description, 200),
         tags:        a.tags,
       };
     });
@@ -598,7 +603,7 @@
         type:     type,
         eyebrow:  capitalize(sl.sectionId || "demo").replace("-", " "),
         headline: sl.title || ("Slide " + (i + 1)),
-        sub:      sl.speakerNotes || (act && act.summary ? oneSentence(act.summary, 200) : "[TODO: slide narration]"),
+        sub:      sl.speakerNotes || (act && act.summary ? fitSentences(act.summary, 200) : "[TODO: slide narration]"),
       };
       if (type === "two-panel") {
         // demoMap (and other two-panel SE layouts) render a numbered
@@ -608,7 +613,7 @@
         base.right = {
           eyebrow:  base.eyebrow,
           headline: sl.title || (act && act.title ? act.title : ""),
-          sub:      (act && act.summary) ? oneSentence(act.summary, 200) : "[TODO: slide narrative]",
+          sub:      (act && act.summary) ? fitSentences(act.summary, 200) : "[TODO: slide narrative]",
           stats:    [],
           quote:    "",
         };
@@ -627,7 +632,7 @@
         base.right = {
           eyebrow:  (act && act.salesforceCapabilities) || base.eyebrow,
           headline: sl.title || (act && act.title ? act.title : ""),
-          sub:      (act && act.summary) ? oneSentence(act.summary, 200) : (sl.speakerNotes || "[TODO: scene narration]"),
+          sub:      (act && act.summary) ? fitSentences(act.summary, 200) : (sl.speakerNotes || "[TODO: scene narration]"),
           stats:    [],
           quote:    "",
         };
@@ -864,9 +869,9 @@
           ? "Every great experience begins<br/>with <em>a single signal.</em>"
           : "Every relationship begins<br/>with a <em>single moment.</em>",
         sub:      f.businessProblem
-          ? truncate(f.businessProblem, 220)
+          ? fitSentences(f.businessProblem, 220)
           : (firstAct && firstAct.summary
-              ? truncate(firstAct.summary, 220)
+              ? fitSentences(firstAct.summary, 220)
               : "Connected data and AI turn each customer touchpoint into the foundation of the next."),
       },
       s2: {
@@ -876,8 +881,8 @@
         role:     persona && persona.role ? persona.role : "Customer",
         name:     personaName + ".",
         sub:      firstAct && firstAct.summary
-          ? truncate(firstAct.summary, 200)
-          : (f.businessProblem ? truncate(f.businessProblem, 200) : "The demo opens here."),
+          ? fitSentences(firstAct.summary, 200)
+          : (f.businessProblem ? fitSentences(f.businessProblem, 200) : "The demo opens here."),
         items:    [
           {
             icon:  "🛍️",

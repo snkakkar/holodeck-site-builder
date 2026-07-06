@@ -42,6 +42,32 @@
     if (out.length > max) out = out.slice(0, max - 1).replace(/\s+\S*$/, "").replace(/[\s,;:–—-]+$|\s+(?:and|or|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "") + "…";
     return out;
   }
+  // Pack as many WHOLE sentences as fit `max`, ending on real punctuation with
+  // NO trailing "…". This is the renderer for narrative slots (journey circles,
+  // three-act cards, scene sub-lines, story hook) where a mid-sentence "…" reads
+  // as broken. Behavior:
+  //   • Split into sentences (keeping their end punctuation).
+  //   • Accumulate sentences while the running length stays ≤ max.
+  //   • Return the accumulated COMPLETE sentence(s) — no ellipsis.
+  //   • If not even the FIRST sentence fits, fall back to oneSentence(s,max)
+  //     (which trims to a clean word + "…" as a last resort). This is rare once
+  //     source copy is budgeted to the slot.
+  function fitSentences(s, max) {
+    s = String(s || "").replace(/\s+/g, " ").trim();
+    if (!s) return "";
+    // Match sentences INCLUDING their terminal .?! (and any closing quote).
+    const parts = s.match(/[^.!?]+[.!?]+["'”’)]*|[^.!?]+$/g);
+    if (!parts || !parts.length) return oneSentence(s, max);
+    let out = "";
+    for (let i = 0; i < parts.length; i++) {
+      const next = (out ? out + " " : "") + parts[i].trim();
+      if (next.length > max) break;
+      out = next;
+    }
+    // First sentence itself overflows the slot → clean single-clause fallback.
+    if (!out) return oneSentence(s, max);
+    return out;
+  }
   // Clamp to at most maxWords words (and optionally maxChars). Used for the
   // journey-timeline milestones, which must stay VERY short: titles ≤ 3-4
   // words, sub-lines ≤ 15-20 words. Adds an ellipsis only when it actually cut.
@@ -336,9 +362,10 @@
       return a && a.summary && !isHeaderTitle(a.title);
     });
     const out = [];
-    // Adaptive count: at least 3 circles, at most 5, never padded beyond the
-    // real milestone count once we're above the floor of 3.
-    const count = Math.max(3, Math.min(5, milestones.length || 0)) || 3;
+    // Adaptive count: at least 4 circles, at most 5. The floor of 4 keeps the
+    // journey map reading as a real arc (never a sparse 3-circle row); capped at
+    // 5 because PHASE_TITLES/EMOJIS/CIRCLE_CLASSES only define 5 slots.
+    const count = Math.max(4, Math.min(5, milestones.length || 0)) || 4;
     for (let i = 0; i < count; i++) {
       const a = milestones[i];
       out.push({
@@ -348,8 +375,8 @@
         badge:        a && a.salesforceCapabilities ? truncate(a.salesforceCapabilities, 36) : (prods[i] || "Salesforce"),
         emoji:        PHASE_EMOJIS[i],
         circleClass:  PHASE_CIRCLE_CLASSES[i],
-        description:  a && a.summary ? oneSentence(a.summary, 200) : phaseDescription(PHASE_TITLES[i]),
-        descriptionShort: a && a.summary ? oneSentence(a.summary, 110) : phaseDescription(PHASE_TITLES[i]),
+        description:  a && a.summary ? fitSentences(a.summary, 200) : phaseDescription(PHASE_TITLES[i]),
+        descriptionShort: a && a.summary ? fitSentences(a.summary, 110) : phaseDescription(PHASE_TITLES[i]),
         detail:       a && (a.notes || a.summary) ? truncate((a.notes || "") + " " + (a.summary || ""), 280)
                         : phaseDescription(PHASE_TITLES[i]) + " [TODO: enrich with customer-specific detail]",
         technologies: a && a.salesforceCapabilities
@@ -1446,6 +1473,7 @@
     truncate:                truncate,
     cleanHeadline:           cleanHeadline,
     oneSentence:             oneSentence,
+    fitSentences:            fitSentences,
     clampWords:              clampWords,
     shortenTitle:            shortenTitle,
     isHeaderTitle:           isHeaderTitle,

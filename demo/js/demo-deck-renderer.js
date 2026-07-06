@@ -749,13 +749,16 @@
         const out = SHARED && SHARED.cleanHeadline ? SHARED.cleanHeadline(clamped, max || 56) : truncate(clamped, max || 56);
         return out || fb;
       };
-      // Sub-lines must read as a COMPLETE thought — oneSentence stops at the
-      // first .?! and the generous char budget (150) means a normal sentence
-      // fits whole with NO mid-sentence "…". The row's CSS 2-line clamp bounds
-      // any genuinely long sentence visually (clean line-end trim), so the
-      // underlying text is never fragmented.
+      // Sub-lines must read as a COMPLETE thought with NO trailing "…".
+      // fitSentences packs whole sentences up to the char budget (150) and ends
+      // on real punctuation — a normal one-sentence summary fits whole, and a
+      // long one is truncated to the last COMPLETE sentence that fits rather
+      // than sliced mid-word. Only if the very first sentence overflows 150 does
+      // it fall back to oneSentence's clean single-clause + "…" (rare). The row's
+      // CSS 2-line clamp bounds any residual length visually.
       const tSub = function (v, max, fb) {
-        const out = SHARED && SHARED.oneSentence ? SHARED.oneSentence(v, max || 150) : truncate(v, max || 150);
+        const out = SHARED && SHARED.fitSentences ? SHARED.fitSentences(v, max || 150)
+                  : (SHARED && SHARED.oneSentence ? SHARED.oneSentence(v, max || 150) : truncate(v, max || 150));
         return out || fb;
       };
       // Icons derive from the act's channel (semantic, story-driven) rather than

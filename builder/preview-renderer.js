@@ -1759,7 +1759,7 @@
         grid.appendChild(el("div", { class: "hp-three-card" }, [
           el("div", { class: "hp-three-num", text: String(i + 1) }),
           el("div", { class: "hp-three-title", text: a.title }),
-          el("div", { class: "hp-three-desc",  text: truncate(a.description, mode === "expanded" ? 200 : 110) }),
+          el("div", { class: "hp-three-desc",  text: (SHARED.fitSentences ? SHARED.fitSentences(a.description, mode === "expanded" ? 200 : 110) : truncate(a.description, mode === "expanded" ? 200 : 110)) }),
         ]));
       });
       root.appendChild(grid);
