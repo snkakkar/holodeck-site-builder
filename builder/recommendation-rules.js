@@ -410,10 +410,11 @@
     // ── Channel device moments — Demo section ───────────────────
     {
       id: "device-instagram",
-      title: "Instagram Ad — Phone Moment",
+      title: "Instagram Ad",
       type: "deviceMoment",
       layout: "deviceMoment",
       sectionId: "demo",
+      deviceFrame: "mobile",   // always the phone frame (immune to title/channel prose)
       selectionStatus: "optional",
       capabilities: ["Marketing Cloud"],
       requiredInputs: ["scenes"],
@@ -426,10 +427,11 @@
     },
     {
       id: "device-sms",
-      title: "Agentic SMS — Phone Moment",
+      title: "Agentic SMS",
       type: "deviceMoment",
       layout: "deviceMoment",
       sectionId: "demo",
+      deviceFrame: "mobile",   // always the phone frame
       selectionStatus: "optional",
       capabilities: ["Agentforce", "Marketing Cloud"],
       requiredInputs: ["scenes"],
@@ -441,11 +443,29 @@
       },
     },
     {
-      id: "device-shopper-agent",
-      title: "Shopper Agent — App Moment",
+      id: "device-email",
+      title: "Agentic Email Conversation",
       type: "deviceMoment",
       layout: "deviceMoment",
       sectionId: "demo",
+      deviceFrame: "mobile",   // phone frame — shows a linked CX moment or a cxEmailConvo still
+      selectionStatus: "optional",
+      capabilities: ["Agentforce", "Marketing Cloud"],
+      requiredInputs: ["scenes"],
+      match: function (ctx, sig) {
+        if (sig.agentforce && sig.marketing) {
+          return { priority: 60, signals: ["email"] };
+        }
+        return null;
+      },
+    },
+    {
+      id: "device-shopper-agent",
+      title: "Shopper Agent",
+      type: "deviceMoment",
+      layout: "deviceMoment",
+      sectionId: "demo",
+      deviceFrame: "mobile",   // force phone — was defaulting to the desktop frame via act channel prose
       selectionStatus: "recommended",
       capabilities: ["Agentforce", "Commerce"],
       requiredInputs: ["scenes"],

@@ -1750,10 +1750,13 @@ button { font-family: inherit; }
   display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: stretch;
 }
 .hp-device-frame {
-  width: 150px; border-radius: 22px; padding: 10px;
+  /* Base = the PHONE (the .is-laptop variant below overrides width/min-height).
+     Bumped ~30% (150→195 / 240→312) to match the /demo phone bump so preview
+     and export stay in sync and phones read consistently across slides. */
+  width: 195px; border-radius: 22px; padding: 10px;
   background: var(--bx-navy);
   position: relative;
-  min-height: 240px;
+  min-height: 312px;
 }
 .hp-device-frame.is-laptop {
   width: 100%; max-width: 240px;
@@ -1761,7 +1764,7 @@ button { font-family: inherit; }
 }
 .hp-device-screen {
   background: #fff; border-radius: 14px; height: 100%; padding: 10px 12px;
-  min-height: 220px;
+  min-height: 286px;   /* ~30% bump, matches the enlarged phone frame */
   display: flex; flex-direction: column; gap: 6px;
 }
 .hp-device-frame.is-laptop .hp-device-screen { min-height: 130px; border-radius: 4px; }

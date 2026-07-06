@@ -657,10 +657,12 @@
 .dd-phone-frame {
   /* Height-driven (mirrors .dd-laptop-frame): the frame is sized by HEIGHT and
      capped, so a tall chat thread can NEVER stretch it — the thread scrolls
-     internally instead. 591px ≈ the original 280px × 19/9 visual size. */
-  height:min(100%, calc(591px * var(--dd-scale,1)));
+     internally instead. Base bumped ~30% (591→768 / 280→364) for a larger,
+     consistent phone across ALL phone slides; still height-capped at min(100%)
+     so it clamps to the viewport instead of overflowing. */
+  height:min(100%, calc(768px * var(--dd-scale,1)));
   aspect-ratio: 9/19;
-  width:auto; max-width:calc(280px * var(--dd-scale,1));
+  width:auto; max-width:calc(364px * var(--dd-scale,1));
   flex:0 0 auto;                       /* don't let the device column stretch it */
   background:#1a232f;
   border-radius:42px;

@@ -2214,6 +2214,9 @@
     { slot: "cxTextConvo", group: "CX component stills", label: "Agentic text thread still",
       help: "SMS / agentic text-message thread. Shows inside the phone frame on Embedded CX slides. (The Agent Conversation slide now renders an interactive scripted chat, so no still is used there.)",
       layouts: ["embeddedCxComponent"], always: true, accept: "image/*" },
+    { slot: "cxEmailConvo", group: "CX component stills", label: "Agentic email still",
+      help: "Agentic email / mail-app conversation. Shows inside the phone frame on the Agentic Email Conversation / Embedded CX / device slides.",
+      layouts: ["embeddedCxComponent", "deviceMoment"], always: true, accept: "image/*" },
   ];
 
   // Compute which assets should show given the current slide plan.
@@ -2697,6 +2700,13 @@
         "and a message input bar" +
         (personaPain ? ", resolving " + personaPain : "") +
         ". Short realistic messages only. 9:16 vertical mobile composition.",
+      "cxEmailConvo": UI_ART + " A mobile email / mail-app screen on a phone showing an on-brand " +
+        "message to " + (personaName || "a customer") +
+        (customer ? " from \"" + customer + "\"" : "") +
+        ". Mail-app header (back arrow, avatar), a sender row with name and address, a bold subject " +
+        "line, and a short readable email body with a clear call-to-action button" +
+        (personaPain ? " addressing " + personaPain : "") +
+        ". Realistic, concise copy only. 9:16 vertical mobile composition.",
     };
     const intent = intents[item.slot] || ("an on-brand image for \"" + item.label + "\"");
 
@@ -3225,6 +3235,7 @@
     { slot: "cxInstagramAd",    label: "Instagram ad still" },
     { slot: "cxShopperAgent",   label: "Shopper agent still" },
     { slot: "cxTextConvo",      label: "Agentic text thread still" },
+    { slot: "cxEmailConvo",     label: "Agentic email still" },
   ];
   const CX_STILL_SLOTS = CX_IMAGE_SLOTS.map(function (o) { return o.slot; });
 

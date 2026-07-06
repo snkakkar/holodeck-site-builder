@@ -598,7 +598,7 @@
         type:     type,
         eyebrow:  capitalize(sl.sectionId || "demo").replace("-", " "),
         headline: sl.title || ("Slide " + (i + 1)),
-        sub:      sl.speakerNotes || (act && act.summary ? truncate(act.summary, 200) : "[TODO: slide narration]"),
+        sub:      sl.speakerNotes || (act && act.summary ? oneSentence(act.summary, 200) : "[TODO: slide narration]"),
       };
       if (type === "two-panel") {
         // demoMap (and other two-panel SE layouts) render a numbered
@@ -608,7 +608,7 @@
         base.right = {
           eyebrow:  base.eyebrow,
           headline: sl.title || (act && act.title ? act.title : ""),
-          sub:      (act && act.summary) ? truncate(act.summary, 200) : "[TODO: slide narrative]",
+          sub:      (act && act.summary) ? oneSentence(act.summary, 200) : "[TODO: slide narrative]",
           stats:    [],
           quote:    "",
         };
@@ -627,7 +627,7 @@
         base.right = {
           eyebrow:  (act && act.salesforceCapabilities) || base.eyebrow,
           headline: sl.title || (act && act.title ? act.title : ""),
-          sub:      (act && act.summary) ? truncate(act.summary, 200) : (sl.speakerNotes || "[TODO: scene narration]"),
+          sub:      (act && act.summary) ? oneSentence(act.summary, 200) : (sl.speakerNotes || "[TODO: scene narration]"),
           stats:    [],
           quote:    "",
         };
@@ -927,6 +927,7 @@
       cxInstagramAd:     asset(state, "cxInstagramAd"),
       cxShopperAgent:    asset(state, "cxShopperAgent"),
       cxTextConvo:       asset(state, "cxTextConvo"),
+      cxEmailConvo:      asset(state, "cxEmailConvo"),
       macbookFrame:      "assets/macbook-transparent.png",
       iPhoneFrame:       "assets/iPhone16Pro_FRAME.png",
     };

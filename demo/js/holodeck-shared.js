@@ -22,11 +22,13 @@
     if (!s) return "";
     s = String(s).replace(/\s+/g, " ").trim();
     if (s.length <= max) return s;
-    return s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+    // Trim to a word boundary, then drop a trailing connector/punctuation so the
+    // "…" never attaches to an orphaned "and"/"the"/comma (reads as complete).
+    return s.slice(0, max - 1).replace(/\s+\S*$/, "").replace(/[\s,;:–—-]+$|\s+(?:and|or|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "") + "…";
   }
   function cleanHeadline(s, max) {
     s = String(s || "").replace(/\s+/g, " ").trim();
-    if (s.length > max) s = s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+    if (s.length > max) s = s.slice(0, max - 1).replace(/\s+\S*$/, "").replace(/[\s,;:–—-]+$|\s+(?:and|or|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "") + "…";
     return s;
   }
   function oneSentence(s, max) {
@@ -59,21 +61,29 @@
     if (s.length > 22) s = s.slice(0, 22).replace(/\s+\S*$/, "");
     return titleCase(s);
   }
-  // Punchy 1-2 word title via "educated consolidation": keep the first meaningful
-  // segment (cut at the first connector), drop filler stopwords, cap at 2 significant
-  // words. Never returns empty or an orphaned connector — falls back to shortenTitle.
+  // Punchy title via "educated consolidation": intelligently REDUCE to a short but
+  // COMPLETE clause of 2-4 words — never a hard 2-word stub that orphans a connector
+  // ("Predict and") or drops the meaningful half ("Split-Screen 1"). Keeps the whole
+  // phrase as the candidate (no connector-split), clamps to ≤4 words / ~28 chars via
+  // clampWords, then re-trims leading/trailing filler stopwords so the result reads as
+  // a finished thought. Never returns empty or an orphaned connector — falls back to
+  // shortenTitle.
   function punchyTitle(s) {
-    const STOP = { the: 1, of: 1, a: 1, an: 1, to: 1, in: 1, for: 1, and: 1, "&": 1, with: 1, on: 1 };
+    const STOP = { the: 1, of: 1, a: 1, an: 1, to: 1, in: 1, for: 1, and: 1, "&": 1, with: 1, on: 1, from: 1, at: 1, by: 1, or: 1, "&amp;": 1 };
     const orig = String(s || "").replace(/\s+/g, " ").trim();
     if (!orig) return "";
-    // Cut at the first connector, keeping only the first segment.
-    let seg = orig.split(/\s*(?:&|\band\b|:|—|–|\s-\s|,|\/)\s*/i)[0] || orig;
-    let words = seg.split(/\s+/).filter(function (w) { return w; });
-    // Drop leading/trailing filler stopwords.
+    // Reduce to at most 4 words / ~28 chars — clampWords drops a trailing connector
+    // before any ellipsis, so we never end on a dangling "&"/"-".
+    let out = clampWords(orig, 4, 28);
+    const cut = /…$/.test(out);
+    let words = out.replace(/…$/, "").split(/\s+/).filter(function (w) { return w; });
+    // Drop leading/trailing filler stopwords so we never end on "…and" / "…of".
     while (words.length && STOP[words[0].toLowerCase()]) words.shift();
     while (words.length && STOP[words[words.length - 1].toLowerCase()]) words.pop();
     if (!words.length) return shortenTitle(orig);
-    return titleCase(words.slice(0, 2).join(" "));
+    // Keep the ellipsis only when clampWords genuinely truncated a longer title
+    // (≥4 words survived); a 2-4 word title that fits shows whole, no "…".
+    return titleCase(words.join(" ")) + (cut && words.length >= 4 ? "…" : "");
   }
   function isHeaderTitle(t) {
     return !t || /^(intro|opening|open|chapter\s|section\s|close|closing)/i.test(t);
@@ -335,8 +345,8 @@
         badge:        a && a.salesforceCapabilities ? truncate(a.salesforceCapabilities, 36) : (prods[i] || "Salesforce"),
         emoji:        PHASE_EMOJIS[i],
         circleClass:  PHASE_CIRCLE_CLASSES[i],
-        description:  a && a.summary ? truncate(a.summary, 200) : phaseDescription(PHASE_TITLES[i]),
-        descriptionShort: a && a.summary ? truncate(a.summary, 110) : phaseDescription(PHASE_TITLES[i]),
+        description:  a && a.summary ? oneSentence(a.summary, 200) : phaseDescription(PHASE_TITLES[i]),
+        descriptionShort: a && a.summary ? oneSentence(a.summary, 110) : phaseDescription(PHASE_TITLES[i]),
         detail:       a && (a.notes || a.summary) ? truncate((a.notes || "") + " " + (a.summary || ""), 280)
                         : phaseDescription(PHASE_TITLES[i]) + " [TODO: enrich with customer-specific detail]",
         technologies: a && a.salesforceCapabilities
