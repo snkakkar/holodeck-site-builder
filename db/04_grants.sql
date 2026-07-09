@@ -1,29 +1,19 @@
--- 04_grants.sql — schema + table grants.
+-- 04_grants.sql — schema + function grants (single-role / Heroku model).
 -- Idempotent (GRANT is naturally repeatable).
 --
--- Copied from live Neon: `authenticated` gets USAGE on app + public and full
--- CRUD on the five tables; RLS (05) then constrains WHICH rows. `anon` gets
--- NOTHING, so unauthenticated requests can touch no table.
+-- On Heroku there is no `authenticated`/`anon` role (the login role lacks
+-- CREATEROLE). PostgREST connects as the app login role, which also OWNS the
+-- five tables — so it already has full CRUD and USAGE on the schemas it owns.
+-- We therefore do NOT grant table privileges here; row visibility is governed
+-- entirely by RLS (05) via FORCE + TO PUBLIC policies.
 --
--- `authenticated` needs USAGE+SELECT on the SQL helper functions it calls
--- (they are SECURITY DEFINER, but EXECUTE is still required). auth.* helpers
--- are called transitively via app.* (SECURITY DEFINER runs as owner), so
--- granting EXECUTE on the app.* set is sufficient; we also grant the auth.*
--- readers for safety since policies may reference them directly.
-
-GRANT USAGE ON SCHEMA app TO authenticated;
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT USAGE ON SCHEMA auth TO authenticated;
-
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.projects TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.project_shares TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.project_presence TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.feedback TO authenticated;  -- no DELETE on Neon
+-- We still grant EXECUTE on the SQL helper functions to PUBLIC so that policy
+-- expressions resolve regardless of which member of PUBLIC evaluates them.
+-- (app.* are SECURITY DEFINER and call auth.* transitively as owner; granting
+-- the app.* set is sufficient, but we grant the auth.* readers too for safety
+-- since policies may reference them directly.)
 
 GRANT EXECUTE ON FUNCTION
   app.user_id(), app.current_email(), app.is_salesforce(), app.is_feedback_admin(),
   auth.jwt(), auth.user_id()
-  TO authenticated;
-
--- anon: intentionally no grants.
+  TO PUBLIC;

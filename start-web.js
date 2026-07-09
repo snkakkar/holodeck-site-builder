@@ -97,7 +97,10 @@ process.on("SIGINT", () => { log("SIGINT"); shutdown(0); });
     PGRST_DB_URI: process.env.DATABASE_URL || process.env.PGRST_DB_URI || "",
     PGRST_JWT_SECRET: process.env.JWT_SECRET || process.env.PGRST_JWT_SECRET || "",
     PGRST_DB_SCHEMAS: process.env.PGRST_DB_SCHEMAS || "public",
-    PGRST_DB_ANON_ROLE: process.env.PGRST_DB_ANON_ROLE || "anon",
+    // No PGRST_DB_ANON_ROLE: with no anon role, PostgREST 401s token-less
+    // requests. The conf leaves db-anon-role unset; only forward an explicit
+    // override if one is deliberately set in the environment.
+    ...(process.env.PGRST_DB_ANON_ROLE ? { PGRST_DB_ANON_ROLE: process.env.PGRST_DB_ANON_ROLE } : {}),
     PGRST_SERVER_PORT: String(POSTGREST_PORT),
     PGRST_SERVER_HOST: "127.0.0.1",
   });

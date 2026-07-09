@@ -93,13 +93,16 @@ async function handleToken(req, res) {
   }
 
   try {
-    // Re-mint HS256 copying only the identity claims RLS reads. `role`
-    // is forced to authenticated so PostgREST switches into that role.
+    // Re-mint HS256 copying only the identity claims RLS reads (sub, email).
+    // No `role` claim is emitted: on Heroku there is no `authenticated` role,
+    // so PostgREST stays connected as the app login role (which owns the
+    // tables) and RLS — forced on the owner and gated on these claims — does
+    // the authorization. Emitting a role here would make PostgREST attempt a
+    // SET ROLE to a nonexistent role and fail every request.
     const now = Math.floor(Date.now() / 1000);
     const token = await new SignJWT({
       sub: claims.sub,
       email: claims.email,
-      role: "authenticated",
       emailVerified: claims.emailVerified === true || claims.email_verified === true,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
