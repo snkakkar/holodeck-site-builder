@@ -52,11 +52,36 @@
     ]);
     container.appendChild(header);
 
+    // Tab bar — My Projects | Shared with me. Shared is populated lazily the
+    // first time it's opened (and refreshed on tab switch) so the default
+    // view stays as fast as before.
+    const tabBar = el("div", { class: "bx-home-tabs" });
+    function tabBtn(key, label) {
+      const b = el("button", {
+        class: "bx-home-tab" + (state.tab === key ? " is-active" : ""),
+        text: label,
+      });
+      b.addEventListener("click", function () {
+        if (state.tab === key) return;
+        state.tab = key;
+        Array.prototype.forEach.call(tabBar.children, function (c) { c.classList.remove("is-active"); });
+        b.classList.add("is-active");
+        renderGrid();
+        if (key === "shared") loadShared();
+      });
+      return b;
+    }
+    tabBar.appendChild(tabBtn("mine", "My Projects"));
+    tabBar.appendChild(tabBtn("shared", "Shared with me"));
+    container.appendChild(tabBar);
+
     // Projects load asynchronously (online-first). We render the toolbar
     // immediately and fill the grid + industry filter once they resolve.
-    // `loaded` holds the resolved list so re-renders (search/sort/filter)
-    // run client-side over it with no extra round-trips.
+    // `loaded` holds MY projects; `shared` holds projects shared with me.
+    // Both re-render client-side (search/sort/filter) with no extra calls.
     let loaded = [];
+    let shared = [];
+    let sharedLoaded = false;
 
     // Toolbar — search + sort + filter
     const toolbar = el("div", { class: "bx-home-toolbar" });
@@ -109,9 +134,20 @@
 
     function renderGrid() {
       gridWrap.innerHTML = "";
-      const all = loaded;
+      const isShared = state.tab === "shared";
+      const all = isShared ? shared : loaded;
+
+      if (isShared && !sharedLoaded) {
+        gridWrap.appendChild(el("div", { class: "bx-empty", text: "Loading projects shared with you…" }));
+        return;
+      }
       if (!all.length) {
-        gridWrap.appendChild(emptyState(handlers));
+        if (isShared) {
+          gridWrap.appendChild(el("div", { class: "bx-empty",
+            html: "No projects have been shared with you yet. When a teammate shares one, it'll appear here." }));
+        } else {
+          gridWrap.appendChild(emptyState(handlers));
+        }
         return;
       }
       const filtered = all
@@ -127,19 +163,35 @@
 
       const grid = el("div", { class: "bx-proj-grid" });
       filtered.forEach(function (p) {
-        grid.appendChild(projectCard(p, handlers, function () { reloadAndRender(); handlers.onChange && handlers.onChange(); }));
+        grid.appendChild(projectCard(p, handlers, function () { reloadAndRender(); handlers.onChange && handlers.onChange(); }, isShared));
       });
       gridWrap.appendChild(grid);
     }
 
+    // Lazily fetch projects shared with me (RLS returns them; my_shares RPC
+    // labels each with view/edit). Cached after the first successful load.
+    function loadShared() {
+      if (!STORE.listSharedWithMe) { sharedLoaded = true; renderGrid(); return; }
+      STORE.listSharedWithMe().then(function (rows) {
+        shared = rows || [];
+        sharedLoaded = true;
+        if (state.tab === "shared") renderGrid();
+      }).catch(function () {
+        shared = [];
+        sharedLoaded = true;
+        if (state.tab === "shared") renderGrid();
+      });
+    }
+
     // After a mutating action (duplicate/rename/delete) refetch so the
-    // grid reflects the server, then repaint.
+    // grid reflects the server, then repaint the active tab.
     function reloadAndRender() {
       STORE.listProjects().then(function (all) {
         loaded = all || [];
         refreshIndustryOptions();
         renderGrid();
       });
+      if (state.tab === "shared") loadShared();
     }
   }
 
@@ -149,19 +201,25 @@
     search: "",
     sortKey: "updatedAt",
     filterIndustry: "",
+    tab: "mine", // "mine" | "shared"
   };
 
   // ─── Project card ──────────────────────────────────────────────
-  function projectCard(p, handlers, onLocalChange) {
-    const card = el("div", { class: "bx-proj-card",
+  function projectCard(p, handlers, onLocalChange, isShared) {
+    const card = el("div", { class: "bx-proj-card" + (isShared ? " is-shared" : ""),
       on: { click: function (e) {
         if (e.target.closest("[data-no-open]")) return;
         handlers.onOpen && handlers.onOpen(p.id);
       } } });
 
-    // Status pill
-    const status = el("div", { class: "bx-proj-status", text: p.status || "New" });
-    card.appendChild(status);
+    // Status pill — for shared projects, show the permission badge instead.
+    if (isShared) {
+      const canEdit = p.sharedPermission === "edit";
+      card.appendChild(el("div", { class: "bx-proj-status bx-proj-shared-badge",
+        text: canEdit ? "Shared · can edit" : "Shared · view only" }));
+    } else {
+      card.appendChild(el("div", { class: "bx-proj-status", text: p.status || "New" }));
+    }
 
     // Title + customer
     card.appendChild(el("div", { class: "bx-proj-title", text: p.name || p.customerName || "Untitled project" }));
@@ -198,10 +256,19 @@
     foot.appendChild(counts);
 
     const actions = el("div", { class: "bx-proj-actions", "data-no-open": "1" });
-    actions.appendChild(miniBtn("Open",      function () { handlers.onOpen && handlers.onOpen(p.id); }));
-    actions.appendChild(miniBtn("Duplicate", function () { handlers.onDuplicate && handlers.onDuplicate(p.id, onLocalChange); }));
-    actions.appendChild(miniBtn("Rename",    function () { promptRename(p, handlers, onLocalChange); }));
-    actions.appendChild(miniBtn("Delete",    function () { confirmDelete(p, handlers, onLocalChange); }, "is-danger"));
+    actions.appendChild(miniBtn("Open", function () { handlers.onOpen && handlers.onOpen(p.id); }));
+    if (!isShared) {
+      // Owner-only actions. On a project shared with me I can only open it
+      // (RLS blocks duplicate-writes to another owner's row / delete anyway).
+      if (global.HOLO_SHARE) {
+        actions.appendChild(miniBtn("Share", function () {
+          global.HOLO_SHARE.open(p.id, p.name || p.customerName || "Untitled project");
+        }));
+      }
+      actions.appendChild(miniBtn("Duplicate", function () { handlers.onDuplicate && handlers.onDuplicate(p.id, onLocalChange); }));
+      actions.appendChild(miniBtn("Rename",    function () { promptRename(p, handlers, onLocalChange); }));
+      actions.appendChild(miniBtn("Delete",    function () { confirmDelete(p, handlers, onLocalChange); }, "is-danger"));
+    }
     foot.appendChild(actions);
 
     card.appendChild(foot);

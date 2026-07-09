@@ -65,7 +65,15 @@
     // First-launch product tour. Lives here (not in the DOM) so it survives the
     // home→builder view switch, which tears down and rebuilds #bxShell.
     tour: { active: false, segment: null, index: 0, resumeOnBuilder: false },
+    // Soft-lock presence. readOnly = a different collaborator holds the live
+    // lock, so this session suppresses saves + shows a banner. lockHolder is
+    // the foreign holder row {holder_email,holder_name} when read-only.
+    readOnly: false,
+    lockHolder: null,
   };
+  // Heartbeat that renews my presence lock while I'm editing. Cleared on
+  // goHome / signOut / when I drop to read-only.
+  let _lockTimer = null;
 
   // Cached Gemini-configured flag. Resolved once at boot (the server tells
   // us whether a key is present). Used to decide whether to show AI actions
@@ -132,6 +140,10 @@
   // ─── Persistence ──────────────────────────────────────────────
   function saveActive() {
     if (app.view !== "builder" || !app.state) return Promise.resolve();
+    // Read-only session (another collaborator holds the live lock): never
+    // write. Last-write-wins still applies if they later go stale and this
+    // session takes over.
+    if (app.readOnly) return Promise.resolve();
     // The store writes the local cache synchronously inside saveProject,
     // so the indicator can flip to "Autosaved" immediately; the returned
     // Promise resolves when the Neon write-through completes (or falls
@@ -173,6 +185,8 @@
   }
   let saveTimer = null;
   function commit() {
+    // Read-only session: don't flash "Saving…" or schedule a write.
+    if (app.readOnly) return;
     setSaveIndicator(true);
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveActive, 250);
@@ -216,9 +230,15 @@
     // data is safe instantly; we still chain so a slow Neon write can't
     // be cancelled by the teardown.
     const save = (app.view === "builder" && app.state) ? saveActive() : Promise.resolve();
-    save.then(function () {
+    // Release the lock as part of the teardown chain so a re-open of the same
+    // project doesn't race an in-flight release. releaseActiveLock resolves
+    // even on failure (best-effort), so it never blocks the nav.
+    const release = releaseActiveLock();
+    Promise.all([save, release]).then(function () {
       app.view = "home";
       app.state = null;
+      app.readOnly = false;
+      app.lockHolder = null;
       STORE.setActiveProjectId(null);
       render();
     }).catch(navFailed("Couldn't save before leaving. Returning to projects."));
@@ -246,11 +266,16 @@
         STORE.setActiveProjectId(projectId);
         // Seed presenter name/title from the synced profile if still blank.
         prepopulatePresenterFromProfile(state);
-        // Persist unconditionally so the migration (flipped frames / re-fit
-        // copy) survives the next load and reaches export/preview.
-        saveActive();
         recompute();
         render();
+        // Acquire the soft lock (or drop to read-only if a collaborator is
+        // live). This may flip app.readOnly, so run the migration-persisting
+        // save AFTER it resolves — saveActive is a no-op when read-only.
+        startPresence(projectId).then(function () {
+          // Persist unconditionally so the migration (flipped frames / re-fit
+          // copy) survives the next load and reaches export/preview.
+          saveActive();
+        });
       });
     }).catch(navFailed("That project couldn't be opened."));
   }
@@ -279,11 +304,90 @@
     STORE.createProject({}).then(function (state) {
       app.state = state;
       app.view = "builder";
+      app.readOnly = false;
+      app.lockHolder = null;
       STORE.setActiveProjectId(state.id);
       if (prepopulatePresenterFromProfile(state)) saveActive();
       recompute();
       render();
+      // A brand-new project is owned by me; claim the lock + heartbeat.
+      startPresence(state.id);
     }).catch(navFailed("Couldn't create a new project. Please try again."));
+  }
+
+  // ─── Soft-lock presence ───────────────────────────────────────
+  // Called after a project is loaded into app.state. Checks for a live
+  // foreign holder: if one exists this session opens READ-ONLY (banner +
+  // suppressed saves); otherwise we claim the lock and start the heartbeat.
+  // Best-effort — a store failure resolves to "no holder" so editing never
+  // gets blocked by a network blip.
+  function startPresence(projectId) {
+    stopHeartbeat();
+    app.readOnly = false;
+    app.lockHolder = null;
+    const myEmail = (window.HOLO_AUTH && HOLO_AUTH.currentUser() && HOLO_AUTH.currentUser().email || "").toLowerCase();
+    return STORE.getPresence(projectId).then(function (holder) {
+      if (holder && holder.holder_email && holder.holder_email.toLowerCase() !== myEmail) {
+        // Someone else is live — go read-only.
+        app.readOnly = true;
+        app.lockHolder = holder;
+        renderTopbar();
+        renderReadOnlyBanner();
+        return false;
+      }
+      // Free (or mine) — claim it and heartbeat.
+      return STORE.acquireLock(projectId).then(function () {
+        startHeartbeat(projectId);
+        return true;
+      });
+    });
+  }
+  function startHeartbeat(projectId) {
+    stopHeartbeat();
+    // Renew well within the 90s TTL so the lock never lapses mid-edit.
+    _lockTimer = setInterval(function () {
+      // Renew while the project stays active — including transient views
+      // (aiPrompt/feedback/profile) that are still part of this edit session.
+      // goHome / signOut clear the timer, so a lapse only happens once the
+      // user truly leaves the project.
+      if (app.state && app.state.id === projectId && !app.readOnly) {
+        STORE.renewLock(projectId);
+      }
+    }, 45 * 1000);
+  }
+  function stopHeartbeat() {
+    if (_lockTimer) { clearInterval(_lockTimer); _lockTimer = null; }
+  }
+  function releaseActiveLock() {
+    stopHeartbeat();
+    const id = app.state && app.state.id;
+    if (id && !app.readOnly) return STORE.releaseLock(id);
+    return Promise.resolve();
+  }
+  // "Take over" from the read-only banner: force-claim the lock, drop
+  // read-only, re-render editable. Last-write-wins if the prior holder
+  // was actually still active.
+  function takeOverLock() {
+    const id = app.state && app.state.id;
+    if (!id) return;
+    STORE.acquireLock(id).then(function () {
+      app.readOnly = false;
+      app.lockHolder = null;
+      startHeartbeat(id);
+      render();
+      toast("You're now editing this project.");
+    }).catch(function () { toast("Couldn't take over editing. Try again."); });
+  }
+  window.__holoTakeOver = takeOverLock; // banner button hook
+
+  // True when the active project is owned by the signed-in user. ownerId is
+  // stamped onto state from the row (rowToState); a brand-new/legacy project
+  // has no ownerId yet, so absence = mine (I just created it).
+  function isActiveProjectMine() {
+    if (!app.state) return false;
+    if (!app.state.ownerId) return true;
+    const me = (AUTH && AUTH.currentUser && AUTH.currentUser()) ? AUTH.currentUser().id : null;
+    return !!me && app.state.ownerId === me;
   }
 
   // ─── Top-level render ─────────────────────────────────────────
@@ -319,6 +423,7 @@
       u && u.email,
       app.profile && app.profile.name,
       aubreyCount,
+      app.readOnly ? "ro" : "",
     ].join("");
     if (sig === _topbarSig && left.firstChild) return;
     _topbarSig = sig;
@@ -365,6 +470,14 @@
     });
 
     if (app.view === "builder") {
+      // Share is owner-only. ownerId is absent on brand-new/legacy projects
+      // the current user just created, so treat "no ownerId" as owned by me.
+      // RLS is the real gate; this only hides a button that would 403.
+      if (isActiveProjectMine() && window.HOLO_SHARE) {
+        right.appendChild(actionBtn("Share", "bx-btn-ghost", function () {
+          HOLO_SHARE.open(app.state.id, app.state.name || "Untitled project");
+        }));
+      }
       right.appendChild(actionBtn("Import", "bx-btn-ghost", function () { openImportModal(app.state.id); }));
       right.appendChild(actionBtn("Save", "bx-btn-secondary", function () { saveActive().then(function () { toast("Saved"); }); }));
       right.appendChild(actionBtn("Export", "bx-btn-primary", function () { openExportModal(); }));
@@ -511,6 +624,7 @@
     shell.appendChild(stepper); shell.appendChild(main); shell.appendChild(side);
     renderStepper(); renderMain(); renderSide();
     setSaveIndicator(false);
+    renderReadOnlyBanner();
 
     // Persistent Quality Check strip — always visible while in the
     // builder so SEs see issues before reaching the export step.
@@ -521,6 +635,30 @@
       app.tour.resumeOnBuilder = false;
       setTimeout(function () { startTour("builder"); }, 0);
     }
+  }
+
+  // Read-only presence banner. Shown when another collaborator holds the
+  // live lock; offers "Take over". Removed when not read-only. Lives on
+  // document.body (like the quality footer) so it overlays without shifting
+  // the builder grid.
+  function renderReadOnlyBanner() {
+    let banner = document.getElementById("bxReadOnlyBanner");
+    if (app.view !== "builder" || !app.readOnly || !app.lockHolder) {
+      if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
+      return;
+    }
+    const holder = app.lockHolder.holder_name || app.lockHolder.holder_email || "Someone";
+    if (!banner) {
+      banner = el("div", { class: "bx-readonly-banner", id: "bxReadOnlyBanner" });
+      document.body.appendChild(banner);
+    }
+    banner.innerHTML = "";
+    banner.appendChild(el("span", { class: "bx-readonly-icon", text: "🔒" }));
+    banner.appendChild(el("span", { class: "bx-readonly-text",
+      text: holder + " is editing this project — you're viewing read-only." }));
+    const btn = el("button", { class: "bx-readonly-takeover", type: "button", text: "Take over" });
+    btn.addEventListener("click", takeOverLock);
+    banner.appendChild(btn);
   }
 
   function renderQualityFooter(shell) {
@@ -7064,6 +7202,9 @@
         if (typeof console !== "undefined" && console.warn) console.warn("[holo] sign-out render failed:", e);
       }
     }
+    // Release my editing lock before the session ends so a collaborator can
+    // pick the project up immediately (best-effort; never blocks sign-out).
+    try { releaseActiveLock(); } catch (e) { /* ignore */ }
     try {
       const signedOut = (AUTH && AUTH.signOut) ? AUTH.signOut() : Promise.resolve();
       Promise.resolve(signedOut)
@@ -7096,6 +7237,15 @@
     document.addEventListener("click", function (e) {
       const action = e.target.getAttribute && e.target.getAttribute("data-action");
       if (action === "close-modal") closeModal();
+    });
+
+    // Release my editing lock on tab close / refresh so a collaborator isn't
+    // blocked for the full TTL. The store issues the DELETE with keepalive so
+    // it survives the page teardown (the JWT is already cached mid-session, so
+    // the token lookup resolves synchronously). Best-effort — the 90s TTL is
+    // the backstop if this doesn't fire (e.g. crash / stale token).
+    window.addEventListener("pagehide", function () {
+      try { releaseActiveLock(); } catch (e) { /* ignore */ }
     });
 
     // Auth gate: no Data API calls until we have a verified session.

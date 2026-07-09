@@ -242,6 +242,9 @@
     if (row.created_at) state.createdAt = row.created_at;
     if (row.updated_at) state.updatedAt = row.updated_at;
     if (row.visibility) state.visibility = row.visibility;
+    // owner_id lets the client tell "my project" from "shared with me" for
+    // owner-only UI (Share button, gallery toggle). RLS remains authoritative.
+    if (row.owner_id) state.ownerId = row.owner_id;
     return state;
   }
   function rowToSummary(row) {
@@ -270,6 +273,11 @@
       state: persistState,
       updated_at: state.updatedAt || new Date().toISOString(),
     };
+    // Persist visibility so team-gallery / share round-trips (read back in
+    // rowToState/rowToSummary). Default 'private' when unset so the column
+    // never regresses to NULL on an upsert UPDATE. Only the two known values
+    // are written — anything else falls back to 'private'.
+    row.visibility = (state.visibility === "gallery") ? "gallery" : "private";
     // Send owner_id explicitly. The column DEFAULT (auth.user_id()) only fires
     // on a fresh INSERT, but our upsert uses resolution=merge-duplicates — on
     // the conflict/UPDATE branch the default does NOT apply, so without this the
@@ -303,6 +311,10 @@
         }, opts.headers || {});
         const init = { method: opts.method || "GET", headers: headers };
         if (opts.body != null) init.body = JSON.stringify(opts.body);
+        // keepalive lets a request outlive the page (pagehide/unload) so the
+        // presence release actually reaches the server on tab close. Only set
+        // when asked — keepalive bodies are size-capped, so it's opt-in.
+        if (opts.keepalive) init.keepalive = true;
         return fetch(DATA_API + path, init).then(function (res) {
           return res.text().then(function (text) {
             let json = null;
@@ -370,6 +382,152 @@
     const u = auth && auth.currentUser();
     return u ? u.id : null;
   }
+  function currentUserEmail() {
+    const auth = AUTH();
+    const u = auth && auth.currentUser();
+    return (u && u.email) ? String(u.email).toLowerCase() : null;
+  }
+  function currentUserName() {
+    const auth = AUTH();
+    const u = auth && auth.currentUser();
+    return (u && (u.name || u.email)) || null;
+  }
+  function isSalesforceEmail(email) {
+    const auth = AUTH();
+    if (auth && typeof auth.isSalesforceEmail === "function") return auth.isSalesforceEmail(email);
+    return /@salesforce\.com$/i.test(String(email || ""));
+  }
+
+  // ════════════════════════════════════════════════════════════
+  //  Sharing — email-keyed. RLS is authoritative (see
+  //  neon-multiuser-backend memory); the client guards are UX-only.
+  //  All rows key on shared_with_email (lowercased) so a share works
+  //  on the recipient's FIRST login even if they had no account when
+  //  it was created.
+  // ════════════════════════════════════════════════════════════
+  const ShareBackend = {
+    // Owner grants access. Upsert on the (project_id, shared_with_email) PK
+    // so re-sharing the same email just updates the permission.
+    shareProject: function (projectId, email, permission) {
+      const row = {
+        project_id: projectId,
+        shared_with_email: String(email || "").trim().toLowerCase(),
+        permission: (permission === "edit") ? "edit" : "view",
+      };
+      const me = currentUserId();
+      if (me) row.created_by = me; // satisfies created_by=user_id() checks on UPDATE branch
+      return dataFetch("/project_shares?on_conflict=project_id,shared_with_email", {
+        method: "POST",
+        headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: [row],
+      }).then(function () { return true; });
+    },
+    updateShare: function (projectId, email, permission) {
+      const perm = (permission === "edit") ? "edit" : "view";
+      return dataFetch("/project_shares?project_id=eq." + encodeURIComponent(projectId) +
+        "&shared_with_email=eq." + encodeURIComponent(String(email || "").toLowerCase()), {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: { permission: perm },
+      }).then(function () { return true; });
+    },
+    unshareProject: function (projectId, email) {
+      return dataFetch("/project_shares?project_id=eq." + encodeURIComponent(projectId) +
+        "&shared_with_email=eq." + encodeURIComponent(String(email || "").toLowerCase()),
+        { method: "DELETE" }).then(function () { return true; });
+    },
+    listShares: function (projectId) {
+      return dataFetch("/project_shares?project_id=eq." + encodeURIComponent(projectId) +
+        "&select=shared_with_email,permission,created_at&order=created_at.asc")
+        .then(function (rows) { return rows || []; });
+    },
+    // Projects shared with me (not my own, not gallery). Labels each with my
+    // permission by reading project_shares for my own email — RLS's
+    // shares_select already returns exactly my rows (lower(shared_with_email)
+    // = current_email()), so this needs no filter and no server RPC (the
+    // app.* schema isn't exposed through PostgREST).
+    listSharedWithMe: function () {
+      const me = currentUserId();
+      const myEmail = currentUserEmail();
+      return Promise.all([
+        myEmail
+          ? dataFetch("/project_shares?shared_with_email=eq." + encodeURIComponent(myEmail) +
+              "&select=project_id,permission").catch(function () { return []; })
+          : Promise.resolve([]),
+        dataFetch("/projects?select=id,name,summary,visibility,updated_at,created_at,owner_id&order=updated_at.desc"),
+      ]).then(function (res) {
+        const shares = res[0] || [];
+        const permByProject = {};
+        shares.forEach(function (s) { permByProject[s.project_id] = s.permission; });
+        const rows = (res[1] || []).filter(function (r) {
+          return r.owner_id !== me && r.visibility !== "gallery" &&
+            Object.prototype.hasOwnProperty.call(permByProject, r.id);
+        });
+        return rows.map(function (r) {
+          const sum = rowToSummary(r);
+          sum.sharedPermission = permByProject[r.id] || "view";
+          sum.ownerId = r.owner_id;
+          sum.shared = true;
+          return sum;
+        });
+      });
+    },
+  };
+
+  // ════════════════════════════════════════════════════════════
+  //  Soft-lock presence — one live holder per project, ~90s TTL.
+  //  Best-effort: a network failure never blocks the editor.
+  // ════════════════════════════════════════════════════════════
+  const PRESENCE_TTL_MS = 90 * 1000;
+  const PresenceBackend = {
+    // Who (if anyone) currently holds the lock. Returns the live holder row
+    // or null. A row past expires_at is treated as stale (no holder).
+    getPresence: function (projectId) {
+      return dataFetch("/project_presence?project_id=eq." + encodeURIComponent(projectId) +
+        "&select=project_id,holder_email,holder_name,expires_at&limit=1")
+        .then(function (rows) {
+          const row = rows && rows[0];
+          if (!row) return null;
+          const exp = Date.parse(row.expires_at);
+          if (isFinite(exp) && exp < Date.now()) return null; // stale
+          return row;
+        });
+    },
+    // Claim / renew my presence. A plain upsert on the project_id PK; because
+    // it targets the single presence row, it also serves as "Take over" (the
+    // presence RLS lets any salesforce collaborator UPDATE the row as long as
+    // the NEW holder_email is their own — WITH CHECK). Upsert on project_id PK.
+    acquireLock: function (projectId) { return PresenceBackend._upsert(projectId); },
+    renewLock:   function (projectId) { return PresenceBackend._upsert(projectId); },
+    _upsert: function (projectId) {
+      const email = currentUserEmail();
+      // holder_email is NOT NULL and the RLS WITH CHECK ties the row to my
+      // email. If we somehow have no email (token present but user not yet
+      // hydrated), skip rather than fire a guaranteed-rejected write that
+      // would leave presence in a confusing half-state.
+      if (!email) return Promise.resolve(false);
+      const row = {
+        project_id: projectId,
+        holder_email: email,
+        holder_name: currentUserName(),
+        expires_at: new Date(Date.now() + PRESENCE_TTL_MS).toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      return dataFetch("/project_presence?on_conflict=project_id", {
+        method: "POST",
+        headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: [row],
+      }).then(function () { return true; });
+    },
+    releaseLock: function (projectId) {
+      // Only deletes rows whose holder_email = me (RLS enforces this too).
+      // keepalive so a release triggered by pagehide/tab-close still reaches
+      // the server instead of being dropped when the document tears down.
+      return dataFetch("/project_presence?project_id=eq." + encodeURIComponent(projectId) +
+        "&holder_email=eq." + encodeURIComponent(currentUserEmail() || ""),
+        { method: "DELETE", keepalive: true }).then(function () { return true; });
+    },
+  };
   function online() {
     const auth = AUTH();
     return !!(auth && auth.isAuthed());
@@ -390,7 +548,16 @@
   function loadProject(id) {
     if (!id) return Promise.resolve(null);
     if (!online()) return LocalBackend.loadProject(id);
-    return NeonBackend.loadProject(id).catch(function () {
+    return NeonBackend.loadProject(id).then(function (state) {
+      // A just-created project is written to Neon optimistically: saveProject
+      // resolves off the synchronous cache write before the POST commits (and,
+      // on a transient failure, the row is only queued dirty). If the caller
+      // opens it before that write lands, Neon returns 0 rows → null. Falling
+      // back to the write-through cache here closes the create→open race so a
+      // brand-new project always opens. (An error path also falls back below.)
+      if (state) return state;
+      return LocalBackend.loadProject(id);
+    }).catch(function () {
       return LocalBackend.loadProject(id);
     });
   }
@@ -793,6 +960,56 @@
       .catch(function () { return state; }); // network error → leave tokens
   }
 
+  // ─── Sharing / presence public wrappers ───────────────────────
+  // These are online-only (server-authoritative). When signed out they
+  // reject with an offline-flagged error so callers can show a message
+  // rather than silently no-op.
+  function requireOnline() {
+    if (online()) return null;
+    const err = new Error("Sign in to use sharing.");
+    err.offline = true;
+    return err;
+  }
+  function shareProject(projectId, email, permission) {
+    const off = requireOnline(); if (off) return Promise.reject(off);
+    if (!isSalesforceEmail(email)) {
+      return Promise.reject(new Error("Only @salesforce.com emails can be added."));
+    }
+    return ShareBackend.shareProject(projectId, email, permission);
+  }
+  function updateShare(projectId, email, permission) {
+    const off = requireOnline(); if (off) return Promise.reject(off);
+    return ShareBackend.updateShare(projectId, email, permission);
+  }
+  function unshareProject(projectId, email) {
+    const off = requireOnline(); if (off) return Promise.reject(off);
+    return ShareBackend.unshareProject(projectId, email);
+  }
+  function listShares(projectId) {
+    const off = requireOnline(); if (off) return Promise.reject(off);
+    return ShareBackend.listShares(projectId);
+  }
+  function listSharedWithMe() {
+    if (!online()) return Promise.resolve([]);
+    return ShareBackend.listSharedWithMe().catch(function () { return []; });
+  }
+  function getPresence(projectId) {
+    if (!online()) return Promise.resolve(null);
+    return PresenceBackend.getPresence(projectId).catch(function () { return null; });
+  }
+  function acquireLock(projectId) {
+    if (!online()) return Promise.resolve(false);
+    return PresenceBackend.acquireLock(projectId).catch(function () { return false; });
+  }
+  function renewLock(projectId) {
+    if (!online()) return Promise.resolve(false);
+    return PresenceBackend.renewLock(projectId).catch(function () { return false; });
+  }
+  function releaseLock(projectId) {
+    if (!online()) return Promise.resolve(false);
+    return PresenceBackend.releaseLock(projectId).catch(function () { return false; });
+  }
+
   // Exposed for gemini-client to register a freshly-generated image's
   // signed url ↔ token the moment it's applied to a slot.
   global.HOLO_ASSETS = { remember: rememberSigned };
@@ -820,6 +1037,17 @@
     flushDirty: flushDirty,
     clearCache: clearCache,
     reconcile: reconcile,
+    // Sharing (email-keyed; RLS authoritative)
+    shareProject: shareProject,
+    updateShare: updateShare,
+    unshareProject: unshareProject,
+    listShares: listShares,
+    listSharedWithMe: listSharedWithMe,
+    // Soft-lock presence
+    getPresence: getPresence,
+    acquireLock: acquireLock,
+    renewLock: renewLock,
+    releaseLock: releaseLock,
     uid: uid,
     lastCacheWriteFailed: lastCacheWriteFailed,
     lastSyncFailed: lastSyncFailed,

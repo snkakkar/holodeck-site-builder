@@ -1344,6 +1344,28 @@ button { font-family: inherit; }
 .bx-home-toolbar-label { display: inline-flex; align-items: center; }
 .bx-home-search { max-width: 360px; }
 
+/* Home tab bar — My Projects | Shared with me */
+.bx-home-tabs {
+  display: flex; gap: 4px;
+  margin: 4px 0 18px;
+  border-bottom: 1px solid var(--bx-line);
+}
+.bx-home-tab {
+  appearance: none; border: none; background: transparent;
+  padding: 10px 14px 12px; cursor: pointer;
+  font-family: var(--bx-font-sans); font-size: 14px; font-weight: 600;
+  color: var(--bx-ink); opacity: 0.6;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.bx-home-tab:hover { opacity: 0.85; }
+.bx-home-tab.is-active { opacity: 1; border-bottom-color: var(--bx-action); color: var(--bx-action); }
+
+/* Shared-project card badge */
+.bx-proj-shared-badge {
+  background: var(--bx-action-soft) !important;
+  color: var(--bx-action) !important;
+}
+
 .bx-proj-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
@@ -2362,6 +2384,114 @@ button { font-family: inherit; }
 .bx-quality-dot.tone-good { background: var(--bx-good); }
 .bx-quality-text { color: var(--bx-ink); }
 .bx-quality-cta  { color: var(--bx-action); font-weight: 600; }
+
+/* Read-only presence banner — a collaborator holds the live lock. */
+.bx-readonly-banner {
+  position: fixed;
+  top: var(--bx-sp-4); left: 50%; transform: translateX(-50%);
+  z-index: 70;
+  display: inline-flex; align-items: center; gap: var(--bx-sp-3);
+  padding: var(--bx-sp-2) var(--bx-sp-4);
+  background: var(--bx-surface-bg);
+  border: 1px solid rgba(196, 126, 26, 0.55);
+  border-radius: var(--bx-radius-pill);
+  box-shadow: var(--bx-shadow-2);
+  font-family: var(--bx-font-sans);
+  font-size: 13px; font-weight: 600;
+  color: var(--bx-ink);
+  max-width: 92vw;
+}
+.bx-readonly-icon { font-size: 14px; }
+.bx-readonly-text { color: var(--bx-ink); }
+.bx-readonly-takeover {
+  border: 1px solid var(--bx-action);
+  background: var(--bx-action); color: #fff;
+  border-radius: var(--bx-radius-pill);
+  padding: 4px 12px; font-size: 12px; font-weight: 700;
+  cursor: pointer;
+}
+.bx-readonly-takeover:hover { filter: brightness(1.05); }
+.bx-readonly-takeover:focus-visible { outline: 2px solid var(--bx-ink); outline-offset: 2px; }
+
+/* ── Share modal ─────────────────────────────────────────────── */
+.bx-share-overlay {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(16, 22, 34, 0.55);
+  padding: var(--bx-sp-4);
+}
+.bx-share-card {
+  width: 100%; max-width: 520px;
+  background: var(--bx-surface-bg);
+  border: var(--bx-surface-border);
+  border-radius: var(--bx-radius-lg, 14px);
+  box-shadow: var(--bx-shadow-2);
+  font-family: var(--bx-font-sans);
+  color: var(--bx-ink);
+  overflow: hidden;
+}
+.bx-share-head {
+  position: relative;
+  padding: var(--bx-sp-4) var(--bx-sp-5);
+  border-bottom: var(--bx-surface-border);
+}
+.bx-share-title { font-size: 18px; font-weight: 800; }
+.bx-share-sub { font-size: 13px; color: var(--bx-ink-soft, #667); margin-top: 2px; }
+.bx-share-x {
+  position: absolute; top: var(--bx-sp-3); right: var(--bx-sp-4);
+  border: none; background: transparent; cursor: pointer;
+  font-size: 15px; color: var(--bx-ink-soft, #667); line-height: 1;
+}
+.bx-share-x:hover { color: var(--bx-ink); }
+.bx-share-invite {
+  display: flex; gap: var(--bx-sp-2); align-items: center;
+  padding: var(--bx-sp-4) var(--bx-sp-5) var(--bx-sp-2);
+}
+.bx-share-email {
+  flex: 1 1 auto; min-width: 0;
+  padding: 8px 10px; font-size: 14px;
+  border: 1px solid var(--bx-border, #cdd3dd);
+  border-radius: var(--bx-radius, 8px);
+  font-family: inherit;
+}
+.bx-share-perm, .bx-share-row-perm {
+  padding: 8px 8px; font-size: 13px; font-family: inherit;
+  border: 1px solid var(--bx-border, #cdd3dd);
+  border-radius: var(--bx-radius, 8px); background: #fff;
+}
+.bx-share-add {
+  padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--bx-action); background: var(--bx-action); color: #fff;
+  border-radius: var(--bx-radius, 8px);
+}
+.bx-share-add:hover { filter: brightness(1.05); }
+.bx-share-add:disabled { opacity: 0.6; cursor: default; }
+.bx-share-status {
+  min-height: 18px; padding: 0 var(--bx-sp-5);
+  font-size: 12px; font-weight: 600; color: var(--bx-ink-soft, #667);
+}
+.bx-share-status.tone-good { color: var(--bx-good, #2e7a50); }
+.bx-share-status.tone-warn { color: var(--bx-red, #b22234); }
+.bx-share-list {
+  padding: var(--bx-sp-2) var(--bx-sp-5) var(--bx-sp-3);
+  max-height: 46vh; overflow-y: auto;
+}
+.bx-share-empty { font-size: 13px; color: var(--bx-ink-soft, #667); padding: var(--bx-sp-3) 0; }
+.bx-share-row {
+  display: flex; align-items: center; gap: var(--bx-sp-2);
+  padding: var(--bx-sp-2) 0;
+  border-top: 1px solid var(--bx-border-soft, #eef1f5);
+}
+.bx-share-row-email { flex: 1 1 auto; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bx-share-remove {
+  padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--bx-border, #cdd3dd); background: #fff; color: var(--bx-red, #b22234);
+  border-radius: var(--bx-radius, 8px);
+}
+.bx-share-remove:hover { background: rgba(178, 34, 52, 0.06); }
+.bx-share-remove:disabled { opacity: 0.6; cursor: default; }
+.bx-share-foot { padding: var(--bx-sp-3) var(--bx-sp-5) var(--bx-sp-4); border-top: var(--bx-surface-border); }
+.bx-share-hint { font-size: 12px; color: var(--bx-ink-soft, #667); line-height: 1.4; }
 
 /* ════════════════════════════════════════════════════════════════
    STEPPER STATUS — new step states with text labels and colors.
