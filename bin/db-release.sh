@@ -20,12 +20,15 @@ HAS_ANON="$(psql "$DATABASE_URL" -tA -c "SELECT EXISTS (SELECT 1 FROM pg_roles W
 
 if [ "$HAS_CREATEROLE" != "t" ] && { [ "$HAS_AUTHENTICATED" != "t" ] || [ "$HAS_ANON" != "t" ]; }; then
   echo "[db-release] current DB role cannot CREATE ROLE and required PostgREST roles are missing."
-  echo "[db-release] skipping DB bootstrap to avoid blocking deploy; provision roles with an admin role first."
-  exit 0
+  echo "[db-release] applying non-role migrations only (02_functions.sql, 03_tables.sql)."
+  echo "[db-release] to enable grants/RLS, run admin bootstrap once and deploy again."
+  FILES="02_functions.sql 03_tables.sql"
+else
+  FILES="01_roles.sql 02_functions.sql 03_tables.sql 04_grants.sql 05_rls.sql"
 fi
 
-echo "[db-release] applying schema/roles/RLS from ${DIR}"
-for f in 01_roles.sql 02_functions.sql 03_tables.sql 04_grants.sql 05_rls.sql; do
+echo "[db-release] applying migrations from ${DIR}"
+for f in $FILES; do
   if [ -f "${DIR}/${f}" ]; then
     echo "[db-release] -> ${f}"
     psql "$DATABASE_URL" --set ON_ERROR_STOP=1 -f "${DIR}/${f}"
@@ -36,18 +39,22 @@ done
 
 # The DATABASE_URL login role must be able to SET ROLE into the RLS roles
 # that PostgREST switches to. Grant membership (idempotent).
-echo "[db-release] granting role membership to the app login role"
-psql "$DATABASE_URL" --set ON_ERROR_STOP=1 <<'SQL'
-DO $$
-DECLARE me text := current_user;
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    EXECUTE format('GRANT authenticated TO %I', me);
-  END IF;
-  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-    EXECUTE format('GRANT anon TO %I', me);
-  END IF;
-END $$;
+if [ "$HAS_AUTHENTICATED" = "t" ] || [ "$HAS_ANON" = "t" ]; then
+  echo "[db-release] granting role membership to the app login role"
+  psql "$DATABASE_URL" --set ON_ERROR_STOP=1 <<'SQL'
+  DO $$
+  DECLARE me text := current_user;
+  BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      EXECUTE format('GRANT authenticated TO %I', me);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE format('GRANT anon TO %I', me);
+    END IF;
+  END $$;
 SQL
+else
+  echo "[db-release] skipping role membership grant (roles not present yet)"
+fi
 
 echo "[db-release] done"
