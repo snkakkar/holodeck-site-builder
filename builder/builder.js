@@ -3604,6 +3604,23 @@
     try { localStorage.setItem("bx-recs-view", mode); } catch (e) {}
   }
 
+  // ─── THEME (light / dark) ─────────────────────────────────────
+  // The active theme lives on <html data-theme>. It's set before paint
+  // by the boot script in index.html (saved choice → else OS). The
+  // Appearance card on the Profile page lets the user override + persist
+  // via localStorage["bx-theme"]. Mirrors the bx-recs-view convention.
+  function getTheme() {
+    try {
+      var v = localStorage.getItem("bx-theme");
+      if (v === "light" || v === "dark") return v;
+    } catch (e) {}
+    return document.documentElement.getAttribute("data-theme") || "light";
+  }
+  function setTheme(mode) {
+    document.documentElement.setAttribute("data-theme", mode);
+    try { localStorage.setItem("bx-theme", mode); } catch (e) {}
+  }
+
   function viewRecommendations() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
@@ -4576,6 +4593,9 @@
       el("li", { text: "📁 source/  (builder metadata for re-import)" }),
     ]);
     zipCard.appendChild(zipFiles);
+    zipCard.appendChild(el("div", { class: "bx-card-sub bx-mt-12",
+      text: "To run: unzip and open demo/index.html in your browser — no server needed. "
+          + "(Only if a live CX component won't load, serve the demo/ folder with python3 -m http.server.)" }));
     zipCard.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
       btn("⬇ Download Complete Demo ZIP", "bx-btn-primary", function () {
         if (incomplete > 0) {
@@ -4591,6 +4611,44 @@
       }),
     ]));
     wrap.appendChild(zipCard);
+
+    // ── Portable files: PowerPoint + PDF ───────────────────────
+    // Native 16:9 files SEs can drop into PowerPoint / import into
+    // Google Slides, plus a static PDF handout. Same words + brand +
+    // AI images as the ZIP/demo. Built from the full slide manifest
+    // (honors Step-5 selection + reorder) via HOLO_EXPORT_MODEL.
+    const fileCard = el("div", { class: "bx-card" });
+    fileCard.appendChild(el("div", { class: "bx-card-title", text: "Portable files (PowerPoint / PDF)" }));
+    fileCard.appendChild(el("div", { class: "bx-card-sub",
+      text: "Native 16:9 slides with the same words, brand, and images as the demo. "
+          + "Drop the PPTX into PowerPoint or import it into Google Slides; the PDF is a static handout." }));
+    const runFileExport = function (label, buildPromise) {
+      if (incomplete > 0) {
+        if (!confirm("You can export now, but " + incomplete + " item" + (incomplete === 1 ? "" : "s") +
+                     " still need attention. Export anyway?")) return;
+      }
+      toast("Building " + label + "…");
+      Promise.resolve(buildPromise()).then(function () {
+        toast(label + " downloaded");
+      }).catch(function (e) {
+        toast("Couldn't build the " + label + ": " + (e && e.message || e));
+      });
+    };
+    fileCard.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
+      btn("⬇ Download PowerPoint (.pptx)", "bx-btn-secondary", function () {
+        if (!window.HOLO_PPTX) { toast("PowerPoint export isn't available — reload the page and try again."); return; }
+        runFileExport("PowerPoint", function () { return window.HOLO_PPTX.downloadDeckPptx(s); });
+      }),
+      btn("⬇ Download PDF (.pdf)", "bx-btn-secondary", function () {
+        if (!window.HOLO_PDF) { toast("PDF export isn't available — reload the page and try again."); return; }
+        runFileExport("PDF", function () { return window.HOLO_PDF.downloadDeckPdf(s); });
+      }),
+    ]));
+    fileCard.appendChild(el("div", { class: "bx-card-sub bx-mt-12",
+      text: "Note: these are clean native slides — no CSS device-frame chrome and no live/interactive components. "
+          + "A CX component shows its still image if you added one, otherwise a labeled placeholder. "
+          + "Speaker notes are included in the PPTX (PDF has no notes field)." }));
+    wrap.appendChild(fileCard);
 
     // ── Secondary: config-only ─────────────────────────────────
     const c1 = el("div", { class: "bx-card" });
@@ -5258,9 +5316,44 @@
     card.appendChild(actions);
     container.appendChild(card);
 
+    // Appearance — device-local light/dark preference, like the Aubrey keys
+    // below. Applies instantly (flips <html data-theme>) and persists.
+    container.appendChild(appearanceCard());
+
     // Aubrey Demo keys — device-local. This is now the canonical place to
     // manage them (removed from the topbar).
     container.appendChild(aubreyConnectionsCard("inline"));
+  }
+
+  // Light/Dark segmented control for the Profile page. Reuses the
+  // .bx-segmented / .bx-seg-btn styling from the recs view toggle.
+  function appearanceCard() {
+    const card = el("div", { class: "bx-card" });
+    card.appendChild(el("div", { class: "bx-card-title", text: "Appearance" }));
+    card.appendChild(el("div", { class: "bx-card-sub",
+      text: "Choose light or dark for this device. Defaults to your system setting." }));
+
+    const seg = el("div", { class: "bx-segmented bx-mt-12" });
+    function paint() {
+      const active = getTheme();
+      seg.replaceChildren();
+      [["light", "Light"], ["dark", "Dark"]].forEach(function (opt) {
+        const b = el("button", {
+          type: "button",
+          class: "bx-seg-btn" + (opt[0] === active ? " is-on" : ""),
+          text: opt[1],
+        });
+        b.addEventListener("click", function () {
+          if (opt[0] === getTheme()) return;
+          setTheme(opt[0]);   // applies instantly via <html data-theme>
+          paint();            // refresh the active-button styling
+        });
+        seg.appendChild(b);
+      });
+    }
+    paint();
+    card.appendChild(seg);
+    return card;
   }
 
   function renderFeedbackPage(container) {
@@ -6031,6 +6124,9 @@
     const wrap = el("div");
     wrap.appendChild(el("p", { style: "margin: 0 0 14px; font-size: 13px; color: var(--bx-ink-2);",
       text: "Use Complete Demo ZIP for a ready-to-run package. Use Config only when updating an existing demo folder." }));
+    wrap.appendChild(el("p", { style: "margin: 0 0 14px; font-size: 13px; color: var(--bx-ink-2);",
+      text: "To run the ZIP: unzip and open demo/index.html in your browser — no server needed. "
+          + "(Only if a live CX component won't load, serve the demo/ folder with python3 -m http.server.)" }));
     wrap.appendChild(el("div", { class: "bx-modal-actions", style: "margin-top: 0; margin-bottom: 14px;" }, [
       btn("⬇ Download Complete Demo ZIP", "bx-btn-primary", function () {
         toast("Building polished demo ZIP…");
