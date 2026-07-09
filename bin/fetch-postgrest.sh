@@ -5,7 +5,9 @@
 set -euo pipefail
 
 # Pin a v14.x release. Bump deliberately; do not float to "latest".
-POSTGREST_VERSION="${POSTGREST_VERSION:-v14.0.0}"
+# PostgREST v14 uses MAJOR.PATCH tags (e.g. v14.0), and Linux static
+# assets are published as *-linux-static-x86-64.tar.xz.
+POSTGREST_VERSION="${POSTGREST_VERSION:-v14.0}"
 DEST_DIR="$(cd "$(dirname "$0")" && pwd)"
 DEST="${DEST_DIR}/postgrest"
 
@@ -23,7 +25,7 @@ if [ -x "$DEST" ]; then
   exit 0
 fi
 
-URL="https://github.com/PostgREST/postgrest/releases/download/${POSTGREST_VERSION}/postgrest-${POSTGREST_VERSION}-linux-static-x64.tar.xz"
+URL="https://github.com/PostgREST/postgrest/releases/download/${POSTGREST_VERSION}/postgrest-${POSTGREST_VERSION}-linux-static-x86-64.tar.xz"
 echo "[fetch-postgrest] downloading ${URL}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
