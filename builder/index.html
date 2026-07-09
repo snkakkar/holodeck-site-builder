@@ -52,6 +52,8 @@
   <script src="config-generator.js"></script>
   <script src="ai-config-prompt.js"></script>
   <script src="claude-modify-prompt.js"></script>
+  <!-- Backend endpoints (same-origin) — must load before auth.js/store -->
+  <script src="/env-config.js"></script>
   <!-- Auth must load before the store so the store can read the JWT -->
   <script src="auth.js"></script>
   <script src="project-store.js"></script>

@@ -35,8 +35,11 @@
   const KEY_ONBOARD = "holo.onboarding.v1";
   const LEGACY_KEY  = "holodeckBuilder.state.v1";
 
-  // Data API base. See memory: neon-multiuser-backend.
-  const DATA_API = "https://ep-round-hill-ajwf0r6a.apirest.c-3.us-east-2.aws.neon.tech/neondb/rest/v1";
+  // Data API base. Served same-origin (/rest/v1) and reverse-proxied by
+  // server.js to the self-hosted PostgREST on Heroku Postgres. window.HOLO_ENV
+  // (from /env-config.js) supplies the base; the literal is a same-origin
+  // fallback for load-order safety. See memory: neon-multiuser-backend.
+  const DATA_API = (global.HOLO_ENV && global.HOLO_ENV.DATA_API) || "/rest/v1";
 
   const AUTH = function () { return global.HOLO_AUTH; };
 
@@ -472,25 +475,24 @@
         });
       });
     },
-    // Team gallery — every project a teammate published (visibility='gallery').
+    // Team gallery — every project published to the team (visibility='gallery').
     // RLS (projects_select) already returns these to any @salesforce.com user,
-    // so a plain visibility filter is enough; no ownership predicate needed.
-    // Excludes MY OWN gallery rows (those live under "My Projects") so the
-    // gallery reads as "what the team shared", not a mix. owner_id rides along
-    // so the card can label the author and gate "Duplicate to my projects".
+    // so a plain visibility filter is enough. INCLUDES my own published rows so
+    // the SE gets immediate confirmation a publish took effect; each row is
+    // tagged `mine` (owner_id === me) so the card can branch: my own → Open +
+    // Unpublish; a teammate's → Duplicate to my projects. owner_id rides along.
     listGallery: function () {
       const me = currentUserId();
       return dataFetch("/projects?visibility=eq.gallery" +
         "&select=id,name,summary,visibility,updated_at,created_at,owner_id&order=updated_at.desc")
         .then(function (rows) {
-          return (rows || [])
-            .filter(function (r) { return r.owner_id !== me; })
-            .map(function (r) {
-              const sum = rowToSummary(r);
-              sum.ownerId = r.owner_id;
-              sum.gallery = true;
-              return sum;
-            });
+          return (rows || []).map(function (r) {
+            const sum = rowToSummary(r);
+            sum.ownerId = r.owner_id;
+            sum.mine = (r.owner_id === me);
+            sum.gallery = true;
+            return sum;
+          });
         });
     },
   };

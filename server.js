@@ -494,6 +494,72 @@ app.get("/api/asset/proxy", async (req, res) => {
   }
 });
 
+// ── Backend endpoint config for the browser ───────────────────
+// The frontend reads window.HOLO_ENV to learn where the Data API and
+// Auth live. We serve them same-origin (relative paths) so the browser
+// makes no cross-origin calls — the httpOnly session cookie and the
+// Bearer JWT both flow without CORS. Overridable via env for staging.
+const HOLO_ENV = {
+  AUTH_BASE: process.env.HOLO_AUTH_BASE || "/auth",
+  DATA_API: process.env.HOLO_DATA_API || "/rest/v1",
+};
+app.get("/env-config.js", (_req, res) => {
+  res.set("Content-Type", "application/javascript; charset=utf-8");
+  res.set("Cache-Control", "no-store");
+  res.send(`window.HOLO_ENV = ${JSON.stringify(HOLO_ENV)};\n`);
+});
+
+// ── Reverse proxies to the co-located backend services ─────────
+// Mounted AFTER /api/* (above) and BEFORE the static catch-all (below)
+// so they claim /rest/v1 and /auth without shadowing the app's own API
+// or its static files.
+//
+//   /rest/v1/**  → PostgREST      127.0.0.1:3001  (strip the /rest/v1 prefix)
+//   /auth/token  → auth-shim      127.0.0.1:3002  (EdDSA→HS256 exchange)
+//   /auth/**     → Neon Auth origin               (login/OTP/session, unchanged)
+//
+// Bodies stream (default), which the presence `keepalive` DELETE relies on.
+const { createProxyMiddleware } = require("http-proxy-middleware");
+
+const POSTGREST_TARGET = process.env.POSTGREST_TARGET || "http://127.0.0.1:3001";
+const AUTH_SHIM_TARGET = process.env.AUTH_SHIM_TARGET || "http://127.0.0.1:3002";
+// Where the untouched Neon Auth endpoints live. Same value the shim uses.
+const NEON_AUTH_BASE = (process.env.NEON_AUTH_BASE || "").replace(/\/+$/, "");
+
+app.use(
+  createProxyMiddleware({
+    pathFilter: "/rest/v1/**",
+    target: POSTGREST_TARGET,
+    changeOrigin: true,
+    pathRewrite: { "^/rest/v1": "" },
+    xfwd: false,
+  })
+);
+
+// Only /auth/token is intercepted for the token exchange.
+app.use(
+  createProxyMiddleware({
+    pathFilter: "/auth/token",
+    target: AUTH_SHIM_TARGET,
+    changeOrigin: true,
+    pathRewrite: { "^/auth": "" }, // shim serves /token
+    xfwd: false,
+  })
+);
+
+// Everything else under /auth/** is forwarded transparently to Neon Auth.
+if (NEON_AUTH_BASE) {
+  app.use(
+    createProxyMiddleware({
+      pathFilter: "/auth/**",
+      target: NEON_AUTH_BASE, // already includes the /neondb/auth path
+      changeOrigin: true,
+      pathRewrite: { "^/auth": "" },
+      xfwd: false,
+    })
+  );
+}
+
 app.use(express.static(rootDir, { extensions: ["html"] }));
 
 app.listen(port, () => {

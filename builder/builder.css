@@ -1568,6 +1568,11 @@ button { font-family: inherit; }
   background: var(--bx-good-soft, rgba(46, 122, 80, 0.12)) !important;
   color: var(--bx-good, #2e7a50) !important;
 }
+/* Team-gallery card badge for MY OWN published project ("Published by you") */
+.bx-proj-gallery-mine-badge {
+  background: var(--bx-action-soft) !important;
+  color: var(--bx-action) !important;
+}
 
 .bx-proj-grid {
   display: grid;

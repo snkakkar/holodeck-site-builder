@@ -242,28 +242,32 @@
   };
 
   // ─── Project card ──────────────────────────────────────────────
-  // mode: "mine" | "shared" | "gallery". Gallery cards belong to another
-  // owner, so the whole-card click duplicates-to-mine (opening the gallery
-  // row directly would fail owner-only autosave); shared/mine open normally.
+  // mode: "mine" | "shared" | "gallery". In the gallery, a teammate's card
+  // duplicates-to-mine on click (opening their row directly would fail
+  // owner-only autosave); MY OWN published card (p.mine) opens normally, since
+  // I own it. shared/mine tabs open normally.
   function projectCard(p, handlers, onLocalChange, mode) {
-    const isShared  = mode === "shared";
-    const isGallery = mode === "gallery";
+    const isShared      = mode === "shared";
+    const isGallery     = mode === "gallery";
+    const isGalleryMine = isGallery && !!p.mine; // my own project, shown in the gallery
     const card = el("div", { class: "bx-proj-card" + (isShared ? " is-shared" : "") + (isGallery ? " is-gallery" : ""),
       on: { click: function (e) {
         if (e.target.closest("[data-no-open]")) return;
-        if (isGallery) { handlers.onDuplicateOpen && handlers.onDuplicateOpen(p.id); return; }
+        if (isGallery && !isGalleryMine) { handlers.onDuplicateOpen && handlers.onDuplicateOpen(p.id); return; }
         handlers.onOpen && handlers.onOpen(p.id);
       } } });
 
-    // Status pill — shared shows the permission badge; gallery shows a
-    // "From the team" badge; mine shows the workflow status.
+    // Status pill — shared shows the permission badge; gallery shows either
+    // "Published by you" (my own) or "Team gallery" (a teammate's); mine shows
+    // the workflow status.
     if (isShared) {
       const canEdit = p.sharedPermission === "edit";
       card.appendChild(el("div", { class: "bx-proj-status bx-proj-shared-badge",
         text: canEdit ? "Shared · can edit" : "Shared · view only" }));
     } else if (isGallery) {
-      card.appendChild(el("div", { class: "bx-proj-status bx-proj-gallery-badge",
-        text: "Team gallery" }));
+      card.appendChild(el("div", {
+        class: "bx-proj-status " + (isGalleryMine ? "bx-proj-gallery-mine-badge" : "bx-proj-gallery-badge"),
+        text: isGalleryMine ? "Published by you" : "Team gallery" }));
     } else {
       card.appendChild(el("div", { class: "bx-proj-status", text: p.status || "New" }));
     }
@@ -303,7 +307,14 @@
     foot.appendChild(counts);
 
     const actions = el("div", { class: "bx-proj-actions", "data-no-open": "1" });
-    if (isGallery) {
+    if (isGalleryMine) {
+      // My OWN project, surfaced in the gallery so I get confirmation the
+      // publish took effect. Open it normally, or pull it back to private.
+      actions.appendChild(miniBtn("Open", function () { handlers.onOpen && handlers.onOpen(p.id); }));
+      actions.appendChild(miniBtn("Unpublish", function () {
+        handlers.onUnpublish && handlers.onUnpublish(p.id, onLocalChange);
+      }, "is-danger"));
+    } else if (isGallery) {
       // Another teammate's published project — the only action is to copy it
       // into my own account (which then opens the fresh, private copy).
       actions.appendChild(miniBtn("Duplicate to my projects", function () {

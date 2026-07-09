@@ -33,8 +33,12 @@
 (function (global) {
   "use strict";
 
-  // Neon Auth (Better Auth) base. See memory: neon-multiuser-backend.
-  const AUTH_BASE = "https://ep-round-hill-ajwf0r6a.neonauth.c-3.us-east-2.aws.neon.tech/neondb/auth";
+  // Auth base. Served same-origin (/auth) and reverse-proxied by server.js:
+  //   /auth/token → local token-exchange shim (Neon EdDSA JWT → HS256 for PostgREST)
+  //   /auth/**     → Neon Auth origin, unchanged (login, OTP, session).
+  // window.HOLO_ENV (from /env-config.js) supplies the base; the literal is a
+  // same-origin fallback for load-order safety. See memory: neon-multiuser-backend.
+  const AUTH_BASE = (global.HOLO_ENV && global.HOLO_ENV.AUTH_BASE) || "/auth";
   const ALLOWED_DOMAIN = "salesforce.com";
 
   // localStorage keys (device-local session mirror).

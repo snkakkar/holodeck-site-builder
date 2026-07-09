@@ -10,3 +10,6 @@ holodeck-gcs-key.json
 Thumbs.db
 node_modules/
 npm-debug.log*
+
+# PostgREST binary is fetched at build (bin/fetch-postgrest.sh), never committed.
+bin/postgrest

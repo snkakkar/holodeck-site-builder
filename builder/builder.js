@@ -570,6 +570,11 @@
             if (newId) goBuilder(newId); else toast("Couldn't copy that project.");
           }).catch(function () { toast("Couldn't copy that project."); });
         },
+        onUnpublish: function (id, done) {
+          STORE.setVisibility(id, "private").then(function () {
+            done && done(); toast("Removed from the team gallery");
+          }).catch(function () { toast("Couldn't unpublish. Try again."); });
+        },
         onRename:    function (id, name, done) { STORE.renameProject(id, name).then(function () { done && done(); toast("Renamed"); }); },
         onDelete:    function (id, done) { STORE.deleteProject(id).then(function () { done && done(); toast("Deleted"); }); },
       });

@@ -16,9 +16,9 @@
   "use strict";
 
   // Same Data API base as project-store.js. Sourced from HOLO_STORE so the
-  // base lives in one place; the literal is a load-order fallback only.
+  // base lives in one place; falls back to HOLO_ENV, then the same-origin path.
   const DATA_API = (global.HOLO_STORE && global.HOLO_STORE.DATA_API) ||
-    "https://ep-round-hill-ajwf0r6a.apirest.c-3.us-east-2.aws.neon.tech/neondb/rest/v1";
+    (global.HOLO_ENV && global.HOLO_ENV.DATA_API) || "/rest/v1";
 
   // The single admin who can read/triage all feedback (UI gating only;
   // the RLS policy app.is_feedback_admin() is authoritative server-side).
