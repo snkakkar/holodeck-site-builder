@@ -39,8 +39,8 @@ The Builder now uses a 9-step flow:
 3. Story Foundations
 4. Recommended Narrative
 5. Slide Selection
-6. CX Components (optional)
-7. Assets (optional uploads)
+6. Assets (optional uploads)
+7. CX Components (optional)
 8. Preview
 9. Export
 
@@ -58,6 +58,7 @@ The Builder now uses a 9-step flow:
 - Persona enhancements: pronouns and wishlist/stat editing support.
 - BVS metric override editing persisted through round-trips.
 - Live preview improvements and shared rendering helpers for consistency.
+- **Project sharing** from Home with collaboration controls through the new share modal flow.
 
 ## Export behavior
 
@@ -94,6 +95,7 @@ The builder preview helps author content quickly, while the exported/presented H
 - `builder/config-generator.js` - config generation utilities
 - `builder/zip-exporter.js` - complete ZIP export pipeline
 - `builder/import-validator.js`, `builder/project-store.js` - import validation and persisted project schema
+- `builder/project-home.js`, `builder/share-modal.js` - project home actions and share workflow UI
 - `demo/index.html` - demo entry URL
 - `demo/demo-holodeck-unified.html` - unified presentation shell
 - `demo/holodeck.config.js` - primary content configuration
