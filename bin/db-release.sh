@@ -11,20 +11,18 @@ fi
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)/db"
 
-# Some managed Postgres users (including common Heroku/Neon app roles) do not
-# have CREATEROLE. If required roles are missing and cannot be created, skip
-# DB bootstrap so release does not block web deploys.
-HAS_CREATEROLE="$(psql "$DATABASE_URL" -tA -c "SELECT rolcreaterole FROM pg_roles WHERE rolname = current_user" | tr -d '[:space:]')"
+# Keep release-time bootstrap limited to schema/functions/tables and, when
+# available, grants/RLS. Role creation is a one-time admin task.
 HAS_AUTHENTICATED="$(psql "$DATABASE_URL" -tA -c "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated')" | tr -d '[:space:]')"
 HAS_ANON="$(psql "$DATABASE_URL" -tA -c "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')" | tr -d '[:space:]')"
 
-if [ "$HAS_CREATEROLE" != "t" ] && { [ "$HAS_AUTHENTICATED" != "t" ] || [ "$HAS_ANON" != "t" ]; }; then
-  echo "[db-release] current DB role cannot CREATE ROLE and required PostgREST roles are missing."
+if [ "$HAS_AUTHENTICATED" != "t" ] || [ "$HAS_ANON" != "t" ]; then
+  echo "[db-release] required PostgREST roles are missing (authenticated/anon)."
   echo "[db-release] applying non-role migrations only (02_functions.sql, 03_tables.sql)."
   echo "[db-release] to enable grants/RLS, run admin bootstrap once and deploy again."
   FILES="02_functions.sql 03_tables.sql"
 else
-  FILES="01_roles.sql 02_functions.sql 03_tables.sql 04_grants.sql 05_rls.sql"
+  FILES="02_functions.sql 03_tables.sql 04_grants.sql 05_rls.sql"
 fi
 
 echo "[db-release] applying migrations from ${DIR}"
