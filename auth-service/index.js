@@ -37,9 +37,26 @@ const NEON_JWKS_URL = process.env.NEON_JWKS_URL || (NEON_AUTH_BASE ? `${NEON_AUT
 const JWT_SECRET = process.env.JWT_SECRET || "";
 const TOKEN_TTL = process.env.SHIM_TOKEN_TTL || "15m";
 
+// PostgREST must SET ROLE to a role that exists. On Heroku there is no
+// `authenticated` role; PostgREST connects as the DB login role, which also
+// owns the tables. We therefore stamp the token's `role` claim with that login
+// role so PostgREST's SET ROLE is a no-op onto itself. The role name is
+// per-DB, so it is supplied via env (PGRST_DB_ROLE), defaulting to the
+// DATABASE_URL user so it stays correct across DB promotions without a code
+// change. If neither is set, no role claim is emitted (PostgREST then requires
+// a configured db-anon-role, which we intentionally do not set).
+function loginRoleFromUri(uri) {
+  try { return decodeURIComponent(new URL(uri).username || "") || ""; }
+  catch (_) { return ""; }
+}
+const DB_ROLE =
+  process.env.PGRST_DB_ROLE ||
+  loginRoleFromUri(process.env.DATABASE_URL || process.env.PGRST_DB_URI || "");
+
 if (!NEON_AUTH_BASE) console.error("[auth-shim] WARNING: NEON_AUTH_BASE is not set");
 if (!NEON_JWKS_URL) console.error("[auth-shim] WARNING: NEON_JWKS_URL could not be derived");
 if (!JWT_SECRET) console.error("[auth-shim] WARNING: JWT_SECRET is not set — HS256 minting will fail");
+if (!DB_ROLE) console.error("[auth-shim] WARNING: no PGRST_DB_ROLE / DATABASE_URL role — PostgREST will reject tokens as anonymous");
 
 const hsKey = JWT_SECRET ? new TextEncoder().encode(JWT_SECRET) : null;
 // createRemoteJWKSet returns a key-resolver that caches and refreshes
@@ -93,16 +110,19 @@ async function handleToken(req, res) {
   }
 
   try {
-    // Re-mint HS256 copying only the identity claims RLS reads (sub, email).
-    // No `role` claim is emitted: on Heroku there is no `authenticated` role,
-    // so PostgREST stays connected as the app login role (which owns the
-    // tables) and RLS — forced on the owner and gated on these claims — does
-    // the authorization. Emitting a role here would make PostgREST attempt a
-    // SET ROLE to a nonexistent role and fail every request.
+    // Re-mint HS256 copying the identity claims RLS reads (sub, email) plus a
+    // `role` claim set to the DB login role. On Heroku there is no
+    // `authenticated` role, but PostgREST still requires the token to name a
+    // role it can SET ROLE into; the login role (which owns the tables) is
+    // that role, so this is effectively a no-op switch onto itself. RLS is
+    // FORCED on the owner and gated on sub/email, so authorization is
+    // unaffected by the role. Omitting `role` makes PostgREST treat the
+    // request as anonymous and (with no db-anon-role) reject it.
     const now = Math.floor(Date.now() / 1000);
     const token = await new SignJWT({
       sub: claims.sub,
       email: claims.email,
+      ...(DB_ROLE ? { role: DB_ROLE } : {}),
       emailVerified: claims.emailVerified === true || claims.email_verified === true,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })

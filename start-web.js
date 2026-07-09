@@ -29,6 +29,13 @@ function log(msg) {
   console.log(`[supervisor] ${msg}`);
 }
 
+// The DB login role, parsed from a postgres:// URI's userinfo. PostgREST
+// connects as this role; the shim stamps it as the token's `role` claim.
+function dbRoleFromUri(uri) {
+  try { return decodeURIComponent(new URL(uri).username || "") || ""; }
+  catch (_) { return ""; }
+}
+
 function spawnChild(name, command, args, env) {
   const child = spawn(command, args, {
     stdio: "inherit",
@@ -107,6 +114,14 @@ process.on("SIGINT", () => { log("SIGINT"); shutdown(0); });
 
   spawnChild("auth-shim", process.execPath, [path.join(__dirname, "auth-service", "index.js")], {
     AUTH_SHIM_PORT: String(SHIM_PORT),
+    // The shim stamps the token's `role` claim with the DB login role so
+    // PostgREST can SET ROLE into it. Derive it from the same URI PostgREST
+    // connects with, so the two can never disagree across DB promotions.
+    // (The shim also derives this itself from DATABASE_URL; passing it here
+    // keeps the source of truth aligned with PostgREST's PGRST_DB_URI.)
+    PGRST_DB_ROLE:
+      process.env.PGRST_DB_ROLE ||
+      dbRoleFromUri(process.env.DATABASE_URL || process.env.PGRST_DB_URI || ""),
   });
 
   try {
