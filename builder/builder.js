@@ -475,7 +475,7 @@
       // RLS is the real gate; this only hides a button that would 403.
       if (isActiveProjectMine() && window.HOLO_SHARE) {
         right.appendChild(actionBtn("Share", "bx-btn-ghost", function () {
-          HOLO_SHARE.open(app.state.id, app.state.name || "Untitled project");
+          window.HOLO_SHARE.open(app.state.id, app.state.name || "Untitled project");
         }));
       }
       right.appendChild(actionBtn("Import", "bx-btn-ghost", function () { openImportModal(app.state.id); }));
