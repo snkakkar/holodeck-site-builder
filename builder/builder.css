@@ -7,6 +7,10 @@
   /* ── Brand colors (held for identity / demo output only) ─────── */
   --bx-red:    #b22234;
   --bx-navy:   #0d1b2e;
+  /* Fixed dark navy for FILLS with on-color (white) text. --bx-navy is
+     re-purposed as a text/ink color in dark mode, so fills that carry
+     white text must use this stable token instead. */
+  --bx-navy-fill: #0d1b2e;
   --bx-blue:   #1a5fa0;
   --bx-blue-2: #1a3f6f;
   --bx-gold:   #f5c06a;
@@ -64,6 +68,9 @@
   --bx-shadow:      0 6px 24px rgba(13, 27, 46, 0.08);
   --bx-shadow-2:    0 14px 40px rgba(13, 27, 46, 0.18);
 
+  /* Translucent sticky-topbar fill (sits under backdrop-filter blur) */
+  --bx-topbar-bg:   rgba(255, 255, 255, 0.92);
+
   /* ── Surface (canonical card geometry) ──────────────────────── */
   --bx-surface-pad:     calc(20px * var(--bx-scale, 1)) calc(22px * var(--bx-scale, 1));     /* default card padding */
   --bx-surface-pad-lg:  calc(24px * var(--bx-scale, 1)) calc(26px * var(--bx-scale, 1));     /* large/feature cards */
@@ -80,6 +87,48 @@
   --bx-topbar-h: 60px;   /* NOT scaled: sticky panels use 100vh - this; must stay real px */
   --bx-stepper-w: calc(260px * var(--bx-scale, 1));
   --bx-side-w: calc(240px * var(--bx-scale, 1));   /* narrower "Live Suggestions" panel → wider main column */
+}
+
+/* ════════════════════════════════════════════════════════════════
+   DARK MODE — overrides the surface/ink/line/shadow tokens only.
+   Set on <html> as data-theme="dark" (see the boot script in index.html
+   and the Appearance toggle on the Profile page). Brand tokens
+   (--bx-red/navy/blue/gold) and the action-blue family are intentionally
+   left alone — they read fine on a dark surface. On-color text whites
+   (color:#fff on filled buttons) also stay; only true *surfaces* flip.
+   ════════════════════════════════════════════════════════════════ */
+:root[data-theme="dark"] {
+  color-scheme: dark;   /* native form controls / scrollbars render dark */
+
+  /* Surface & ink */
+  --bx-bg:     #0d1420;   /* deep navy-black page */
+  --bx-bg-2:   #121b2a;
+  --bx-card:   #18202e;   /* elevated surface */
+  --bx-line:   rgba(255, 255, 255, 0.10);
+  --bx-line-2: rgba(255, 255, 255, 0.20);
+  --bx-ink:    #e6ecf5;   /* primary text */
+  --bx-ink-2:  #9fb0c4;
+  --bx-ink-3:  #6f8298;
+
+  /* Semantic (status) backgrounds — darken the tints, keep fg hues */
+  --bx-warn-bg:  rgba(196, 126, 26, 0.18);
+  --bx-good-bg:  rgba(46, 122, 80, 0.20);
+  --bx-error-bg: rgba(178, 34, 52, 0.20);
+
+  /* Shadows read as ambient darkness on a dark page */
+  --bx-shadow:   0 6px 24px rgba(0, 0, 0, 0.45);
+  --bx-shadow-2: 0 14px 40px rgba(0, 0, 0, 0.60);
+
+  /* Action-blue tint sits over dark surfaces */
+  --bx-action-soft: rgba(26, 95, 160, 0.22);
+  --bx-action-ring: rgba(26, 95, 160, 0.30);
+
+  /* Brand navy is nearly the page color in dark mode; lift text/marks
+     that use --bx-navy directly so they stay legible. */
+  --bx-navy: #cdd8e8;
+
+  /* Translucent sticky topbar over the dark page */
+  --bx-topbar-bg: rgba(18, 27, 42, 0.92);
 }
 
 * { box-sizing: border-box; }
@@ -104,7 +153,7 @@ button { font-family: inherit; }
   gap: var(--bx-sp-4);
   flex-wrap: wrap;                    /* let the action cluster drop to a 2nd row before overflowing */
   padding: var(--bx-sp-2) var(--bx-sp-6);
-  background: rgba(255,255,255,0.92);
+  background: var(--bx-topbar-bg);
   border-bottom: 1px solid var(--bx-line);
   backdrop-filter: blur(8px);
   position: sticky; top: 0; z-index: 50;
@@ -351,7 +400,7 @@ button { font-family: inherit; }
   padding: 10px 12px;
   border: 1.5px solid var(--bx-line-2);
   border-radius: var(--bx-radius-s);
-  background: #fff;
+  background: var(--bx-card);
   color: var(--bx-ink);
   width: 100%;
   outline: none;
@@ -381,7 +430,7 @@ button { font-family: inherit; }
   padding: 7px 12px;
   border: 1.5px solid var(--bx-line-2);
   border-radius: var(--bx-radius-s);
-  background: #fff;
+  background: var(--bx-card);
   color: var(--bx-ink-2);
   cursor: pointer;
   margin-right: 8px;
@@ -550,7 +599,7 @@ button { font-family: inherit; }
   border: 1.5px solid var(--bx-line-2);
   border-radius: var(--bx-radius-s);
   cursor: pointer;
-  background: #fff;
+  background: var(--bx-card);
   padding: 0;
 }
 
@@ -563,7 +612,7 @@ button { font-family: inherit; }
   padding: 7px 14px;
   border: 1.5px solid var(--bx-line-2);
   border-radius: var(--bx-radius-pill);
-  background: #fff;
+  background: var(--bx-card);
   color: var(--bx-ink-2);
   cursor: pointer;
   transition: all 0.12s ease;
@@ -571,9 +620,9 @@ button { font-family: inherit; }
 }
 .bx-chip:hover { border-color: var(--bx-action); color: var(--bx-action); }
 .bx-chip.is-on {
-  background: var(--bx-navy);
+  background: var(--bx-navy-fill);
   color: #fff;
-  border-color: var(--bx-navy);
+  border-color: var(--bx-navy-fill);
 }
 .bx-chip.is-on.tone-red {
   background: var(--bx-red); border-color: var(--bx-red);
@@ -603,7 +652,7 @@ button { font-family: inherit; }
   width: 26px; height: 26px;
   border-radius: 50%;
   border: 1px solid var(--bx-line);
-  background: #fff;
+  background: var(--bx-card);
   cursor: pointer;
   font-size: 13px; color: var(--bx-ink-2);
   display: inline-flex; align-items: center; justify-content: center;
@@ -674,7 +723,7 @@ button { font-family: inherit; }
   width: 22px; height: 22px;
   border-radius: 6px;
   border: 1.5px solid var(--bx-line-2);
-  background: #fff;
+  background: var(--bx-card);
   flex-shrink: 0;
   cursor: pointer;
   margin: 2px 0 0 0;
@@ -736,7 +785,7 @@ button { font-family: inherit; }
    primary action. Positioned by JS (openCoachMark); arrow flips with the card. */
 .bx-coach {
   z-index: 1200;
-  background: var(--bx-surface, #fff);
+  background: var(--bx-surface, var(--bx-card));
   border: 1px solid var(--bx-line);
   border-radius: var(--bx-radius-m, 10px);
   box-shadow: 0 12px 32px rgba(16, 24, 40, 0.18);
@@ -746,7 +795,7 @@ button { font-family: inherit; }
   position: absolute;
   top: 18px; left: -7px;
   width: 12px; height: 12px;
-  background: var(--bx-surface, #fff);
+  background: var(--bx-surface, var(--bx-card));
   border-left: 1px solid var(--bx-line);
   border-bottom: 1px solid var(--bx-line);
   transform: rotate(45deg);
@@ -950,7 +999,7 @@ button { font-family: inherit; }
   color: var(--bx-ink-2);
   cursor: pointer;
 }
-.bx-seg-btn.is-on { background: #fff; color: var(--bx-navy); box-shadow: 0 1px 4px rgba(13,27,46,0.08); }
+.bx-seg-btn.is-on { background: var(--bx-card); color: var(--bx-ink); box-shadow: 0 1px 4px rgba(13,27,46,0.08); }
 
 .bx-preview {
   background: var(--bx-surface-bg);
@@ -1024,7 +1073,7 @@ button { font-family: inherit; }
 
 /* Wireframe schematic */
 .bx-wire {
-  background: linear-gradient(160deg, #f8faff 0%, #eef3ff 100%);
+  background: linear-gradient(160deg, var(--bx-card) 0%, var(--bx-bg-2) 100%);
   border-radius: var(--bx-radius-s);
   height: 96px;
   position: relative;
@@ -1050,7 +1099,7 @@ button { font-family: inherit; }
 }
 .bx-modal[hidden] { display: none; }
 .bx-modal-card {
-  background: #fff;
+  background: var(--bx-card);
   border-radius: var(--bx-radius);
   width: 100%;
   max-width: 760px;
@@ -1166,7 +1215,7 @@ button { font-family: inherit; }
   position: fixed;
   bottom: 24px; left: 50%;
   transform: translateX(-50%);
-  background: var(--bx-navy);
+  background: var(--bx-navy-fill);
   color: #fff;
   padding: 10px 18px;
   border-radius: var(--bx-radius-pill);
@@ -1365,6 +1414,11 @@ button { font-family: inherit; }
   background: var(--bx-action-soft) !important;
   color: var(--bx-action) !important;
 }
+/* Team-gallery card badge (published by a teammate) */
+.bx-proj-gallery-badge {
+  background: var(--bx-good-soft, rgba(46, 122, 80, 0.12)) !important;
+  color: var(--bx-good, #2e7a50) !important;
+}
 
 .bx-proj-grid {
   display: grid;
@@ -1464,7 +1518,7 @@ button { font-family: inherit; }
   font-size: 12px;
   line-height: 1.55;
   white-space: pre-wrap;
-  background: #fbfcff;
+  background: var(--bx-card);
 }
 .bx-numlist {
   margin: 6px 0 0 18px;
@@ -1531,6 +1585,19 @@ button { font-family: inherit; }
   --hp-primary:   var(--bx-red);
   --hp-secondary: var(--bx-blue);
   --hp-accent:    var(--bx-gold, #f5c06a);
+  /* These previews mirror the exported demo runtime, which is always
+     light. Pin the surface/ink tokens to their light values inside .hp
+     so the preview stays representative even when the builder is dark. */
+  --bx-navy: #0d1b2e;
+  --bx-ink:  #0d1b2e;
+  --bx-ink-2: #4a5a6a;
+  --bx-ink-3: #7a8fa8;
+  --bx-bg:   #f5f7ff;
+  --bx-bg-2: #eef2fb;
+  --bx-card: #ffffff;
+  --bx-surface-bg: #ffffff;
+  --bx-line: rgba(13, 27, 46, 0.10);
+  color: var(--bx-ink);
   background: #fff;
   border: 1px solid var(--bx-line);
   border-radius: var(--bx-radius-s);
@@ -1776,7 +1843,7 @@ button { font-family: inherit; }
      Bumped ~30% (150→195 / 240→312) to match the /demo phone bump so preview
      and export stay in sync and phones read consistently across slides. */
   width: 195px; border-radius: 22px; padding: 10px;
-  background: var(--bx-navy);
+  background: var(--bx-navy-fill);
   position: relative;
   min-height: 312px;
 }
@@ -1878,7 +1945,7 @@ button { font-family: inherit; }
   display: flex; flex-direction: column; gap: 10px;
   text-align: left;
   padding: 22px;
-  background: #fff;
+  background: var(--bx-card);
   border: 1.5px solid var(--bx-line);
   border-radius: var(--bx-radius);
   cursor: pointer;
@@ -1957,7 +2024,7 @@ button { font-family: inherit; }
    Slide Plan: Recommended Narrative + section cards
    ════════════════════════════════════════════════════════════════ */
 .bx-narrative-card {
-  background: linear-gradient(160deg, var(--bx-bg-2) 0%, #fff 100%);
+  background: linear-gradient(160deg, var(--bx-bg-2) 0%, var(--bx-card) 100%);
   border-color: rgba(26, 95, 160, 0.30);
 }
 .bx-section-card { padding: var(--bx-surface-pad); }
@@ -1969,7 +2036,7 @@ button { font-family: inherit; }
 }
 .bx-section-num {
   width: 32px; height: 32px; border-radius: 50%;
-  background: var(--bx-navy); color: #fff;
+  background: var(--bx-navy-fill); color: #fff;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 800;
 }
@@ -2089,7 +2156,7 @@ button { font-family: inherit; }
   width: 22px; height: 22px;
   border-radius: 50%;
   border: 1.5px solid var(--bx-line-2);
-  background: #fff;
+  background: var(--bx-card);
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 800;
   color: #fff;
@@ -2152,10 +2219,10 @@ button { font-family: inherit; }
   padding: 4px 6px;
   outline: none;
 }
-.bx-rec-gcard-title:hover { border-color: var(--bx-line); background: #fff; }
+.bx-rec-gcard-title:hover { border-color: var(--bx-line); background: var(--bx-card); }
 .bx-rec-gcard-title:focus {
   border-color: var(--bx-action);
-  background: #fff;
+  background: var(--bx-card);
   box-shadow: 0 0 0 3px var(--bx-action-ring);
 }
 
@@ -2225,7 +2292,7 @@ button { font-family: inherit; }
 .hp-embedded-name { font-size: 13px; font-weight: 800; color: var(--bx-navy); }
 .hp-embedded-type { font-size: 9px; font-weight: 800; color: var(--bx-ink-3); letter-spacing: 0.10em; text-transform: uppercase; }
 .hp-embedded-frame {
-  background: var(--bx-navy);
+  background: var(--bx-navy-fill);
   border-radius: 10px; padding: 8px;
   min-height: 220px;
 }
@@ -2436,11 +2503,11 @@ button { font-family: inherit; }
   border-bottom: var(--bx-surface-border);
 }
 .bx-share-title { font-size: 18px; font-weight: 800; }
-.bx-share-sub { font-size: 13px; color: var(--bx-ink-soft, #667); margin-top: 2px; }
+.bx-share-sub { font-size: 13px; color: var(--bx-ink-soft, var(--bx-ink-2)); margin-top: 2px; }
 .bx-share-x {
   position: absolute; top: var(--bx-sp-3); right: var(--bx-sp-4);
   border: none; background: transparent; cursor: pointer;
-  font-size: 15px; color: var(--bx-ink-soft, #667); line-height: 1;
+  font-size: 15px; color: var(--bx-ink-soft, var(--bx-ink-2)); line-height: 1;
 }
 .bx-share-x:hover { color: var(--bx-ink); }
 .bx-share-invite {
@@ -2450,14 +2517,14 @@ button { font-family: inherit; }
 .bx-share-email {
   flex: 1 1 auto; min-width: 0;
   padding: 8px 10px; font-size: 14px;
-  border: 1px solid var(--bx-border, #cdd3dd);
+  border: 1px solid var(--bx-border, var(--bx-line-2));
   border-radius: var(--bx-radius, 8px);
   font-family: inherit;
 }
 .bx-share-perm, .bx-share-row-perm {
   padding: 8px 8px; font-size: 13px; font-family: inherit;
-  border: 1px solid var(--bx-border, #cdd3dd);
-  border-radius: var(--bx-radius, 8px); background: #fff;
+  border: 1px solid var(--bx-border, var(--bx-line-2));
+  border-radius: var(--bx-radius, 8px); background: var(--bx-card);
 }
 .bx-share-add {
   padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
@@ -2466,9 +2533,27 @@ button { font-family: inherit; }
 }
 .bx-share-add:hover { filter: brightness(1.05); }
 .bx-share-add:disabled { opacity: 0.6; cursor: default; }
+/* Publish-to-team-gallery toggle (sits between invite row and status) */
+.bx-share-gallery {
+  padding: var(--bx-sp-2) var(--bx-sp-5) 0;
+}
+.bx-share-gallery-label {
+  display: flex; gap: var(--bx-sp-2); align-items: flex-start;
+  cursor: pointer;
+  padding: var(--bx-sp-2) var(--bx-sp-3);
+  border: 1px solid var(--bx-border-soft, var(--bx-line));
+  border-radius: var(--bx-radius, 8px);
+  background: var(--bx-bg-2);
+}
+.bx-share-gallery-toggle { margin-top: 2px; flex: 0 0 auto; cursor: pointer; }
+.bx-share-gallery-toggle:disabled { cursor: default; }
+.bx-share-gallery-text { display: flex; flex-direction: column; gap: 2px; }
+.bx-share-gallery-title { font-size: 13px; font-weight: 700; color: var(--bx-ink); }
+.bx-share-gallery-sub { font-size: 12px; color: var(--bx-ink-soft, var(--bx-ink-2)); line-height: 1.3; }
+
 .bx-share-status {
   min-height: 18px; padding: 0 var(--bx-sp-5);
-  font-size: 12px; font-weight: 600; color: var(--bx-ink-soft, #667);
+  font-size: 12px; font-weight: 600; color: var(--bx-ink-soft, var(--bx-ink-2));
 }
 .bx-share-status.tone-good { color: var(--bx-good, #2e7a50); }
 .bx-share-status.tone-warn { color: var(--bx-red, #b22234); }
@@ -2476,22 +2561,22 @@ button { font-family: inherit; }
   padding: var(--bx-sp-2) var(--bx-sp-5) var(--bx-sp-3);
   max-height: 46vh; overflow-y: auto;
 }
-.bx-share-empty { font-size: 13px; color: var(--bx-ink-soft, #667); padding: var(--bx-sp-3) 0; }
+.bx-share-empty { font-size: 13px; color: var(--bx-ink-soft, var(--bx-ink-2)); padding: var(--bx-sp-3) 0; }
 .bx-share-row {
   display: flex; align-items: center; gap: var(--bx-sp-2);
   padding: var(--bx-sp-2) 0;
-  border-top: 1px solid var(--bx-border-soft, #eef1f5);
+  border-top: 1px solid var(--bx-border-soft, var(--bx-line));
 }
 .bx-share-row-email { flex: 1 1 auto; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bx-share-remove {
   padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
-  border: 1px solid var(--bx-border, #cdd3dd); background: #fff; color: var(--bx-red, #b22234);
+  border: 1px solid var(--bx-border, var(--bx-line-2)); background: var(--bx-card); color: var(--bx-red, #b22234);
   border-radius: var(--bx-radius, 8px);
 }
 .bx-share-remove:hover { background: rgba(178, 34, 52, 0.06); }
 .bx-share-remove:disabled { opacity: 0.6; cursor: default; }
 .bx-share-foot { padding: var(--bx-sp-3) var(--bx-sp-5) var(--bx-sp-4); border-top: var(--bx-surface-border); }
-.bx-share-hint { font-size: 12px; color: var(--bx-ink-soft, #667); line-height: 1.4; }
+.bx-share-hint { font-size: 12px; color: var(--bx-ink-soft, var(--bx-ink-2)); line-height: 1.4; }
 
 /* ════════════════════════════════════════════════════════════════
    STEPPER STATUS — new step states with text labels and colors.
@@ -2717,7 +2802,7 @@ button { font-family: inherit; }
 .bx-pop-edit {
   position: absolute;
   z-index: 1000;
-  background: #fff;
+  background: var(--bx-card);
   border: 1px solid var(--bx-line);
   border-radius: 12px;
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18), 0 4px 12px rgba(15, 23, 42, 0.08);
@@ -2743,12 +2828,12 @@ button { font-family: inherit; }
   width: 24px; height: 24px;
   border-radius: 50%;
   border: 1px solid var(--bx-line);
-  background: #fff;
+  background: var(--bx-card);
   cursor: pointer;
   font-size: 14px; line-height: 1; color: var(--bx-ink-2);
   display: inline-flex; align-items: center; justify-content: center;
 }
-.bx-pop-edit-close:hover { background: var(--bx-bg-2); color: var(--bx-ink-1); }
+.bx-pop-edit-close:hover { background: var(--bx-bg-2); color: var(--bx-ink); }
 .bx-pop-edit-body {
   padding: 12px 14px;
   overflow: auto;
@@ -2794,8 +2879,8 @@ button { font-family: inherit; }
   padding: 6px 8px;
   border: 1px solid var(--bx-line);
   border-radius: 6px;
-  background: #fff;
-  color: var(--bx-ink-1);
+  background: var(--bx-card);
+  color: var(--bx-ink);
   font-family: inherit;
 }
 .bx-pop-edit-list-input:focus-visible {
@@ -2820,7 +2905,7 @@ button { font-family: inherit; }
   font-size: 14px; line-height: 1;
   border: 1px solid var(--bx-line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--bx-card);
   cursor: pointer;
   padding: 0;
 }
@@ -2836,7 +2921,7 @@ button { font-family: inherit; }
   font-size: 12px; line-height: 1;
   border: 1px solid var(--bx-line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--bx-card);
   color: var(--bx-ink-2);
   cursor: pointer;
   padding: 0;
@@ -2855,7 +2940,7 @@ button { font-family: inherit; }
   color: var(--bx-action);
   cursor: pointer;
 }
-.bx-pop-edit-list-add:hover { border-color: var(--bx-action); background: #fff; }
+.bx-pop-edit-list-add:hover { border-color: var(--bx-action); background: var(--bx-card); }
 .bx-pop-edit-foot {
   padding: 8px 14px 10px;
   border-top: 1px solid var(--bx-line);

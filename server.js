@@ -463,6 +463,37 @@ app.get("/api/logo", async (req, res) => {
   return res.status(404).json({ error: `No logo found for ${domain}` });
 });
 
+// ── Signed-asset image proxy (for file exporters) ──────────────
+// Query: ?url=<signed GCS url>
+// Signed GCS URLs are cross-origin from the builder origin and the
+// bucket has no CORS config, so a browser fetch → blob → data URL
+// (which the PPTX/PDF exporters need to embed images) fails. This
+// same-origin proxy fetches the bytes server-side and streams them
+// back with the upstream content-type. Host is locked to
+// storage.googleapis.com so it can't be used as an open proxy; the
+// URL still carries its own signature (we don't add credentials).
+app.get("/api/asset/proxy", async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  const raw = typeof req.query.url === "string" ? req.query.url : "";
+  let parsed;
+  try { parsed = new URL(raw); } catch (_) { parsed = null; }
+  if (!parsed || parsed.protocol !== "https:" || parsed.hostname !== "storage.googleapis.com") {
+    return res.status(400).json({ error: "a valid storage.googleapis.com url is required" });
+  }
+  try {
+    const upstream = await fetch(parsed.toString(), { redirect: "follow" });
+    if (!upstream.ok) return res.status(upstream.status).json({ error: `upstream ${upstream.status}` });
+    const type = upstream.headers.get("content-type") || "image/png";
+    if (!/^image\//i.test(type)) return res.status(415).json({ error: "not an image" });
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.set("Content-Type", type);
+    res.set("Cache-Control", "private, max-age=3600");
+    return res.send(buf);
+  } catch (_) {
+    return res.status(502).json({ error: "failed to fetch asset" });
+  }
+});
+
 app.use(express.static(rootDir, { extensions: ["html"] }));
 
 app.listen(port, () => {

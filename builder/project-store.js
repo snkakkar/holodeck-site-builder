@@ -472,6 +472,27 @@
         });
       });
     },
+    // Team gallery — every project a teammate published (visibility='gallery').
+    // RLS (projects_select) already returns these to any @salesforce.com user,
+    // so a plain visibility filter is enough; no ownership predicate needed.
+    // Excludes MY OWN gallery rows (those live under "My Projects") so the
+    // gallery reads as "what the team shared", not a mix. owner_id rides along
+    // so the card can label the author and gate "Duplicate to my projects".
+    listGallery: function () {
+      const me = currentUserId();
+      return dataFetch("/projects?visibility=eq.gallery" +
+        "&select=id,name,summary,visibility,updated_at,created_at,owner_id&order=updated_at.desc")
+        .then(function (rows) {
+          return (rows || [])
+            .filter(function (r) { return r.owner_id !== me; })
+            .map(function (r) {
+              const sum = rowToSummary(r);
+              sum.ownerId = r.owner_id;
+              sum.gallery = true;
+              return sum;
+            });
+        });
+    },
   };
 
   // ════════════════════════════════════════════════════════════
@@ -993,6 +1014,24 @@
     if (!online()) return Promise.resolve([]);
     return ShareBackend.listSharedWithMe().catch(function () { return []; });
   }
+  function listGallery() {
+    if (!online()) return Promise.resolve([]);
+    return ShareBackend.listGallery().catch(function () { return []; });
+  }
+  // Publish/unpublish a project to the team gallery. Loads the current state,
+  // flips visibility, and re-saves (round-trips through stateToRow, which
+  // already persists the column). Owner-only in practice — RLS projects_update
+  // lets the owner or an edit-collaborator write; the UI only offers it to
+  // owners. Resolves to the new visibility, or rejects if the project is gone.
+  function setVisibility(projectId, visibility) {
+    const off = requireOnline(); if (off) return Promise.reject(off);
+    const vis = (visibility === "gallery") ? "gallery" : "private";
+    return loadProject(projectId).then(function (state) {
+      if (!state) throw new Error("Project not found.");
+      state.visibility = vis;
+      return saveProject(state).then(function () { return vis; });
+    });
+  }
   function getPresence(projectId) {
     if (!online()) return Promise.resolve(null);
     return PresenceBackend.getPresence(projectId).catch(function () { return null; });
@@ -1043,6 +1082,9 @@
     unshareProject: unshareProject,
     listShares: listShares,
     listSharedWithMe: listSharedWithMe,
+    // Team gallery (visibility='gallery'; RLS authoritative)
+    listGallery: listGallery,
+    setVisibility: setVisibility,
     // Soft-lock presence
     getPresence: getPresence,
     acquireLock: acquireLock,

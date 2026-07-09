@@ -68,11 +68,15 @@
         b.classList.add("is-active");
         renderGrid();
         if (key === "shared") loadShared();
+        if (key === "gallery") loadGallery();
       });
       return b;
     }
     tabBar.appendChild(tabBtn("mine", "My Projects"));
     tabBar.appendChild(tabBtn("shared", "Shared with me"));
+    // Team Gallery — projects teammates published (visibility='gallery'), which
+    // anyone can duplicate into their own account. Populated lazily like Shared.
+    if (STORE.listGallery) tabBar.appendChild(tabBtn("gallery", "Team Gallery"));
     container.appendChild(tabBar);
 
     // Projects load asynchronously (online-first). We render the toolbar
@@ -82,6 +86,8 @@
     let loaded = [];
     let shared = [];
     let sharedLoaded = false;
+    let gallery = [];
+    let galleryLoaded = false;
 
     // Toolbar — search + sort + filter
     const toolbar = el("div", { class: "bx-home-toolbar" });
@@ -134,17 +140,25 @@
 
     function renderGrid() {
       gridWrap.innerHTML = "";
-      const isShared = state.tab === "shared";
-      const all = isShared ? shared : loaded;
+      const isShared  = state.tab === "shared";
+      const isGallery = state.tab === "gallery";
+      const all = isGallery ? gallery : (isShared ? shared : loaded);
 
       if (isShared && !sharedLoaded) {
         gridWrap.appendChild(el("div", { class: "bx-empty", text: "Loading projects shared with you…" }));
+        return;
+      }
+      if (isGallery && !galleryLoaded) {
+        gridWrap.appendChild(el("div", { class: "bx-empty", text: "Loading the team gallery…" }));
         return;
       }
       if (!all.length) {
         if (isShared) {
           gridWrap.appendChild(el("div", { class: "bx-empty",
             html: "No projects have been shared with you yet. When a teammate shares one, it'll appear here." }));
+        } else if (isGallery) {
+          gridWrap.appendChild(el("div", { class: "bx-empty",
+            html: "The team gallery is empty. Publish one of your projects (Share → <strong>Publish to team gallery</strong>) so teammates can reuse it." }));
         } else {
           gridWrap.appendChild(emptyState(handlers));
         }
@@ -161,9 +175,10 @@
         return;
       }
 
+      const mode = isGallery ? "gallery" : (isShared ? "shared" : "mine");
       const grid = el("div", { class: "bx-proj-grid" });
       filtered.forEach(function (p) {
-        grid.appendChild(projectCard(p, handlers, function () { reloadAndRender(); handlers.onChange && handlers.onChange(); }, isShared));
+        grid.appendChild(projectCard(p, handlers, function () { reloadAndRender(); handlers.onChange && handlers.onChange(); }, mode));
       });
       gridWrap.appendChild(grid);
     }
@@ -183,8 +198,26 @@
       });
     }
 
-    // After a mutating action (duplicate/rename/delete) refetch so the
-    // grid reflects the server, then repaint the active tab.
+    // Lazily fetch the team gallery (visibility='gallery'; RLS returns any
+    // teammate's published project). Cached after the first successful load;
+    // excludes my own gallery rows (the store filters those out).
+    function loadGallery() {
+      if (!STORE.listGallery) { galleryLoaded = true; renderGrid(); return; }
+      STORE.listGallery().then(function (rows) {
+        gallery = rows || [];
+        galleryLoaded = true;
+        if (state.tab === "gallery") renderGrid();
+      }).catch(function () {
+        gallery = [];
+        galleryLoaded = true;
+        if (state.tab === "gallery") renderGrid();
+      });
+    }
+
+    // After a mutating action (duplicate/rename/delete/publish) refetch so the
+    // grid reflects the server, then repaint the active tab. My Projects always
+    // refreshes (a duplicate-to-mine or publish changes it); the lazy tabs
+    // refresh only when active so we don't fire calls the user can't see.
     function reloadAndRender() {
       STORE.listProjects().then(function (all) {
         loaded = all || [];
@@ -192,6 +225,10 @@
         renderGrid();
       });
       if (state.tab === "shared") loadShared();
+      // A publish/unpublish invalidates the cached gallery — force a refetch
+      // next time it's opened, and refresh now if it's the active tab.
+      galleryLoaded = false;
+      if (state.tab === "gallery") loadGallery();
     }
   }
 
@@ -205,18 +242,28 @@
   };
 
   // ─── Project card ──────────────────────────────────────────────
-  function projectCard(p, handlers, onLocalChange, isShared) {
-    const card = el("div", { class: "bx-proj-card" + (isShared ? " is-shared" : ""),
+  // mode: "mine" | "shared" | "gallery". Gallery cards belong to another
+  // owner, so the whole-card click duplicates-to-mine (opening the gallery
+  // row directly would fail owner-only autosave); shared/mine open normally.
+  function projectCard(p, handlers, onLocalChange, mode) {
+    const isShared  = mode === "shared";
+    const isGallery = mode === "gallery";
+    const card = el("div", { class: "bx-proj-card" + (isShared ? " is-shared" : "") + (isGallery ? " is-gallery" : ""),
       on: { click: function (e) {
         if (e.target.closest("[data-no-open]")) return;
+        if (isGallery) { handlers.onDuplicateOpen && handlers.onDuplicateOpen(p.id); return; }
         handlers.onOpen && handlers.onOpen(p.id);
       } } });
 
-    // Status pill — for shared projects, show the permission badge instead.
+    // Status pill — shared shows the permission badge; gallery shows a
+    // "From the team" badge; mine shows the workflow status.
     if (isShared) {
       const canEdit = p.sharedPermission === "edit";
       card.appendChild(el("div", { class: "bx-proj-status bx-proj-shared-badge",
         text: canEdit ? "Shared · can edit" : "Shared · view only" }));
+    } else if (isGallery) {
+      card.appendChild(el("div", { class: "bx-proj-status bx-proj-gallery-badge",
+        text: "Team gallery" }));
     } else {
       card.appendChild(el("div", { class: "bx-proj-status", text: p.status || "New" }));
     }
@@ -256,18 +303,28 @@
     foot.appendChild(counts);
 
     const actions = el("div", { class: "bx-proj-actions", "data-no-open": "1" });
-    actions.appendChild(miniBtn("Open", function () { handlers.onOpen && handlers.onOpen(p.id); }));
-    if (!isShared) {
-      // Owner-only actions. On a project shared with me I can only open it
-      // (RLS blocks duplicate-writes to another owner's row / delete anyway).
-      if (global.HOLO_SHARE) {
-        actions.appendChild(miniBtn("Share", function () {
-          global.HOLO_SHARE.open(p.id, p.name || p.customerName || "Untitled project");
-        }));
+    if (isGallery) {
+      // Another teammate's published project — the only action is to copy it
+      // into my own account (which then opens the fresh, private copy).
+      actions.appendChild(miniBtn("Duplicate to my projects", function () {
+        handlers.onDuplicateOpen && handlers.onDuplicateOpen(p.id);
+      }));
+    } else {
+      actions.appendChild(miniBtn("Open", function () { handlers.onOpen && handlers.onOpen(p.id); }));
+      if (!isShared) {
+        // Owner-only actions. On a project shared with me I can only open it
+        // (RLS blocks duplicate-writes to another owner's row / delete anyway).
+        if (global.HOLO_SHARE) {
+          actions.appendChild(miniBtn("Share", function () {
+            // Pass the known visibility so the gallery toggle reflects state
+            // without a reload; onLocalChange refetches after a publish flip.
+            global.HOLO_SHARE.open(p.id, p.name || p.customerName || "Untitled project", p.visibility, onLocalChange);
+          }));
+        }
+        actions.appendChild(miniBtn("Duplicate", function () { handlers.onDuplicate && handlers.onDuplicate(p.id, onLocalChange); }));
+        actions.appendChild(miniBtn("Rename",    function () { promptRename(p, handlers, onLocalChange); }));
+        actions.appendChild(miniBtn("Delete",    function () { confirmDelete(p, handlers, onLocalChange); }, "is-danger"));
       }
-      actions.appendChild(miniBtn("Duplicate", function () { handlers.onDuplicate && handlers.onDuplicate(p.id, onLocalChange); }));
-      actions.appendChild(miniBtn("Rename",    function () { promptRename(p, handlers, onLocalChange); }));
-      actions.appendChild(miniBtn("Delete",    function () { confirmDelete(p, handlers, onLocalChange); }, "is-danger"));
     }
     foot.appendChild(actions);
 

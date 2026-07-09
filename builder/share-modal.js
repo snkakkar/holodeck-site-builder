@@ -21,6 +21,7 @@
   let _overlay = null;
   let _projectId = null;
   let _shares = [];       // [{shared_with_email, permission, created_at}]
+  let _visibility = null; // "private" | "gallery" | null (unknown until loaded)
 
   function h(tag, attrs, children) {
     const node = document.createElement(tag);
@@ -47,7 +48,7 @@
 
   function close() {
     if (_overlay && _overlay.parentNode) _overlay.parentNode.removeChild(_overlay);
-    _overlay = null; _projectId = null; _shares = [];
+    _overlay = null; _projectId = null; _shares = []; _visibility = null;
     document.removeEventListener("keydown", onKey);
   }
   function onKey(e) { if (e.key === "Escape") close(); }
@@ -60,10 +61,15 @@
     el.className = "bx-share-status" + (tone ? " tone-" + tone : "");
   }
 
-  function open(projectId, projectName) {
+  // open(projectId, projectName, visibility?) — visibility is the caller's
+  // known value ("private"/"gallery"); when omitted the gallery toggle loads
+  // it lazily. onChange (4th arg) is called after a visibility flip so the
+  // home grid can refetch (a newly-published project appears in the gallery).
+  function open(projectId, projectName, visibility, onChange) {
     if (!STORE || !projectId) return;
     close(); // any previous instance
     _projectId = projectId;
+    _visibility = (visibility === "gallery" || visibility === "private") ? visibility : null;
 
     const card = h("div", { class: "bx-share-card", role: "dialog", "aria-modal": "true", "aria-label": "Share project" }, [
       h("div", { class: "bx-share-head" }, [
@@ -72,6 +78,7 @@
         h("button", { class: "bx-share-x", "aria-label": "Close", text: "✕", on: { click: close } }),
       ]),
       buildInviteRow(),
+      buildGalleryRow(onChange),
       h("div", { class: "bx-share-status" }),
       h("div", { class: "bx-share-list", id: "bxShareList" }, [
         h("div", { class: "bx-share-empty", text: "Loading collaborators…" }),
@@ -85,8 +92,62 @@
     document.body.appendChild(_overlay);
     document.addEventListener("keydown", onKey);
     refreshList();
+    refreshGallery();
     const input = _overlay.querySelector(".bx-share-email");
     if (input) input.focus();
+  }
+
+  // "Publish to team gallery" toggle. Flips projects.visibility between
+  // 'private' and 'gallery' via STORE.setVisibility. Any @salesforce.com
+  // teammate can then find + duplicate the project from the Team Gallery tab
+  // (RLS projects_select returns gallery rows to everyone). Read-only until the
+  // current visibility is known (loaded lazily if the caller didn't pass it).
+  function buildGalleryRow(onChange) {
+    if (!STORE.setVisibility) return null; // store predates gallery — hide row
+    const toggle = h("input", { class: "bx-share-gallery-toggle", type: "checkbox" });
+    toggle.disabled = true; // enabled once visibility resolves
+    const label = h("label", { class: "bx-share-gallery-label" }, [
+      toggle,
+      h("span", { class: "bx-share-gallery-text" }, [
+        h("span", { class: "bx-share-gallery-title", text: "Publish to team gallery" }),
+        h("span", { class: "bx-share-gallery-sub",
+          text: "Any @salesforce.com teammate can find and duplicate this demo." }),
+      ]),
+    ]);
+    toggle.addEventListener("change", function () {
+      const next = toggle.checked ? "gallery" : "private";
+      toggle.disabled = true;
+      setStatus(toggle.checked ? "Publishing…" : "Unpublishing…");
+      STORE.setVisibility(_projectId, next).then(function (vis) {
+        _visibility = vis;
+        setStatus(vis === "gallery" ? "Published to the team gallery." : "Removed from the team gallery.", "good");
+        if (typeof onChange === "function") { try { onChange(); } catch (e) {} }
+      }).catch(function (err) {
+        toggle.checked = (_visibility === "gallery"); // revert
+        setStatus((err && err.message) || "Couldn't update the gallery.", "warn");
+      }).then(function () { toggle.disabled = false; });
+    });
+    return h("div", { class: "bx-share-gallery" }, [label]);
+  }
+
+  // Sync the toggle to the current visibility. Uses the caller-provided value
+  // when present; otherwise loads the project once to read it.
+  function refreshGallery() {
+    const toggle = _overlay && _overlay.querySelector(".bx-share-gallery-toggle");
+    if (!toggle) return;
+    const apply = function (vis) {
+      _visibility = (vis === "gallery") ? "gallery" : "private";
+      // Guard against a stale close()/reopen: only touch the live toggle.
+      const live = _overlay && _overlay.querySelector(".bx-share-gallery-toggle");
+      if (!live) return;
+      live.checked = (_visibility === "gallery");
+      live.disabled = false;
+    };
+    if (_visibility != null) { apply(_visibility); return; }
+    if (!STORE.loadProject) { apply("private"); return; }
+    STORE.loadProject(_projectId).then(function (state) {
+      apply(state && state.visibility);
+    }).catch(function () { apply("private"); });
   }
 
   function buildInviteRow() {

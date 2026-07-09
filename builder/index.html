@@ -4,6 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Holodeck Builder — Authoring Workspace</title>
+  <!-- Theme boot: set data-theme BEFORE the stylesheet loads so there is no
+       light-to-dark flash. Uses the saved preference if the user picked one on
+       the Profile page, else follows the OS. Mirrors the bxScale inline script
+       below and the bx-recs-view localStorage convention in builder.js. -->
+  <script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('bx-theme');           // "light" | "dark" | null
+      var sys = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', saved || sys);
+    } catch (e) {}
+  })();
+  </script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" />
   <link rel="stylesheet" href="builder.css" />
 </head>
@@ -50,6 +63,14 @@
   <script src="share-modal.js"></script>
   <script src="holodeck-adapter.js"></script>
   <script src="zip-exporter.js"></script>
+  <!-- Native file exporters (PPTX + PDF). Vendored UMD globals (classic
+       scripts, self-contained: pptxgen.bundle.js inlines JSZip), then the
+       shared normalization layer, then the two format exporters. -->
+  <script src="vendor/pptxgen.bundle.js"></script>
+  <script src="vendor/jspdf.umd.min.js"></script>
+  <script src="export-model.js"></script>
+  <script src="pptx-exporter.js"></script>
+  <script src="pdf-exporter.js"></script>
   <script src="aubrey-client.js"></script>
   <script src="gemini-client.js"></script>
   <!-- module: uses dynamic import()/import.meta to lazy-load vendored pdf.js -->
