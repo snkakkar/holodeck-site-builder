@@ -11,8 +11,8 @@
      re-purposed as a text/ink color in dark mode, so fills that carry
      white text must use this stable token instead. */
   --bx-navy-fill: #0d1b2e;
-  --bx-blue:   #1a5fa0;
-  --bx-blue-2: #1a3f6f;
+  --bx-blue:   #0176D3;
+  --bx-blue-2: #032D60;
   --bx-gold:   #f5c06a;
 
   /* ── Surface & ink ──────────────────────────────────────────── */
@@ -36,10 +36,10 @@
   /* ── Action color (NEW — blue family for CTAs, focus, active) ──
      Replaces brand red as the "next thing to do" cue.  Brand red
      stays for destructive actions and the demo output identity. */
-  --bx-action:        #1a5fa0;
-  --bx-action-hover:  #154d82;
-  --bx-action-soft:   rgba(26, 95, 160, 0.08);
-  --bx-action-ring:   rgba(26, 95, 160, 0.18);
+  --bx-action:        #0176D3;   /* Salesforce Cloud Blue */
+  --bx-action-hover:  #0B5CAB;
+  --bx-action-soft:   rgba(1, 118, 211, 0.09);
+  --bx-action-ring:   rgba(1, 118, 211, 0.22);
 
   /* ── Type scale ─────────────────────────────────────────────── */
   --bx-type-display:  700 30px/1.15 var(--bx-font-sans);
@@ -62,14 +62,39 @@
   --bx-sp-9:  calc(56px * var(--bx-scale, 1));
 
   /* ── Radius & shadow ────────────────────────────────────────── */
-  --bx-radius:      calc(14px * var(--bx-scale, 1));
-  --bx-radius-s:    calc(10px * var(--bx-scale, 1));
+  --bx-radius:      calc(16px * var(--bx-scale, 1));
+  --bx-radius-s:    calc(12px * var(--bx-scale, 1));
   --bx-radius-pill: calc(22px * var(--bx-scale, 1));
-  --bx-shadow:      0 6px 24px rgba(13, 27, 46, 0.08);
-  --bx-shadow-2:    0 14px 40px rgba(13, 27, 46, 0.18);
+  --bx-shadow:      0 6px 24px rgba(3, 45, 96, 0.09);
+  --bx-shadow-2:    0 18px 48px rgba(3, 45, 96, 0.16);
 
   /* Translucent sticky-topbar fill (sits under backdrop-filter blur) */
   --bx-topbar-bg:   rgba(255, 255, 255, 0.92);
+
+  /* ── Salesforce-blue accents & gradients (additive; used for the
+     modernized look — hero washes, gradient headings, brand fills) ─── */
+  --bx-sky:        #1B96FF;
+  --bx-cyan:       #00D4FF;
+  --bx-grad-brand: linear-gradient(135deg, #0176D3 0%, #032D60 100%);
+  --bx-grad-hero:  linear-gradient(120deg, #032D60 0%, #0176D3 55%, #1B96FF 100%);
+  --bx-grad-text:  linear-gradient(90deg, #0176D3, #1B96FF);
+  /* Full-bleed light page wash used behind bold screens (home, etc.). */
+  --bx-grad-page:
+    radial-gradient(1200px 620px at 12% -8%, rgba(27, 150, 255, 0.16), transparent 60%),
+    radial-gradient(1000px 520px at 100% 0%, rgba(1, 118, 211, 0.12), transparent 55%),
+    linear-gradient(180deg, #F3F8FF 0%, #EAF2FC 100%);
+  /* Blue/cyan glow for glassy surfaces. */
+  --bx-glow:       0 12px 34px rgba(1, 118, 211, 0.14);
+  --bx-glow-hover: 0 18px 46px rgba(1, 118, 211, 0.22);
+
+  /* Glassy surface (translucent card fill + blue-tinted border). Theme-aware:
+     overridden in the dark block so glass reads correctly on the dark page. */
+  --bx-glass:        rgba(255, 255, 255, 0.72);
+  --bx-glass-2:      rgba(255, 255, 255, 0.60);
+  --bx-glass-border: rgba(1, 118, 211, 0.16);
+  --bx-glass-border-hover: rgba(1, 118, 211, 0.42);
+  --bx-tint:         rgba(1, 118, 211, 0.10);   /* pill / chip / badge fill */
+  --bx-tint-ink:     #0B5CAB;                    /* text on the tint */
 
   /* ── Surface (canonical card geometry) ──────────────────────── */
   --bx-surface-pad:     calc(20px * var(--bx-scale, 1)) calc(22px * var(--bx-scale, 1));     /* default card padding */
@@ -120,8 +145,30 @@
   --bx-shadow-2: 0 14px 40px rgba(0, 0, 0, 0.60);
 
   /* Action-blue tint sits over dark surfaces */
-  --bx-action-soft: rgba(26, 95, 160, 0.22);
-  --bx-action-ring: rgba(26, 95, 160, 0.30);
+  --bx-action-soft: rgba(1, 118, 211, 0.24);
+  --bx-action-ring: rgba(27, 150, 255, 0.35);
+
+  /* ── Modern-look tokens, dark variants ──────────────────────────
+     Page wash: deep navy with cool blue radial glows (mirrors the
+     reference site's dark hero). Glass: dark translucent + brighter
+     blue edge so cards separate from the page. Glow reads as a blue
+     halo, not a light-mode drop shadow. */
+  --bx-grad-page:
+    radial-gradient(1200px 620px at 12% -8%, rgba(1, 118, 211, 0.20), transparent 60%),
+    radial-gradient(1000px 520px at 100% 0%, rgba(0, 90, 171, 0.18), transparent 55%),
+    linear-gradient(180deg, #0B1220 0%, #0D1A2E 100%);
+  --bx-glow:       0 14px 38px rgba(0, 0, 0, 0.50);
+  --bx-glow-hover: 0 20px 52px rgba(1, 118, 211, 0.28);
+  --bx-glass:        rgba(30, 41, 59, 0.62);
+  --bx-glass-2:      rgba(30, 41, 59, 0.48);
+  --bx-glass-border: rgba(27, 150, 255, 0.24);
+  --bx-glass-border-hover: rgba(27, 150, 255, 0.55);
+  --bx-tint:         rgba(27, 150, 255, 0.16);
+  --bx-tint-ink:     #7FC4FF;
+
+  /* Gradient heading text: lift to sky→cyan so it stays bright on the
+     dark page (the light-mode #0176D3 base reads too dark here). */
+  --bx-grad-text:  linear-gradient(90deg, #47B4FF, #00D4FF);
 
   /* Brand navy is nearly the page color in dark mode; lift text/marks
      that use --bx-navy directly so they stay legible. */
@@ -143,6 +190,11 @@ html, body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
+/* Bold, gradient-rich page wash across the whole app (theme-aware). */
+body {
+  background: var(--bx-grad-page);
+  background-attachment: fixed;
+}
 
 button { font-family: inherit; }
 
@@ -155,14 +207,17 @@ button { font-family: inherit; }
   padding: var(--bx-sp-2) var(--bx-sp-6);
   background: var(--bx-topbar-bg);
   border-bottom: 1px solid var(--bx-line);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 0 rgba(3, 45, 96, 0.04), 0 6px 20px rgba(3, 45, 96, 0.05);
   position: sticky; top: 0; z-index: 50;
 }
 .bx-mark-h {
   font-family: var(--bx-font-serif);
-  font-size: calc(22px * var(--bx-scale, 1)); font-weight: 700;
-  color: var(--bx-navy);
-  letter-spacing: -0.01em;
+  font-size: calc(22px * var(--bx-scale, 1)); font-weight: 800;
+  letter-spacing: -0.02em;
+  background: var(--bx-grad-text);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent; -webkit-text-fill-color: transparent;
 }
 .bx-mark-sub {
   display: block;
@@ -185,17 +240,25 @@ button { font-family: inherit; }
   line-height: 1.2;
 }
 .bx-btn-primary {
-  background: var(--bx-action);
+  background: var(--bx-grad-brand);
   color: #fff;
-  border-color: var(--bx-action);
+  border-color: transparent;
+  box-shadow: 0 6px 18px rgba(1, 118, 211, 0.30);
 }
-.bx-btn-primary:hover { background: var(--bx-action-hover); border-color: var(--bx-action-hover); }
+.bx-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(1, 118, 211, 0.42);
+}
+.bx-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--bx-action-ring);
+}
 .bx-btn-ghost {
   background: var(--bx-action-soft);
   color: var(--bx-action);
-  border-color: rgba(26, 95, 160, 0.30);
+  border-color: var(--bx-action-ring);
 }
-.bx-btn-ghost:hover { background: rgba(26, 95, 160, 0.14); border-color: var(--bx-action); }
+.bx-btn-ghost:hover { background: var(--bx-tint); border-color: var(--bx-action); }
 .bx-btn-secondary {
   background: var(--bx-card);
   color: var(--bx-navy);
@@ -254,8 +317,9 @@ button { font-family: inherit; }
 
 /* ══════════ Stepper ══════════ */
 .bx-stepper {
-  background: var(--bx-card);
-  border-right: 1px solid var(--bx-line);
+  background: var(--bx-glass);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border-right: 1px solid var(--bx-glass-border);
   padding: var(--bx-sp-6) var(--bx-sp-4);
   display: flex; flex-direction: column;
   position: sticky; top: var(--bx-topbar-h);
@@ -276,8 +340,8 @@ button { font-family: inherit; }
 }
 .bx-step:hover { background: var(--bx-bg-2); }
 .bx-step.is-active {
-  background: var(--bx-action-soft);
-  border-color: rgba(26, 95, 160, 0.28);
+  background: var(--bx-tint);
+  border-color: var(--bx-glass-border-hover);
 }
 .bx-step-num {
   width: 24px; height: 24px; flex-shrink: 0;
@@ -287,7 +351,7 @@ button { font-family: inherit; }
   font-size: 11px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
-.bx-step.is-active .bx-step-num { background: var(--bx-action); color: #fff; }
+.bx-step.is-active .bx-step-num { background: var(--bx-grad-brand); color: #fff; box-shadow: var(--bx-glow); }
 .bx-step.is-done .bx-step-num { background: var(--bx-good); color: #fff; }
 .bx-step-label {
   font-size: 13px; font-weight: 600;
@@ -335,7 +399,9 @@ button { font-family: inherit; }
 .bx-main-title {
   font-family: var(--bx-font-serif);
   font-size: calc(30px * var(--bx-scale, 1)); font-weight: 700;
-  color: var(--bx-navy);
+  background: var(--bx-grad-text);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent; -webkit-text-fill-color: transparent;
   margin: 4px 0 8px;
   line-height: 1.15;
   letter-spacing: -0.01em;
@@ -351,18 +417,20 @@ button { font-family: inherit; }
    Padding & shadow vary per usage.
    ───────────────────────────────────────────────────────────── */
 .surface {
-  background: var(--bx-surface-bg);
-  border: var(--bx-surface-border);
+  background: var(--bx-glass-2);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border: 1px solid var(--bx-glass-border);
   border-radius: var(--bx-surface-radius);
 }
 
-/* Card / form group */
+/* Card / form group — glassy surface with soft blue glow. */
 .bx-card {
-  background: var(--bx-surface-bg);
-  border: var(--bx-surface-border);
+  background: var(--bx-glass);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--bx-glass-border);
   border-radius: var(--bx-surface-radius);
   padding: var(--bx-surface-pad-lg);
-  box-shadow: var(--bx-shadow);
+  box-shadow: var(--bx-glow);
   margin-bottom: var(--bx-sp-4);
 }
 .bx-card-title {
@@ -690,8 +758,10 @@ button { font-family: inherit; }
   margin-bottom: -1px;
 }
 .bx-tab.is-active {
-  color: var(--bx-navy);
-  border-bottom-color: var(--bx-action);
+  background: var(--bx-grad-text);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent; -webkit-text-fill-color: transparent;
+  border-bottom-color: var(--bx-sky);
 }
 
 /* Recommendations */
@@ -705,7 +775,7 @@ button { font-family: inherit; }
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 .bx-rec.is-on {
-  border-color: rgba(26, 95, 160, 0.36);
+  border-color: var(--bx-glass-border-hover);
   background: var(--bx-action-soft);
 }
 /* Deselected ("parked") list card: clearly dimmed, dashed "ghost" border so
@@ -908,7 +978,7 @@ button { font-family: inherit; }
   width: 6px; height: 6px; border-radius: 50%;
   background: currentColor; opacity: 0.65;
 }
-.bx-rec-pill.tone-blue   { background: rgba(26, 95, 160, 0.10); color: var(--bx-action); }
+.bx-rec-pill.tone-blue   { background: var(--bx-tint); color: var(--bx-tint-ink); }
 .bx-rec-pill.tone-red    { background: var(--bx-error-bg);     color: var(--bx-error); }
 .bx-rec-pill.tone-gold   { background: var(--bx-warn-bg);      color: var(--bx-warn); }
 .bx-rec-pill.tone-good   { background: var(--bx-good-bg);      color: var(--bx-good); }
@@ -1092,7 +1162,8 @@ button { font-family: inherit; }
 /* Modal */
 .bx-modal {
   position: fixed; inset: 0;
-  background: rgba(13, 27, 46, 0.55);
+  background: rgba(3, 45, 96, 0.42);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center;
   z-index: 100;
   padding: 24px;
@@ -1100,12 +1171,13 @@ button { font-family: inherit; }
 .bx-modal[hidden] { display: none; }
 .bx-modal-card {
   background: var(--bx-card);
+  border: 1px solid var(--bx-glass-border);
   border-radius: var(--bx-radius);
   width: 100%;
   max-width: 760px;
   max-height: 90vh;
   display: flex; flex-direction: column;
-  box-shadow: var(--bx-shadow-2);
+  box-shadow: var(--bx-shadow-2), var(--bx-glow);
   overflow: hidden;
 }
 .bx-modal-head {
@@ -1215,12 +1287,12 @@ button { font-family: inherit; }
   position: fixed;
   bottom: 24px; left: 50%;
   transform: translateX(-50%);
-  background: var(--bx-navy-fill);
+  background: var(--bx-grad-brand);
   color: #fff;
   padding: 10px 18px;
   border-radius: var(--bx-radius-pill);
   font-size: 12px; font-weight: 600;
-  box-shadow: var(--bx-shadow-2);
+  box-shadow: var(--bx-shadow-2), var(--bx-glow);
   z-index: 200;
   letter-spacing: 0.02em;
 }
@@ -1378,16 +1450,93 @@ button { font-family: inherit; }
   margin-bottom: 24px;
   flex-wrap: wrap;
 }
+/* Gradient wordmark on the home title — modern Salesforce-blue heading. */
+.bx-home-head .bx-main-title {
+  background: var(--bx-grad-text);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
 .bx-home-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ════════════════════════════════════════════════════════════════
+   ROUND-2b — bold, gradient-rich HOME restyle.  SCOPED to the home
+   screen so it's a contained preview before the global rollout.
+   HOME shell = .bx-shell.is-single that contains a home root.
+   (Promoted to the base component rules once approved.)
+   ════════════════════════════════════════════════════════════════ */
+
+/* Full-bleed light-blue gradient page wash — the biggest change vs the
+   old flat gray. Painted on the shell so it covers the whole viewport. */
+.bx-shell.is-single:has(.bx-home-head),
+.bx-shell.is-single:has(.bx-home-firstrun) {
+  background: var(--bx-grad-page);
+  background-attachment: fixed;
+}
+
+/* Landing-style header — more air, bigger gradient title. */
+.bx-home-head { margin-top: calc(12px * var(--bx-scale, 1)); margin-bottom: 28px; }
+.bx-home-head .bx-main-title {
+  font-size: calc(38px * var(--bx-scale, 1)); font-weight: 800;
+  letter-spacing: -0.025em;
+  background: var(--bx-grad-text);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent; -webkit-text-fill-color: transparent;
+}
+.bx-home-head .bx-main-eyebrow {
+  display: inline-block;
+  padding: 4px 12px; border-radius: var(--bx-radius-pill);
+  background: var(--bx-tint);
+  color: var(--bx-tint-ink);
+}
+
+/* Primary CTA — gradient fill, cyan-tinted glow, hover lift. */
+.bx-home-head .bx-btn-primary,
+.bx-home-actions .bx-btn-primary {
+  background: var(--bx-grad-brand);
+  border-color: transparent;
+  box-shadow: 0 8px 22px rgba(1, 118, 211, 0.35);
+  padding: 12px 24px;
+}
+.bx-home-head .bx-btn-primary:hover,
+.bx-home-actions .bx-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 30px rgba(1, 118, 211, 0.45);
+}
+
+/* Active tab — gradient underline. */
+.bx-home-tabs .bx-home-tab.is-active {
+  border-bottom-color: transparent;
+  background-image: var(--bx-grad-text);
+  background-repeat: no-repeat;
+  background-position: bottom;
+  background-size: 100% 2.5px;
+}
+
+/* Project cards get the glassy treatment via the global .bx-proj-card rule
+   below; the home block only adds the always-on accent + a touch more radius. */
+.bx-proj-grid .bx-proj-card { border-radius: calc(18px * var(--bx-scale, 1)); }
+.bx-proj-grid .bx-proj-card::before { opacity: 1; height: 3px; }
+
+/* Glassy search toolbar. */
 .bx-home-toolbar {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px;
-  padding: 12px 14px;
-  background: var(--bx-card);
-  border: 1px solid var(--bx-line);
-  border-radius: var(--bx-radius);
+  padding: 14px 16px;
+  background: var(--bx-glass);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--bx-glass-border);
+  border-radius: calc(16px * var(--bx-scale, 1));
+  box-shadow: var(--bx-glow);
   margin-bottom: 18px;
   flex-wrap: wrap;
+}
+/* Search/sort inputs on the home toolbar — blue focus ring. */
+.bx-home-toolbar .bx-input:focus,
+.bx-home-toolbar .bx-select:focus {
+  border-color: var(--bx-action);
+  box-shadow: 0 0 0 3px var(--bx-action-ring);
+  outline: none;
 }
 .bx-home-toolbar-right { display: flex; gap: 12px; flex-wrap: wrap; }
 .bx-home-toolbar-label { display: inline-flex; align-items: center; }
@@ -1426,27 +1575,37 @@ button { font-family: inherit; }
   gap: 18px;
 }
 .bx-proj-card {
-  background: var(--bx-surface-bg);
-  border: var(--bx-surface-border);
+  background: var(--bx-glass);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--bx-glass-border);
   border-radius: var(--bx-surface-radius);
-  padding: var(--bx-sp-4) var(--bx-sp-4) var(--bx-sp-3);
-  box-shadow: var(--bx-shadow);
+  padding: calc(var(--bx-sp-4) + 3px) var(--bx-sp-4) var(--bx-sp-3);
+  box-shadow: var(--bx-glow);
   cursor: pointer;
   display: flex; flex-direction: column; gap: var(--bx-sp-2);
   position: relative;
+  overflow: hidden;
   transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
-.bx-proj-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(13, 27, 46, 0.14);
-  border-color: var(--bx-line-2);
+/* Gradient top-accent line, revealed on hover — reference-site card cue. */
+.bx-proj-card::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--bx-grad-text);
+  opacity: 0; transition: opacity 0.12s ease;
 }
+.bx-proj-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--bx-glow-hover);
+  border-color: var(--bx-glass-border-hover);
+}
+.bx-proj-card:hover::before { opacity: 1; }
 .bx-proj-status {
   position: absolute; top: 14px; right: 16px;
   font-size: 9px; font-weight: 800; letter-spacing: 0.10em;
   text-transform: uppercase;
-  background: var(--bx-bg-2);
-  color: var(--bx-ink-2);
+  background: var(--bx-tint);
+  color: var(--bx-tint-ink);
   padding: 3px 8px;
   border-radius: var(--bx-radius-pill);
 }
@@ -1463,14 +1622,15 @@ button { font-family: inherit; }
 .bx-proj-meta { display: flex; flex-wrap: wrap; gap: 6px; }
 .bx-proj-pill {
   font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
-  padding: 3px 10px; border-radius: var(--bx-radius-pill);
-  background: var(--bx-action-soft); color: var(--bx-action);
+  padding: 4px 12px; border-radius: var(--bx-radius-pill);
+  background: var(--bx-tint); color: var(--bx-tint-ink);
 }
 .bx-proj-prods { display: flex; flex-wrap: wrap; gap: 4px; }
 .bx-proj-prod {
   font-size: 10px; font-weight: 600;
-  padding: 2px 8px;
-  background: var(--bx-bg-2); color: var(--bx-ink-2);
+  padding: 3px 10px;
+  background: var(--bx-glass-2); color: var(--bx-ink-2);
+  border: 1px solid var(--bx-glass-border);
   border-radius: var(--bx-radius-pill);
 }
 .bx-proj-foot {
@@ -1561,8 +1721,8 @@ button { font-family: inherit; }
 
 .bx-card-feature {
   background: linear-gradient(160deg, var(--bx-surface-bg) 0%, var(--bx-bg) 100%);
-  border-color: rgba(26, 95, 160, 0.28);
-  box-shadow: var(--bx-shadow);
+  border-color: var(--bx-glass-border-hover);
+  box-shadow: var(--bx-glow);
 }
 .bx-zip-tree {
   list-style: none; margin: 0; padding: 12px 14px;
@@ -2025,7 +2185,7 @@ button { font-family: inherit; }
    ════════════════════════════════════════════════════════════════ */
 .bx-narrative-card {
   background: linear-gradient(160deg, var(--bx-bg-2) 0%, var(--bx-card) 100%);
-  border-color: rgba(26, 95, 160, 0.30);
+  border-color: var(--bx-glass-border-hover);
 }
 .bx-section-card { padding: var(--bx-surface-pad); }
 .bx-section-head {
@@ -2096,7 +2256,7 @@ button { font-family: inherit; }
 .bx-intent-more { margin-top: 8px; }
 .bx-intent-more-summary {
   cursor: pointer; list-style: none;
-  font-size: 12px; font-weight: 700; color: var(--bx-action, #1a5fa0);
+  font-size: 12px; font-weight: 700; color: var(--bx-action, #0176D3);
   padding: 6px 0; user-select: none;
 }
 .bx-intent-more-summary::-webkit-details-marker { display: none; }
@@ -2124,8 +2284,8 @@ button { font-family: inherit; }
   outline-offset: 2px;
 }
 .bx-rec-gcard.is-on {
-  border-color: rgba(26, 95, 160, 0.45);
-  box-shadow: 0 0 0 1px rgba(26, 95, 160, 0.25), var(--bx-shadow);
+  border-color: var(--bx-glass-border-hover);
+  box-shadow: 0 0 0 1px var(--bx-action-ring), var(--bx-glow);
   background: var(--bx-action-soft);
 }
 /* Deselected ("parked") grid card: dimmed + dashed ghost border. */
@@ -2336,8 +2496,8 @@ button { font-family: inherit; }
   display: inline-block;
   margin-left: 8px;
   padding: 2px 6px;
-  background: rgba(26,95,160,0.10);
-  color: var(--bx-blue, #1a5fa0);
+  background: var(--bx-tint);
+  color: var(--bx-tint-ink);
   border-radius: 999px;
   font-size: 9px; font-weight: 800; letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2601,7 +2761,7 @@ button { font-family: inherit; }
 /* Step number variants */
 .bx-step-num.is-complete { background: var(--bx-good); color: #fff; }
 .bx-step-num.is-warn     { background: var(--bx-warn); color: #fff; }
-.bx-step-num.is-ready    { background: var(--bx-action); color: #fff; }
+.bx-step-num.is-ready    { background: var(--bx-grad-brand); color: #fff; }
 .bx-step-num.is-optional { background: var(--bx-bg-2); color: var(--bx-ink-3); }
 .bx-step-num.is-locked   { background: var(--bx-bg-2); color: var(--bx-ink-3); font-size: 12px; }
 .bx-step-num.is-default  { background: var(--bx-bg-2); color: var(--bx-ink-2); }
@@ -2611,7 +2771,7 @@ button { font-family: inherit; }
 .bx-step.is-locked .bx-step-label { color: var(--bx-ink-3); }
 
 /* Active overrides locked-style num so the user knows where they are */
-.bx-step.is-active .bx-step-num { background: var(--bx-action); color: #fff; opacity: 1; }
+.bx-step.is-active .bx-step-num { background: var(--bx-grad-brand); color: #fff; opacity: 1; box-shadow: var(--bx-glow); }
 .bx-step.is-active { opacity: 1; }
 .bx-step:focus-visible {
   outline: 2px solid var(--bx-action);
@@ -2627,14 +2787,26 @@ button { font-family: inherit; }
   padding: 8px 0 32px;
 }
 .bx-firstrun-hero {
-  background: linear-gradient(160deg, var(--bx-card) 0%, var(--bx-bg) 60%, var(--bx-bg-2) 100%);
-  border: 1px solid var(--bx-line);
-  border-radius: var(--bx-radius);
-  padding: 38px 36px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(120deg, #032D60 0%, #0176D3 55%, #1B96FF 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: calc(20px * var(--bx-scale, 1));
+  padding: calc(56px * var(--bx-scale, 1)) calc(40px * var(--bx-scale, 1));
   text-align: center;
-  box-shadow: var(--bx-shadow);
+  box-shadow: 0 18px 48px rgba(3, 45, 96, 0.28);
 }
-.bx-firstrun-mark { font-size: 36px; line-height: 1; }
+/* Soft radial glow — adds depth to the hero without any markup. */
+.bx-firstrun-hero::before {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.18), transparent 45%),
+    radial-gradient(circle at 90% 90%, rgba(27, 150, 255, 0.35), transparent 50%);
+  pointer-events: none;
+}
+.bx-firstrun-hero > * { position: relative; }
+.bx-firstrun-mark { font-size: 40px; line-height: 1; }
 
 /* Passwordless sign-in card — sits centered on the app background and
    uses the same card surface as the rest of the builder. */
@@ -2651,14 +2823,30 @@ button { font-family: inherit; }
 }
 .bx-login-card .bx-field { text-align: left; }
 .bx-login-card .bx-link { align-self: center; text-align: center; }
-.bx-firstrun-title {
+.bx-firstrun-hero .bx-firstrun-title {
   font-family: var(--bx-font-serif);
-  font-size: 30px; font-weight: 700; color: var(--bx-navy);
-  letter-spacing: -0.01em; margin: 12px 0 10px;
+  font-size: calc(34px * var(--bx-scale, 1)); font-weight: 800; color: #ffffff;
+  letter-spacing: -0.02em; margin: 14px 0 12px;
 }
 .bx-firstrun-sub {
   font-size: 15px; color: var(--bx-ink-2); line-height: 1.55;
   max-width: 56ch; margin: 0 auto 18px;
+}
+.bx-firstrun-hero .bx-firstrun-sub {
+  color: rgba(255, 255, 255, 0.82);
+}
+.bx-firstrun-hero .bx-firstrun-sub strong { color: #ffffff; }
+/* On-color CTA — white fill reads crisply on the blue hero. */
+.bx-firstrun-hero .bx-btn-primary {
+  background: #ffffff;
+  color: #0B5CAB;
+  border-color: #ffffff;
+  box-shadow: 0 6px 20px rgba(3, 45, 96, 0.25);
+}
+.bx-firstrun-hero .bx-btn-primary:hover {
+  background: #f3f6fc;
+  border-color: #f3f6fc;
+  transform: translateY(-1px);
 }
 .bx-firstrun-ctas { justify-content: center; flex-wrap: wrap; }
 .bx-firstrun-needs, .bx-firstrun-steps {
@@ -2667,6 +2855,14 @@ button { font-family: inherit; }
   border-radius: var(--bx-radius);
   padding: 22px 26px;
   box-shadow: var(--bx-shadow);
+  position: relative;
+  overflow: hidden;
+}
+/* Gradient top-accent line — echoes the reference site's cards. */
+.bx-firstrun-needs::before, .bx-firstrun-steps::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--bx-grad-text);
 }
 .bx-firstrun-needs-title, .bx-firstrun-steps-title {
   font-family: var(--bx-font-serif);
@@ -2682,10 +2878,11 @@ button { font-family: inherit; }
 .bx-firstrun-step { display: flex; gap: 16px; align-items: flex-start; }
 .bx-firstrun-step-num {
   width: 32px; height: 32px; border-radius: 50%;
-  background: var(--bx-action); color: #fff;
+  background: var(--bx-grad-brand); color: #fff;
   font-weight: 800; font-size: 14px;
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(1, 118, 211, 0.35);
 }
 .bx-firstrun-step-title { font-weight: 700; color: var(--bx-navy); font-size: 14px; }
 .bx-firstrun-step-body  { color: var(--bx-ink-2); font-size: 13px; line-height: 1.55; margin-top: 2px; }
