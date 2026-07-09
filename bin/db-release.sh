@@ -11,6 +11,19 @@ fi
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)/db"
 
+# Some managed Postgres users (including common Heroku/Neon app roles) do not
+# have CREATEROLE. If required roles are missing and cannot be created, skip
+# DB bootstrap so release does not block web deploys.
+HAS_CREATEROLE="$(psql "$DATABASE_URL" -tA -c "SELECT rolcreaterole FROM pg_roles WHERE rolname = current_user" | tr -d '[:space:]')"
+HAS_AUTHENTICATED="$(psql "$DATABASE_URL" -tA -c "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated')" | tr -d '[:space:]')"
+HAS_ANON="$(psql "$DATABASE_URL" -tA -c "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')" | tr -d '[:space:]')"
+
+if [ "$HAS_CREATEROLE" != "t" ] && { [ "$HAS_AUTHENTICATED" != "t" ] || [ "$HAS_ANON" != "t" ]; }; then
+  echo "[db-release] current DB role cannot CREATE ROLE and required PostgREST roles are missing."
+  echo "[db-release] skipping DB bootstrap to avoid blocking deploy; provision roles with an admin role first."
+  exit 0
+fi
+
 echo "[db-release] applying schema/roles/RLS from ${DIR}"
 for f in 01_roles.sql 02_functions.sql 03_tables.sql 04_grants.sql 05_rls.sql; do
   if [ -f "${DIR}/${f}" ]; then
