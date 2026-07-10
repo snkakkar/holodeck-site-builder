@@ -14,6 +14,8 @@ All content is config-driven and rendered by shared HTML/CSS/JS.
 
 ## Quick start
 
+### Local static preview (UI-only)
+
 ```bash
 python3 -m http.server 4173
 ```
@@ -23,7 +25,19 @@ Then open:
 - Demo: `http://localhost:4173/demo/`
 - Builder: `http://localhost:4173/builder/`
 
-No npm install or build step is required.
+### Full local app (API/auth/proxy paths)
+
+```bash
+npm install
+npm start
+```
+
+Then open:
+
+- App root: `http://localhost:3000/` (redirects to `/builder/`)
+- Builder: `http://localhost:3000/builder/`
+
+Use this mode when testing server routes (Gemini/logo/asset proxy and auth/data flows).
 
 ## Two ways to build
 
@@ -59,6 +73,36 @@ The Builder now uses a 9-step flow:
 - BVS metric override editing persisted through round-trips.
 - Live preview improvements and shared rendering helpers for consistency.
 - **Project sharing** from Home with collaboration controls through the new share modal flow.
+- **Team Gallery** mode in Home, including duplicate-open workflow for shared examples.
+- **Dark mode** and theme-aware UI treatment across Builder surfaces.
+- Native **PowerPoint (.pptx)** and **PDF (.pdf)** export actions directly from Builder export flow.
+- Deterministic ZIP packaging order for byte-stable exports across repeated runs.
+- Local save diagnostics and quota-surfacing behavior to make cache failures visible.
+- Navigation reliability hardening that routes users back safely on async/store failures.
+- In-place UI render optimizations (quality footer/topbar/CDP carousel) to reduce unnecessary repaint/rebuild churn.
+
+### AI and content generation updates
+
+- Gemini text and image generation now use stream-friendly server endpoints to reduce platform timeout risk.
+- Prompt scaffolding was updated to use normalized input blocks and clearer budget guidance.
+- Generation order tuning improves output consistency (assets before persona copy in bulk flows).
+- Narrative fitting/truncation uses shared sentence/clause-fit helpers to avoid mid-sentence clipping.
+- Import/load migrations refit older projects to current text/frame constraints automatically.
+
+### Collaboration and persistence updates
+
+- Share modal supports project visibility and collaboration permissions.
+- Project store includes gallery listing + visibility updates for shared/team workflows.
+- Unsynced/dirty project protection during cache clear and sign-out paths.
+- Local cache slimming reduces large payload pressure and mitigates storage quota failures.
+- Neon/PostgREST error surfacing improved with structured sync diagnostics.
+
+### Runtime and deck quality updates
+
+- Runtime render guards added for malformed slide collections (graceful empty-deck fallback).
+- Journey map and two-panel layouts received responsive tablet/phone media-query polish.
+- Exported runtime packaging aligns with polished `/demo` shell as source of truth.
+- Logo and signed asset proxy endpoints support real brand/logo asset retrieval patterns.
 
 ## Export behavior
 
@@ -84,6 +128,32 @@ Embedded iframes use trusted-origin sandbox rules:
 
 The builder preview helps author content quickly, while the exported/presented Holodeck is the runtime source of truth.
 
+## Heroku deployment notes
+
+- Runtime entrypoint is `start-web.js` (`npm start`), with process types in `Procfile`.
+- `heroku-postbuild` fetches the pinned PostgREST static binary and installs `auth-service` runtime deps.
+- Release phase runs `bin/db-release.sh` and applies:
+  - `db/02_functions.sql`
+  - `db/03_tables.sql`
+  - `db/04_grants.sql`
+  - `db/05_rls.sql`
+
+### Database auth model (current)
+
+- This app uses a **single-role Postgres model** on Heroku Essential.
+- Release does **not** create DB roles at deploy time.
+- PostgREST operates with the DB login role; authorization is enforced via RLS policies and JWT-derived app helpers.
+- `05_rls.sql` enables and **forces** RLS on all app tables, and release asserts that RLS + policies are present to fail closed.
+
+### Optional one-time admin bootstrap scripts
+
+These are provided for portability to environments where you do want explicit PostgREST roles:
+
+- `db/00_admin_bootstrap_roles_once.sql` (template)
+- `db/01_roles.sql` (portable role creation script)
+
+On Heroku Essential, app credentials typically lack `CREATEROLE`, so these scripts require an external admin-capable DB session.
+
 ## Repository structure
 
 - `builder/index.html` - builder entry page
@@ -102,6 +172,10 @@ The builder preview helps author content quickly, while the exported/presented H
 - `demo/js/holodeck-render.js`, `demo/js/demo-deck-renderer.js` - runtime render logic
 - `demo/styles/` - theme/layout/animation styles
 - `demo/assets/` - logos, images, GIFs, and media
+- `auth-service/` - token/auth shim for PostgREST-compatible JWT flow
+- `db/` - SQL migration set (functions/tables/grants/RLS + optional role bootstrap helpers)
+- `bin/` - release/build helper scripts (DB release runner, PostgREST fetcher)
+- `start-web.js`, `server.js`, `postgrest.conf` - multi-process web/API/PostgREST startup and config
 - `HOW_TO_BUILD_HOLODECK.md` - detailed build playbook
 
 ## Recommended pre-demo checklist
