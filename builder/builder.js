@@ -1690,13 +1690,49 @@
     wrap.appendChild(stepHeader(
       "Step 1 · Script & Story",
       "Add your demo script",
-      "Paste or upload the rough demo story. The builder extracts the narrative, personas, journey moments, and business value automatically."
+      "Generate a script with AI, or paste/upload your own rough demo story. The builder extracts the narrative, personas, journey moments, and business value automatically."
     ));
     const s = app.state;
 
+    // ── Generate-with-AI card ─────────────────────────────────
+    // In-app alternative to going to ChatGPT/Slackbot/Gemini chat: the
+    // SE types what demo they want and Gemini writes a labeled script
+    // straight into the Script textarea below (which they then review
+    // and Extract). Built first and appended above the paste card so
+    // "generate" is the leading option; shown only when the server has
+    // a Gemini key, otherwise hidden so we never surface a dead button.
+    const GEN_GEMINI = window.HOLO_GEMINI;
+    if (GEN_GEMINI && window.HOLO_AI_PROMPT) {
+      const genCard = el("div", { class: "bx-card bx-card-feature" });
+      genCard.style.display = "none"; // revealed once we confirm a key
+      genCard.appendChild(el("div", { class: "bx-card-title", text: "Generate a script with AI" }));
+      genCard.appendChild(el("div", { class: "bx-card-sub",
+        text: "Describe the demo you want and Gemini will draft a structured script below — then review, edit, and extract it like any other. Uses the customer and products you've already entered as context." }));
+      const genArea = field({
+        label: "What demo do you want?",
+        type: "textarea",
+        placeholder: "Describe the demo: customer, industry, the story, which Salesforce products, and the audience…",
+        value: s.aiScriptPrompt || "",
+        onInput: function (v) { s.aiScriptPrompt = v; commit(); },
+      });
+      genCard.appendChild(genArea);
+      const genStatus = el("div", { class: "bx-mt-12" });
+      const genBtn = btn("✦ Generate script with Gemini", "bx-btn-primary", function () {
+        // Read the freshest value straight from the textarea in the card.
+        const ta = genArea.querySelector("textarea");
+        runGeminiScriptGen((ta && ta.value) || s.aiScriptPrompt || "", genBtn, genStatus);
+      });
+      genCard.appendChild(el("div", { class: "bx-row bx-mt-12" }, [genBtn]));
+      genCard.appendChild(genStatus);
+      wrap.appendChild(genCard);
+      GEN_GEMINI.isConfigured().then(function (ok) {
+        if (ok) genCard.style.display = "";
+      });
+    }
+
     // ── Paste / Upload card ──────────────────────────────────
     const c = el("div", { class: "bx-card bx-card-feature" });
-    c.appendChild(el("div", { class: "bx-card-title", text: "Paste your demo script" }));
+    c.appendChild(el("div", { class: "bx-card-title", text: "Or paste your demo script" }));
     c.appendChild(el("div", { class: "bx-card-sub", text: "Nothing is sent anywhere — extraction happens locally in your browser. The more structure your script has (Script Synopsis, CX Summary, numbered journey steps), the better the result." }));
     c.appendChild(field({
       label: "Script text",
@@ -1768,41 +1804,6 @@
       }
     }
     wrap.appendChild(c);
-
-    // ── Or generate a script with Gemini ─────────────────────
-    // In-app alternative to going to ChatGPT/Slackbot/Gemini chat: the
-    // SE types what demo they want and Gemini writes a labeled script
-    // straight into the Script textarea above (which they then review
-    // and Extract). Shown only when the server has a Gemini key; hidden
-    // otherwise so we never surface a button that can't work.
-    const GEN_GEMINI = window.HOLO_GEMINI;
-    if (GEN_GEMINI && window.HOLO_AI_PROMPT) {
-      const genCard = el("div", { class: "bx-card" });
-      genCard.style.display = "none"; // revealed once we confirm a key
-      genCard.appendChild(el("div", { class: "bx-card-title", text: "Or generate a script with AI" }));
-      genCard.appendChild(el("div", { class: "bx-card-sub",
-        text: "No script yet? Describe the demo you want and Gemini will draft a structured script above — then review, edit, and extract it like any other. Uses the customer and products you've already entered as context." }));
-      const genArea = field({
-        label: "What demo do you want?",
-        type: "textarea",
-        placeholder: "Describe the demo: customer, industry, the story, which Salesforce products, and the audience…",
-        value: s.aiScriptPrompt || "",
-        onInput: function (v) { s.aiScriptPrompt = v; commit(); },
-      });
-      genCard.appendChild(genArea);
-      const genStatus = el("div", { class: "bx-mt-12" });
-      const genBtn = btn("✦ Generate script with Gemini", "bx-btn-primary", function () {
-        // Read the freshest value straight from the textarea in the card.
-        const ta = genArea.querySelector("textarea");
-        runGeminiScriptGen((ta && ta.value) || s.aiScriptPrompt || "", genBtn, genStatus);
-      });
-      genCard.appendChild(el("div", { class: "bx-row bx-mt-12" }, [genBtn]));
-      genCard.appendChild(genStatus);
-      wrap.appendChild(genCard);
-      GEN_GEMINI.isConfigured().then(function (ok) {
-        if (ok) genCard.style.display = "";
-      });
-    }
 
     // ── Extract action ──────────────────────────────────────
     const action = el("div", { class: "bx-card bx-extract-card" });
