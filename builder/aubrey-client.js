@@ -207,10 +207,13 @@
   // logo / asset pickers in builder.js. The result is a self-
   // contained data: URL so exported ZIPs work offline regardless
   // of the R2 bucket staying online.
-  function inlineImageAsDataUrl(url) {
+  // `headers` (optional) is merged into the request — used by callers
+  // hitting a same-origin /api/* route that now requires the salesforce.com
+  // bearer (e.g. /api/logo). External image URLs pass no headers.
+  function inlineImageAsDataUrl(url, headers) {
     if (!url) return Promise.resolve("");
     if (/^data:/i.test(url)) return Promise.resolve(url);
-    return fetch(url, { mode: "cors" })
+    return fetch(url, { mode: "cors", headers: headers || {} })
       .then(function (res) {
         if (!res.ok) throw new Error("Image fetch failed: HTTP " + res.status);
         return res.blob();

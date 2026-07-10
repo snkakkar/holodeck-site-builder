@@ -1,34 +1,36 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
+const { jwtVerify } = require("jose");
+const compression = require("compression");
 
-// ── Minimal .env loader (zero dependencies) ────────────────────
-// Reads KEY=VALUE lines from a .env file next to server.js and
-// populates process.env for any key not already set in the real
-// environment. .env is gitignored, so secrets stay out of git.
-// We avoid adding a dotenv dependency for one small need.
-(function loadDotEnv() {
-  try {
-    const raw = fs.readFileSync(path.join(__dirname, ".env"), "utf8");
-    raw.split(/\r?\n/).forEach((line) => {
-      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-      if (!m) return; // skip blanks/comments
-      const key = m[1];
-      let val = m[2];
-      // Strip a single layer of surrounding quotes if present.
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-        val = val.slice(1, -1);
-      }
-      if (process.env[key] === undefined) process.env[key] = val;
-    });
-  } catch (_) {
-    // No .env file — fine, env vars may be set another way.
-  }
-})();
+// ── .env loading ───────────────────────────────────────────────
+// Populate process.env from a gitignored .env before reading any
+// config below. Shared with start-web.js via ./load-dotenv so the
+// supervisor and this server can never disagree about the env.
+require("./load-dotenv").loadDotEnv(__dirname);
 
 const app = express();
 const port = process.env.PORT || 4173;
 const rootDir = __dirname;
+
+// ── gzip compression ───────────────────────────────────────────
+// Compresses static JS/CSS/HTML and JSON API responses. Registered
+// first so it wraps every downstream handler. The NDJSON streaming
+// routes (/api/gemini/*) MUST NOT be buffered — compression would
+// hold back the {type:"start"}/{type:"ping"} heartbeats that keep
+// Heroku's router from timing out. They set `Cache-Control:
+// no-transform` (see beginNdjson), which compression's default
+// filter already honors by skipping; the explicit filter below is a
+// belt-and-suspenders guard against that behavior ever changing.
+app.use(
+  compression({
+    filter(req, res) {
+      if (res.getHeader("Content-Type") === "application/x-ndjson; charset=utf-8") return false;
+      return compression.filter(req, res);
+    },
+  })
+);
 
 // ── Gemini config ──────────────────────────────────────────────
 // The API key lives ONLY here, server-side, read from the env. The
@@ -41,6 +43,72 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
 const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+// ── API authentication ─────────────────────────────────────────
+// The billable/proxy /api routes (Gemini generation, logo fetch,
+// GCS sign/proxy) are gated behind the SAME salesforce.com JWT the
+// Data API already uses. The auth-shim (auth-service/index.js) mints
+// an HS256 token — {sub, email, role, emailVerified} — signed with
+// JWT_SECRET; PostgREST verifies it for /rest/v1, and we verify it
+// here so nobody can burn the Gemini key by hitting the raw endpoint.
+// Same secret, same domain rule — no new trust surface.
+//
+// /api/gemini/status stays public: it returns only booleans and is
+// polled before auth is warm to decide whether to show AI buttons.
+const JWT_SECRET = process.env.JWT_SECRET || "";
+const JWT_KEY = JWT_SECRET ? new TextEncoder().encode(JWT_SECRET) : null;
+const ALLOWED_EMAIL_DOMAIN = "salesforce.com";
+
+// Verify the Bearer token, enforce the salesforce.com email claim, and
+// stash the identity on req.holoUser for downstream handlers (the rate
+// limiter keys on it). Fails closed: no secret configured → 503.
+async function requireHolodeckAuth(req, res, next) {
+  if (!JWT_KEY) {
+    return res.status(503).json({ error: "Auth is not configured on the server (JWT_SECRET unset)." });
+  }
+  const header = req.get("authorization") || "";
+  const m = header.match(/^Bearer\s+(.+)$/i);
+  if (!m) {
+    return res.status(401).json({ error: "Missing bearer token." });
+  }
+  try {
+    const { payload } = await jwtVerify(m[1], JWT_KEY);
+    const email = String(payload.email || "").trim().toLowerCase();
+    if (email.split("@")[1] !== ALLOWED_EMAIL_DOMAIN) {
+      return res.status(403).json({ error: "Not authorized." });
+    }
+    req.holoUser = { sub: payload.sub || "", email: email };
+    return next();
+  } catch (_) {
+    return res.status(401).json({ error: "Invalid or expired token." });
+  }
+}
+
+// ── Rate limit (fixed window, in-memory) ───────────────────────
+// Bounds Gemini cost even for a valid token. Keyed by JWT sub (falls
+// back to IP). In-memory + per-dyno — fine for a single-dyno demo;
+// it resets on restart and isn't shared across dynos. Not a security
+// boundary, a cost guard on top of requireHolodeckAuth.
+const RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 30); // requests
+const RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 60000); // per window
+const _rateBuckets = new Map(); // key → { count, resetAt }
+
+function rateLimit(req, res, next) {
+  const key = (req.holoUser && req.holoUser.sub) || req.ip || "anon";
+  const now = Date.now();
+  let bucket = _rateBuckets.get(key);
+  if (!bucket || now >= bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+    _rateBuckets.set(key, bucket);
+  }
+  bucket.count += 1;
+  if (bucket.count > RATE_LIMIT_MAX) {
+    const retry = Math.ceil((bucket.resetAt - now) / 1000);
+    res.set("Retry-After", String(retry));
+    return res.status(429).json({ error: `Rate limit exceeded — retry in ${retry}s.` });
+  }
+  return next();
+}
 
 // ── Google Cloud Storage (image bytes) ─────────────────────────
 // AI-generated images come back from Gemini as raw base64 bytes. If
@@ -182,7 +250,7 @@ app.get("/api/gemini/status", (_req, res) => {
 // The result is still buffered server-side before `done`, so JSON /
 // responseSchema validation downstream is unchanged; streaming only
 // keeps the HTTP connection alive past 30s.
-app.post("/api/gemini/generate", async (req, res) => {
+app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, async (req, res) => {
   if (!GEMINI_API_KEY) {
     return res.status(503).json({ error: "Gemini is not configured on the server (GEMINI_API_KEY unset)." });
   }
@@ -309,7 +377,7 @@ app.post("/api/gemini/generate", async (req, res) => {
 // /generate (see beginNdjson). We still buffer the upstream call (the
 // base64 image arrives in one piece); the heartbeat is what keeps the
 // connection alive. Terminal line is {type:"done",dataUrl,model}.
-app.post("/api/gemini/generate-image", async (req, res) => {
+app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, async (req, res) => {
   if (!GEMINI_API_KEY) {
     return res.status(503).json({ error: "Gemini is not configured on the server (GEMINI_API_KEY unset)." });
   }
@@ -393,10 +461,10 @@ app.post("/api/gemini/generate-image", async (req, res) => {
 app.options("/api/asset/sign", (_req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.sendStatus(204);
 });
-app.post("/api/asset/sign", async (req, res) => {
+app.post("/api/asset/sign", requireHolodeckAuth, async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   if (!gcsConfigured()) {
     return res.status(503).json({ error: "GCS not configured", urls: {} });
@@ -424,7 +492,7 @@ app.post("/api/asset/sign", async (req, res) => {
 // list until one returns a real image. Streams the bytes back with
 // the upstream mime type. On a complete miss the client falls back
 // to AI generation.
-app.get("/api/logo", async (req, res) => {
+app.get("/api/logo", requireHolodeckAuth, async (req, res) => {
   const raw = typeof req.query.domain === "string" ? req.query.domain : "";
   // Normalize to a bare host: strip protocol, path, and a leading www.
   const domain = raw
@@ -472,7 +540,7 @@ app.get("/api/logo", async (req, res) => {
 // back with the upstream content-type. Host is locked to
 // storage.googleapis.com so it can't be used as an open proxy; the
 // URL still carries its own signature (we don't add credentials).
-app.get("/api/asset/proxy", async (req, res) => {
+app.get("/api/asset/proxy", requireHolodeckAuth, async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   const raw = typeof req.query.url === "string" ? req.query.url : "";
   let parsed;
@@ -521,8 +589,8 @@ app.get("/env-config.js", (_req, res) => {
 // Bodies stream (default), which the presence `keepalive` DELETE relies on.
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
-const POSTGREST_TARGET = process.env.POSTGREST_TARGET || "http://127.0.0.1:3001";
-const AUTH_SHIM_TARGET = process.env.AUTH_SHIM_TARGET || "http://127.0.0.1:3002";
+// Loopback targets shared with start-web.js (see config/ports.js).
+const { POSTGREST_TARGET, AUTH_SHIM_TARGET } = require("./config/ports");
 // Where the untouched Neon Auth endpoints live. Same value the shim uses.
 const NEON_AUTH_BASE = (process.env.NEON_AUTH_BASE || "").replace(/\/+$/, "");
 
@@ -560,7 +628,24 @@ if (NEON_AUTH_BASE) {
   );
 }
 
-app.use(express.static(rootDir, { extensions: ["html"] }));
+// Static assets. Filenames are NOT content-hashed, so we can't use
+// immutable/1-year caching — a deploy would keep serving stale JS/CSS.
+// A short max-age still spares the browser from re-downloading all ~24
+// builder scripts on every navigation, while HTML entry points stay
+// no-cache so a new deploy is picked up immediately. env-config.js has
+// its own no-store route above and isn't affected.
+app.use(
+  express.static(rootDir, {
+    extensions: ["html"],
+    setHeaders(res, filePath) {
+      if (/\.html$/i.test(filePath)) {
+        res.set("Cache-Control", "no-cache");
+      } else if (/\.(?:js|mjs|css)$/i.test(filePath)) {
+        res.set("Cache-Control", "public, max-age=3600");
+      }
+    },
+  })
+);
 
 app.listen(port, () => {
   console.log(`Holodeck server listening on port ${port}`);

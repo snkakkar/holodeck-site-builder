@@ -1,54 +1,73 @@
-# Holodeck Complete End-User Guide (Slack Canvas Master)
+# Holodeck Website Guide (End-User Edition)
 
-## Start Here
+## What This Site Does
 
-This guide is for anyone using the Holodeck website, from first-time users to power users.
+Holodeck helps you build a polished customer demo quickly, even if you are non-technical.
 
-You can use it to:
-- Build a full demo from scratch
-- Use AI to create a fast first draft
-- Improve story, slides, links, and visuals
-- Export and share confidently
-- Keep making easy edits after download with Claude/ChatGPT prompts
+You can:
+- Create demos from notes, scripts, or AI
+- Build a complete story and slide flow
+- Add branding, links, visuals, and presenter details
+- Share projects with teammates
+- Export a full interactive demo, plus PowerPoint and PDF
 
-If you only read one section first, read **Quick Start**.
+---
+
+## What Is New (Latest Features)
+
+- Project collaboration with **Shared with me**
+- Publish projects to **Team Gallery** for team discovery/duplication
+- New export options: **PowerPoint (.pptx)** and **PDF (.pdf)**
+- AI flow improvements:
+  - pre-filled AI inputs
+  - **Generate with Gemini** option (when available)
+  - clear **Import AI response** handoff
+- AI onboarding improvements:
+  - one-time AI tour
+  - **Take the tour again** replay link
+- AI-assisted asset workflow:
+  - **Generate all empty slots with AI**
+  - fills missing persona copy + placeholder imagery
+- Smarter logo handling:
+  - tries real logo first
+  - falls back to AI-generated lookalike if needed
 
 ---
 
 ## Quick Start (10 Minutes)
 
-1. Sign in and create a new project.
-2. Add your script or notes in **Script & Story**.
+1. Sign in and create a project.
+2. Go to **Script & Story** and add your script/notes.
 3. Click **Extract Story Foundations**.
-4. Fill customer and audience details in **Setup**.
-5. Keep/edit recommended slides in **Slide Selection**.
-6. (Optional) Add live links in **CX Component Links**.
-7. (Optional) Add images in **Assets**.
-8. Do a final pass in **Preview**.
+4. Fill customer + audience + product details in **Setup**.
+5. Keep/edit recommendations in **Slide Selection**.
+6. (Optional) Add live links in **CX Components**.
+7. (Optional) Add visuals in **Assets**.
+8. Do a final check in **Preview**.
 9. Download from **Export**.
 
-Default flow for most people:  
-Script -> Setup -> Slide Selection -> Preview -> Export
+Fastest default flow:  
+Script & Story -> Setup -> Slide Selection -> Preview -> Export
 
 ---
 
-## AI Fast Lane (Fastest Way To Draft)
+## AI Fast Lane (Easiest First Draft)
 
-Use this if you want AI to generate your first version quickly.
+Use this when you want AI to create a draft quickly.
 
-### Option A: Copy Prompt To Claude/ChatGPT
+### Option A: Claude/ChatGPT (copy/paste flow)
 1. Open **AI Prompt**.
-2. Review the pre-filled inputs (already pulled from your project where possible).
+2. Review the pre-filled inputs.
 3. Click **Copy AI Prompt**.
-4. Paste into Claude/ChatGPT and run it.
+4. Run in Claude/ChatGPT.
 5. Copy the JSON result.
 6. Return and click **Import AI response**.
 7. Paste and import.
 
-### Option B: Generate With Gemini
-If your environment supports Gemini, you can click **Generate with Gemini** and skip manual copy/paste.
+### Option B: Gemini (direct generation)
+If enabled in your environment, click **Generate with Gemini** to generate directly.
 
-### What Gets Auto-Filled
+### What AI Can Auto-Fill
 - Setup details
 - Personas
 - Story acts
@@ -57,303 +76,225 @@ If your environment supports Gemini, you can click **Generate with Gemini** and 
 - Slide draft content
 - Asset suggestions
 
-### Helpful Onboarding
-- There is a one-time guided tour on AI Prompt.
-- You can replay it anytime with **Take the tour again**.
-- You usually do not need extra schema copy steps because prompt context is already included.
+### Helpful Notes
+- AI Prompt has a one-time guided tour.
+- You can replay it any time with **Take the tour again**.
+- In most cases, the prompt already includes required context, so no extra schema step is needed.
 
 ---
 
-## Full Website Walkthrough
+## Full Walkthrough
 
 ### 1) Login and Account
-What you can do:
-- Sign in with one-time code
-- Resume previous projects
-- Sign out
+- Sign in with email + one-time code.
+- Resume previous projects automatically.
+- Sign out safely when done.
 
-If code does not arrive:
-- Check email spelling
-- Check spam/filtered inbox folders
+If code does not arrive, check spelling and spam folder.
 
-### 2) Home and Projects
-What you can do:
-- Create a project
-- Search/filter your projects
-- Open, duplicate, rename, delete
+### 2) Home, Projects, and Team Collaboration
 
-Naming tip:
-- Use `Customer + Theme` for easy searching later.
+#### My Projects
+- Create, open, duplicate, rename, delete
+- Search and filter your project list
+
+#### Shared with me
+- View projects shared by teammates
+- Respect permission type (`view` or `edit`)
+
+#### Team Gallery
+- Browse projects published by teammates
+- Duplicate team projects into your own workspace
+- Publish/unpublish your own projects for the team
 
 ### 3) Setup
-Use this to set the business context.
+Fill business context:
+- customer
+- industry
+- audience
+- sales stage
+- products
+- branding mode/colors/logos
+- presenter details
 
-Fill:
-- Customer name and website
-- Industry
-- Audience type
-- Sales stage
-- Products
-- Branding mode/colors/logo
-- Presenter details
-
-Why it matters:
-- Better setup gives better AI output and better slide recommendations.
+This section strongly improves recommendation quality.
 
 ### 4) Script & Story
-Use this to transform notes into structure.
-
-You can:
-- Paste text
-- Upload document files
-- Extract story foundations, personas, and acts
-
-Best input includes:
-- Business problem
-- Current pain
-- Future vision
-- Persona
-- Journey steps
-- Value outcomes
+- Paste text or upload script files
+- Extract foundations, personas, and acts
+- Refine story source material before slide planning
 
 ### 5) Story Foundations
-Use this to shape your narrative backbone.
+Define your strategic narrative:
+- business problem
+- current pain
+- future-state vision
+- thesis + executive takeaway
+- value drivers
+- assumptions/open questions
 
-Key fields:
-- Business problem
-- Current-state pain
-- Future-state vision
-- Transformation thesis
-- Executive takeaway
-- Value drivers
-- Assumptions/open questions
+Run **Story Quality Check** to catch gaps early.
 
-Run **Story Quality Check** here to catch issues early.
-
-### 6) Slide Selection
-Use this to control what the audience will see.
-
-You can:
-- Keep/remove recommendations
+### 6) Slide Selection (Recommended Narrative)
+- Keep/remove recommended slides
+- Use required/recommended/optional statuses
 - Rename titles
-- Use bulk actions
-- Switch view styles
-- See required/recommended/optional status
+- Use section grouping + bulk actions
+- Switch view mode as needed
 
-Tip:
-- Keep required and story-spine slides first, trim optional slides second.
-
-### 7) CX Component Links (Optional)
-Use this to connect live experiences.
-
-You can:
-- Add live URLs
-- Map links to the right slides
-- Accept auto-match suggestions
-
-If you do not have links yet, skip and continue.
-
-### 8) Assets (Optional)
-Use this to add visuals.
-
-You can:
-- Upload images/media by slot
+### 7) Assets
+- Upload visuals by slot
 - See where each slot is used
 - Replace/clear uploads
 
-AI asset helper:
-- **Generate all empty slots with AI** can fill persona copy and placeholder images quickly.
-- For animated moments, AI usually generates still images; upload your GIF/MP4 if animation is required.
-- For logos, the system tries real brand logo retrieval first, then falls back to AI-generated lookalike.
+AI helpers:
+- **Generate all empty slots with AI** for fast completion
+- Persona copy + visuals can be auto-generated
+- For animated moments, upload GIF/MP4 if motion is required
+
+### 8) CX Components
+- Add live URLs
+- Map each link to the right slide/moment
+- Accept auto-match suggestions where helpful
 
 ### 9) Preview
-Use this for final polish.
-
-You can:
-- Review full flow
-- Check missing inputs
-- Navigate all slides
-- Edit slide text inline
-
-Tip:
-- Do final language cleanups here for speed.
+- Check runtime-like full flow
+- Review missing inputs
+- Edit text inline for quick polish
+- Use keyboard navigation in full preview mode
 
 ### 10) Export
-Use this to package your finished demo.
 
-You can:
-- Run readiness checks
-- Download complete package (recommended)
-- Export even with warnings (after confirmation)
+#### Primary export
+- **Complete Demo ZIP** (recommended)
+
+#### Portable exports
+- **Download PowerPoint (.pptx)**
+- **Download PDF (.pdf)**
+
+#### Final readiness
+- Review warnings
+- Export with confirmation if soft warnings remain
 
 Before sharing:
-- Replace placeholders (`[TODO: ...]`, `XX%`, etc.)
-- Confirm links work
-- Confirm brand and presenter details
+- replace placeholders (`[TODO: ...]`, `XX%`)
+- verify live links
+- confirm branding/presenter details
 
 ### 11) Feedback
-Use feedback to report:
-- Bugs
-- Confusing UX
-- Improvement ideas
+Submit:
+- bug reports
+- complaints/confusing behavior
+- likes/dislikes
+- improvement suggestions
 
-Best format:
-- What you did
-- What you expected
-- What happened
-
----
-
-## Feature Guide (Quick Reference)
-
-### Script Extraction
-- Use when: starting from notes
-- Needs: script text/file
-- Mistake: vague inputs
-- Tip: include persona + journey + value
-
-### Story Quality Check
-- Use when: after extraction and before export
-- Needs: foundations filled
-- Mistake: waiting until the end
-- Tip: run early and late
-
-### Slide Recommendations
-- Use when: shaping narrative flow
-- Needs: setup + story context
-- Mistake: removing too much context
-- Tip: trim only after storyline is clear
-
-### CX Links
-- Use when: demo has live moments
-- Needs: valid URLs
-- Mistake: unmapped links
-- Tip: explicitly map critical moments
-
-### Asset Slots
-- Use when: visual polish
-- Needs: uploads (optional)
-- Mistake: uploading before slide plan is final
-- Tip: pick slides first, then assets
-
-### Preview Inline Editing
-- Use when: final wording pass
-- Needs: none
-- Mistake: over-editing too early
-- Tip: use preview for speed
-
-### Export Readiness
-- Use when: final step
-- Needs: coherent story and key fields
-- Mistake: ignoring major warnings
-- Tip: prioritize placeholders and broken links first
+Best feedback format:
+- what you did
+- what you expected
+- what happened
 
 ---
 
-## Troubleshooting (If You See X, Do Y)
+## Troubleshooting
 
 ### “Import AI response failed”
-- Re-run AI with strict JSON output
-- Paste full output, not partial
-- Retry import
+- ensure full JSON is pasted
+- re-run AI prompt
+- retry import
 
-### “Slides feel generic”
-- Clarify business problem and desired outcomes
-- Add audience and sales stage
-- Add stronger value drivers
+### “Slides are too generic”
+- add stronger business problem + outcomes
+- set audience and stage clearly
+- improve value-driver quality
 
-### “Live link does not load”
-- Check URL works directly
-- Try fallback/open in new tab
-- Replace dead links
+### “Live links are broken”
+- test URL directly
+- replace invalid link
+- re-map link to correct slide
 
-### “Images are missing”
-- Verify upload completed
-- Verify slot mapping
-- Re-export
+### “Missing visuals”
+- verify upload completed
+- verify slot mapping
+- re-export
 
-### “Changes do not appear”
-- Refresh browser
-- Confirm you exported newest version
+### “Latest edits not visible”
+- refresh browser
+- confirm you are opening the newest export
 
 ---
 
-## Downloaded Project Editing Guide (Also Included In Canvas)
+## AI Prompts For Easy Post-Export Edits
 
-When you export, your package includes a markdown file with AI edit prompts.  
-This section mirrors that guidance so everything is also available here in Slack Canvas.
+Use these prompts with Claude/ChatGPT after you download your project.
 
-## Simple Rules Before You Prompt AI
-- Ask for small, focused updates
-- Keep unknown details as `[TODO: ...]`
-- Do not invent customer facts or metrics
-- Ask for a clear summary of what changed
-- Keep structure stable unless you request structural change
+### Basic Prompt Rules
+- Ask for small focused updates
+- Do not invent customer facts/metrics
+- Use `[TODO: ...]` for unknown details
+- Ask for a clear summary of changes
 
-## Everyday Prompt Templates (Copy/Paste)
-
-### 1) Rename the customer everywhere
+### 1) Rename customer everywhere
 ```text
 Update the customer name everywhere in my demo to [NEW CUSTOMER NAME].
-Keep the same structure and slide flow.
+Keep structure and slide flow unchanged.
 Show exactly what changed.
 ```
 
 ### 2) Rewrite for executives
 ```text
-Rewrite the demo text for executive leaders:
-- shorter sentences
-- business outcomes first
-- no unnecessary technical jargon
+Rewrite this demo for executive leaders:
+- shorter language
+- outcomes first
+- minimal jargon
 
-Keep the same story flow.
+Keep the same storyline.
 ```
 
-### 3) Adapt to a different industry
+### 3) Adapt to a new industry
 ```text
 Adapt this demo for [INDUSTRY].
-Keep the same storyline, but update examples, challenges, and benefits to fit that industry.
+Keep story flow the same, but update examples and benefits to match the industry.
 Do not invent customer facts.
 ```
 
-### 4) Shift product focus
+### 4) Shift product emphasis
 ```text
-Rebalance the story to emphasize [PRODUCT A] and [PRODUCT B].
-Keep deck length similar and avoid adding new sections unless required.
+Rebalance this demo to emphasize [PRODUCT A] and [PRODUCT B].
+Keep deck length similar and avoid unnecessary structural changes.
 ```
 
-### 5) Simplify for a first meeting
+### 5) Simplify for first meeting
 ```text
 Rewrite content so a first-time audience can understand it quickly.
-Use plain language and explain acronyms where needed.
+Use plain language and explain acronyms when needed.
 ```
 
 ### 6) Create a 5-minute version
 ```text
 Trim this demo to a clear 5-minute flow.
-Keep only the most important slides and smooth transitions between them.
+Keep only essential slides and smooth transitions.
 ```
 
-### 7) Add outcome placeholders safely
+### 7) Add safe outcome placeholders
 ```text
 Where impact is discussed, add placeholders like [TODO: metric].
-Do not invent numbers or claims.
+Do not invent numbers.
 ```
 
 ### 8) Refresh persona
 ```text
-Replace the persona with:
+Replace persona with:
 - Name: [NAME]
 - Role: [ROLE]
 - Goals: [GOALS]
 - Pain points: [PAINS]
 
-Update related slides so they stay consistent.
+Update related slides so details stay consistent.
 ```
 
-### 9) Localize wording by region
+### 9) Localize for region
 ```text
-Adjust wording for [REGION/COUNTRY] audience (tone, terminology, spelling).
+Adjust wording for [REGION/COUNTRY] audience (tone, spelling, terminology).
 Keep structure and storyline unchanged.
 ```
 
@@ -373,7 +314,7 @@ Apply these updates:
 - Assets: [LIST]
 - Live links: [LIST]
 
-Map each one to the correct demo moment.
+Map each item to the correct demo moment.
 Keep everything else unchanged.
 ```
 
@@ -382,42 +323,22 @@ Keep everything else unchanged.
 Run a final review and return PASS or FAIL.
 
 Check:
-- no obvious placeholders left
-- coherent story from start to finish
+- placeholders removed or intentional
+- coherent story start-to-finish
 - links mapped correctly
-- wording matches target audience
+- wording fits target audience
 
-If FAIL, provide only the smallest required fixes.
+If FAIL, return only minimal required fixes.
 ```
 
-## Good Prompt vs Weak Prompt
-
-Good:
-“Update only the executive summary and value slides for Acme, keep everything else unchanged, and use `[TODO: ...]` for unknown metrics.”
-
-Weak:
-“Make this demo better.”
-
 ---
 
-## Glossary (Plain English)
+## Glossary (Plain Language)
 
-- **Persona**: main customer character in the story
-- **Story Acts**: key journey moments
-- **Slide Recommendation**: suggested slide options
-- **CX Link**: live URL shown during demo
-- **Asset Slot**: place where an image/media can be added
-- **Readiness**: how close a slide is to presentation-ready
-- **Placeholder**: temporary text like `[TODO: ...]`
-- **Export Package**: downloadable finished demo bundle
-
----
-
-## Latest Usability Updates Included In This Guide
-
-- AI Prompt now supports pre-filled input context
-- Two AI lanes: copy/paste prompt or direct Gemini generation
-- Clearer handoff with **Import AI response**
-- One-time AI tour plus **Take the tour again**
-- Better AI help in Assets for empty slots and persona copy
-- Real-logo-first behavior with fallback if unavailable
+- **Persona**: main customer character in your story
+- **Story acts**: key moments in the journey
+- **Slide recommendation**: suggested slide choices based on your inputs
+- **CX component**: live URL-based demo moment
+- **Asset slot**: place where you can upload an image/media
+- **Readiness**: how close content is to being presentation-ready
+- **Export package**: downloadable finished demo files

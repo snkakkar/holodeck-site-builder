@@ -693,7 +693,7 @@
     return {
       id: id,
       name: seed.name || (seed.project && seed.project.customerName) || "Untitled project",
-      step: "connect",
+      step: "script",
       createdAt: seed.createdAt || now,
       updatedAt: now,
       project: Object.assign({
@@ -963,11 +963,17 @@
     mapAssetValues(state, function (v) { if (isGcsToken(v)) tokens.push(v); return undefined; });
     if (!tokens.length) return Promise.resolve(state);
     const paths = tokens.map(tokenPath);
-    return fetch(SIGN_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paths: paths }),
-    })
+    // The sign endpoint is gated on the same JWT as the Data API; attach it.
+    const auth = AUTH();
+    const headersP = auth && auth.authHeaders ? auth.authHeaders() : Promise.resolve({});
+    return headersP
+      .then(function (authHeaders) {
+        return fetch(SIGN_API, {
+          method: "POST",
+          headers: Object.assign({ "Content-Type": "application/json" }, authHeaders),
+          body: JSON.stringify({ paths: paths }),
+        });
+      })
       .then(function (res) { return res.ok ? res.json() : { urls: {} }; })
       .then(function (data) {
         const urls = (data && data.urls) || {};

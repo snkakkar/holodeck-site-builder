@@ -264,10 +264,19 @@
     if (/^data:/i.test(url)) return measure(url);
 
     let fetchUrl = url;
+    let viaProxy = false;
     if (/^https?:\/\//i.test(url)) {
       fetchUrl = "/api/asset/proxy?url=" + encodeURIComponent(url);
+      viaProxy = true;
     }
-    return fetch(fetchUrl)
+    // The proxy is gated on the same JWT as the Data API; attach it when
+    // routing through it. Direct (non-proxy) fetches carry no auth header.
+    const auth = window.HOLO_AUTH;
+    const headersP = viaProxy && auth && auth.authHeaders ? auth.authHeaders() : Promise.resolve({});
+    return headersP
+      .then(function (authHeaders) {
+        return fetch(fetchUrl, viaProxy ? { headers: authHeaders } : undefined);
+      })
       .then(function (res) { if (!res.ok) throw new Error("proxy " + res.status); return res.blob(); })
       .then(function (blob) {
         return new Promise(function (resolve) {

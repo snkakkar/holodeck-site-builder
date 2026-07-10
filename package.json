@@ -5,7 +5,9 @@
   "description": "Static host for Holodeck demo and builder",
   "scripts": {
     "start": "node start-web.js",
-    "heroku-postbuild": "bash bin/fetch-postgrest.sh && npm --prefix auth-service install --omit=dev",
+    "prestart": "npm run sync:shared",
+    "heroku-postbuild": "bash bin/fetch-postgrest.sh && npm --prefix auth-service install --omit=dev && npm run sync:shared",
+    "sync:shared": "cp builder/holodeck-shared.js demo/js/holodeck-shared.js",
     "check:shared": "cmp builder/holodeck-shared.js demo/js/holodeck-shared.js && echo 'holodeck-shared.js copies are in sync'"
   },
   "engines": {
@@ -13,8 +15,10 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^7.21.0",
+    "compression": "^1.8.1",
     "express": "^4.21.2",
-    "http-proxy-middleware": "^3.0.7"
+    "http-proxy-middleware": "^3.0.7",
+    "jose": "^5.10.0"
   },
   "overrides": {
     "uuid": "^11.1.0"

@@ -19,8 +19,61 @@ const { spawn } = require("child_process");
 const http = require("http");
 const path = require("path");
 
-const POSTGREST_PORT = 3001;
-const SHIM_PORT = 3002;
+// Load .env FIRST, before validating or spawning children. The
+// supervisor spawns PostgREST and the auth-shim with our process.env,
+// so if .env isn't loaded here the children run with blank
+// DATABASE_URL / JWT_SECRET / NEON_* — the stack comes up "healthy"
+// but every /rest/v1 and /auth call fails at runtime. Shared with
+// server.js via ./load-dotenv so the two can never disagree.
+require("./load-dotenv").loadDotEnv(__dirname);
+
+// Shared with server.js so the two can never disagree (see config/ports.js).
+const { POSTGREST_PORT, SHIM_PORT } = require("./config/ports");
+
+// ── Fail-fast env validation ───────────────────────────────────
+// Missing auth/DB config used to surface as a runtime 404/401 far
+// from its cause (the shim only warned and kept minting broken
+// tokens). Assert the invariants up front so a misconfigured stack
+// dies loudly at boot with an actionable message instead of serving
+// a half-broken app. Heroku sets these as real env vars (which win
+// over .env); locally they come from the gitignored .env — see
+// .env.example for the template.
+function validateEnv() {
+  const problems = [];
+  const dbUri = process.env.DATABASE_URL || process.env.PGRST_DB_URI || "";
+  if (!dbUri) {
+    problems.push("DATABASE_URL is not set (Postgres connection string).");
+  } else {
+    // PostgREST SET ROLEs into the token's `role` claim, which the
+    // auth-shim derives from the URI's userinfo. No role → tokens are
+    // minted without a `role` claim → PostgREST rejects them as
+    // anonymous → every authenticated /rest/v1 call 401s.
+    let role = "";
+    try { role = decodeURIComponent(new URL(dbUri).username || ""); } catch (_) {}
+    if (!role && !process.env.PGRST_DB_ROLE) {
+      problems.push(
+        "DATABASE_URL has no role (e.g. postgresql://USER@host/db) and PGRST_DB_ROLE is unset — " +
+        "PostgREST would reject every token as anonymous. Add the DB login role."
+      );
+    }
+  }
+  if (!(process.env.JWT_SECRET || process.env.PGRST_JWT_SECRET)) {
+    problems.push("JWT_SECRET is not set (HS256 secret shared by the auth-shim and PostgREST).");
+  }
+  if (!process.env.NEON_AUTH_BASE) {
+    problems.push("NEON_AUTH_BASE is not set (Neon Auth origin; the /auth/** proxy is skipped without it).");
+  }
+  if (!process.env.NEON_JWKS_URL && !process.env.NEON_AUTH_BASE) {
+    problems.push("NEON_JWKS_URL could not be derived (needs NEON_JWKS_URL or NEON_AUTH_BASE).");
+  }
+  if (problems.length) {
+    console.error("[supervisor] Refusing to start — required environment is incomplete:");
+    problems.forEach((p) => console.error("  • " + p));
+    console.error("[supervisor] Set these in the environment or in a gitignored .env (see .env.example).");
+    process.exit(1);
+  }
+}
+validateEnv();
 
 const children = [];
 let shuttingDown = false;

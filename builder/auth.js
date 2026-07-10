@@ -127,6 +127,16 @@
     return fetchToken().catch(function () { return null; });
   }
 
+  // Resolves to an { Authorization: "Bearer <jwt>" } object when a
+  // session is available, or {} otherwise. Convenience for the
+  // same-origin /api/* callers (Gemini, logo, asset sign/proxy) that
+  // the server now gates on the same JWT the Data API uses.
+  function authHeaders(forceRefresh) {
+    return getToken(forceRefresh).then(function (jwt) {
+      return jwt ? { Authorization: "Bearer " + jwt } : {};
+    });
+  }
+
   // ─── session hydration ─────────────────────────────────────────
   // On boot, confirm the cookie session is still alive and the email is
   // verified; otherwise treat as logged out.
@@ -217,6 +227,7 @@
     verifyOtp: verifyOtp,
     signOut: signOut,
     getToken: getToken,
+    authHeaders: authHeaders,
     currentUser: currentUser,
     isAuthed: isAuthed,
     isSalesforceEmail: isSalesforceEmail,

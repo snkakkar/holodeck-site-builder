@@ -602,6 +602,103 @@ CX components (AubreyDemo):
     return AGENT_CHAT_PROMPT.replace("<<CONTEXT>>", String(context || "[no context provided]"));
   }
 
+  // ─── Script-generation prompt (Step 1 "generate with Gemini") ─
+  // The user types a rough instruction ("what demo do you want?"); we
+  // wrap it into a rich prompt that makes Gemini WRITE a demo script in
+  // the exact labeled format story-parser.js keys on, so the output can
+  // be dropped straight into the Script textarea and Extracted with no
+  // extra glue. This is the in-app replacement for going to ChatGPT /
+  // Slackbot / Gemini chat to draft a script first. Output is PLAIN
+  // TEXT (a script), NOT JSON — the human reviews/edits it, then the
+  // existing extractor (manual or Gemini) turns it into foundations.
+  //
+  // The headers below mirror the parser's recognizers exactly:
+  //   Script Synopsis:  → extractScriptSynopsis / primaryNarrative
+  //   CX Summary:       → cxSummary fallback
+  //   The Persona: Name (role) → extractPersonasFromScript
+  //   ACT N: TITLE  with Theme:/Goal:/The Persona:/What's Happening:/
+  //     What to Showcase:  → extractScriptActs (storyActs → journey)
+  // Keeping these literal is what makes the generated script parse.
+  const SCRIPT_GEN_PROMPT = [
+    "You are a Salesforce Solution Engineer drafting a demo script for the",
+    "Holodeck Builder. Turn the SE's REQUEST below into a complete, well-",
+    "structured demo script. The SE will paste your output straight into the",
+    "builder, which parses it into story foundations, personas, and journey",
+    "acts — so you MUST follow the exact section format below.",
+    "",
+    "── OUTPUT RULES ──",
+    "1. Output PLAIN TEXT ONLY — a demo script. No JSON, no markdown fences,",
+    "   no code blocks, no preamble, no closing commentary. Start at",
+    "   \"Holodeck Script:\" and end at the last act.",
+    "2. Use these EXACT section headers and order (they are how the builder",
+    "   reads your script — do not rename or reorder them):",
+    "",
+    "Holodeck Script: <Customer> — <short theme>",
+    "",
+    "Script Synopsis:",
+    "<2–4 sentences: the demo's spine — the customer, the big problem, and the",
+    "transformation the story delivers. The FIRST sentence must stand alone and",
+    "be ≤ ~150 chars (it is reused verbatim on tight slides).>",
+    "",
+    "CX Summary:",
+    "<2–3 sentences describing the end-to-end customer experience the demo shows,",
+    "in this customer's real language (not generic e-commerce unless truly retail).>",
+    "",
+    "The Persona: <Full Name> (<role ≤16 chars, e.g. CMO>)",
+    "Goal: <one sentence — what this person is trying to achieve>",
+    "Pain points: <one short sentence — the unspoken thing on their mind>",
+    "",
+    "Then 3–5 acts, each in EXACTLY this shape (numbered ACT 1, ACT 2, …):",
+    "",
+    "ACT <N>: <TITLE — a short customer-facing story beat ≤5 words, e.g.",
+    "  \"The abandoned cart\"; NEVER a stage label like \"Scene 1\">",
+    "Theme: <one line naming what this beat is about; you may append",
+    "  \"Business Value Drives: <short value>\" to surface a value driver>",
+    "The Persona: <who this act follows — usually the persona above>",
+    "Goal: <the customer's goal in this beat, one sentence>",
+    "What's Happening: <2–4 sentences telling this beat as the CUSTOMER'S story",
+    "  — not the presenter's stage directions. First sentence ≤ ~150 chars and",
+    "  self-contained.>",
+    "What to Showcase: <the Salesforce capabilities shown here — name real ones",
+    "  (Agentforce, Data Cloud, Commerce, Marketing Cloud, Service Cloud, etc.)",
+    "  and the screens/devices involved.>",
+    "",
+    "── CONTENT RULES ──",
+    "• Ground everything in the SE's request and any PROJECT CONTEXT below.",
+    "  Do NOT invent hard facts (customer metrics, real names) that aren't given;",
+    "  keep specifics plausible and on-theme, and prefer the customer's own",
+    "  industry language over generic retail.",
+    "• The acts must form a coherent beginning → middle → end journey (one",
+    "  meaningful customer beat each), not a list of features. Start at the",
+    "  customer's first real moment — exclude presenter intros/agenda/thank-yous.",
+    "• Only reference Salesforce products the story actually implies.",
+    "• Keep it tight and demo-ready: enough detail to extract foundations from,",
+    "  not a novel.",
+    "",
+    "<<CONTEXT>>",
+    "── SE REQUEST (the demo they want) ──",
+    "<<REQUEST>>",
+  ].join("\n");
+
+  // getScriptGenPrompt(userPrompt, state) — userPrompt is the SE's raw
+  // instruction; state (optional) is app.state, from which we fold any
+  // existing setup/foundations context via buildInputsBlock so a
+  // "generate" respects a customer/products already entered. Empty
+  // context collapses the block to nothing.
+  function getScriptGenPrompt(userPrompt, state) {
+    const ctxBody = buildInputsBlock(state);
+    const block = ctxBody
+      ? "── PROJECT CONTEXT (already entered — respect it) ──\n" + ctxBody + "\n\n"
+      : "";
+    const request = String(userPrompt || "").trim() || "[no request provided]";
+    // Use function replacements so any "$" in the user's text / context (e.g.
+    // "$1", "$&") is inserted literally rather than interpreted as a
+    // String.replace substitution token.
+    return SCRIPT_GEN_PROMPT
+      .replace("<<CONTEXT>>", function () { return block; })
+      .replace("<<REQUEST>>", function () { return request; });
+  }
+
   const PAGE_HELPER = [
     "We pre-fill the SE Inputs below from your project (script, setup fields,",
     "and any extracted foundations). Review or edit them, then Copy the prompt",
@@ -625,5 +722,7 @@ CX components (AubreyDemo):
     getPersonaCopyPrompt: getPersonaCopyPrompt,
     AGENT_CHAT_PROMPT: AGENT_CHAT_PROMPT,
     getAgentChatPrompt: getAgentChatPrompt,
+    SCRIPT_GEN_PROMPT: SCRIPT_GEN_PROMPT,
+    getScriptGenPrompt: getScriptGenPrompt,
   };
 })(window);

@@ -22,6 +22,15 @@
   const GENERATE_URL = "/api/gemini/generate";
   const IMAGE_URL    = "/api/gemini/generate-image";
 
+  // The server gates the generate routes on the same salesforce.com JWT
+  // the Data API uses. Attach it via HOLO_AUTH.authHeaders(); resolve to
+  // {} if auth isn't available so the fetch still fires (and the server
+  // returns a clean 401 the caller surfaces). /status stays unauthenticated.
+  function authHeaders() {
+    const auth = window.HOLO_AUTH;
+    return auth && auth.authHeaders ? auth.authHeaders() : Promise.resolve({});
+  }
+
   // Cache the availability probe so repeated UI renders don't spam
   // the server. One probe per page load is plenty; null = not yet
   // checked.
@@ -76,11 +85,14 @@
     // past Heroku's 30s router limit (H12) on long script parses. We
     // read the stream, ignore pings, and resolve with the full text so
     // callers are unchanged.
-    return fetch(GENERATE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-      body: JSON.stringify(payload),
-    })
+    return authHeaders()
+      .then(function (auth) {
+        return fetch(GENERATE_URL, {
+          method: "POST",
+          headers: Object.assign({ "Content-Type": "application/json", Accept: "application/x-ndjson" }, auth),
+          body: JSON.stringify(payload),
+        });
+      })
       .catch(function (err) {
         throw new Error("Could not reach the Gemini proxy — is the server running? " +
           "(Underlying: " + ((err && err.message) || err) + ")");
@@ -181,11 +193,14 @@
     // bytes to GCS → short public URL) or {type:"done",dataUrl} (inline
     // fallback when GCS isn't configured). Either way we resolve with a
     // string the assetLibrary slot uses directly, so callers are unchanged.
-    return fetch(IMAGE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-      body: JSON.stringify(payload),
-    })
+    return authHeaders()
+      .then(function (auth) {
+        return fetch(IMAGE_URL, {
+          method: "POST",
+          headers: Object.assign({ "Content-Type": "application/json", Accept: "application/x-ndjson" }, auth),
+          body: JSON.stringify(payload),
+        });
+      })
       .catch(function (err) {
         throw new Error("Could not reach the Gemini proxy — is the server running? " +
           "(Underlying: " + ((err && err.message) || err) + ")");

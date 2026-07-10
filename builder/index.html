@@ -45,36 +45,41 @@
   <!-- Toast -->
   <div class="bx-toast" id="bxToast" hidden></div>
 
-  <!-- Scripts — order matters: shared modules first, app shell last -->
-  <script src="recommendation-rules.js"></script>
-  <script src="holodeck-shared.js"></script>
-  <script src="preview-renderer.js"></script>
-  <script src="config-generator.js"></script>
-  <script src="ai-config-prompt.js"></script>
-  <script src="claude-modify-prompt.js"></script>
+  <!-- Scripts — order matters: shared modules first, app shell last.
+       All are `defer`: they no longer block HTML parsing, download in
+       parallel, and still execute in document order before
+       DOMContentLoaded — so the global-definition sequence these IIFEs
+       rely on (and builder.js consuming them last) is preserved. The
+       doc-extract.js module is deferred by default. -->
+  <script defer src="recommendation-rules.js"></script>
+  <script defer src="holodeck-shared.js"></script>
+  <script defer src="preview-renderer.js"></script>
+  <script defer src="config-generator.js"></script>
+  <script defer src="ai-config-prompt.js"></script>
+  <script defer src="claude-modify-prompt.js"></script>
   <!-- Backend endpoints (same-origin) — must load before auth.js/store -->
-  <script src="/env-config.js"></script>
+  <script defer src="/env-config.js"></script>
   <!-- Auth must load before the store so the store can read the JWT -->
-  <script src="auth.js"></script>
-  <script src="project-store.js"></script>
-  <script src="feedback-store.js"></script>
-  <script src="story-parser.js"></script>
-  <script src="story-validator.js"></script>
-  <script src="import-validator.js"></script>
-  <script src="project-home.js"></script>
-  <script src="share-modal.js"></script>
-  <script src="holodeck-adapter.js"></script>
-  <script src="zip-exporter.js"></script>
+  <script defer src="auth.js"></script>
+  <script defer src="project-store.js"></script>
+  <script defer src="feedback-store.js"></script>
+  <script defer src="story-parser.js"></script>
+  <script defer src="story-validator.js"></script>
+  <script defer src="import-validator.js"></script>
+  <script defer src="project-home.js"></script>
+  <script defer src="share-modal.js"></script>
+  <script defer src="holodeck-adapter.js"></script>
+  <script defer src="zip-exporter.js"></script>
   <!-- Native file exporters (PPTX + PDF). Vendored UMD globals (classic
        scripts, self-contained: pptxgen.bundle.js inlines JSZip), then the
        shared normalization layer, then the two format exporters. -->
-  <script src="vendor/pptxgen.bundle.js"></script>
-  <script src="vendor/jspdf.umd.min.js"></script>
-  <script src="export-model.js"></script>
-  <script src="pptx-exporter.js"></script>
-  <script src="pdf-exporter.js"></script>
-  <script src="aubrey-client.js"></script>
-  <script src="gemini-client.js"></script>
+  <script defer src="vendor/pptxgen.bundle.js"></script>
+  <script defer src="vendor/jspdf.umd.min.js"></script>
+  <script defer src="export-model.js"></script>
+  <script defer src="pptx-exporter.js"></script>
+  <script defer src="pdf-exporter.js"></script>
+  <script defer src="aubrey-client.js"></script>
+  <script defer src="gemini-client.js"></script>
   <!-- module: uses dynamic import()/import.meta to lazy-load vendored pdf.js -->
   <script type="module" src="doc-extract.js"></script>
   <!-- Scale the authoring UI with the viewport. Sets --bx-scale on <html>;
@@ -91,6 +96,6 @@
     window.addEventListener('resize', setBuilderScale);
   })();
   </script>
-  <script src="builder.js"></script>
+  <script defer src="builder.js"></script>
 </body>
 </html>

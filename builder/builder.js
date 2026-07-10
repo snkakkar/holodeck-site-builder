@@ -34,15 +34,14 @@
   // Foundations / Narrative makes each user decision its own surface
   // with one obvious next action.
   const STEPS = [
-    { id: "connect",     num: "1",  label: "Connect (optional)",    help: "Optional shortcut — connect Aubrey to auto-fill. Skip and add everything by hand." },
-    { id: "script",      num: "2",  label: "Script & Story",        help: "Paste or upload your demo script (or pull it from Aubrey if connected)" },
-    { id: "setup",       num: "3",  label: "Setup",                 help: "Customer, audience, products" },
-    { id: "foundations", num: "4",  label: "Story Foundations",     help: "Review what was extracted" },
-    { id: "recs",        num: "5",  label: "Slide Selection",       help: "Customize the slide plan by section" },
-    { id: "assets",      num: "6",  label: "Assets",                help: "Upload images for the slides you selected (optional)" },
-    { id: "cx",          num: "7",  label: "CX Components",         help: "Optionally embed live web screens (AubreyDemo or any URL)" },
-    { id: "preview",     num: "8",  label: "Preview",               help: "Review the full demo before exporting" },
-    { id: "export",      num: "9",  label: "Export",                help: "Download the complete demo ZIP" },
+    { id: "script",      num: "1",  label: "Script & Story",        help: "Paste, upload, or generate your demo script with AI" },
+    { id: "setup",       num: "2",  label: "Setup",                 help: "Customer, audience, products" },
+    { id: "foundations", num: "3",  label: "Story Foundations",     help: "Review what was extracted" },
+    { id: "recs",        num: "4",  label: "Slide Selection",       help: "Customize the slide plan by section" },
+    { id: "assets",      num: "5",  label: "Assets",                help: "Upload images for the slides you selected (optional)" },
+    { id: "cx",          num: "6",  label: "CX Components",         help: "Optionally embed live web screens (AubreyDemo or any URL)" },
+    { id: "preview",     num: "7",  label: "Preview",               help: "Review the full demo before exporting" },
+    { id: "export",      num: "8",  label: "Export",                help: "Download the complete demo ZIP" },
   ];
   const INDUSTRIES = ["Retail","Consumer Goods","Hospitality","Travel","Financial Services","Healthcare","Other"];
   const AUDIENCES  = ["Executive","IT","Marketing","Sales","Service","Store Ops","Field Ops","Mixed"];
@@ -300,18 +299,25 @@
       render();
     }).catch(navFailed("Couldn't open your profile. Returning to projects."));
   }
-  function newProject() {
+  // Create a blank project and open the builder on the Script & Story
+  // step (the new first step). onReady, if given, runs after the initial
+  // render with the fresh state — used by the "Aubrey script" chooser
+  // door to pop the script picker once there's an active project to
+  // write into.
+  function newProject(onReady) {
     STORE.createProject({}).then(function (state) {
       app.state = state;
       app.view = "builder";
       app.readOnly = false;
       app.lockHolder = null;
+      state.step = "script"; // land directly on Script & Story
       STORE.setActiveProjectId(state.id);
       if (prepopulatePresenterFromProfile(state)) saveActive();
       recompute();
       render();
       // A brand-new project is owned by me; claim the lock + heartbeat.
       startPresence(state.id);
+      if (typeof onReady === "function") onReady(state);
     }).catch(navFailed("Couldn't create a new project. Please try again."));
   }
 
@@ -766,21 +772,15 @@
     const hasCx          = (s.cxComponents || []).length > 0;
     const hasSelections  = Object.keys(s.selectedRecIds || {}).filter(function (k) { return s.selectedRecIds[k]; }).length > 0;
 
-    if (id === "connect") {
-      const creds = getAubreyGlobalKeys();
-      const haveAny = !!(creds.demoforgeKey || creds.scriptwriterKey || creds.pocketsicKey);
-      if (haveAny) return st("complete", "Connected");
-      return st("optional", "Optional");
-    }
     if (id === "setup") {
       if (!s.project.customerName) return st("needs-input", "Add customer details");
       if (!setupReady)              return st("needs-input", "Needs input");
       return st("complete", "Complete");
     }
     if (id === "script") {
-      // Script step is unlocked from the start now — Aubrey-driven
-      // projects can land here directly from Connect without filling
-      // out Setup first. (Setup still gates downstream recommendations.)
+      // Script step is the entry point — a new project lands here to
+      // paste, upload, or generate a script. (Setup still gates
+      // downstream recommendations.)
       if (!s.scriptText) return st("not-started", "Not started");
       if (!hasScript)    return st("needs-input", "Script too short");
       return st("complete", "Script captured");
@@ -853,12 +853,13 @@
     const main = $("#bxMain");
     main.innerHTML = "";
     // Migrate any legacy state.step values (older projects had "story";
-    // "narrative" was removed when Recommended Narrative was retired).
+    // "narrative" was removed when Recommended Narrative was retired;
+    // "connect" was the old Step 1, folded into the new-project chooser).
     if (app.state.step === "story") app.state.step = "script";
     if (app.state.step === "narrative") app.state.step = "recs";
+    if (app.state.step === "connect") app.state.step = "script";
     const step = app.state.step;
-    if      (step === "connect")     main.appendChild(viewConnect());
-    else if (step === "setup")       main.appendChild(viewSetup());
+    if      (step === "setup")       main.appendChild(viewSetup());
     else if (step === "script")      main.appendChild(viewScript());
     else if (step === "foundations") main.appendChild(viewFoundations());
     else if (step === "cx")          main.appendChild(viewCxComponents());
@@ -875,14 +876,6 @@
   // step's primary element so the tip points at it (coach-mark); a missing
   // anchor falls back to a centered modal. Short, skippable, never blocking.
   const STEP_TIPS = {
-    connect: {
-      anchor: "#bxMain .bx-card-feature",
-      title: "Connect (optional)",
-      lines: [
-        "Aubrey is an optional shortcut that can pre-fill your script, foundations, and CX screens.",
-        "Everything in the builder also works entirely by hand — skip this step any time.",
-      ],
-    },
     script: {
       anchor: "#bxMain .bx-card-feature",
       title: "Add your script",
@@ -895,7 +888,7 @@
       anchor: "#bxMain .bx-card",
       title: "Welcome to the Holodeck Builder",
       lines: [
-        "You'll turn a demo script into a runnable, customer-branded Salesforce demo in nine quick steps.",
+        "You'll turn a demo script into a runnable, customer-branded Salesforce demo in a few quick steps.",
         "Start by setting the customer, audience, and products here. The right-hand panel keeps live suggestions as you go.",
       ],
     },
@@ -960,12 +953,6 @@
     const body  = $("#bxSideBody");
     body.innerHTML = "";
     const step = app.state.step;
-    if (step === "connect") {
-      title.textContent = "Quick start";
-      sub.textContent = "Aubrey-driven projects need almost no typing";
-      sideConnectHint(body);
-      return;
-    }
     if (step === "setup" || step === "script" || step === "foundations") {
       title.textContent = "Live Suggestions";
       sub.textContent = "We'll keep this updated as you fill things in";
@@ -1052,7 +1039,7 @@
   function viewSetup() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 1 · Setup",
+      "Step 2 · Setup",
       "Set up the customer demo",
       "Add the basic customer, audience, and Salesforce product context so the builder can recommend the right story structure. Two minutes here saves twenty later."
     ));
@@ -1365,6 +1352,72 @@
     return true;
   }
 
+  // ─── Gemini: generate a script from the SE's prompt ───────────
+  // Wraps the SE's free-text request into the holodeck-aware script
+  // prompt and asks Gemini for a PLAIN-TEXT labeled script, which we
+  // drop into s.scriptText. The SE then reviews/edits and runs Extract
+  // exactly as with a pasted script — no new ingestion path. Leaves the
+  // user on Step 1 so they can read what was written before extracting.
+  function runGeminiScriptGen(promptText, button, status) {
+    const GEMINI = window.HOLO_GEMINI;
+    const AI_PROMPT = window.HOLO_AI_PROMPT;
+    if (!GEMINI || !AI_PROMPT) { toast("Gemini is not available"); return; }
+    const req = String(promptText || "").trim();
+    if (!req) { toast("Describe the demo you want first"); return; }
+
+    if (status) status.innerHTML = "";
+    const origText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Writing…";
+
+    let pb = null;
+    if (status) {
+      pb = progressBar("Writing your script with Gemini…");
+      pb.indeterminate("Writing your script with Gemini…");
+      status.appendChild(pb.node);
+    }
+    const clearBar = function () { if (pb && pb.node.parentNode) pb.node.parentNode.removeChild(pb.node); };
+    const showErr = function (msg) {
+      clearBar();
+      if (status) status.appendChild(el("div", { class: "bx-alert is-error", text: "Gemini: " + msg }));
+      else toast("Gemini: " + msg);
+    };
+
+    // Plain text (no jsonMode): we want a script, not a config. Unlike the
+    // mechanical JSON extraction, writing a coherent script is a CREATIVE
+    // task — so we leave the model's thinking pass ON (fast:false) for
+    // quality, and set an explicit maxOutputTokens so the full script has
+    // room to land without truncating (an unbounded 2.5-flash call with
+    // thinking off can otherwise return empty/short and drop the stream).
+    // A little warmth in the temperature keeps the prose readable.
+    GEMINI.generate({
+      prompt: AI_PROMPT.getScriptGenPrompt(req, app.state),
+      fast: false,
+      temperature: 0.5,
+      maxOutputTokens: 4096,
+    })
+      .then(function (text) {
+        // Strip a stray ```…``` fence if the model wrapped the script.
+        const cleaned = String(text || "")
+          .replace(/^\s*```(?:\w+)?\s*/i, "")
+          .replace(/\s*```\s*$/i, "")
+          .trim();
+        if (!cleaned) { showErr("returned an empty script — try adding more detail to your request"); return; }
+        clearBar();
+        const s = app.state;
+        s.scriptText = cleaned;
+        recompute(); commit(); renderMain();
+        toast("Script generated — review it, then Extract Story Foundations");
+      })
+      .catch(function (err) {
+        showErr((err && err.message) || String(err));
+      })
+      .then(function () {
+        button.disabled = false;
+        button.textContent = origText;
+      });
+  }
+
   // ─── BETA: Gemini-powered script extraction ───────────────────
   // An AI alternative to the regex parser for messier scripts. Asks
   // Gemini to parse the script into the storyFoundations shape (plus
@@ -1635,7 +1688,7 @@
   function viewScript() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 2 · Script & Story",
+      "Step 1 · Script & Story",
       "Add your demo script",
       "Paste or upload the rough demo story. The builder extracts the narrative, personas, journey moments, and business value automatically."
     ));
@@ -1715,6 +1768,41 @@
       }
     }
     wrap.appendChild(c);
+
+    // ── Or generate a script with Gemini ─────────────────────
+    // In-app alternative to going to ChatGPT/Slackbot/Gemini chat: the
+    // SE types what demo they want and Gemini writes a labeled script
+    // straight into the Script textarea above (which they then review
+    // and Extract). Shown only when the server has a Gemini key; hidden
+    // otherwise so we never surface a button that can't work.
+    const GEN_GEMINI = window.HOLO_GEMINI;
+    if (GEN_GEMINI && window.HOLO_AI_PROMPT) {
+      const genCard = el("div", { class: "bx-card" });
+      genCard.style.display = "none"; // revealed once we confirm a key
+      genCard.appendChild(el("div", { class: "bx-card-title", text: "Or generate a script with AI" }));
+      genCard.appendChild(el("div", { class: "bx-card-sub",
+        text: "No script yet? Describe the demo you want and Gemini will draft a structured script above — then review, edit, and extract it like any other. Uses the customer and products you've already entered as context." }));
+      const genArea = field({
+        label: "What demo do you want?",
+        type: "textarea",
+        placeholder: "Describe the demo: customer, industry, the story, which Salesforce products, and the audience…",
+        value: s.aiScriptPrompt || "",
+        onInput: function (v) { s.aiScriptPrompt = v; commit(); },
+      });
+      genCard.appendChild(genArea);
+      const genStatus = el("div", { class: "bx-mt-12" });
+      const genBtn = btn("✦ Generate script with Gemini", "bx-btn-primary", function () {
+        // Read the freshest value straight from the textarea in the card.
+        const ta = genArea.querySelector("textarea");
+        runGeminiScriptGen((ta && ta.value) || s.aiScriptPrompt || "", genBtn, genStatus);
+      });
+      genCard.appendChild(el("div", { class: "bx-row bx-mt-12" }, [genBtn]));
+      genCard.appendChild(genStatus);
+      wrap.appendChild(genCard);
+      GEN_GEMINI.isConfigured().then(function (ok) {
+        if (ok) genCard.style.display = "";
+      });
+    }
 
     // ── Extract action ──────────────────────────────────────
     const action = el("div", { class: "bx-card bx-extract-card" });
@@ -2001,7 +2089,7 @@
   }
 
   // (The standalone "Recommended Narrative" step was removed — every slide
-  //  is now selectable and on by default in Step 5 · Slide Selection.)
+  //  is now selectable and on by default in Step 4 · Slide Selection.)
 
   function personaItem(p, idx) {
     const item = el("div", { class: "bx-item" });
@@ -2107,7 +2195,7 @@
   function viewCxComponents() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 7 · iFrame CX Components",
+      "Step 6 · iFrame CX Components",
       "Embed live, interactive demo screens (optional)",
       "These are live iFrame embeds — an AubreyDemo scene, a storefront, a Salesforce screen — shown as interactive screens in the Demo section. This is different from Assets (static images / GIFs you upload or generate): use Assets for imagery, use this step for interactive embeddable URLs. Skip if you don't have any; your demo works fine without it."
     ));
@@ -2482,11 +2570,11 @@
 
   // Pending text fields the SE should still tweak. Each entry is an
   // editor descriptor: { label, source, type, get, set }. We render
-  // them as inline form fields on Step 6 so the SE can polish copy
+  // them as inline form fields on Step 5 so the SE can polish copy
   // without bouncing back through canonical steps. `source` is just
   // a hint label so SEs know where the value normally lives.
   // Editors bind directly to the canonical state path, so edits show
-  // up identically on Step 1/3/4/5 — no duplication, no drift.
+  // up identically on Step 1/2/3/4 — no duplication, no drift.
   function pendingTextItems(state) {
     const out = [];
     const personas = state.personas || [];
@@ -2494,7 +2582,7 @@
 
     if (!state.project.presenterName) {
       out.push({
-        label: "Presenter name", source: "Step 1 · Setup",
+        label: "Presenter name", source: "Step 2 · Setup",
         placeholder: "e.g. Jane Smith", type: "input",
         get: function () { return state.project.presenterName || ""; },
         set: function (v) { state.project.presenterName = v; },
@@ -2502,7 +2590,7 @@
     }
     if (!state.project.presenterTitle) {
       out.push({
-        label: "Presenter title", source: "Step 1 · Setup",
+        label: "Presenter title", source: "Step 2 · Setup",
         placeholder: "e.g. Senior Account Executive", type: "input",
         get: function () { return state.project.presenterTitle || ""; },
         set: function (v) { state.project.presenterTitle = v; },
@@ -2510,15 +2598,15 @@
     }
     if (!personas.length) {
       out.push({
-        label: "No personas added", source: "Step 4 · Personas",
-        readonly: true, hint: "Personas are needed for the 'Meet the persona' slide. Add one on Step 4.",
+        label: "No personas added", source: "Step 1 · Personas",
+        readonly: true, hint: "Personas are needed for the 'Meet the persona' slide. Add one on Step 1.",
       });
     } else {
       personas.forEach(function (p, i) {
         const tag = p.name ? p.name : "Persona " + (i + 1);
         if (!p.name) {
           out.push({
-            label: tag + " name", source: "Step 4 · Personas",
+            label: tag + " name", source: "Step 1 · Personas",
             placeholder: "e.g. Rachel Chen", type: "input",
             get: function () { return p.name || ""; },
             set: function (v) { p.name = v; },
@@ -2526,7 +2614,7 @@
         }
         if (!p.role) {
           out.push({
-            label: tag + " role", source: "Step 4 · Personas",
+            label: tag + " role", source: "Step 1 · Personas",
             placeholder: "e.g. Loyalty member · Suburban mom", type: "input",
             get: function () { return p.role || ""; },
             set: function (v) { p.role = v; },
@@ -2534,7 +2622,7 @@
         }
         if (!p.painPoints && !p.goals) {
           out.push({
-            label: tag + " quote / pain points", source: "Step 4 · Personas",
+            label: tag + " quote / pain points", source: "Step 1 · Personas",
             placeholder: "What's the unspoken thing on their mind?",
             type: "textarea",
             get: function () { return p.painPoints || ""; },
@@ -2548,7 +2636,7 @@
         // default, so it's shown but does NOT count as "still to
         // update" (pending:false).
         out.push({
-          label: tag + " pronouns", source: "Step 4 · Personas",
+          label: tag + " pronouns", source: "Step 1 · Personas",
           type: "select", pending: false,
           options: [
             { value: "",          label: "she/her (default)" },
@@ -2659,7 +2747,7 @@
       const customised = state.customRecTitles && state.customRecTitles[sl.id];
       if (!customised && /^Slide \d/.test(sl.title)) {
         out.push({
-          label: "Title for '" + sl.title + "'", source: "Step 5 · Slide Selection",
+          label: "Title for '" + sl.title + "'", source: "Step 4 · Slide Selection",
           placeholder: "Give this slide a real title",
           type: "input",
           get: function () { return sl.title || ""; },
@@ -2729,7 +2817,13 @@
       .toLowerCase();
     if (!domain || domain.indexOf(".") === -1) return Promise.resolve("");
     if (!AUBREY || !AUBREY.inlineImageAsDataUrl) return Promise.resolve("");
-    return AUBREY.inlineImageAsDataUrl("/api/logo?domain=" + encodeURIComponent(domain))
+    // /api/logo is gated on the same JWT as the Data API — attach the bearer.
+    const auth = window.HOLO_AUTH;
+    const headersP = auth && auth.authHeaders ? auth.authHeaders() : Promise.resolve({});
+    return headersP
+      .then(function (headers) {
+        return AUBREY.inlineImageAsDataUrl("/api/logo?domain=" + encodeURIComponent(domain), headers);
+      })
       .catch(function () { return ""; });
   }
 
@@ -2973,7 +3067,7 @@
   function viewAssets() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 6 · Assets",
+      "Step 5 · Assets",
       "Upload images for your deck (optional)",
       "We only show the slots that the slides you picked actually use. Anything you skip leaves a clean placeholder in the demo — you can still export and present without uploading anything."
     ));
@@ -2985,7 +3079,7 @@
       const empty = el("div", { class: "bx-card" });
       empty.appendChild(el("div", { class: "bx-card-title", text: "No image slots needed yet" }));
       empty.appendChild(el("div", { class: "bx-card-sub",
-        text: "Pick slides on Step 5 (Slide Selection) and we'll list out every image slot those slides can use. You can still polish text below." }));
+        text: "Pick slides on Step 4 (Slide Selection) and we'll list out every image slot those slides can use. You can still polish text below." }));
       wrap.appendChild(empty);
     } else {
       // Group items by their `group` property in catalog order.
@@ -3137,7 +3231,7 @@
     function refreshSummary() {
       const n = pendingTextCount(pending);
       summaryTitle.textContent = n ? "Text still to update (" + n + ")" : "Text still to update";
-      summaryHint.textContent  = n ? " — optional, edit here or in Preview (Step 8)" : " — all defaults filled in";
+      summaryHint.textContent  = n ? " — optional, edit here or in Preview (Step 7)" : " — all defaults filled in";
     }
     refreshSummary();
     summary.appendChild(summaryTitle);
@@ -3146,8 +3240,8 @@
     const body = el("div", { class: "bx-pending-body" });
     body.appendChild(el("div", { class: "bx-card-sub",
       text: pendingCount
-        ? "Default copy you might want to replace before presenting. Saved as you type — none of this blocks export. You can also edit any of this directly on each slide in Step 8 · Preview."
-        : "Every field has a value — nothing's blank. You can still fine-tune any of these below or in Step 8 · Preview." }));
+        ? "Default copy you might want to replace before presenting. Saved as you type — none of this blocks export. You can also edit any of this directly on each slide in Step 7 · Preview."
+        : "Every field has a value — nothing's blank. You can still fine-tune any of these below or in Step 7 · Preview." }));
     pending.forEach(function (item) {
       body.appendChild(pendingTextRow(item, refreshSummary));
     });
@@ -3589,7 +3683,7 @@
     const items = relevantAssetItems(s);
     if (!items.length) {
       body.appendChild(el("div", { class: "bx-side-empty",
-        text: "Pick slides on Step 5 — we'll surface every image slot they use." }));
+        text: "Pick slides on Step 4 — we'll surface every image slot they use." }));
       return;
     }
     const filled = items.filter(function (it) {
@@ -3639,7 +3733,7 @@
   function viewRecommendations() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 5 · Slide Selection",
+      "Step 4 · Slide Selection",
       "Every slide in your demo — toggle any off",
       "These are the exact slides that will be generated, grouped by section, all on by default. Turn off anything you don't want, rename inline, or expand a card for details."
     ));
@@ -4130,7 +4224,7 @@
 
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 8 · Preview",
+      "Step 7 · Preview",
       "Preview the holodeck",
       "Review how the story will feel before downloading the complete demo package. What you see here is what the exported demo will render."
     ));
@@ -4555,7 +4649,7 @@
   function viewExport() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 9 · Export",
+      "Step 8 · Export",
       "Download your demo",
       "Use Complete Demo ZIP for a ready-to-run package. Use Config only when you want to update an existing demo folder."
     ));
@@ -4703,7 +4797,7 @@
     const f = s.storyFoundations || {};
     const foundationsReady = !!(f.businessProblem && f.futureStateVision);
     out.push({ label: "Project setup complete", done: setupReady, hint: setupReady ? "" : "Customer, industry, audience, stage, and products" });
-    out.push({ label: "Story foundations populated", done: foundationsReady, hint: foundationsReady ? "" : "Run Extract Story Foundations on Step 2" });
+    out.push({ label: "Story foundations populated", done: foundationsReady, hint: foundationsReady ? "" : "Run Extract Story Foundations on Step 1" });
     out.push({ label: "Personas added", done: (s.personas || []).length > 0 });
     out.push({ label: "Story acts captured", done: (s.storyActs || []).length >= 3, hint: ((s.storyActs || []).length >= 3) ? "" : "3+ acts recommended" });
     out.push({ label: "Recommended narrative applied", done: (s.slides || []).length > 0 });
@@ -4729,13 +4823,13 @@
       done: relevantAssets.length === 0 || filledAssets > 0,
       hint: relevantAssets.length === 0
         ? "No image slots needed for this deck."
-        : filledAssets + " of " + relevantAssets.length + " uploaded · upload more on Step 6",
+        : filledAssets + " of " + relevantAssets.length + " uploaded · upload more on Step 5",
     });
     if (cx.length === 0) {
       out.push({
         label: "Live CX scene URLs added",
         done: false,
-        hint: "Optional — paste AubreyDemo /frame URLs in Step 7 to embed live screens",
+        hint: "Optional — paste AubreyDemo /frame URLs in Step 6 to embed live screens",
       });
     } else if (cxUrls < cx.length) {
       out.push({
@@ -5100,7 +5194,7 @@
     const hasScript = app.state && app.state.scriptText && app.state.scriptText.trim();
     if (!hasInputs && !hasScript) {
       status.appendChild(el("div", { class: "bx-alert is-error",
-        text: "Add a demo script or some context first — go to Step 2 (Script & Story) to paste a script, or fill in the SE Inputs box above. Without it the AI will invent the whole demo." }));
+        text: "Add a demo script or some context first — go to Step 1 (Script & Story) to paste a script, or fill in the SE Inputs box above. Without it the AI will invent the whole demo." }));
       return;
     }
 
@@ -5576,7 +5670,11 @@
   }
 
   // ─── New-project chooser ──────────────────────────────────────
-  // Two doors: build in the UI from scratch, or seed from an AI prompt.
+  // Two doors, both landing in the ONE builder on Script & Story:
+  //   • Script & Story — a blank project you seed by pasting, uploading,
+  //     or generating a script with Gemini (all offered on that step).
+  //   • Aubrey script  — pull a ready-made script from Aubrey, which
+  //     auto-fills the project, then drops you on the same step.
   function openNewProjectChooser() {
     const wrap = el("div", { class: "bx-newproj-chooser" });
     wrap.appendChild(el("p", { class: "bx-newproj-chooser-lede",
@@ -5595,16 +5693,16 @@
     }
 
     grid.appendChild(chooserCard(
-      "🛠",
-      "Create from scratch in the builder",
-      "Open an empty project and fill in customer, products, and personas step by step.",
+      "📝",
+      "Script & Story",
+      "Start a new project and paste, upload, or generate a demo script with AI — the builder reads it into your foundations.",
       function () { closeModal(); newProject(); }
     ));
     grid.appendChild(chooserCard(
       "✨",
-      "Generate with AI",
-      "Paste a demo script or prompt and let AI extract foundations, personas, and slides for you.",
-      function () { closeModal(); goAiPrompt(); }
+      "Aubrey script",
+      "Use Aubrey? Pull a ready-made script to auto-fill customer, brand, persona, products, and story foundations in one go.",
+      function () { closeModal(); newProject(function () { openAubreyScriptPicker(); }); }
     ));
 
     wrap.appendChild(grid);
@@ -6289,69 +6387,6 @@
   // products, foundations) and skip straight to Foundations
   // review. If they don't, they can skip to Setup and stay
   // 100% manual. Either path is valid.
-  function viewConnect() {
-    const wrap = el("div");
-    wrap.appendChild(stepHeader(
-      "Step 1 · Connect (optional)",
-      "Start from your own script & story, or build by hand",
-      "The recommended start is to paste or upload your demo script — the builder reads it into customer, persona, products, and story foundations. Already use Aubrey? You can pull a script or brand instead. Prefer to do it yourself? Every step also works with fully manual entry."
-    ));
-
-    // ── Script & Story (the recommended starting point) ──────
-    // The NATIVE path: the SE pastes/uploads their own demo script in
-    // Step 2 — no Aubrey account or keys required. This is the
-    // highest-leverage first action that everyone can take, so it
-    // leads. (Aubrey is the convenience layer below it.)
-    const script = el("div", { class: "bx-card bx-card-feature" });
-    script.appendChild(el("div", { class: "bx-card-title", text: "Script & Story" }));
-    script.appendChild(el("div", { class: "bx-card-sub",
-      text: "The recommended starting point. Paste or upload your own demo script and the builder reads it into customer name, industry, persona, Salesforce products, and story foundations. No account or keys needed — you can change anything afterward." }));
-    script.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
-      btn("Paste or upload your script →", "bx-btn-primary", function () {
-        app.state.step = "script"; renderShell(); commit();
-      }),
-    ]));
-    wrap.appendChild(script);
-
-    // ── Secondary: pull from Aubrey (script or brand) ────────
-    // The convenience layer for SEs who use Aubrey: pull a full script
-    // (auto-fills brand + persona + products) or just a brand. Requires
-    // Aubrey keys, so it sits below the native script path.
-    const aubrey = el("div", { class: "bx-card" });
-    aubrey.appendChild(el("div", { class: "bx-card-title", text: "Pull from Aubrey" }));
-    aubrey.appendChild(el("div", { class: "bx-card-sub",
-      text: "Use Aubrey? Pull a demo script to auto-fill customer, brand colors, persona, products, and story foundations in one go — or pull just a brand for colors and identity. Requires Aubrey keys." }));
-    aubrey.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
-      btn("✨ Pull script from Aubrey →", "bx-btn-secondary",
-        function () { openAubreyScriptPicker(); }),
-      btn("Or just pull a brand", "bx-btn-secondary",
-        function () { openAubreyBrandPicker(); }),
-    ]));
-    wrap.appendChild(aubrey);
-
-    // Thin status banner that opens the same modal as the topbar
-    // button. Keeping one source of truth for credentials means
-    // the user can review or swap keys from here OR from any
-    // other step via the topbar. Sits under the Aubrey card it serves.
-    wrap.appendChild(aubreyKeysBanner());
-
-    // ── Manual path (third) ──────────────────────────────────
-    // No keys needed; jump straight to Setup and build by hand.
-    const manual = el("div", { class: "bx-card" });
-    manual.appendChild(el("div", { class: "bx-card-title", text: "Build it by hand" }));
-    manual.appendChild(el("div", { class: "bx-card-sub",
-      text: "No script yet? Jump to Setup, add your customer and products by hand, then fill the story foundations yourself. You can come back here any time to paste a script or connect Aubrey." }));
-    manual.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
-      btn("Start with Setup →", "bx-btn-secondary", function () {
-        app.state.step = "setup"; renderShell(); commit();
-      }),
-    ]));
-    wrap.appendChild(manual);
-
-    wrap.appendChild(stepFooter("connect"));
-    return wrap;
-  }
-
   function getAubreyGlobalKeys() {
     if (!AUBREY) return {};
     if (AUBREY.globalKeys && typeof AUBREY.globalKeys.get === "function") {
@@ -6368,25 +6403,6 @@
     return (AUBREY.creds && typeof AUBREY.creds.save === "function")
       ? AUBREY.creds.save(partial || {})
       : {};
-  }
-
-  function sideConnectHint(body) {
-    const c = getAubreyGlobalKeys();
-    const filled = ["email","demoforgeKey","scriptwriterKey","pocketsicKey"].filter(function (k) { return !!c[k]; }).length;
-    const card = el("div", { class: "bx-side-card" });
-    card.appendChild(el("div", { class: "bx-side-card-t",
-      text: filled === 4 ? "All four set — you're good to pull" :
-            filled > 0   ? "Partial setup — pull what you can" :
-                           "No keys yet" }));
-    card.appendChild(el("div", { style: "margin-top: 6px; color: var(--bx-ink-2); font-size: 11px; line-height: 1.6;",
-      text: filled === 4
-        ? "Pull a script to land on Foundations with brand + persona + products already filled in."
-        : "You can build entirely by hand — every step has its own manual entry." }));
-    const manage = el("button", { class: "bx-btn-link", style: "margin-top: 8px; font-size: 11px;",
-      type: "button", text: "Manage keys →" });
-    manage.addEventListener("click", openAubreyKeysModal);
-    card.appendChild(manage);
-    body.appendChild(card);
   }
 
   // ── Connections card on Step 1 ─────────────────────────────
@@ -6604,7 +6620,6 @@
       // Refresh whichever surface might be showing the count
       // (topbar pill, Connect step banner, side panel hint).
       renderTopbar();
-      if (app.state && app.state.step === "connect") renderShell();
     }));
     wrap.appendChild(actions);
     openModal("Aubrey Demo keys", wrap);
@@ -6754,10 +6769,6 @@
           : Promise.resolve("");
         return inlineLogo.then(function (logo) {
           if (logo) s.brand.logoPath = logo;
-          // From the Connect step, advance to Setup so the user
-          // can fill in the few fields Aubrey doesn't know about
-          // (audience, sales stage, presenter, accent color).
-          if (s.step === "connect") s.step = "setup";
           recompute(); renderShell(); commit();
           closeModal();
           toast("Brand imported from Aubrey: " + (b.brand_name || ""));
@@ -6790,7 +6801,7 @@
     if (!creds) return;
     const wrap = el("div");
     wrap.appendChild(el("p", { style: "margin: 0 0 12px; font-size: 13px; color: var(--bx-ink-2);",
-      text: "Pick a brand — its persona will be added to your project (existing personas are kept). The persona portrait will be set on Step 6 if that slot is currently empty." }));
+      text: "Pick a brand — its persona will be added to your project (existing personas are kept). The persona portrait will be set on Step 5 if that slot is currently empty." }));
     const status = el("div", { class: "bx-mt-12" });
     const list = el("div", { class: "bx-list bx-mt-12" });
     list.appendChild(el("div", { class: "bx-empty", text: "Loading brands…" }));
@@ -6939,12 +6950,11 @@
         // since Scriptwriter only carries name + logo, not hexes.
         seedBrandFromScript(sc, creds);
 
-        // If we pulled from Connect (Step 1), advance to the Script
-        // step (Step 2) rather than skipping ahead to Foundations —
-        // the SE lands on the pasted script with the "Parse with
-        // Gemini" option available, so they can choose the grounded
-        // AI parser instead of only the regex extraction that just ran.
-        if (s.step === "connect") s.step = "script";
+        // Land the SE on the Script step so they see the pulled script
+        // with the "Parse with Gemini" option available — they can choose
+        // the grounded AI parser instead of only the regex extraction that
+        // just ran, then continue into Foundations.
+        s.step = "script";
 
         closeModal();
         recompute(); renderShell(); commit();
@@ -7094,7 +7104,7 @@
   function openAubreyCxScenePicker(project, creds) {
     const wrap = el("div");
     wrap.appendChild(el("p", { style: "margin: 0 0 12px; font-size: 13px; color: var(--bx-ink-2);",
-      text: "Pick the scenes you want to import as CX components. The first 'site' scene's hero image will be inlined into Step 6's productHero slot if that slot is empty." }));
+      text: "Pick the scenes you want to import as CX components. The first 'site' scene's hero image will be inlined into Step 5's productHero slot if that slot is empty." }));
     const status = el("div", { class: "bx-mt-12" });
     const list = el("div", { class: "bx-list bx-mt-12" });
     list.appendChild(el("div", { class: "bx-empty", text: "Loading scenes…" }));
