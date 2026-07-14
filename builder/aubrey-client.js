@@ -141,6 +141,42 @@
     return url + sep + "email=" + encodeURIComponent(email);
   }
 
+  // ─── Shared-key proxy fetch (fallback path) ──────────────────
+  // Same-origin GET to /api/aubrey/* — the server holds ONE shared
+  // key per app and injects both the X-API-Key header and the
+  // signed-in user's email (from the verified JWT). The browser sends
+  // neither key nor email; it only carries the salesforce.com bearer
+  // that gates every /api/* route (see server.js). Used when the SE
+  // has NOT set a personal per-device key for that app; personal keys
+  // still go straight to Aubrey via apiGet() above. Never mixes the
+  // two: same shape out (parsed JSON / thrown .error) so callers don't
+  // care which path ran.
+  function authedApiGet(path) {
+    const auth = window.HOLO_AUTH;
+    if (!auth || !auth.authHeaders) {
+      return Promise.reject(new Error("Sign in to pull from Aubrey (no personal API key set)."));
+    }
+    return auth.authHeaders().then(function (headers) {
+      const h = Object.assign({ Accept: "application/json" }, headers || {});
+      if (!h.Authorization) {
+        throw new Error("Sign in to pull from Aubrey (no personal API key set).");
+      }
+      return fetch(path, { headers: h }).then(function (res) {
+        return res.text().then(function (body) {
+          let parsed;
+          try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
+          if (!res.ok) {
+            const msg = (parsed && parsed.error) || ("HTTP " + res.status);
+            throw new Error(msg);
+          }
+          if (parsed && parsed.error) throw new Error(parsed.error);
+          if (!parsed) throw new Error("Unexpected non-JSON response from the Aubrey proxy.");
+          return parsed;
+        });
+      });
+    });
+  }
+
   // ─── DemoForge ───────────────────────────────────────────────
   // /api/brands and /api/brands/{id} both require ?email= in
   // addition to the X-API-Key header (the example as documented
@@ -167,14 +203,16 @@
   // Both list and detail require ?email= alongside the X-API-Key.
   function scriptwriterListScripts(opts) {
     const email = opts && opts.email; const key = opts && opts.key;
-    if (!key) return Promise.reject(new Error("Scriptwriter API key not set"));
+    // No personal key → fall back to the shared server proxy (server
+    // supplies the key + the signed-in email). Personal key → direct.
+    if (!key) return authedApiGet("/api/aubrey/scriptwriter/scripts").then(function (d) { return d.scripts || []; });
     if (!email) return Promise.reject(new Error("Email is required for Scriptwriter"));
     return apiGet(withEmail(SCRIPTWRITER_BASE + "/api/scripts", email), key)
       .then(function (d) { return d.scripts || []; });
   }
   function scriptwriterGetScript(id, opts) {
     const email = opts && opts.email; const key = opts && opts.key;
-    if (!key) return Promise.reject(new Error("Scriptwriter API key not set"));
+    if (!key) return authedApiGet("/api/aubrey/scriptwriter/scripts/" + encodeURIComponent(id)).then(function (d) { return d.script || null; });
     if (!email) return Promise.reject(new Error("Email is required for Scriptwriter"));
     return apiGet(withEmail(SCRIPTWRITER_BASE + "/api/scripts/" + encodeURIComponent(id), email), key)
       .then(function (d) { return d.script || null; });
@@ -185,13 +223,15 @@
   // key alone too (verified during discovery).
   function pocketsicListProjects(opts) {
     const key = opts && opts.key;
-    if (!key) return Promise.reject(new Error("Pocket SIC API key not set"));
+    // No personal key → shared server proxy (server injects the key +
+    // signed-in email). Personal key → direct call as before.
+    if (!key) return authedApiGet("/api/aubrey/pocketsic/projects").then(function (d) { return d.projects || []; });
     return apiGet(POCKETSIC_BASE + "/api/projects", key)
       .then(function (d) { return d.projects || []; });
   }
   function pocketsicGetScenes(projectId, opts) {
     const key = opts && opts.key;
-    if (!key) return Promise.reject(new Error("Pocket SIC API key not set"));
+    if (!key) return authedApiGet("/api/aubrey/pocketsic/projects/" + encodeURIComponent(projectId) + "/scenes").then(function (d) { return d.scenes || []; });
     return apiGet(POCKETSIC_BASE + "/api/projects/" + encodeURIComponent(projectId) + "/scenes", key)
       .then(function (d) { return d.scenes || []; });
   }
@@ -200,6 +240,53 @@
   // CSP frame-ancestors restriction at discovery time.
   function pocketsicSceneUrl(sceneId) {
     return POCKETSIC_BASE + "/scene/" + encodeURIComponent(sceneId);
+  }
+
+  // ─── Brand Kit Builder (proxy-only) ──────────────────────────
+  // Brand Kit has no per-device key path in the UI — it's a new,
+  // shared-key-only integration. Both calls go through the server
+  // proxy, which supplies the key (if any) + the signed-in email.
+  // Pulls fill colors + logo only; fonts are intentionally skipped.
+  function brandkitListItems() {
+    return authedApiGet("/api/aubrey/brandkit/items").then(function (d) { return d.items || []; });
+  }
+  function brandkitGetItem(id) {
+    return authedApiGet("/api/aubrey/brandkit/items/" + encodeURIComponent(id)).then(function (d) { return d.item || null; });
+  }
+  // Normalize a Brand Kit item into the brand fields the builder uses.
+  // Field names are tolerant of a few likely shapes (color_primary vs
+  // primary_color vs primaryColor) since the live response shape is
+  // being finalized. Fonts are deliberately excluded.
+  function brandKitToBrandFields(item) {
+    if (!item) return {};
+    const pick = function () {
+      for (let i = 0; i < arguments.length; i++) {
+        const v = arguments[i];
+        if (v != null && v !== "") return v;
+      }
+      return "";
+    };
+    return {
+      primaryColor:   pick(item.color_primary, item.primary_color, item.primaryColor),
+      secondaryColor: pick(item.color_secondary, item.secondary_color, item.secondaryColor),
+      accentColor:    pick(item.color_accent, item.accent_color, item.accentColor),
+      logoUrl:        pick(item.logo_url, item.logoUrl, item.logo),
+      customerName:   pick(item.brand_name, item.name, item.customerName),
+    };
+  }
+
+  // Server availability probe for the shared-key path — public,
+  // returns { pocketsic, scriptwriter, brandkit } booleans. Cached so
+  // the UI can poll it freely. Never rejects (treats failure as "no
+  // shared path available"). Callers still gate on HOLO_AUTH for auth.
+  let _proxyStatusPromise = null;
+  function proxyStatus() {
+    if (_proxyStatusPromise) return _proxyStatusPromise;
+    _proxyStatusPromise = fetch("/api/aubrey/status", { headers: { Accept: "application/json" } })
+      .then(function (res) { return res.ok ? res.json() : {}; })
+      .then(function (s) { return s || {}; })
+      .catch(function () { return {}; });
+    return _proxyStatusPromise;
   }
 
   // ─── Image inlining ──────────────────────────────────────────
@@ -348,6 +435,12 @@
       getScenes: pocketsicGetScenes,
       sceneUrl: pocketsicSceneUrl,
     },
+    brandkit: {
+      listItems: brandkitListItems,
+      getItem: brandkitGetItem,
+    },
+    brandKitToBrandFields: brandKitToBrandFields,
+    proxyStatus: proxyStatus,
     inlineImageAsDataUrl: inlineImageAsDataUrl,
     renderScriptRows: renderScriptRows,
     sceneToCxComponent: sceneToCxComponent,

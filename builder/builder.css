@@ -1714,6 +1714,11 @@ button { font-family: inherit; }
   color: var(--bx-warn);
   border-color: rgba(196, 126, 26, 0.30);
 }
+.bx-alert.is-ok {
+  background: var(--bx-good-bg);
+  color: var(--bx-good);
+  border-color: rgba(46, 122, 80, 0.30);
+}
 
 /* ════════════════════════════════════════════════════════════════
    ZIP export feature card

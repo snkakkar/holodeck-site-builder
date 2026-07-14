@@ -1119,8 +1119,16 @@
     c3HeadL.appendChild(el("div", { class: "bx-card-title", text: "Brand" }));
     c3HeadL.appendChild(el("div", { class: "bx-card-sub", text: "These flow into the generated config's brand block." }));
     c3Head.appendChild(c3HeadL);
-    c3Head.appendChild(btn("✨ Pull brand from Aubrey", "bx-btn-secondary",
+    const c3HeadR = el("div", { class: "bx-row" });
+    c3HeadR.appendChild(btn("✨ Pull brand from Aubrey", "bx-btn-secondary",
       function () { openAubreyBrandPicker(); }));
+    // Brand Kit Builder is a shared-key-only pull — shown only when the
+    // server has it configured and the SE is signed in (see aubreyStatus).
+    if (aubreySharedAvailable("brandkit")) {
+      c3HeadR.appendChild(btn("✨ Pull brand kit from Aubrey", "bx-btn-secondary",
+        function () { openAubreyBrandKitPicker(); }));
+    }
+    c3Head.appendChild(c3HeadR);
     c3.appendChild(c3Head);
 
     // Branding mode — how the demo reads: pure Salesforce, the customer's
@@ -6406,6 +6414,40 @@
       : {};
   }
 
+  // ── Shared-key proxy availability (fallback path) ──────────
+  // The server can hold ONE shared Aubrey key per app; when an app is
+  // shared-configured, a signed-in SE with no personal key can still
+  // pull (the server injects the key + their email). We cache the last
+  // resolved /api/aubrey/status here so the synchronous ensureAubreyKey
+  // gate can consult it; the first read kicks off the async probe and
+  // re-renders when it lands. Falls back to "nothing shared" until then.
+  let _aubreyStatus = { pocketsic: false, scriptwriter: false, brandkit: false };
+  let _aubreyStatusLoaded = false;
+  let _aubreyStatusPending = false;
+  function aubreyStatus() {
+    if (!_aubreyStatusLoaded && !_aubreyStatusPending && AUBREY && typeof AUBREY.proxyStatus === "function") {
+      _aubreyStatusPending = true;
+      AUBREY.proxyStatus().then(function (s) {
+        _aubreyStatus = {
+          pocketsic:    !!(s && s.pocketsic),
+          scriptwriter: !!(s && s.scriptwriter),
+          brandkit:     !!(s && s.brandkit),
+        };
+        _aubreyStatusLoaded = true;
+        _aubreyStatusPending = false;
+        // Re-render so status-gated UI (Brand Kit button, status lines)
+        // appears once the probe resolves.
+        try { renderShell(); } catch (_) {}
+      });
+    }
+    return _aubreyStatus;
+  }
+  // True when the SE could pull `which` via the shared proxy right now:
+  // signed in AND that app is shared-configured on the server.
+  function aubreySharedAvailable(which) {
+    return !!(AUTH && AUTH.isAuthed && AUTH.isAuthed() && aubreyStatus()[which]);
+  }
+
   // ── Connections card on Step 1 ─────────────────────────────
   // mode:
   //   "inline" — used inside Step 1 Connect view (legacy callsite,
@@ -6460,6 +6502,23 @@
     }));
     card.appendChild(grid);
 
+    // Shared-key status. When the server holds a shared key for an app,
+    // a signed-in SE can pull WITHOUT setting their own key here — the
+    // server acts on behalf of their signed-in email. This is a
+    // fallback; a personal key above still takes precedence.
+    const st = aubreyStatus();
+    const signedIn = !!(AUTH && AUTH.isAuthed && AUTH.isAuthed());
+    const sharedApps = [];
+    if (st.scriptwriter) sharedApps.push("Scriptwriter");
+    if (st.pocketsic)    sharedApps.push("Pocket SIC");
+    if (st.brandkit)     sharedApps.push("Brand Kit");
+    if (sharedApps.length) {
+      card.appendChild(el("div", { class: "bx-alert bx-mt-12" + (signedIn ? " is-ok" : ""),
+        text: signedIn
+          ? "Shared key available for " + sharedApps.join(", ") + " — you can pull these without your own key, using your signed-in email."
+          : "A shared key is available for " + sharedApps.join(", ") + " — sign in to pull these without your own key." }));
+    }
+
     if (mode === "modal") {
       // Test-connections strip — fires one read against each
       // configured API and shows a coloured pill per row.
@@ -6473,6 +6532,8 @@
       testResults.appendChild(connectionTestPill("demoforge",   "DemoForge",   "idle"));
       testResults.appendChild(connectionTestPill("scriptwriter","Scriptwriter","idle"));
       testResults.appendChild(connectionTestPill("pocketsic",   "Pocket SIC",  "idle"));
+      // Brand Kit is proxy-only — tested via the shared server key.
+      testResults.appendChild(connectionTestPill("brandkit",    "Brand Kit",   "idle"));
       testWrap.appendChild(testResults);
       card.appendChild(testWrap);
     }
@@ -6577,7 +6638,7 @@
   function setConnectionTestPill(container, name, state, msg) {
     const old = container.querySelector('[data-aubrey-test="' + name + '"]');
     if (!old) return;
-    const labelMap = { demoforge: "DemoForge", scriptwriter: "Scriptwriter", pocketsic: "Pocket SIC" };
+    const labelMap = { demoforge: "DemoForge", scriptwriter: "Scriptwriter", pocketsic: "Pocket SIC", brandkit: "Brand Kit" };
     const fresh = connectionTestPill(name, labelMap[name], state);
     if (state === "fail" && msg) fresh.textContent = labelMap[name] + " ✗ " + msg;
     old.parentNode.replaceChild(fresh, old);
@@ -6585,10 +6646,10 @@
   function runConnectionTests(container) {
     const c = getAubreyGlobalKeys();
     // Reset pills to "testing"
-    ["demoforge","scriptwriter","pocketsic"].forEach(function (n) {
+    ["demoforge","scriptwriter","pocketsic","brandkit"].forEach(function (n) {
       setConnectionTestPill(container, n, "idle");
       const old = container.querySelector('[data-aubrey-test="' + n + '"]');
-      if (old) old.textContent = ({demoforge:"DemoForge",scriptwriter:"Scriptwriter",pocketsic:"Pocket SIC"})[n] + " · testing…";
+      if (old) old.textContent = ({demoforge:"DemoForge",scriptwriter:"Scriptwriter",pocketsic:"Pocket SIC",brandkit:"Brand Kit"})[n] + " · testing…";
     });
 
     // DemoForge
@@ -6608,6 +6669,13 @@
     else AUBREY.pocketsic.listProjects({ key: c.pocketsicKey })
       .then(function () { setConnectionTestPill(container, "pocketsic", "ok"); })
       .catch(function (e) { setConnectionTestPill(container, "pocketsic", "fail", e.message); });
+
+    // Brand Kit — proxy-only (no personal key). Tests the shared server
+    // path, which needs the SE signed in and the server configured.
+    if (!aubreySharedAvailable("brandkit")) setConnectionTestPill(container, "brandkit", "skipped");
+    else AUBREY.brandkit.listItems()
+      .then(function () { setConnectionTestPill(container, "brandkit", "ok"); })
+      .catch(function (e) { setConnectionTestPill(container, "brandkit", "fail", e.message); });
   }
 
   // The canonical credentials modal — accessible from the topbar
@@ -6686,12 +6754,23 @@
     const hasRequired = (AUBREY && AUBREY.globalKeys && typeof AUBREY.globalKeys.hasRequired === "function")
       ? AUBREY.globalKeys.hasRequired(which)
       : (!!c[need.key] && (!need.needsEmail || !!c.email));
-    if (!hasRequired && !c[need.key]) {
+    if (hasRequired) return c;
+
+    // No complete personal-key setup. For the apps that have a shared
+    // server-side key (pocketsic / scriptwriter), a signed-in SE can
+    // still pull via the proxy — return the creds as-is (empty key),
+    // which routes the client method through /api/aubrey/*. DemoForge
+    // has no proxy path, so it keeps the original bail behavior.
+    if ((which === "pocketsic" || which === "scriptwriter") && aubreySharedAvailable(which)) {
+      return c;
+    }
+
+    if (!c[need.key]) {
       toast("Add your " + need.label + " API key under Setup → Aubrey Demo connections");
       app.state.step = "setup"; renderShell();
       return null;
     }
-    if (!hasRequired && need.needsEmail && !c.email) {
+    if (need.needsEmail && !c.email) {
       toast("Add your email under Setup → Aubrey Demo connections (required by " + need.label + ")");
       app.state.step = "setup"; renderShell();
       return null;
@@ -6779,6 +6858,86 @@
         toast("Couldn't import brand: " + e.message);
       });
   }
+
+  // ── Brand Kit picker (Brand Kit Builder — proxy-only) ──────
+  // New, shared-key-only integration: no per-device key. Requires the
+  // SE to be signed in (the server injects the shared key + their
+  // email). Pulls fill colors + logo only — fonts are skipped.
+  function openAubreyBrandKitPicker() {
+    if (!aubreySharedAvailable("brandkit")) {
+      toast("Brand Kit isn't available — sign in with your salesforce.com account.");
+      return;
+    }
+    const wrap = el("div");
+    wrap.appendChild(el("p", { style: "margin: 0 0 12px; font-size: 13px; color: var(--bx-ink-2);",
+      text: "Pick a brand kit. Primary, secondary + accent color and the logo will be filled in for the current customer. Existing values get overwritten." }));
+    const status = el("div", { class: "bx-mt-12" });
+    const list = el("div", { class: "bx-list bx-mt-12" });
+    list.appendChild(el("div", { class: "bx-empty", text: "Loading brand kits…" }));
+    wrap.appendChild(status); wrap.appendChild(list);
+    const actions = el("div", { class: "bx-modal-actions" });
+    actions.appendChild(btn("Cancel", "bx-btn-secondary", closeModal));
+    wrap.appendChild(actions);
+    openModal("Pull brand kit from Aubrey", wrap);
+
+    AUBREY.brandkit.listItems()
+      .then(function (items) {
+        list.innerHTML = "";
+        if (!items.length) {
+          list.appendChild(el("div", { class: "bx-empty", text: "No brand kits found for this account." }));
+          return;
+        }
+        items.forEach(function (it) { list.appendChild(brandKitRow(it)); });
+      })
+      .catch(function (e) {
+        list.innerHTML = "";
+        status.appendChild(el("div", { class: "bx-alert is-error", text: "Brand Kit: " + e.message }));
+      });
+  }
+  function brandKitRow(it) {
+    const fields = AUBREY.brandKitToBrandFields(it);
+    const item = el("div", { class: "bx-item" });
+    item.appendChild(el("div", { class: "bx-item-head" }, [
+      el("div", { class: "bx-item-handle", text: fields.customerName || it.name || ("Brand kit " + it.id) }),
+      el("div", { class: "bx-item-actions" }, [
+        btn("Use this brand kit", "bx-btn-primary", function () {
+          importBrandKitFromAubrey(it.id);
+        }),
+      ]),
+    ]));
+    const swatches = [fields.primaryColor, fields.secondaryColor, fields.accentColor].filter(Boolean);
+    if (swatches.length) {
+      item.appendChild(el("div", { class: "bx-help", text: "Colors: " + swatches.join(" · ") }));
+    }
+    return item;
+  }
+  function importBrandKitFromAubrey(itemId) {
+    const s = app.state;
+    toast("Loading brand kit from Aubrey…");
+    AUBREY.brandkit.getItem(itemId)
+      .then(function (item) {
+        if (!item) throw new Error("Brand kit not found");
+        const f = AUBREY.brandKitToBrandFields(item);
+        if (f.customerName)   s.project.customerName = f.customerName;
+        if (f.primaryColor)   s.brand.primaryColor   = f.primaryColor;
+        if (f.secondaryColor) s.brand.secondaryColor = f.secondaryColor;
+        if (f.accentColor)    s.brand.accentColor    = f.accentColor;
+        const logoUrl = f.logoUrl;
+        const inlineLogo = logoUrl
+          ? AUBREY.inlineImageAsDataUrl(logoUrl).catch(function () { return logoUrl; })
+          : Promise.resolve("");
+        return inlineLogo.then(function (logo) {
+          if (logo) s.brand.logoPath = logo;
+          recompute(); renderShell(); commit();
+          closeModal();
+          toast("Brand kit imported from Aubrey" + (f.customerName ? ": " + f.customerName : ""));
+        });
+      })
+      .catch(function (e) {
+        toast("Couldn't import brand kit: " + e.message);
+      });
+  }
+
   // The TONES dropdown only allows a fixed set — Aubrey returns
   // freeform paragraphs, so we softly snap to the closest option
   // by keyword and fall back to leaving it empty.

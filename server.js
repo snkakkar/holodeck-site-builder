@@ -40,9 +40,28 @@ app.use(
 // shared project JSON (mirroring why Aubrey keys are kept out of
 // project state — see aubrey-client.js).
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const GEMINI_TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
-const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+const GEMINI_TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-3.5-flash";
+const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-3-pro-image";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+// ── Aubrey Demo: shared-key proxy config ───────────────────────
+// The Aubrey ecosystem (PocketSIC / Scriptwriter / Brand Kit Builder)
+// can be reached with ONE shared API key per app held server-side.
+// The browser never sees the key — the builder calls /api/aubrey/*
+// and we forward to Aubrey with the key attached and the signed-in
+// user's email (from the verified JWT) as ?email=. "The key owner
+// acts on behalf of the email user." This is a FALLBACK path: SEs
+// who set their own per-device key in the UI still call Aubrey
+// directly (see aubrey-client.js); the proxy only serves the keyless
+// case. Each app's key is optional — if unset, its routes 503 and
+// the UI simply doesn't offer the shared path (see /api/aubrey/status).
+// Bases are hardcoded from env (SSRF-safe: the client never supplies
+// a host/URL, only ids that go into fixed path templates).
+const AUBREY = {
+  pocketsic:    { key: process.env.AUBREY_POCKETSIC_KEY    || "", base: process.env.AUBREY_POCKETSIC_BASE    || "https://pocketsic.aubreydemo.com" },
+  scriptwriter: { key: process.env.AUBREY_SCRIPTWRITER_KEY || "", base: process.env.AUBREY_SCRIPTWRITER_BASE || "https://scriptwriter.aubreydemo.com" },
+  brandkit:     { key: process.env.AUBREY_BRANDKIT_KEY     || "", base: process.env.AUBREY_BRANDKIT_BASE     || "https://brandkit.aubreydemo.com" },
+};
 
 // ── API authentication ─────────────────────────────────────────
 // The billable/proxy /api routes (Gemini generation, logo fetch,
@@ -285,9 +304,16 @@ app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, async (req, res
   }
   // Opt-in latency controls (only applied when the caller asks). For a
   // mechanical JSON extraction these cut a lot of wall-clock:
-  //  • fast → disable the 2.5-flash "thinking" pass (the big win)
+  //  • fast → minimize the model's "thinking" pass (the big win)
   //  • temperature / maxOutputTokens → deterministic, bounded output
-  if (body.fast === true) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  // Gemini 3.x uses thinkingConfig.thinkingLevel (thinkingBudget is rejected);
+  // 2.5 uses thinkingConfig.thinkingBudget (0 disables). "minimal" is the
+  // closest Gemini 3 gets to off — thinking can't be fully disabled there.
+  if (body.fast === true) {
+    generationConfig.thinkingConfig = /gemini-3/.test(model)
+      ? { thinkingLevel: "minimal" }
+      : { thinkingBudget: 0 };
+  }
   if (typeof body.temperature === "number") generationConfig.temperature = body.temperature;
   if (typeof body.maxOutputTokens === "number") generationConfig.maxOutputTokens = body.maxOutputTokens;
 
@@ -388,8 +414,12 @@ app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, async (re
   }
   const model = typeof body.model === "string" && body.model ? body.model : GEMINI_IMAGE_MODEL;
 
+  // Gemini 3 image models (gemini-3-pro-image) require responseModalities to
+  // emit an image; 2.5-flash-image emitted implicitly, and the field is a
+  // harmless no-op there — so we always send it for forward-compat.
   const payload = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
   };
 
   const { finish } = beginNdjson(res);
@@ -561,6 +591,72 @@ app.get("/api/asset/proxy", requireHolodeckAuth, async (req, res) => {
     return res.status(502).json({ error: "failed to fetch asset" });
   }
 });
+
+// ── Aubrey Demo: shared-key proxy ──────────────────────────────
+// Availability probe — public (returns only booleans, polled before
+// auth is warm to decide whether to reveal the shared-key path and
+// the Brand Kit button). Mirrors /api/gemini/status.
+app.get("/api/aubrey/status", (_req, res) => {
+  res.json({
+    pocketsic:    Boolean(AUBREY.pocketsic.key),
+    scriptwriter: Boolean(AUBREY.scriptwriter.key),
+    // Brand Kit currently needs no key; it's "configured" as long as
+    // we have a base to reach. If a key is later required, set
+    // AUBREY_BRANDKIT_KEY and this still holds.
+    brandkit:     Boolean(AUBREY.brandkit.base),
+  });
+});
+
+// Generic GET forwarder. `appKey` selects the AUBREY config entry;
+// `upstreamPath` is a fixed template with ids already encoded by the
+// caller. Always appends the server-verified email as ?email=. Buffers
+// and returns the upstream JSON, surfacing its own .error text.
+async function aubreyProxyGet(res, appKey, upstreamPath, email) {
+  const cfg = AUBREY[appKey];
+  if (!cfg || !cfg.base) {
+    return res.status(503).json({ error: `Aubrey ${appKey} is not configured on the server.` });
+  }
+  // Brand Kit may need no key; the others must have one to proxy.
+  if (appKey !== "brandkit" && !cfg.key) {
+    return res.status(503).json({ error: `Aubrey ${appKey} is not configured on the server (key unset).` });
+  }
+  let url = cfg.base + upstreamPath;
+  if (email) url += (url.indexOf("?") >= 0 ? "&" : "?") + "email=" + encodeURIComponent(email);
+  const headers = {};
+  if (cfg.key) headers["X-API-Key"] = cfg.key;
+  try {
+    const upstream = await fetch(url, { headers, redirect: "follow" });
+    const body = await upstream.text();
+    let parsed = null;
+    try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
+    if (!upstream.ok) {
+      const msg = (parsed && parsed.error) || ("HTTP " + upstream.status);
+      return res.status(upstream.status).json({ error: msg });
+    }
+    if (parsed && parsed.error) return res.status(502).json({ error: parsed.error });
+    if (parsed == null) return res.status(502).json({ error: "Unexpected non-JSON response from Aubrey." });
+    return res.json(parsed);
+  } catch (_) {
+    return res.status(502).json({ error: `Could not reach Aubrey ${appKey}.` });
+  }
+}
+
+// Six read-only routes, all gated by the same salesforce.com JWT and
+// rate limit as the Gemini proxy. The email is ALWAYS req.holoUser.email
+// (server-verified) — no client-supplied email is read, so it can't be
+// spoofed. Ids arrive only as path params and are encodeURIComponent'd.
+app.get("/api/aubrey/pocketsic/projects", requireHolodeckAuth, rateLimit, (req, res) =>
+  aubreyProxyGet(res, "pocketsic", "/api/projects", req.holoUser.email));
+app.get("/api/aubrey/pocketsic/projects/:id/scenes", requireHolodeckAuth, rateLimit, (req, res) =>
+  aubreyProxyGet(res, "pocketsic", "/api/projects/" + encodeURIComponent(req.params.id) + "/scenes", req.holoUser.email));
+app.get("/api/aubrey/scriptwriter/scripts", requireHolodeckAuth, rateLimit, (req, res) =>
+  aubreyProxyGet(res, "scriptwriter", "/api/scripts", req.holoUser.email));
+app.get("/api/aubrey/scriptwriter/scripts/:id", requireHolodeckAuth, rateLimit, (req, res) =>
+  aubreyProxyGet(res, "scriptwriter", "/api/scripts/" + encodeURIComponent(req.params.id), req.holoUser.email));
+app.get("/api/aubrey/brandkit/items", requireHolodeckAuth, rateLimit, (req, res) =>
+  aubreyProxyGet(res, "brandkit", "/api/items", req.holoUser.email));
+app.get("/api/aubrey/brandkit/items/:id", requireHolodeckAuth, rateLimit, (req, res) =>
+  aubreyProxyGet(res, "brandkit", "/api/items/" + encodeURIComponent(req.params.id), req.holoUser.email));
 
 // ── Backend endpoint config for the browser ───────────────────
 // The frontend reads window.HOLO_ENV to learn where the Data API and
