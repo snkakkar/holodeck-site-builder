@@ -49,11 +49,42 @@ function validateEnv() {
     // minted without a `role` claim → PostgREST rejects them as
     // anonymous → every authenticated /rest/v1 call 401s.
     let role = "";
-    try { role = decodeURIComponent(new URL(dbUri).username || ""); } catch (_) {}
+    let host = "";
+    try {
+      const u = new URL(dbUri);
+      role = decodeURIComponent(u.username || "");
+      host = (u.hostname || "").toLowerCase();
+    } catch (_) {}
     if (!role && !process.env.PGRST_DB_ROLE) {
       problems.push(
         "DATABASE_URL has no role (e.g. postgresql://USER@host/db) and PGRST_DB_ROLE is unset — " +
         "PostgREST would reject every token as anonymous. Add the DB login role."
+      );
+    }
+    // ── DATA STORE INVARIANT: Heroku Postgres is the ONE data store. ──
+    // Neon is auth-only (NEON_AUTH_BASE / NEON_JWKS_URL). The project data
+    // (projects, project_shares, profiles, …) lives in Heroku Postgres. Once
+    // a Neon connection string leaked into DATABASE_URL and the live app
+    // silently read/wrote the WRONG database — reads returned nothing (data
+    // sat in the other DB), writes stranded work, and it took a full
+    // forensic migration to untangle. Never again: if this is a deployed
+    // dyno (or strict mode is requested) and DATABASE_URL points at a Neon
+    // host, refuse to boot rather than serve against the wrong data store.
+    const isNeonHost = /neon\.tech$/.test(host) || /\.neon\./.test(host) || /neondb/.test(dbUri.toLowerCase());
+    const onDyno = !!process.env.DYNO; // Heroku sets DYNO on every dyno
+    const strict = process.env.HOLO_REQUIRE_HEROKU_PG === "1" || onDyno;
+    if (isNeonHost && strict) {
+      problems.push(
+        "DATABASE_URL points at a Neon host (" + host + "), but Heroku Postgres is the required " +
+        "data store. Neon is auth-ONLY (NEON_AUTH_BASE / NEON_JWKS_URL). Set DATABASE_URL to the " +
+        "Heroku Postgres connection string (heroku config:get DATABASE_URL) — refusing to start " +
+        "against the wrong database."
+      );
+    } else if (isNeonHost) {
+      console.warn(
+        "[supervisor] WARNING: DATABASE_URL points at a Neon host (" + host + "). Heroku Postgres is " +
+        "the intended data store (Neon is auth-only). Allowed for local dev; set HOLO_REQUIRE_HEROKU_PG=1 " +
+        "to make this fatal."
       );
     }
   }

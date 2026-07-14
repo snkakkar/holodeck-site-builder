@@ -32,6 +32,7 @@
   const KEY_PREFIX  = "holodeck.project.";
   const KEY_DIRTY   = "holodeck.dirty";
   const KEY_DIRTY_OWNER = "holodeck.dirty.owner"; // { [id]: ownerId } — who owns each dirty row
+  const KEY_HIDDEN  = "holodeck.hidden"; // [id,…] — suppressed from My Projects (body kept, never deleted)
   const KEY_MIGRATED = "holodeck.migrated.";
   const KEY_ONBOARD = "holo.onboarding.v1";
   const LEGACY_KEY  = "holodeckBuilder.state.v1";
@@ -116,6 +117,21 @@
     const owner = dirtyOwner(id);
     const me = currentUserId();
     return !owner || !me || owner === me;
+  }
+
+  // ─── Hidden set (suppress from "My Projects" WITHOUT deleting the body) ──
+  // A row is hidden when a SUCCESSFUL server check proves it's foreign / not
+  // ours to own. We never delete the cached body — a once-shared project (e.g.
+  // opened via a share that was later removed) stays readable under "Shared
+  // with me", and nothing is ever destroyed on a timeout/offline response.
+  function getHidden() { return readJSON(KEY_HIDDEN, []) || []; }
+  function isHidden(id) { return getHidden().indexOf(id) >= 0; }
+  function hide(id) {
+    const h = getHidden();
+    if (h.indexOf(id) === -1) { h.push(id); writeJSON(KEY_HIDDEN, h); }
+  }
+  function unhide(id) {
+    writeJSON(KEY_HIDDEN, getHidden().filter(function (x) { return x !== id; }));
   }
 
   // Merge any locally-known dirty projects (saved here but never confirmed by
@@ -866,44 +882,49 @@
   // A row's ownerId (on its index summary and cached body) is the strongest
   // signal: server-loaded rows carry the real owner_id (rowToState), and
   // cacheWrite stamps new local rows with the creator. If that ownerId is set
-  // and ≠ me, the row is PROVABLY FOREIGN — evict it regardless of dirty state.
-  // This closes the legacy hole where a row cached/dirtied before owner-tagging
-  // existed (untagged dirty entry) was treated as "mine" and never purged.
+  // and ≠ me, the row is PROVABLY FOREIGN.
   function provablyForeign(summary) {
     const me = currentUserId();
     return !!(summary && summary.ownerId && me && summary.ownerId !== me);
   }
+  // Reconcile HIDES foreign / stranded rows from "My Projects" — it NEVER
+  // deletes a cached body. A once-shared project whose share was later removed
+  // stays readable under "Shared with me"; a provably-foreign leak (another
+  // account's private row cached on this device) is merely suppressed from my
+  // owned list. Everything here keys off a SUCCESSFUL server response — on a
+  // timeout / offline / empty-error the .catch() below no-ops, so a transient
+  // outage can never hide legitimate work.
   function reconcileOwnership() {
     const me = currentUserId();
     if (!me || !online()) return Promise.resolve(0);
     return NeonBackend.listProjects().then(function (serverSummaries) {
-      // listProjects already setIndex(merged) — merged = server rows + my dirty
-      // rows. Re-read and strip any foreign leftover the merge didn't own.
+      // Guard: only trust a response that actually came back as an array.
+      if (!Array.isArray(serverSummaries)) return 0;
       const onServer = {};
-      (serverSummaries || []).forEach(function (s) { onServer[s.id] = true; });
+      serverSummaries.forEach(function (s) { onServer[s.id] = true; });
       const dirtyIds = getDirty();
-      let removed = 0;
-      const kept = getIndex().filter(function (p) {
-        // Provably foreign (real owner_id ≠ me) — evict even if on server or
-        // dirty. RLS can't return another user's private row to me, so if it's
-        // here it leaked from a prior account on this device.
-        if (provablyForeign(p)) {
-          removed++; remove(KEY_PREFIX + p.id); clearDirty(p.id); return false;
+      let hidden = 0;
+      getIndex().forEach(function (p) {
+        if (onServer[p.id]) { if (isHidden(p.id)) unhide(p.id); return; } // mine on server — ensure visible
+        // My unsynced work (dirty & mine) — always keep visible so a
+        // save-in-flight or offline edit isn't hidden out from under me.
+        if (dirtyIds.indexOf(p.id) >= 0 && dirtyOwnedByCurrent(p.id) && !bodyIsForeign(p.id)) {
+          if (isHidden(p.id)) unhide(p.id);
+          return;
         }
-        if (onServer[p.id]) return true;                       // mine, on server — keep
-        // Off-server dirty row: keep only if it's provably or plausibly mine
-        // (owner tag = me, or untagged/legacy with no foreign body ownerId).
-        if (dirtyIds.indexOf(p.id) >= 0 && dirtyOwnedByCurrent(p.id) && !bodyIsForeign(p.id)) return true;
-        // Anything else is an off-server, non-dirty (or foreign) row. By login
-        // time, migrateLocalToAccount has already pushed my genuine local
-        // projects to the server (so they'd be on the server list or in my
-        // dirty queue), so a leftover here is stale or belongs to another
-        // account on this shared device. Drop it (body + index) so it can't
-        // show under "My Projects".
-        removed++; remove(KEY_PREFIX + p.id); clearDirty(p.id); return false;
+        // Provably foreign (real owner_id ≠ me): another account's row cached on
+        // this device. Hide from My Projects — but keep the body (it may be a
+        // legitimately-received share, surfaced separately under Shared-with-me).
+        if (provablyForeign(p) || bodyIsForeign(p.id)) {
+          if (!isHidden(p.id)) { hide(p.id); hidden++; }
+          return;
+        }
+        // Off-server, non-dirty, no ownerId at all (legacy/untagged phantom that
+        // migrateLocalToAccount didn't push and the server doesn't return). Hide
+        // it from My Projects; body is retained so nothing is lost.
+        if (!isHidden(p.id)) { hide(p.id); hidden++; }
       });
-      if (removed) setIndex(kept);
-      return removed;
+      return hidden;
     }).catch(function () { return 0; });
   }
   // True when a cached body carries a foreign ownerId (set and ≠ me). Consulted
