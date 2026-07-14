@@ -135,6 +135,11 @@
       if (!dirtyOwnedByCurrent(id)) return;     // another account's dirty row — never leak it here
       const state = readJSON(KEY_PREFIX + id, null);
       if (!state) return;                       // dirty body gone (e.g. deleted) — skip
+      // Provably foreign body (real owner_id set and ≠ me) — never re-inject,
+      // even if the dirty entry is untagged/legacy. Guards the same leak the
+      // login reconcile evicts, but before reconcile has a chance to run.
+      const me = currentUserId();
+      if (state.ownerId && me && state.ownerId !== me) return;
       state.id = id;
       extras.push(summaryFromState(state));
     });
@@ -853,10 +858,21 @@
   // to the first boot). Fetches the authoritative server list for the current
   // user, then evicts from the local index any row that:
   //   • is owned by a DIFFERENT account (ownerId set and ≠ me), OR
-  //   • isn't returned by the server AND isn't a dirty row owned by me.
+  //   • isn't returned by the server AND isn't a dirty row PROVABLY owned by me.
   // Rows the server returned are kept (they're mine). Genuinely dirty rows
   // owned by the current user are ALWAYS preserved so unsynced work survives.
   // Offline → no-op (can't reconcile without the server truth).
+  //
+  // A row's ownerId (on its index summary and cached body) is the strongest
+  // signal: server-loaded rows carry the real owner_id (rowToState), and
+  // cacheWrite stamps new local rows with the creator. If that ownerId is set
+  // and ≠ me, the row is PROVABLY FOREIGN — evict it regardless of dirty state.
+  // This closes the legacy hole where a row cached/dirtied before owner-tagging
+  // existed (untagged dirty entry) was treated as "mine" and never purged.
+  function provablyForeign(summary) {
+    const me = currentUserId();
+    return !!(summary && summary.ownerId && me && summary.ownerId !== me);
+  }
   function reconcileOwnership() {
     const me = currentUserId();
     if (!me || !online()) return Promise.resolve(0);
@@ -868,18 +884,35 @@
       const dirtyIds = getDirty();
       let removed = 0;
       const kept = getIndex().filter(function (p) {
+        // Provably foreign (real owner_id ≠ me) — evict even if on server or
+        // dirty. RLS can't return another user's private row to me, so if it's
+        // here it leaked from a prior account on this device.
+        if (provablyForeign(p)) {
+          removed++; remove(KEY_PREFIX + p.id); clearDirty(p.id); return false;
+        }
         if (onServer[p.id]) return true;                       // mine, on server — keep
-        if (dirtyIds.indexOf(p.id) >= 0 && dirtyOwnedByCurrent(p.id)) return true; // my unsynced work — keep
-        // Anything else is an off-server, non-dirty row. By login time,
-        // migrateLocalToAccount has already pushed my genuine local projects to
-        // the server (so they'd be on the server list or in my dirty queue), so
-        // a leftover here is stale or belongs to another account on this shared
-        // device. Drop it (body + index) so it can't show under "My Projects".
-        removed++; remove(KEY_PREFIX + p.id); return false;
+        // Off-server dirty row: keep only if it's provably or plausibly mine
+        // (owner tag = me, or untagged/legacy with no foreign body ownerId).
+        if (dirtyIds.indexOf(p.id) >= 0 && dirtyOwnedByCurrent(p.id) && !bodyIsForeign(p.id)) return true;
+        // Anything else is an off-server, non-dirty (or foreign) row. By login
+        // time, migrateLocalToAccount has already pushed my genuine local
+        // projects to the server (so they'd be on the server list or in my
+        // dirty queue), so a leftover here is stale or belongs to another
+        // account on this shared device. Drop it (body + index) so it can't
+        // show under "My Projects".
+        removed++; remove(KEY_PREFIX + p.id); clearDirty(p.id); return false;
       });
       if (removed) setIndex(kept);
       return removed;
     }).catch(function () { return 0; });
+  }
+  // True when a cached body carries a foreign ownerId (set and ≠ me). Consulted
+  // for untagged dirty rows whose index summary lacks an ownerId but whose
+  // server-loaded body recorded the real owner (e.g. a teammate's private row).
+  function bodyIsForeign(id) {
+    const me = currentUserId();
+    const body = readJSON(KEY_PREFIX + id, null);
+    return !!(body && body.ownerId && me && body.ownerId !== me);
   }
 
   // Clear server-sourced cached rows on sign-out (shared-machine safety).
