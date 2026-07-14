@@ -481,7 +481,9 @@
       // RLS is the real gate; this only hides a button that would 403.
       if (isActiveProjectMine() && window.HOLO_SHARE) {
         right.appendChild(actionBtn("Share", "bx-btn-ghost", function () {
-          window.HOLO_SHARE.open(app.state.id, app.state.name || "Untitled project");
+          // Pass the known visibility so the gallery toggle is live immediately
+          // (no disabled-until-lazy-load delay).
+          window.HOLO_SHARE.open(app.state.id, app.state.name || "Untitled project", app.state.visibility);
         }));
       }
       right.appendChild(actionBtn("Import", "bx-btn-ghost", function () { openImportModal(app.state.id); }));
@@ -5061,10 +5063,14 @@
     });
     s.recommendations = manifestRecs.concat(demoRules);
     s.recommendations.forEach(function (r) {
-      // Synthetic slides default ON (everything generated is selected);
-      // demo recommendations keep the priority>=80 auto-select heuristic.
+      // Synthetic slides default ON (everything generated is selected), except
+      // those flagged defaultOff (e.g. Business Value bv-1..bv-4 — the section
+      // leads with just the Closing Quote), which seed OFF but stay toggleable;
+      // demo recommendations keep the priority>=80 auto-select heuristic. Only
+      // seed when the SE hasn't chosen yet (id absent) — never override a choice.
       if (s.selectedRecIds[r.id] == null) {
-        if (r.synthetic || r.priority >= 80) s.selectedRecIds[r.id] = true;
+        if (r.defaultOff) s.selectedRecIds[r.id] = false;
+        else if (r.synthetic || r.priority >= 80) s.selectedRecIds[r.id] = true;
       }
       r.selected = !!s.selectedRecIds[r.id];
     });
@@ -7452,6 +7458,11 @@
       .then(function () { return STORE.migrateLegacyIfPresent(); })
       .then(function () { return STORE.migrateLocalToAccount(); })
       .then(function () { return STORE.flushDirty(); })
+      // Evict any rows cached under a DIFFERENT account on this device so they
+      // never appear under this user's "My Projects" (shared-device leak guard).
+      // Runs on every sign-in; best-effort so it never blocks the boot chain.
+      .then(function () { return (STORE.reconcileOwnership ? STORE.reconcileOwnership() : null); })
+      .catch(function () { /* reconcile is best-effort */ })
       .then(function () { goHome(); });
   }
 

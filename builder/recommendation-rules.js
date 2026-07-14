@@ -1077,7 +1077,15 @@
     "_rt_intro_hero": 1, "_rt_intro_hook": 1,
     "_rt_journey_matrix": 1,
     "_rt_persona_intro": 1, "_rt_persona_card": 1,
-    "_rt_bv_scorecard": 1, "_rt_bv_closing": 1,
+    "_rt_bv_closing": 1,
+  };
+
+  // Synthetic manifest slides that ship OFF by default (still fully visible and
+  // re-selectable in the Step-5 selector). The Business Value section leads with
+  // just the Closing Quote (bv-5); the opener/orbit/capabilities/scorecard slides
+  // are opt-in. recompute() seeds these to false when the SE hasn't chosen yet.
+  const MANIFEST_DEFAULT_OFF = {
+    "_rt_bv_opener": 1, "_rt_bv_orbit": 1, "_rt_bv_caps": 1, "_rt_bv_scorecard": 1,
   };
 
   // Turn the synthetic manifest slides (everything except the demo section)
@@ -1098,6 +1106,7 @@
       })
       .map(function (sl) {
         const required = !!MANIFEST_REQUIRED[sl.id];
+        const defaultOff = !!MANIFEST_DEFAULT_OFF[sl.id];
         return {
           id: sl.id,
           title: sl.title || sl.layout,
@@ -1105,12 +1114,15 @@
           layout: sl.layout,
           sectionId: sl.sectionId,
           selectionStatus: required ? "required" : "recommended",
+          defaultOff: defaultOff,
           audienceTags: [],
           capabilities: [],
           priority: 100,
           rationale: required
             ? "Core slide for this section — kept by default."
-            : "Rendered by the polished template; on by default, safe to trim.",
+            : defaultOff
+              ? "Rendered by the polished template; off by default, turn on to include."
+              : "Rendered by the polished template; on by default, safe to trim.",
           sourceSignals: [],
           missingInputs: [],
           synthetic: true,

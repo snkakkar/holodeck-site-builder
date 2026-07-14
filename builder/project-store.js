@@ -31,6 +31,7 @@
   const KEY_ACTIVE  = "holodeck.activeProjectId";
   const KEY_PREFIX  = "holodeck.project.";
   const KEY_DIRTY   = "holodeck.dirty";
+  const KEY_DIRTY_OWNER = "holodeck.dirty.owner"; // { [id]: ownerId } — who owns each dirty row
   const KEY_MIGRATED = "holodeck.migrated.";
   const KEY_ONBOARD = "holo.onboarding.v1";
   const LEGACY_KEY  = "holodeckBuilder.state.v1";
@@ -88,9 +89,33 @@
   function markDirty(id) {
     const d = getDirty();
     if (d.indexOf(id) === -1) { d.push(id); writeJSON(KEY_DIRTY, d); }
+    // Remember who owns this dirty row so a different account signing in on the
+    // same device never re-injects it (mergeDirtyIntoSummaries) or is blocked
+    // from evicting it (login reconcile). Owner = whoever is signed in now.
+    const me = currentUserId();
+    if (me) {
+      const owners = readJSON(KEY_DIRTY_OWNER, {}) || {};
+      owners[id] = me;
+      writeJSON(KEY_DIRTY_OWNER, owners);
+    }
   }
   function clearDirty(id) {
     writeJSON(KEY_DIRTY, getDirty().filter(function (x) { return x !== id; }));
+    const owners = readJSON(KEY_DIRTY_OWNER, {}) || {};
+    if (id in owners) { delete owners[id]; writeJSON(KEY_DIRTY_OWNER, owners); }
+  }
+  // Owner recorded for a dirty row (null if unknown — legacy dirty entries
+  // written before owner-tagging, treated as "belongs to whoever is here").
+  function dirtyOwner(id) {
+    const owners = readJSON(KEY_DIRTY_OWNER, {}) || {};
+    return owners[id] || null;
+  }
+  // Is this dirty row safe to keep/act on for the current user? True when the
+  // owner is unknown (legacy) or matches the signed-in user.
+  function dirtyOwnedByCurrent(id) {
+    const owner = dirtyOwner(id);
+    const me = currentUserId();
+    return !owner || !me || owner === me;
   }
 
   // Merge any locally-known dirty projects (saved here but never confirmed by
@@ -107,6 +132,7 @@
     const extras = [];
     dirty.forEach(function (id) {
       if (present[id]) return;                 // server already has it; not lost
+      if (!dirtyOwnedByCurrent(id)) return;     // another account's dirty row — never leak it here
       const state = readJSON(KEY_PREFIX + id, null);
       if (!state) return;                       // dirty body gone (e.g. deleted) — skip
       state.id = id;
@@ -132,6 +158,10 @@
       updatedAt:     state.updatedAt || new Date().toISOString(),
       slidesCount:   (state.slides || []).length,
       personasCount: (state.personas || []).length,
+      // Owner stamp so the login reconcile can evict rows cached under a
+      // DIFFERENT account (shared-device leak). Absent on brand-new local
+      // projects until cacheWrite fills it with the current user.
+      ownerId:       state.ownerId || null,
     };
   }
 
@@ -220,6 +250,14 @@
     return slim;
   }
   function cacheWrite(state) {
+    // A brand-new local project has no server ownerId yet; it belongs to
+    // whoever is signed in when it's first cached. Stamp it so the login
+    // reconcile can tell it apart from another account's rows. Server-loaded
+    // states already carry state.ownerId (rowToState) — never overwrite that.
+    if (!state.ownerId) {
+      const me = currentUserId();
+      if (me) state.ownerId = me;
+    }
     const ok = writeJSON(KEY_PREFIX + state.id, slimForCache(state));
     _lastCacheWriteFailed = !ok;
     upsertIndex(summaryFromState(state));
@@ -810,6 +848,40 @@
     }).catch(function () { return 0; });
   }
 
+  // ─── Every-login ownership reconcile (shared-device leak guard) ─────
+  // Runs on EVERY sign-in (unlike migrateLocalToAccount, which is flag-gated
+  // to the first boot). Fetches the authoritative server list for the current
+  // user, then evicts from the local index any row that:
+  //   • is owned by a DIFFERENT account (ownerId set and ≠ me), OR
+  //   • isn't returned by the server AND isn't a dirty row owned by me.
+  // Rows the server returned are kept (they're mine). Genuinely dirty rows
+  // owned by the current user are ALWAYS preserved so unsynced work survives.
+  // Offline → no-op (can't reconcile without the server truth).
+  function reconcileOwnership() {
+    const me = currentUserId();
+    if (!me || !online()) return Promise.resolve(0);
+    return NeonBackend.listProjects().then(function (serverSummaries) {
+      // listProjects already setIndex(merged) — merged = server rows + my dirty
+      // rows. Re-read and strip any foreign leftover the merge didn't own.
+      const onServer = {};
+      (serverSummaries || []).forEach(function (s) { onServer[s.id] = true; });
+      const dirtyIds = getDirty();
+      let removed = 0;
+      const kept = getIndex().filter(function (p) {
+        if (onServer[p.id]) return true;                       // mine, on server — keep
+        if (dirtyIds.indexOf(p.id) >= 0 && dirtyOwnedByCurrent(p.id)) return true; // my unsynced work — keep
+        // Anything else is an off-server, non-dirty row. By login time,
+        // migrateLocalToAccount has already pushed my genuine local projects to
+        // the server (so they'd be on the server list or in my dirty queue), so
+        // a leftover here is stale or belongs to another account on this shared
+        // device. Drop it (body + index) so it can't show under "My Projects".
+        removed++; remove(KEY_PREFIX + p.id); return false;
+      });
+      if (removed) setIndex(kept);
+      return removed;
+    }).catch(function () { return 0; });
+  }
+
   // Clear server-sourced cached rows on sign-out (shared-machine safety).
   // Keeps device-local UI pointers untouched. CRITICAL: never drop rows that
   // are still dirty (saved locally but not yet confirmed by Neon) or their
@@ -826,12 +898,14 @@
 
     if (dirty.length) {
       // Rebuild the index to hold only the surviving dirty rows; keep the
-      // dirty queue so flushDirty can sync them after the next sign-in.
+      // dirty queue AND its owner map so flushDirty can sync them, and the
+      // next sign-in's reconcile can tell whose rows they are.
       const survivors = getIndex().filter(function (p) { return keepDirty[p.id]; });
       setIndex(survivors);
     } else {
       remove(KEY_INDEX);
       remove(KEY_DIRTY);
+      remove(KEY_DIRTY_OWNER);
     }
     setActiveProjectId(null);
     return Promise.resolve();
@@ -1026,18 +1100,34 @@
     if (!online()) return Promise.resolve([]);
     return ShareBackend.listGallery().catch(function () { return []; });
   }
-  // Publish/unpublish a project to the team gallery. Loads the current state,
-  // flips visibility, and re-saves (round-trips through stateToRow, which
-  // already persists the column). Owner-only in practice — RLS projects_update
-  // lets the owner or an edit-collaborator write; the UI only offers it to
-  // owners. Resolves to the new visibility, or rejects if the project is gone.
+  // Publish/unpublish a project to the team gallery. Issues a TARGETED PATCH on
+  // just the visibility column — no full-project load+save round-trip — so the
+  // toggle responds fast and gives an honest success/failure signal. Owner-only
+  // in practice: RLS projects_update lets the owner (or an edit-collaborator)
+  // write, and the UI only offers this to owners; a denied write returns zero
+  // rows (RLS-filtered), which we surface as a rejection. Also patches the local
+  // cache (index summary + cached body) so the change survives an offline reload.
+  // Resolves to the new visibility, or rejects with a clear message.
   function setVisibility(projectId, visibility) {
     const off = requireOnline(); if (off) return Promise.reject(off);
     const vis = (visibility === "gallery") ? "gallery" : "private";
-    return loadProject(projectId).then(function (state) {
-      if (!state) throw new Error("Project not found.");
-      state.visibility = vis;
-      return saveProject(state).then(function () { return vis; });
+    return dataFetch(
+      "/projects?id=eq." + encodeURIComponent(projectId) + "&select=id,visibility",
+      { method: "PATCH", body: { visibility: vis }, headers: { "Prefer": "return=representation" } }
+    ).then(function (rows) {
+      // PostgREST returns the updated rows. Empty = the row wasn't visible/writable
+      // to us (RLS denied, or it isn't synced to Neon yet) — treat as a failure so
+      // the toggle reverts instead of silently lying.
+      if (!rows || !rows.length) {
+        throw new Error("Couldn't update the gallery — the project may not be saved yet.");
+      }
+      // Reflect the new visibility in the local cache without a full reload.
+      const idx = getIndex();
+      const i = idx.findIndex(function (p) { return p.id === projectId; });
+      if (i >= 0) { idx[i].visibility = vis; setIndex(idx); }
+      const body = readJSON(KEY_PREFIX + projectId, null);
+      if (body) { body.visibility = vis; writeJSON(KEY_PREFIX + projectId, body); }
+      return vis;
     });
   }
   function getPresence(projectId) {
@@ -1081,6 +1171,7 @@
     derivedStatus: derivedStatus,
     migrateLegacyIfPresent: migrateLegacyIfPresent,
     migrateLocalToAccount: migrateLocalToAccount,
+    reconcileOwnership: reconcileOwnership,
     flushDirty: flushDirty,
     clearCache: clearCache,
     reconcile: reconcile,
