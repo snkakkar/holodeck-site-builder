@@ -102,17 +102,28 @@
     demoMap:            "bulletJourney",
     bvOrbit:            "bulletJourney",
     bvCapabilities:     "bulletJourney",
-    executiveSummary:   "bulletJourney",
+    executiveSummary:   "quotePlusColumns",
     nextSteps:          "bulletJourney",
     introVignette:      "deviceSceneImage",
     deviceMoment:       "deviceSceneImage",
-    scenePhoto:         "deviceSceneImage",
     personaIntro:       "splitTextImage",
     personaWishlist:    "splitTextImage",
     personaCard:        "personaCard",
     unifiedProfile:     "personaCard",
     agentConversation:  "agentChat",
     kpiScorecard:       "metricScorecard",
+    // ── SE-authored DEMO-section layouts (demo-deck-renderer.js vocabulary) ──
+    // These reach the manifest verbatim (holodeck-shared.js buildSlideManifest
+    // pushes state.slides[] into the demo section). Without an entry here they
+    // fell through templateFor() → titleSlide, dropping all body copy. Map each
+    // to the template that best mirrors what /demo renders for it.
+    hero:               "titleSlide",
+    futureState:        "titleSlide",       // demo renderer aliases futureState → hero
+    storyInterstitial:  "titleSlide",       // → deviceSceneImage when it carries an image (templateFor)
+    storyFoundation:    "quotePlusColumns",
+    currentFutureState: "quotePlusColumns",
+    architecture:       "bulletJourney",
+    scenePhoto:         "iconList",
     // embeddedCxComponent handled specially: still image → deviceSceneImage,
     // else placeholderCx (see templateFor()).
   };
@@ -121,6 +132,12 @@
     const layout = (slide && slide.layout) || "";
     if (layout === "embeddedCxComponent") {
       return "cx"; // resolved to deviceSceneImage-or-placeholder by the exporter
+    }
+    if (layout === "storyInterstitial") {
+      // Narrative beat: text-only titleSlide, unless it carries an image — then
+      // it renders as a split text/image, mirroring /demo's .dd-interstitial-split.
+      // normalizeSlide resolves the image and swaps the template accordingly.
+      return "interstitial";
     }
     const t = LAYOUT_TO_TEMPLATE[layout];
     if (!t) {
@@ -319,7 +336,14 @@
       case "deviceMoment":
         return pick(da.iPhoneRec || da.laptopBrowsingGif || da.webBrowseGif, "device");
       case "scenePhoto":
-        return pick(da.storeExterior || da.storeInterior || da.productHero, "scene");
+        // Mirrors /demo scenePhoto: storeInterior first (the photo it shows),
+        // then storeExterior / productHero.
+        return pick(da.storeInterior || da.storeExterior || da.productHero, "scene");
+      case "storyInterstitial": {
+        // A per-slide asset slot or a linked demo asset (mirrors /demo).
+        const slot = (slide && (slide.imageSlot || slide.assetSlot)) || "";
+        return pick((slot && da[slot]) || (slide && slide.imageUrl), "scene");
+      }
       case "demoMap":
         return pick(da.productHero || da.storeInterior, "scene");
       default:
