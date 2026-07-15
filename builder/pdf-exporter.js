@@ -145,6 +145,87 @@
     catch (e) { try { console.warn("[pdf] addImage failed:", e); } catch (_) {} }
   }
 
+  // ─── Data Cloud console: per-facet "LWC" pane body (PDF) ───────
+  // Mirrors the PPTX profilePaneBody + /demo's paneBody. midText is passed in
+  // (it closes over the doc); fills [y, y+h] so the console has no empty gap.
+  function profilePaneBodyPdf(doc, ctx, facet, x, y, w, h, midText) {
+    const rows = (facet.rows || []).slice(0, 6);
+    const key = facet.key || "identity";
+    if (!rows.length) return;
+    function meterFrac(v) {
+      const s = String(v || "").toLowerCase();
+      if (/very high|98|primed|very strong/.test(s)) return 0.96;
+      if (/high|strong|elevated/.test(s))            return 0.8;
+      if (/medium|moderate/.test(s))                 return 0.55;
+      if (/low/.test(s))                             return 0.3;
+      return 0.7;
+    }
+
+    if (key === "affinities") {
+      const rowH = Math.min(46, h / rows.length);
+      rows.forEach(function (r, i) {
+        const ry = y + i * rowH;
+        doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(hx(T.ink));
+        doc.text(String(r.label || ""), x, ry + 10, { maxWidth: w * 0.7 });
+        doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(hx(ctx.brand.primary));
+        doc.text(String(r.value || ""), x + w, ry + 10, { align: "right" });
+        const trackY = ry + 18, trackH = 8;
+        doc.setFillColor(hx(T.band)); doc.setDrawColor(hx(T.line)); doc.setLineWidth(0.5);
+        doc.roundedRect(x, trackY, w, trackH, 3, 3, "FD");
+        doc.setFillColor(hx(ctx.brand.primary));
+        doc.roundedRect(x, trackY, Math.max(10, w * meterFrac(r.value)), trackH, 3, 3, "F");
+      });
+      return;
+    }
+
+    if (key === "signals") {
+      const rowH = Math.min(52, h / rows.length);
+      const dotX = x + 5;
+      doc.setFillColor(hx(T.line)); doc.rect(dotX + 3.5, y + 6, 1.5, Math.max(6, (rows.length - 1) * rowH), "F");
+      rows.forEach(function (r, i) {
+        const ry = y + i * rowH;
+        doc.setFillColor(hx(ctx.brand.accent)); doc.setDrawColor(hx(ctx.brand.primary)); doc.setLineWidth(1);
+        doc.circle(dotX + 4, ry + 8, 5, "FD");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(hx(T.muted));
+        doc.text(String(r.label || ""), dotX + 22, ry + 6, { charSpace: 0.8 });
+        doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(hx(T.ink));
+        doc.text(String(r.value || ""), dotX + 22, ry + 20, { maxWidth: w - 30 });
+      });
+      return;
+    }
+
+    if (key === "predicted") {
+      const headline = (rows[0] && rows[0].value) || "Personalized offer";
+      const rest = rows.slice(1);
+      doc.setFillColor(hx(T.band)); doc.setDrawColor(hx(T.line)); doc.setLineWidth(1);
+      doc.roundedRect(x, y, w, h, 6, 6, "FD");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(hx(ctx.brand.primary));
+      doc.text("NEXT BEST ACTION", x + 14, y + 18, { charSpace: 1.2 });
+      doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(hx(T.ink));
+      doc.text(String(headline), x + 14, y + 40, { maxWidth: w - 28 });
+      let py2 = y + 58;
+      const rH = rest.length ? Math.min(28, (y + h - 44 - py2) / rest.length) : 0;
+      rest.forEach(function (r, i) {
+        const ryy = py2 + i * rH;
+        midText(r.label || "", x + 14, ryy, rH, { size: 9, color: T.muted, w: w * 0.42 });
+        midText(r.value || "", x + 14 + w * 0.42, ryy, rH, { size: 9.5, style: "bold", color: T.ink, w: w * 0.58 - 28 });
+      });
+      const btnW = 108, btnH = 24, btnY = y + h - btnH - 12;
+      doc.setFillColor(hx(ctx.brand.primary)); doc.roundedRect(x + 14, btnY, btnW, btnH, 4, 4, "F");
+      midText("Launch action", x + 14, btnY, btnH, { size: 9, style: "bold", color: "FFFFFF", align: "center", w: btnW });
+      return;
+    }
+
+    // identity / other → resolved detail grid, distributed to fill the pane.
+    const rowH = h / rows.length;
+    rows.forEach(function (r, i) {
+      const ryy = y + i * rowH;
+      if (i > 0) { doc.setFillColor(hx(T.line)); doc.rect(x, ryy, w, 0.5, "F"); }
+      midText(r.label || "", x, ryy, rowH, { size: 9.5, color: T.muted, w: w * 0.42 });
+      midText(r.value || "", x + w * 0.42, ryy, rowH, { size: 10, style: "bold", color: T.ink, w: w * 0.58 });
+    });
+  }
+
   // ─── Template renderers ────────────────────────────────────────
   const TEMPLATE_RENDERERS = {
     titleSlide: function (doc, ns, ctx) {
@@ -312,10 +393,10 @@
         ry += kH + 8;
       });
 
-      // ── Right pane: facet tabs + active facet rows ──
-      const paneX = railX + railW + 14, paneW = (cx0 + cw) - paneX - 10;
+      // ── Right pane: facet tabs + active-facet LWC-style body ──
+      const paneX = railX + railW + 16, paneW = (cx0 + cw) - paneX - 12;
       const facets = c.facets || [];
-      const active = facets[0] || { label: "Profile", eyebrow: "Resolved profile", rows: [] };
+      const active = facets[0] || { key: "identity", label: "Profile", eyebrow: "Resolved profile", rows: [] };
       const tabH = 24, tabGap = 6;
       const tabW = facets.length ? (paneW - (facets.length - 1) * tabGap) / facets.length : paneW;
       facets.forEach(function (fct, i) {
@@ -326,20 +407,18 @@
         midText(fct.label || "", tx + 2, bodyY, tabH,
           { size: 8.5, style: on ? "bold" : "normal", color: on ? "FFFFFF" : T.muted, align: "center", w: tabW - 4 });
       });
-      let py = bodyY + tabH + 12;
+      // Facet header — eyebrow ABOVE label (stacked, no overlap).
+      let py = bodyY + tabH + 16;
       doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(hx(ctx.brand.primary));
       doc.text(String(active.eyebrow || "").toUpperCase(), paneX, py, { charSpace: 1.2 });
-      doc.setFontSize(13); doc.setTextColor(hx(T.ink));
-      doc.text(String(active.label || ""), paneX + 90, py);
       py += 16;
-      const rows = (active.rows || []).slice(0, 6);
-      const rowH = rows.length ? Math.min(30, (chBottom - py - 8) / rows.length) : 0;
-      rows.forEach(function (r, i) {
-        const ryy = py + i * rowH;
-        if (i > 0) { doc.setFillColor(hx(T.line)); doc.rect(paneX, ryy, paneW, 0.5, "F"); }
-        midText(r.label || "", paneX, ryy, rowH, { size: 9, color: T.muted, w: paneW * 0.42 });
-        midText(r.value || "", paneX + paneW * 0.42, ryy, rowH, { size: 9.5, style: "bold", color: T.ink, w: paneW * 0.58 });
-      });
+      doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(hx(T.ink));
+      doc.text(String(active.label || ""), paneX, py);
+      py += 12;
+      // Body fills the remaining pane height (no dead whitespace), dispatched
+      // per facet like /demo's paneBody: affinity meters, signal timeline,
+      // next-best-action card, else a resolved detail grid.
+      profilePaneBodyPdf(doc, ctx, active, paneX, py, paneW, (chBottom - 12) - py, midText);
     },
 
     agentChat: function (doc, ns, ctx) {

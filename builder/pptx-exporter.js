@@ -117,6 +117,108 @@
     return y;
   }
 
+  // ─── Data Cloud console: per-facet "LWC" pane body ─────────────
+  // Mirrors /demo's unifiedProfile paneBody (demo-deck-renderer.js ~486-524):
+  // each facet gets a purpose-built layout instead of a flat table, and it
+  // fills the whole [y, y+h] box so the console never leaves a big empty gap.
+  //   affinities → labeled meter bars   signals → dotted timeline
+  //   predicted  → Next Best Action card  identity/other → detail grid
+  function profilePaneBody(slide, ctx, facet, x, y, w, h) {
+    const rows = (facet.rows || []).slice(0, 6);
+    const key = facet.key || "identity";
+    if (!rows.length) return;
+
+    // A word→fill-fraction map so "Very high / High / Medium / Low" become bars.
+    function meterFrac(v) {
+      const s = String(v || "").toLowerCase();
+      if (/very high|98|primed|very strong/.test(s)) return 0.96;
+      if (/high|strong|elevated/.test(s))            return 0.8;
+      if (/medium|moderate/.test(s))                 return 0.55;
+      if (/low/.test(s))                             return 0.3;
+      return 0.7;
+    }
+
+    if (key === "affinities") {
+      const rowH = Math.min(0.62, h / rows.length);
+      rows.forEach(function (r, i) {
+        const ry = y + i * rowH;
+        slide.addText(r.label || "", {
+          x: x, y: ry, w: w, h: 0.22, fontSize: 10, bold: true, color: T.ink,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
+        });
+        slide.addText(r.value || "", {
+          x: x, y: ry, w: w, h: 0.22, fontSize: 9, color: ctx.brand.primary,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.right, valign: ctx.AlignV.middle,
+        });
+        const trackY = ry + 0.26, trackH = 0.12;
+        slide.addShape(ctx.ShapeType.roundRect, { x: x, y: trackY, w: w, h: trackH, fill: { color: T.band }, line: { color: T.line, width: 0.5 }, rectRadius: 0.06 });
+        slide.addShape(ctx.ShapeType.roundRect, { x: x, y: trackY, w: Math.max(0.15, w * meterFrac(r.value)), h: trackH, fill: { color: ctx.brand.primary }, line: { type: "none" }, rectRadius: 0.06 });
+      });
+      return;
+    }
+
+    if (key === "signals") {
+      const rowH = Math.min(0.7, h / rows.length);
+      const dotX = x + 0.06;
+      // Vertical rail behind the dots.
+      slide.addShape(ctx.ShapeType.rect, { x: dotX + 0.055, y: y + 0.08, w: 0.02, h: Math.max(0.1, (rows.length - 1) * rowH), fill: { color: T.line }, line: { type: "none" } });
+      rows.forEach(function (r, i) {
+        const ry = y + i * rowH;
+        slide.addShape(ctx.ShapeType.ellipse, { x: dotX, y: ry + 0.04, w: 0.14, h: 0.14, fill: { color: ctx.brand.accent }, line: { color: ctx.brand.primary, width: 1 } });
+        slide.addText([
+          { text: (r.label || "") + "", options: { fontSize: 8, bold: true, color: T.muted, charSpacing: 1, breakLine: true } },
+          { text: (r.value || "") + "", options: { fontSize: 10.5, bold: true, color: T.ink } },
+        ], { x: dotX + 0.3, y: ry, w: w - 0.36, h: rowH - 0.08, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.top, shrinkText: true });
+      });
+      return;
+    }
+
+    if (key === "predicted") {
+      // Next Best Action card: eyebrow + headline (row[0].value) + supporting
+      // detail rows + a faux action button.
+      const headline = (rows[0] && rows[0].value) || "Personalized offer";
+      const rest = rows.slice(1);
+      slide.addShape(ctx.ShapeType.roundRect, { x: x, y: y, w: w, h: h, fill: { color: T.band }, line: { color: T.line, width: 1 }, rectRadius: 0.06 });
+      slide.addText("NEXT BEST ACTION", {
+        x: x + 0.2, y: y + 0.16, w: w - 0.4, h: 0.22, fontSize: 8, bold: true, color: ctx.brand.primary,
+        fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, charSpacing: 2,
+      });
+      slide.addText(headline, {
+        x: x + 0.2, y: y + 0.4, w: w - 0.4, h: 0.5, fontSize: 15, bold: true, color: T.ink,
+        fontFace: ctx.brand.fontHeading, align: ctx.AlignH.left, valign: ctx.AlignV.top, shrinkText: true,
+      });
+      let py2 = y + 0.94;
+      const availH = (y + h - 0.62) - py2;
+      const rH = rest.length ? Math.min(0.4, availH / rest.length) : 0;
+      rest.forEach(function (r, i) {
+        const ry = py2 + i * rH;
+        slide.addText(r.label || "", { x: x + 0.2, y: ry, w: w * 0.42, h: rH, fontSize: 9, color: T.muted, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true });
+        slide.addText(r.value || "", { x: x + 0.2 + w * 0.42, y: ry, w: w * 0.58 - 0.4, h: rH, fontSize: 9.5, bold: true, color: T.ink, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true });
+      });
+      // Faux "Launch action" button pinned to the card bottom.
+      const btnW = 1.5, btnH = 0.34, btnY = y + h - btnH - 0.16;
+      slide.addShape(ctx.ShapeType.roundRect, { x: x + 0.2, y: btnY, w: btnW, h: btnH, fill: { color: ctx.brand.primary }, line: { type: "none" }, rectRadius: 0.05 });
+      slide.addText("Launch action", { x: x + 0.2, y: btnY, w: btnW, h: btnH, fontSize: 9, bold: true, color: "FFFFFF", fontFace: ctx.brand.fontBody, align: ctx.AlignH.center, valign: ctx.AlignV.middle });
+      return;
+    }
+
+    // identity / demographics / engagement / value → resolved detail grid,
+    // rows distributed to fill the pane (no clustering at the top).
+    const rowH = h / rows.length;
+    rows.forEach(function (r, i) {
+      const ry = y + i * rowH;
+      if (i > 0) slide.addShape(ctx.ShapeType.rect, { x: x, y: ry, w: w, h: 0.006, fill: { color: T.line }, line: { type: "none" } });
+      slide.addText(r.label || "", {
+        x: x, y: ry, w: w * 0.42, h: rowH, fontSize: 9.5, color: T.muted,
+        fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
+      });
+      slide.addText(r.value || "", {
+        x: x + w * 0.42, y: ry, w: w * 0.58, h: rowH, fontSize: 10, bold: true, color: T.ink,
+        fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
+      });
+    });
+  }
+
   // ─── Template renderers ────────────────────────────────────────
   const TEMPLATE_RENDERERS = {
     // Big centered hero — introHero / introStoryHook.
@@ -361,13 +463,13 @@
         ry += 0.66;
       });
 
-      // ── Right pane: facet tabs + active facet rows ──
-      const paneX = railX + railW + 0.2;
-      const paneW = (cx0 + cw) - paneX - 0.16;
+      // ── Right pane: facet tabs + active-facet LWC-style body ──
+      const paneX = railX + railW + 0.24;
+      const paneW = (cx0 + cw) - paneX - 0.2;
       const facets = (c.facets || []);
-      const active = facets[0] || { label: "Profile", eyebrow: "Resolved profile", rows: [] };
-      // Tab row (all facet labels; first highlighted like show(0)).
-      const tabH = 0.32, tabGap = 0.1;
+      const active = facets[0] || { key: "identity", label: "Profile", eyebrow: "Resolved profile", rows: [] };
+      // Tab row (all facet labels; first highlighted like the live show(0)).
+      const tabH = 0.34, tabGap = 0.1;
       const tabW = facets.length ? (paneW - (facets.length - 1) * tabGap) / facets.length : paneW;
       facets.forEach(function (fct, i) {
         const tx = paneX + i * (tabW + tabGap);
@@ -383,29 +485,23 @@
           align: ctx.AlignH.center, valign: ctx.AlignV.middle, shrinkText: true,
         });
       });
-      // Active facet header + rows.
-      let py = bodyY + tabH + 0.14;
-      slide.addText([
-        { text: (active.eyebrow || "").toUpperCase() + "  ", options: { fontSize: 8, bold: true, color: ctx.brand.primary, charSpacing: 2 } },
-        { text: active.label || "", options: { fontSize: 13, bold: true, color: T.ink } },
-      ], {
-        x: paneX, y: py, w: paneW, h: 0.3, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle,
+      // Facet header — eyebrow ABOVE the label (stacked, no overlap).
+      let py = bodyY + tabH + 0.2;
+      slide.addText((active.eyebrow || "").toUpperCase(), {
+        x: paneX, y: py, w: paneW, h: 0.22, fontSize: 8, bold: true,
+        color: ctx.brand.primary, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, charSpacing: 2,
       });
-      py += 0.36;
-      const rows = (active.rows || []).slice(0, 6);
-      const rowH = rows.length ? Math.min(0.42, (chBottom - py - 0.14) / rows.length) : 0;
-      rows.forEach(function (r, i) {
-        const ryy = py + i * rowH;
-        if (i > 0) slide.addShape(ctx.ShapeType.rect, { x: paneX, y: ryy, w: paneW, h: 0.006, fill: { color: T.line }, line: { type: "none" } });
-        slide.addText(r.label || "", {
-          x: paneX, y: ryy, w: paneW * 0.42, h: rowH, fontSize: 9, color: T.muted,
-          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
-        });
-        slide.addText(r.value || "", {
-          x: paneX + paneW * 0.42, y: ryy, w: paneW * 0.58, h: rowH, fontSize: 9.5, bold: true, color: T.ink,
-          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
-        });
+      py += 0.24;
+      slide.addText(active.label || "", {
+        x: paneX, y: py, w: paneW, h: 0.34, fontSize: 15, bold: true,
+        color: T.ink, fontFace: ctx.brand.fontHeading, align: ctx.AlignH.left, valign: ctx.AlignV.middle,
       });
+      py += 0.42;
+      // Body fills the remaining pane height so there's no dead whitespace —
+      // dispatched per facet like /demo's paneBody (affinity meters, signal
+      // timeline, next-best-action card, else a resolved detail grid).
+      const bodyBottom = chBottom - 0.2;
+      profilePaneBody(slide, ctx, active, paneX, py, paneW, bodyBottom - py);
     },
 
     // Agent chat — agentConversation. Stacked chat bubbles.
