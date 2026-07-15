@@ -401,11 +401,54 @@
     }
     if (template === "personaCard") {
       const p = cfg.persona || {};
+      // unifiedProfile mirrors /demo's Data Cloud facet tabs: flatten the
+      // richest facets' rows (Identity, Affinities, Signals) into value/label
+      // chips so the export carries the resolved-profile content, not just the
+      // 3 persona stats. personaCard keeps the leaner stats view.
+      if (layout === "unifiedProfile" && SHARED.profileFacets) {
+        const facetGroups = SHARED.profileFacets({
+          persona: p,
+          products: (state.project && state.project.products) || [],
+          storyFoundations: state.storyFoundations || {},
+          industry: (state.project && state.project.industry) || cfg.customer && cfg.customer.industry || "",
+        }) || [];
+        // Prefer the three most concrete facets; each contributes its top rows.
+        const wanted = ["identity", "affinities", "signals"];
+        const picked = wanted
+          .map(function (k) { return facetGroups.find(function (g) { return g.key === k; }); })
+          .filter(Boolean);
+        const groups = picked.length ? picked : facetGroups.slice(0, 3);
+        const facets = [];
+        groups.forEach(function (g) {
+          (g.rows || []).slice(0, 3).forEach(function (r) {
+            facets.push({ label: plain(r.label), value: plain(r.value) });
+          });
+        });
+        return {
+          facets: facets,
+          quote:  plain(p.quote),
+          products: (cfg.journey && cfg.journey.platform && cfg.journey.platform.capabilities) || [],
+        };
+      }
       return {
         facets: (p.stats || []).map(function (s) { return { label: plain(s.label), value: plain(s.value) }; }),
         quote:  plain(p.quote),
         products: (cfg.journey && cfg.journey.platform && cfg.journey.platform.capabilities) || [],
       };
+    }
+    if (template === "quotePlusColumns") {
+      return quotePlusColumnsFor(layout, slide, cfg, state, fields);
+    }
+    if (template === "iconList") {
+      return { rows: sceneRowsFor(slide, cfg, state), image: null };
+    }
+    if (template === "deviceSceneImage" && layout === "deviceMoment") {
+      // Capability chips under the sub-line (mirrors /demo deviceMoment's
+      // capsList: slide.capabilities, else the project product list).
+      const caps = (slide && slide.capabilities && slide.capabilities.length)
+        ? slide.capabilities.slice(0, 4)
+        : ((state.project && state.project.products) || []).slice(0, 4);
+      return { chips: caps.map(plain).filter(Boolean) };
     }
     if (template === "splitTextImage") {
       if (layout === "personaWishlist") {
@@ -453,21 +496,131 @@
       (SHARED.nextStepsPhases ? SHARED.nextStepsPhases() : []).forEach(function (p, i) {
         bullets.push({ title: plain((i + 1) + ". " + p), desc: "" });
       });
-    } else if (layout === "demoMap" || layout === "executiveSummary") {
-      // SE-authored demo slides: use their own bullet-ish fields when present.
+    } else if (layout === "architecture") {
+      // Mirrors /demo architecture (~616-629): three tiers. Salesforce tier is
+      // the actual product list; sources + channels are the fixed demo tiers.
+      const prods = (state.project && state.project.products) || [];
+      bullets.push({ title: "Data Sources", desc: "Web · Mobile · POS · Email · Service" });
+      bullets.push({ title: "Salesforce",   desc: plain((prods.length ? prods.slice(0, 6) : ["Pick products in Step 1"]).join(" · ")) });
+      bullets.push({ title: "Channels",     desc: "Storefront · App · SMS · Email · Agent" });
+    } else if (layout === "demoMap") {
+      // SE-authored demo slides: their own bullet fields win when present…
       const items = (slide && (slide.bullets || slide.points || slide.items)) || [];
       items.forEach(function (it) {
         if (typeof it === "string") bullets.push({ title: plain(it), desc: "" });
         else bullets.push({ title: plain(it.title || it.label || it.text || ""), desc: plain(it.desc || it.sub || "") });
       });
-      // Fall back to the "powered by" evidence list so the slide isn't empty.
-      if (!bullets.length && layout === "executiveSummary") {
-        (cfg.poweredBy || []).forEach(function (p) {
-          bullets.push({ title: plain(p.product || p.title || p.name || ""), desc: plain(p.evidence || p.detail || p.sub || "") });
+      // …otherwise rebuild the demo flow from the story acts (mirrors /demo).
+      if (!bullets.length && SHARED.demoFlowSteps) {
+        SHARED.demoFlowSteps(state.storyActs || []).forEach(function (step) {
+          const sub = [step.channel, step.cap].filter(Boolean).map(plain).join(" · ");
+          bullets.push({ title: plain(step.num + " · " + step.title), desc: sub });
         });
       }
     }
     return { bullets: bullets };
+  }
+
+  // quotePlusColumns feeds storyFoundation / executiveSummary / currentFutureState.
+  // Mirrors /demo's twoPanel(leftQuote + rightCopy) sourcing (demo-deck-renderer.js
+  // storyFoundation ~207, currentFutureState ~234, executiveSummary ~958): a framed
+  // quote card on the left, a labeled column set on the right. Columns are either
+  // {label, value} stat chips or {label, body} prose columns; the exporter draws
+  // both. fitSentences matches the live char clamps (no trailing "…").
+  function quotePlusColumnsFor(layout, slide, cfg, state, fields) {
+    const f = state.storyFoundations || {};
+    const cust = cfg.customer || {};
+    const fit = function (s, n) { return SHARED.fitSentences ? plain(SHARED.fitSentences(s, n)) : plain(s); };
+    const products = (state.project && state.project.products) || [];
+    const poweredBy = (cfg.poweredBy || []).map(function (p) {
+      return typeof p === "string" ? p : (p.product || p.title || p.name || "");
+    }).filter(Boolean);
+
+    if (layout === "currentFutureState") {
+      return {
+        quote: "", quoteTag: "",
+        columns: [
+          { label: "Today",    body: fit(f.currentStatePain, 180) || "Disconnected channels, anonymous browsers, lost revenue." },
+          { label: "Tomorrow", body: fit(f.futureStateVision, 180) || "One unified profile across every channel." },
+        ],
+        chips: (poweredBy.length ? poweredBy : products).slice(0, 6),
+        chipsLabel: "Powered by Salesforce",
+      };
+    }
+    if (layout === "executiveSummary") {
+      return {
+        quote: fit(f.executiveTakeaway, 160) ||
+               ("A single Salesforce platform compounds every customer touch into measurable lift" + (cust.name ? " for " + cust.name + "." : ".")),
+        quoteTag: "Executive Takeaway",
+        stamp: cust.name ? plain(cust.name) + " + Salesforce" : "Salesforce",
+        columns: [
+          { label: "Challenge",    body: fit(f.businessProblem, 180) || fit(f.currentStatePain, 180) },
+          { label: "Future state", body: fit(f.futureStateVision, 180) },
+          { label: "Capabilities", body: products.slice(0, 4).map(plain).join(" · ") },
+        ].filter(function (c) { return c.body; }),
+      };
+    }
+    // storyFoundation (default): quote + Problem/Today/Tomorrow stat chips.
+    const stats = [];
+    if (f.businessProblem)   stats.push({ value: "Problem",  label: plain(SHARED.truncate ? SHARED.truncate(f.businessProblem, 46) : f.businessProblem) });
+    if (f.currentStatePain)  stats.push({ value: "Today",    label: plain(SHARED.truncate ? SHARED.truncate(f.currentStatePain, 46) : f.currentStatePain) });
+    if (f.futureStateVision) stats.push({ value: "Tomorrow", label: plain(SHARED.truncate ? SHARED.truncate(f.futureStateVision, 46) : f.futureStateVision) });
+    return {
+      quote: fit(f.executiveTakeaway, 160) || fit(f.futureStateVision, 160) ||
+             "Connect every channel into one continuous customer relationship.",
+      quoteTag: "Strategic foundation",
+      stamp: cust.name ? (plain(cust.name) + (cust.industry ? " · " + plain(cust.industry) : "")) : "",
+      columns: stats,
+    };
+  }
+
+  // scenePhoto → iconList rows. Mirrors demo-deck-renderer.js scenePhoto
+  // (~749-816): 4 rows (When / The moment / What happens next|Where it leads /
+  // Why it matters) sourced from the linked storyAct + the next act + foundations.
+  // Emoji icons are dropped on export (plain()), so rows carry text only.
+  function sceneRowsFor(slide, cfg, state) {
+    const acts = state.storyActs || [];
+    const f = state.storyFoundations || {};
+    const act = (slide && slide.linkedActId && acts.find(function (a) { return a.id === slide.linkedActId; })) || acts[0] || {};
+    const idx = acts.indexOf(act);
+    const next = (idx >= 0 && acts[idx + 1]) || {};
+    const hasNext = !!(next && (next.title || next.demoMoment || next.summary));
+
+    const good = function (a) {
+      return a && a.title && !(SHARED.isGenericTitle && SHARED.isGenericTitle(a.title)) ? a.title : "";
+    };
+    const narr = function (a) {
+      const src = (a && a.summary) || (a && a.demoMoment) || "";
+      return SHARED.oneSentence ? SHARED.oneSentence(src, 46) : src;
+    };
+    const tTitle = function (v, max, fb) {
+      const out = SHARED.cleanHeadline ? SHARED.cleanHeadline(v, max) : v;
+      return plain(out) || fb;
+    };
+    const tSub = function (v, max, fb) {
+      const out = SHARED.fitSentences ? SHARED.fitSentences(v, max) : v;
+      return plain(out) || fb;
+    };
+
+    const rows = [
+      { eyebrow: "When",
+        title: plain(act.timing || act.month || "Opening"),
+        sub:   tSub(act.location || act.summary, 150, "The opening moment") },
+      { eyebrow: "The moment",
+        title: tTitle(good(act) || narr(act), 46, "The key moment"),
+        sub:   tSub(act.demoMoment || act.summary, 150, "Where the story begins") },
+      hasNext
+        ? { eyebrow: "What happens next",
+            title: tTitle(good(next) || narr(next) || act.salesforceCapabilities, 46, "What happens next"),
+            sub:   tSub(next.demoMoment || next.summary, 150, "The story continues") }
+        : { eyebrow: "Where it leads",
+            title: tTitle(act.salesforceCapabilities || act.businessValue, 42, "Where it leads"),
+            sub:   tSub(act.businessValue || f.executiveTakeaway, 150, "The story continues") },
+      { eyebrow: "Why it matters",
+        title: tTitle(act.businessValue || f.executiveTakeaway, 42, "Why it matters"),
+        sub:   tSub(f.businessProblem || f.executiveTakeaway, 150, "The outcome that counts") },
+    ];
+    return rows;
   }
 
   // ─── Title / eyebrow / headline / sub resolution ───────────────
@@ -477,6 +630,64 @@
     const cust = cfg.customer || {};
     const persona = cfg.persona || {};
     const layout = (slide && slide.layout) || "";
+    const f = state.storyFoundations || {};
+    const acts = state.storyActs || [];
+    const fit = function (s, n) { return SHARED.fitSentences ? plain(SHARED.fitSentences(s, n)) : plain(s); };
+    // SE-authored DEMO-section slides (demo-deck-renderer.js vocabulary) carry
+    // their display text ON THE SLIDE (slide.title/kicker/headline/sub), not via
+    // editorPaths against global state. Resolve those here so the export mirrors
+    // /demo instead of falling back to a title-only slide.
+    const demoLayouts = {
+      hero: 1, futureState: 1, storyInterstitial: 1, storyFoundation: 1,
+      currentFutureState: 1, executiveSummary: 1, architecture: 1,
+      scenePhoto: 1, deviceMoment: 1,
+    };
+    if (demoLayouts[layout]) {
+      const cleanT = function (s, fb) { return (SHARED.cleanHeadline ? plain(SHARED.cleanHeadline(s, 90)) : plain(s)) || fb; };
+      const act = (slide && slide.linkedActId && acts.find(function (a) { return a.id === slide.linkedActId; })) || acts[0] || {};
+      switch (layout) {
+        case "hero":
+        case "futureState":
+          return {
+            title:   cleanT(slide.title || slide.headline, plain(cust.heroHeadline || cust.name || "Customer")),
+            eyebrow: plain(slide.section || slide.eyebrow || cust.demoTitle || "Demo"),
+            sub:     fit(slide.sub || slide.subline || slide.summary || f.businessProblem, 220) || plain(cust.heroSub || ""),
+          };
+        case "storyInterstitial":
+          return {
+            title:   cleanT(slide.headline || slide.title, plain(cust.heroHeadline || "")),
+            eyebrow: plain(slide.kicker || slide.eyebrow || slide.section || cust.demoTitle || "Demo"),
+            sub:     fit(slide.sub || slide.subline || slide.summary, 220),
+          };
+        case "storyFoundation":
+          return {
+            title:   cleanT(f.transformationThesis || slide.title, "From a single moment to a connected future."),
+            eyebrow: "Story Foundation", sub: "",
+          };
+        case "currentFutureState":
+          return {
+            title:   cleanT(slide.title, "From today to a connected future."),
+            eyebrow: "Before / After",
+            sub:     fit(f.transformationThesis, 200) || "Identity + AI + agents turn fragmented touches into one experience.",
+          };
+        case "executiveSummary":
+          return { title: cleanT(slide.title, "Three things that compound."), eyebrow: "The Takeaway", sub: "" };
+        case "architecture":
+          return { title: cleanT(slide.title, "One platform. Every layer."), eyebrow: "Solution Architecture", sub: "" };
+        case "scenePhoto":
+          return {
+            title:   cleanT(slide.title, "One visit. One email."),
+            eyebrow: plain(slide.section || cust.demoTitle || "Demo"),
+            sub:     fit(act.summary, 220),
+          };
+        case "deviceMoment":
+          return {
+            title:   cleanT(slide.title || act.title, "A moment that matters."),
+            eyebrow: plain(act.salesforceCapabilities || (slide.capabilities && slide.capabilities[0]) || "Live moment"),
+            sub:     fit(act.summary || act.demoMoment || f.businessProblem, 220),
+          };
+      }
+    }
     // Only treat a resolved editor "Headline"/"Title" as the display title.
     // Falling back to slide.title here would surface the builder-internal
     // label ("Spotlight · stats + quote (mr-2)"), so layouts WITHOUT a
@@ -516,6 +727,9 @@
       if (layout === "personaCta") out.sub = sub || plain(persona.ctaSub || "");
       else if (layout === "bvClosing") out.sub = sub || plain(firstOf(fields, ["Executive takeaway"]) || cust.closingQuote || "");
       else out.sub = sub;
+    } else if (template === "personaCard" && layout === "personaCard") {
+      // Persona spotlight: a short relevance/pain line under the title.
+      out.sub = sub || fit(persona.demoRelevance || persona.painPoints || persona.role, 200);
     }
     return out;
   }
@@ -523,14 +737,17 @@
   // ─── NormalizedSlide builder (sync part) ───────────────────────
   function normalizeSlide(slide, cfg, state) {
     const template = templateFor(slide);
+    // "cx" and "interstitial" are deferred markers resolved below; structured
+    // data isn't pulled for them here (their resolved template drives it).
+    const deferred = template === "cx" || template === "interstitial";
     const fields = resolveAll(slide, state);
     const copy = copyFor(template === "cx" ? "titleSlide" : template, slide, cfg, state, fields);
-    const structured = (template === "cx") ? {} : structuredFor(template, slide, cfg, state, fields);
+    const structured = deferred ? {} : structuredFor(template, slide, cfg, state, fields);
 
     const ns = {
       id:           slide.id || slide.layout || "",
       layout:       slide.layout || "",
-      template:     template === "cx" ? "cx" : template,
+      template:     template,
       sectionId:    slide.sectionId || "",
       title:        copy.title,
       eyebrow:      copy.eyebrow,
@@ -541,6 +758,12 @@
       chat:         structured.chat || [],
       facets:       structured.facets || [],
       quote:        structured.quote || "",
+      quoteTag:     structured.quoteTag || "",
+      stamp:        structured.stamp || "",
+      columns:      structured.columns || [],
+      rows:         structured.rows || [],
+      chips:        structured.chips || [],
+      chipsLabel:   structured.chipsLabel || "",
       products:     structured.products || [],
       image:        null, // filled async below
       _imageSlot:   null,
@@ -554,6 +777,11 @@
       // A still image is treated exactly like a device scene image.
       ns.template = ns.cxFallback.stillUrl ? "deviceSceneImage" : "placeholderCx";
       if (ns.cxFallback.stillUrl) ns._imageSlot = { url: ns.cxFallback.stillUrl, kind: "cx" };
+    } else if (template === "interstitial") {
+      // Narrative beat: split text/image when it carries an image, else a
+      // centered titleSlide — mirrors /demo's .dd-interstitial-split vs solo.
+      ns._imageSlot = imageSlotFor(slide, cfg, state);
+      ns.template = ns._imageSlot ? "deviceSceneImage" : "titleSlide";
     } else {
       ns._imageSlot = imageSlotFor(slide, cfg, state);
     }

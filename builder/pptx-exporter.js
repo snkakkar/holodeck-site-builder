@@ -17,6 +17,10 @@
 
   const MODEL = global.HOLO_EXPORT_MODEL || {};
   const T = MODEL.THEME || { W: 13.33, H: 7.5, MARGIN: 0.7, font: "Inter" };
+  // Chips/labels that come straight off the adapter cfg (product names, etc.)
+  // haven't been through the model's plain() chokepoint — strip emoji/HTML here
+  // so no tofu boxes reach the deck. Model-resolved fields are already clean.
+  const plainText = MODEL.plain || function (s) { return String(s == null ? "" : s); };
 
   function safeSlug(state) {
     if (global.HOLO_ZIP && global.HOLO_ZIP.safeSlug) return global.HOLO_ZIP.safeSlug(state);
@@ -131,8 +135,16 @@
       });
       if (ns.sub) {
         slide.addText(ns.sub, {
-          x: 1.6, y: 4.7, w: T.W - 3.2, h: 1.2, fontSize: 18, color: "D6DCE8",
+          x: 1.6, y: 4.7, w: T.W - 3.2, h: 1.0, fontSize: 18, color: "D6DCE8",
           fontFace: ctx.brand.fontBody, align: ctx.AlignH.center, valign: ctx.AlignV.top, shrinkText: true,
+        });
+      }
+      // "Powered by" product chips (mirrors /demo hero's chip row).
+      const chips = (ns.products || []).slice(0, 5).map(plainText).filter(Boolean);
+      if (chips.length) {
+        slide.addText(chips.join("     •     "), {
+          x: 1.0, y: 5.9, w: T.W - 2.0, h: 0.5, fontSize: 12, bold: true, color: ctx.brand.accent,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.center, valign: ctx.AlignV.middle, charSpacing: 1, shrinkText: true,
         });
       }
     },
@@ -192,9 +204,17 @@
       const hasImg = ns.image && ns.image.dataUrl;
       const textW = hasImg ? (T.W * 0.5 - T.MARGIN) : (T.W - 2 * T.MARGIN);
       const top = header(slide, ns, ctx, { titleW: textW });
+      const chips = (ns.chips || []).map(plainText).filter(Boolean);
+      const subH = chips.length ? 2.0 : 2.6;
       if (ns.sub) {
         slide.addText(ns.sub, {
-          x: T.MARGIN, y: top, w: textW, h: 2.4, fontSize: 15, color: T.muted,
+          x: T.MARGIN, y: top, w: textW, h: subH, fontSize: 15, color: T.muted,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.top, shrinkText: true,
+        });
+      }
+      if (chips.length) {
+        slide.addText(chips.join("   •   "), {
+          x: T.MARGIN, y: top + subH + 0.1, w: textW, h: 0.5, fontSize: 12, bold: true, color: ctx.brand.secondary,
           fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.top, shrinkText: true,
         });
       }
@@ -241,22 +261,28 @@
         contentX = leftX + imgW + 0.4;
       }
       const contentW = T.W - contentX - T.MARGIN;
-      // Facets as a 3-up chip row.
-      const facets = (ns.facets || []).slice(0, 3);
+      // Facets as a chip grid. personaCard shows ~3 stats; unifiedProfile
+      // flattens up to ~6 resolved-profile rows into a 3-col grid.
+      const facets = (ns.facets || []).slice(0, 6);
       let y = top;
       if (facets.length) {
-        const chipW = (contentW - (facets.length - 1) * 0.2) / facets.length;
+        const cols = facets.length <= 3 ? facets.length : 3;
+        const rowsN = Math.ceil(facets.length / cols);
+        const gap = 0.2, chipH = rowsN > 1 ? 0.95 : 1.1;
+        const chipW = (contentW - (cols - 1) * gap) / cols;
         facets.forEach(function (fct, i) {
-          const cx = contentX + i * (chipW + 0.2);
-          slide.addShape(ctx.ShapeType.roundRect, { x: cx, y: y, w: chipW, h: 1.1, fill: { color: T.band }, line: { color: T.line, width: 1 }, rectRadius: 0.08 });
+          const r = Math.floor(i / cols), c = i % cols;
+          const cx = contentX + c * (chipW + gap);
+          const cy = y + r * (chipH + gap);
+          slide.addShape(ctx.ShapeType.roundRect, { x: cx, y: cy, w: chipW, h: chipH, fill: { color: T.band }, line: { color: T.line, width: 1 }, rectRadius: 0.08 });
           slide.addText([
-            { text: fct.value || "", options: { bold: true, fontSize: 18, color: ctx.brand.primary, breakLine: true } },
-            { text: fct.label || "", options: { fontSize: 10, color: T.muted } },
-          ], { x: cx + 0.1, y: y + 0.12, w: chipW - 0.2, h: 0.86, align: ctx.AlignH.center, valign: ctx.AlignV.middle, fontFace: ctx.brand.fontBody, shrinkText: true });
+            { text: plainText(fct.value || ""), options: { bold: true, fontSize: rowsN > 1 ? 13 : 18, color: ctx.brand.primary, breakLine: true } },
+            { text: plainText(fct.label || ""), options: { fontSize: rowsN > 1 ? 9 : 10, color: T.muted } },
+          ], { x: cx + 0.1, y: cy + 0.1, w: chipW - 0.2, h: chipH - 0.2, align: ctx.AlignH.center, valign: ctx.AlignV.middle, fontFace: ctx.brand.fontBody, shrinkText: true });
         });
-        y += 1.35;
+        y += rowsN * (chipH + gap) + 0.15;
       }
-      if (ns.quote) {
+      if (ns.quote && y < T.H - 1.1) {
         slide.addText("“" + ns.quote + "”", {
           x: contentX, y: y, w: contentW, h: T.H - y - 0.7, fontSize: 16, italic: true, color: T.ink,
           fontFace: ctx.brand.fontHeading, align: ctx.AlignH.left, valign: ctx.AlignV.top, shrinkText: true,
@@ -321,10 +347,120 @@
         line: { color: ctx.brand.secondary, width: 1.5, dashType: "dash" }, rectRadius: 0.1,
       });
       slide.addText([
-        { text: "🖥  " + (cx.name || ns.title || "CX Component"), options: { bold: true, fontSize: 20, color: T.ink, breakLine: true } },
+        { text: (cx.name || ns.title || "CX Component"), options: { bold: true, fontSize: 20, color: T.ink, breakLine: true } },
         { text: "Live component — add a still image in the builder to embed it here.", options: { fontSize: 13, color: T.muted, breakLine: true } },
         { text: cx.targetUrl || "", options: { fontSize: 12, color: ctx.brand.secondary } },
       ], { x: bx + 0.3, y: by, w: bw - 0.6, h: bh, align: ctx.AlignH.center, valign: ctx.AlignV.middle, fontFace: ctx.brand.fontBody, shrinkText: true });
+    },
+
+    // Icon list — scenePhoto. Full-bleed scene image left, structured
+    // eyebrow/title/sub rows right (mirrors /demo's .dd-iconlist).
+    iconList: function (slide, ns, ctx) {
+      const hasImg = ns.image && ns.image.dataUrl;
+      const imgW = hasImg ? T.W * 0.42 : 0;
+      if (hasImg) {
+        placeImage(slide, ns.image, { x: T.MARGIN, y: 0.9, w: imgW - T.MARGIN, h: T.H - 1.9 }, ctx, true);
+      }
+      const contentX = hasImg ? imgW + 0.2 : T.MARGIN;
+      const contentW = T.W - contentX - T.MARGIN;
+      // Header (eyebrow + title) anchored on the content column.
+      let y = T.MARGIN;
+      if (ns.eyebrow) {
+        slide.addText(ns.eyebrow.toUpperCase(), {
+          x: contentX, y: y, w: contentW, h: 0.35, fontSize: 12, bold: true, color: ctx.brand.primary,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, charSpacing: 3,
+        });
+        y += 0.42;
+      }
+      if (ns.title) {
+        slide.addText(ns.title, {
+          x: contentX, y: y, w: contentW, h: 0.9, fontSize: 26, bold: true, color: T.ink,
+          fontFace: ctx.brand.fontHeading, align: ctx.AlignH.left, valign: ctx.AlignV.top, shrinkText: true, autoFit: true,
+        });
+        y += 1.0;
+      }
+      const rows = (ns.rows || []).slice(0, 4);
+      const areaH = (T.H - 0.7) - y;
+      const rowH = rows.length ? Math.min(1.1, areaH / rows.length) : 0;
+      rows.forEach(function (r, i) {
+        const ry = y + i * rowH;
+        slide.addShape(ctx.ShapeType.rect, { x: contentX, y: ry + 0.04, w: 0.1, h: rowH - 0.16, fill: { color: ctx.brand.accent }, line: { type: "none" } });
+        const tx = contentX + 0.28;
+        slide.addText([
+          { text: plainText(r.eyebrow || "").toUpperCase(), options: { bold: true, fontSize: 9, color: ctx.brand.secondary, charSpacing: 2, breakLine: true } },
+          { text: plainText(r.title || ""), options: { bold: true, fontSize: 14, color: T.ink, breakLine: !!r.sub } },
+        ].concat(r.sub ? [{ text: plainText(r.sub), options: { fontSize: 11, color: T.muted } }] : []), {
+          x: tx, y: ry, w: contentW - 0.28, h: rowH, fontFace: ctx.brand.fontBody,
+          align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
+        });
+      });
+    },
+
+    // Quote + columns — storyFoundation / executiveSummary / currentFutureState.
+    // Left framed quote card, right eyebrow + headline + labeled columns
+    // (stat chips or prose) + optional chip row (mirrors /demo's twoPanel).
+    quotePlusColumns: function (slide, ns, ctx) {
+      const leftW = T.W * 0.36;
+      const gx = T.MARGIN, gy = T.MARGIN, gw = leftW - T.MARGIN, gh = T.H - 2 * T.MARGIN;
+      // Left quote card.
+      if (ns.quote) {
+        slide.addShape(ctx.ShapeType.roundRect, { x: gx, y: gy, w: gw, h: gh, fill: { color: ctx.brand.navy }, line: { type: "none" }, rectRadius: 0.1 });
+        const parts = [];
+        if (ns.quoteTag) parts.push({ text: plainText(ns.quoteTag).toUpperCase(), options: { bold: true, fontSize: 11, color: ctx.brand.accent, charSpacing: 2, breakLine: true } });
+        parts.push({ text: "“" + ns.quote + "”", options: { fontSize: 17, italic: true, color: "FFFFFF", breakLine: true } });
+        if (ns.stamp) parts.push({ text: plainText(ns.stamp), options: { fontSize: 11, color: "D6DCE8" } });
+        slide.addText(parts, { x: gx + 0.3, y: gy + 0.3, w: gw - 0.6, h: gh - 0.6, fontFace: ctx.brand.fontHeading, align: ctx.AlignH.left, valign: ctx.AlignV.middle, lineSpacingMultiple: 1.15, shrinkText: true });
+      }
+      // Right column.
+      const rx = leftW + 0.2, rw = T.W - rx - T.MARGIN;
+      let y = T.MARGIN;
+      if (ns.eyebrow) {
+        slide.addText(ns.eyebrow.toUpperCase(), { x: rx, y: y, w: rw, h: 0.35, fontSize: 12, bold: true, color: ctx.brand.primary, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, charSpacing: 3 });
+        y += 0.42;
+      }
+      if (ns.title) {
+        slide.addText(ns.title, { x: rx, y: y, w: rw, h: 1.0, fontSize: 26, bold: true, color: T.ink, fontFace: ctx.brand.fontHeading, align: ctx.AlignH.left, valign: ctx.AlignV.top, shrinkText: true, autoFit: true });
+        y += 1.05;
+      }
+      const cols = ns.columns || [];
+      const isStat = cols.length && cols[0] && cols[0].value != null && cols[0].body == null;
+      if (cols.length) {
+        if (isStat) {
+          // Value/label stat chips, stacked.
+          const chipH = Math.min(1.1, ((T.H - 0.7) - y) / cols.length - 0.15);
+          cols.forEach(function (c, i) {
+            const cy = y + i * (chipH + 0.15);
+            slide.addShape(ctx.ShapeType.roundRect, { x: rx, y: cy, w: rw, h: chipH, fill: { color: T.band }, line: { color: T.line, width: 1 }, rectRadius: 0.08 });
+            slide.addText([
+              { text: plainText(c.value || ""), options: { bold: true, fontSize: 15, color: ctx.brand.primary, breakLine: true } },
+              { text: plainText(c.label || ""), options: { fontSize: 11, color: T.muted } },
+            ], { x: rx + 0.2, y: cy + 0.08, w: rw - 0.4, h: chipH - 0.16, align: ctx.AlignH.left, valign: ctx.AlignV.middle, fontFace: ctx.brand.fontBody, shrinkText: true });
+          });
+          y += cols.length * (chipH + 0.15);
+        } else {
+          // Prose columns side by side (Challenge / Future / Capabilities).
+          const gap = 0.2, cw = (rw - (cols.length - 1) * gap) / cols.length;
+          const chipsH = (ns.chips && ns.chips.length) ? 0.5 : 0;
+          const ch = (T.H - 0.7) - y - chipsH - (chipsH ? 0.15 : 0);
+          cols.forEach(function (c, i) {
+            const cx = rx + i * (cw + gap);
+            slide.addText([
+              { text: plainText(c.label || "").toUpperCase(), options: { bold: true, fontSize: 11, color: ctx.brand.secondary, charSpacing: 1.5, breakLine: true } },
+              { text: plainText(c.body || ""), options: { fontSize: 12, color: T.ink } },
+            ], { x: cx, y: y, w: cw, h: ch, align: ctx.AlignH.left, valign: ctx.AlignV.top, fontFace: ctx.brand.fontBody, shrinkText: true, lineSpacingMultiple: 1.05 });
+          });
+          y += ch + 0.15;
+        }
+      }
+      // Optional chip row (currentFutureState "Powered by Salesforce").
+      const chips = (ns.chips || []).map(plainText).filter(Boolean);
+      if (chips.length) {
+        const label = ns.chipsLabel ? (plainText(ns.chipsLabel) + ":  ") : "";
+        slide.addText(label + chips.join("   •   "), {
+          x: rx, y: Math.min(y, T.H - 1.1), w: rw, h: 0.5, fontSize: 11, bold: true, color: ctx.brand.primary,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
+        });
+      }
     },
   };
 

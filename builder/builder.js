@@ -4763,17 +4763,21 @@
         if (!window.HOLO_PDF) { toast("PDF export isn't available — reload the page and try again."); return; }
         runFileExport("PDF", function () { return window.HOLO_PDF.downloadDeckPdf(s); });
       }),
-      btn("⬆ Create Google Slides", "bx-btn-secondary", function () {
-        if (!window.HOLO_GSLIDES) { toast("Google Slides export isn't available — reload the page and try again."); return; }
-        runFileExport("Google Slides deck", function () { return window.HOLO_GSLIDES.createDeckGoogleSlides(s); });
-      }),
+      // NOTE: "Create Google Slides" button intentionally hidden. The backend
+      // (google-slides-exporter.js / slides-renderer.js / server.js /api/slides/*)
+      // is left in place, but @salesforce.com Google Workspace blocks the OAuth
+      // consent (Error 400: admin_policy_enforced) until the app clears
+      // Procurement / SAM / Third-Party Security review. Re-add this btn(...) to
+      // re-enable once approved — no server/env changes needed:
+      //   btn("⬆ Create Google Slides", "bx-btn-secondary", function () {
+      //     if (!window.HOLO_GSLIDES) { toast("Google Slides export isn't available — reload the page and try again."); return; }
+      //     runFileExport("Google Slides deck", function () { return window.HOLO_GSLIDES.createDeckGoogleSlides(s); });
+      //   }),
     ]));
     fileCard.appendChild(el("div", { class: "bx-card-sub bx-mt-12",
       text: "Note: these are clean native slides — no CSS device-frame chrome and no live/interactive components. "
           + "A CX component shows its still image if you added one, otherwise a labeled placeholder. "
-          + "Speaker notes are included in the PPTX and Google Slides (PDF has no notes field). "
-          + "“Create Google Slides” builds the deck in your own Google Drive — the first time, a Google "
-          + "consent tab opens; click Allow, then press the button again." }));
+          + "Speaker notes are included in the PPTX (PDF has no notes field)." }));
     wrap.appendChild(fileCard);
 
     // ── Secondary: config-only ─────────────────────────────────

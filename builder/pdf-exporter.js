@@ -26,6 +26,9 @@
   const S = PW / T.W;                 // inch → pt scale (≈72)
   const M = T.MARGIN * S;             // margin (pt)
   const px = function (inch) { return inch * S; };
+  // Adapter-cfg chips (product names, etc.) skip the model's plain() chokepoint;
+  // strip emoji/HTML here so no tofu reaches the PDF. Model fields are clean.
+  const plainText = MODEL.plain || function (s) { return String(s == null ? "" : s); };
 
   function safeSlug(state) {
     if (global.HOLO_ZIP && global.HOLO_ZIP.safeSlug) return global.HOLO_ZIP.safeSlug(state);
@@ -153,7 +156,12 @@
         doc.text(String(ns.eyebrow).toUpperCase(), PW / 2, y, { align: "center", charSpace: 1.6 }); y += 36;
       }
       y = wrapText(doc, ns.title || "Customer Story", PW * 0.12, y, PW * 0.76, { size: 38, style: "bold", color: "FFFFFF", align: "center", maxLines: 3, lineHeight: 1.12 });
-      if (ns.sub) wrapText(doc, ns.sub, PW * 0.18, y + 16, PW * 0.64, { size: 15, color: "D6DCE8", align: "center", maxLines: 3 });
+      if (ns.sub) y = wrapText(doc, ns.sub, PW * 0.18, y + 16, PW * 0.64, { size: 15, color: "D6DCE8", align: "center", maxLines: 3 });
+      const chips = (ns.products || []).slice(0, 5).map(plainText).filter(Boolean);
+      if (chips.length) {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(hx(ctx.brand.accent));
+        doc.text(chips.join("     •     "), PW / 2, PH * 0.82, { align: "center", charSpace: 0.8 });
+      }
     },
 
     sectionDivider: function (doc, ns, ctx) {
@@ -190,7 +198,12 @@
       const hasImg = ns.image && ns.image.dataUrl;
       const textW = hasImg ? (PW * 0.5 - M) : (PW - 2 * M);
       let top = header(doc, ns, ctx, textW);
-      if (ns.sub) wrapText(doc, ns.sub, M, top, textW, { size: 14, color: T.muted, maxLines: 10 });
+      const chips = (ns.chips || []).map(plainText).filter(Boolean);
+      if (ns.sub) top = wrapText(doc, ns.sub, M, top, textW, { size: 14, color: T.muted, maxLines: chips.length ? 8 : 10 });
+      if (chips.length) {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(hx(ctx.brand.secondary));
+        doc.text(chips.join("   •   "), M, top + 16, { maxWidth: textW });
+      }
       if (hasImg) placeImage(doc, ns.image, { x: PW * 0.5 + 10, y: px(0.9), w: PW * 0.5 - M - 10, h: PH - px(1.9) });
     },
 
@@ -220,21 +233,25 @@
       if (hasImg) { placeImage(doc, ns.image, { x: leftX, y: top, w: imgW, h: PH - top - px(0.7) }); contentX = leftX + imgW + px(0.4); }
       const contentW = PW - contentX - M;
       let y = top;
-      const facets = (ns.facets || []).slice(0, 3);
+      const facets = (ns.facets || []).slice(0, 6);
       if (facets.length) {
-        const gap = px(0.2), chipW = (contentW - (facets.length - 1) * gap) / facets.length, chipH = px(1.1);
+        const cols = facets.length <= 3 ? facets.length : 3;
+        const rowsN = Math.ceil(facets.length / cols);
+        const gap = px(0.2), chipW = (contentW - (cols - 1) * gap) / cols, chipH = rowsN > 1 ? px(0.95) : px(1.1);
         facets.forEach(function (f, i) {
-          const cx = contentX + i * (chipW + gap);
+          const r = Math.floor(i / cols), c = i % cols;
+          const cx = contentX + c * (chipW + gap);
+          const cy = y + r * (chipH + gap);
           doc.setFillColor(hx(T.band)); doc.setDrawColor(hx(T.line)); doc.setLineWidth(1);
-          doc.roundedRect(cx, y, chipW, chipH, 6, 6, "FD");
-          doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(hx(ctx.brand.primary));
-          doc.text(String(f.value || ""), cx + chipW / 2, y + chipH * 0.45, { align: "center", maxWidth: chipW - 10 });
+          doc.roundedRect(cx, cy, chipW, chipH, 6, 6, "FD");
+          doc.setFont("helvetica", "bold"); doc.setFontSize(rowsN > 1 ? 13 : 18); doc.setTextColor(hx(ctx.brand.primary));
+          doc.text(plainText(f.value || ""), cx + chipW / 2, cy + chipH * 0.42, { align: "center", maxWidth: chipW - 10 });
           doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(hx(T.muted));
-          doc.text(String(f.label || ""), cx + chipW / 2, y + chipH * 0.72, { align: "center", maxWidth: chipW - 10 });
+          doc.text(plainText(f.label || ""), cx + chipW / 2, cy + chipH * 0.72, { align: "center", maxWidth: chipW - 10 });
         });
-        y += chipH + px(0.25);
+        y += rowsN * (chipH + gap) + px(0.1);
       }
-      if (ns.quote) wrapText(doc, "“" + ns.quote + "”", contentX, y, contentW, { size: 15, style: "italic", color: T.ink, maxLines: 6 });
+      if (ns.quote && y < PH - px(1.1)) wrapText(doc, "“" + ns.quote + "”", contentX, y, contentW, { size: 15, style: "italic", color: T.ink, maxLines: 6 });
     },
 
     agentChat: function (doc, ns, ctx) {
@@ -286,9 +303,96 @@
       doc.setFillColor(hx(T.band)); doc.setDrawColor(hx(ctx.brand.secondary)); doc.setLineWidth(1.5);
       doc.roundedRect(bx, by, bw, bh, 8, 8, "FD");
       let y = by + bh * 0.36;
-      y = wrapText(doc, "🖥  " + (cx.name || ns.title || "CX Component"), bx + 20, y, bw - 40, { size: 18, style: "bold", color: T.ink, align: "center", maxLines: 2 });
+      y = wrapText(doc, (cx.name || ns.title || "CX Component"), bx + 20, y, bw - 40, { size: 18, style: "bold", color: T.ink, align: "center", maxLines: 2 });
       y = wrapText(doc, "Live component — add a still image in the builder to embed it here.", bx + 20, y + 6, bw - 40, { size: 12, color: T.muted, align: "center", maxLines: 2 });
       if (cx.targetUrl) wrapText(doc, cx.targetUrl, bx + 20, y + 6, bw - 40, { size: 11, color: ctx.brand.secondary, align: "center", maxLines: 1 });
+    },
+
+    // Icon list — scenePhoto. Scene image left, eyebrow/title/sub rows right.
+    iconList: function (doc, ns, ctx) {
+      const hasImg = ns.image && ns.image.dataUrl;
+      const imgW = hasImg ? PW * 0.42 : 0;
+      if (hasImg) placeImage(doc, ns.image, { x: M, y: px(0.9), w: imgW - M, h: PH - px(1.9) });
+      const contentX = hasImg ? imgW + 12 : M;
+      const contentW = PW - contentX - M;
+      let y = M + 14;
+      if (ns.eyebrow) {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(hx(ctx.brand.primary));
+        doc.text(String(ns.eyebrow).toUpperCase(), contentX, y, { charSpace: 1.2 });
+        y += 16;
+      }
+      if (ns.title) { y += 6; y = wrapText(doc, ns.title, contentX, y, contentW, { size: 22, style: "bold", color: T.ink, maxLines: 2, lineHeight: 1.15 }); }
+      y += 10;
+      const rows = (ns.rows || []).slice(0, 4);
+      const areaH = (PH - px(0.7)) - y;
+      const rowH = rows.length ? Math.min(px(1.1), areaH / rows.length) : 0;
+      rows.forEach(function (r, i) {
+        const ry = y + i * rowH;
+        doc.setFillColor(hx(ctx.brand.accent)); doc.rect(contentX, ry + 4, px(0.1), rowH - 12, "F");
+        const tx = contentX + px(0.28);
+        let ty = ry + 2;
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(hx(ctx.brand.secondary));
+        doc.text(plainText(r.eyebrow || "").toUpperCase(), tx, ty + 8, { charSpace: 1.5 });
+        ty += 14;
+        ty = wrapText(doc, plainText(r.title || ""), tx, ty, contentW - px(0.28), { size: 13, style: "bold", color: T.ink, maxLines: 2 });
+        if (r.sub) wrapText(doc, plainText(r.sub), tx, ty + 1, contentW - px(0.28), { size: 10, color: T.muted, maxLines: 2 });
+      });
+    },
+
+    // Quote + columns — storyFoundation / executiveSummary / currentFutureState.
+    quotePlusColumns: function (doc, ns, ctx) {
+      const leftW = PW * 0.36;
+      const gx = M, gy = M, gw = leftW - M, gh = PH - 2 * M;
+      if (ns.quote) {
+        doc.setFillColor(hx(ctx.brand.navy)); doc.roundedRect(gx, gy, gw, gh, 8, 8, "F");
+        let qy = gy + gh * 0.3;
+        if (ns.quoteTag) {
+          doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(hx(ctx.brand.accent));
+          doc.text(plainText(ns.quoteTag).toUpperCase(), gx + 20, qy, { charSpace: 1.5 }); qy += 20;
+        }
+        qy = wrapText(doc, "“" + ns.quote + "”", gx + 20, qy, gw - 40, { size: 15, style: "italic", color: "FFFFFF", maxLines: 8, lineHeight: 1.25 });
+        if (ns.stamp) wrapText(doc, plainText(ns.stamp), gx + 20, qy + 8, gw - 40, { size: 11, color: "D6DCE8", maxLines: 2 });
+      }
+      const rx = leftW + 12, rw = PW - rx - M;
+      let y = M + 14;
+      if (ns.eyebrow) {
+        doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(hx(ctx.brand.primary));
+        doc.text(String(ns.eyebrow).toUpperCase(), rx, y, { charSpace: 1.2 }); y += 16;
+      }
+      if (ns.title) { y += 6; y = wrapText(doc, ns.title, rx, y, rw, { size: 22, style: "bold", color: T.ink, maxLines: 2, lineHeight: 1.15 }); }
+      y += 10;
+      const cols = ns.columns || [];
+      const isStat = cols.length && cols[0] && cols[0].value != null && cols[0].body == null;
+      const chipsArr = (ns.chips || []).map(plainText).filter(Boolean);
+      if (cols.length && isStat) {
+        const chipH = Math.min(px(1.0), ((PH - px(0.7)) - y) / cols.length - 6);
+        cols.forEach(function (c, i) {
+          const cy = y + i * (chipH + 6);
+          doc.setFillColor(hx(T.band)); doc.setDrawColor(hx(T.line)); doc.setLineWidth(1);
+          doc.roundedRect(rx, cy, rw, chipH, 6, 6, "FD");
+          doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(hx(ctx.brand.primary));
+          doc.text(plainText(c.value || ""), rx + 14, cy + chipH * 0.42, { maxWidth: rw - 28 });
+          doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(hx(T.muted));
+          const ll = doc.splitTextToSize(plainText(c.label || ""), rw - 28).slice(0, 1);
+          doc.text(ll, rx + 14, cy + chipH * 0.72, { maxWidth: rw - 28 });
+        });
+        y += cols.length * (chipH + 6);
+      } else if (cols.length) {
+        const gap = 12, cw = (rw - (cols.length - 1) * gap) / cols.length;
+        const chipsH = chipsArr.length ? 24 : 0;
+        const ch = (PH - px(0.7)) - y - chipsH;
+        cols.forEach(function (c, i) {
+          const cx = rx + i * (cw + gap);
+          let cy = wrapText(doc, plainText(c.label || "").toUpperCase(), cx, y, cw, { size: 10, style: "bold", color: ctx.brand.secondary, maxLines: 2 });
+          wrapText(doc, plainText(c.body || ""), cx, cy + 4, cw, { size: 11, color: T.ink, maxLines: 8 });
+        });
+        y += ch;
+      }
+      if (chipsArr.length) {
+        const label = ns.chipsLabel ? (plainText(ns.chipsLabel) + ":  ") : "";
+        doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(hx(ctx.brand.primary));
+        doc.text(label + chipsArr.join("   •   "), rx, Math.min(y + 14, PH - px(0.5)), { maxWidth: rw });
+      }
     },
   };
 
