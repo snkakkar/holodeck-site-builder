@@ -254,6 +254,94 @@
       if (ns.quote && y < PH - px(1.1)) wrapText(doc, "“" + ns.quote + "”", contentX, y, contentW, { size: 15, style: "italic", color: T.ink, maxLines: 6 });
     },
 
+    // Unified profile — native reproduction of /demo's Data Cloud console:
+    // browser bar, profile rail (avatar monogram + name/role/segment + LTV /
+    // Orders KPIs), facet tabs, and the active facet's rows. Mirrors the PPTX
+    // profileConsole renderer so both exports show the "blown-up" profile UI.
+    profileConsole: function (doc, ns, ctx) {
+      const c = ns.console;
+      if (!c) { return TEMPLATE_RENDERERS.personaCard(doc, ns, ctx); }
+      const top = header(doc, ns, ctx);
+      // A single-line label drawn vertically centered in [y, y+h].
+      function midText(txt, x, y, h, opts) {
+        opts = opts || {};
+        doc.setFont("helvetica", opts.style || "normal");
+        doc.setFontSize(opts.size || 10);
+        doc.setTextColor(hx(opts.color || T.ink));
+        const tx = opts.align === "center" ? x + (opts.w || 0) / 2 : x;
+        doc.text(String(txt == null ? "" : txt), tx, y + h / 2 + (opts.size || 10) * 0.35,
+          { align: opts.align || "left", maxWidth: opts.w, charSpace: opts.charSpace || 0 });
+      }
+      const cx0 = M, cyTop = top, cw = PW - 2 * M, chBottom = PH - px(0.72), chH = chBottom - cyTop;
+      // Outer window frame.
+      doc.setFillColor("#FFFFFF"); doc.setDrawColor(hx(T.line)); doc.setLineWidth(1);
+      doc.roundedRect(cx0, cyTop, cw, chH, 6, 6, "FD");
+      // Title bar.
+      const barH = px(0.34);
+      doc.setFillColor(hx(ctx.brand.navy)); doc.rect(cx0, cyTop, cw, barH, "F");
+      // Round the top corners visually by overpainting is unnecessary; keep flat bar.
+      midText((c.brand || "BRAND") + "   ·   " + (c.name || ""), cx0 + 12, cyTop, barH,
+        { size: 10, style: "bold", color: "FFFFFF", charSpace: 1.2 });
+
+      const bodyY = cyTop + barH + 8;
+      const bodyH = chBottom - bodyY - 8;
+      // ── Left rail ──
+      const railW = Math.min(px(3.0), cw * 0.28), railX = cx0 + 8;
+      doc.setFillColor(hx(ctx.brand.navy)); doc.roundedRect(railX, bodyY, railW, bodyH, 5, 5, "F");
+      // Avatar circle.
+      const avR = 26, avCx = railX + railW / 2, avCy = bodyY + 16 + avR;
+      doc.setFillColor(hx(ctx.brand.primary)); doc.circle(avCx, avCy, avR, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor("#FFFFFF");
+      doc.text(c.monogram || "C", avCx, avCy + 8, { align: "center" });
+      let ry = avCy + avR + 16;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor("#FFFFFF");
+      doc.text(String(c.name || "Customer"), avCx, ry, { align: "center", maxWidth: railW - 20 });
+      ry += 16;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor("#C9D2E3");
+      doc.text(String(c.role || ""), avCx, ry, { align: "center", maxWidth: railW - 20 }); ry += 13;
+      doc.setTextColor("#8A97AE");
+      doc.text(String(c.segment || ""), avCx, ry, { align: "center", maxWidth: railW - 20 }); ry += 16;
+      (c.kpis || []).slice(0, 2).forEach(function (k) {
+        const kH = 40;
+        doc.setFillColor("#16273D"); doc.setDrawColor("#27364C"); doc.setLineWidth(0.75);
+        doc.roundedRect(railX + 12, ry, railW - 24, kH, 4, 4, "FD");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(hx(ctx.brand.accent));
+        doc.text(String(k.value || ""), railX + railW / 2, ry + 18, { align: "center", maxWidth: railW - 36 });
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor("#9AA6BC");
+        doc.text(String(k.label || ""), railX + railW / 2, ry + 32, { align: "center", maxWidth: railW - 36 });
+        ry += kH + 8;
+      });
+
+      // ── Right pane: facet tabs + active facet rows ──
+      const paneX = railX + railW + 14, paneW = (cx0 + cw) - paneX - 10;
+      const facets = c.facets || [];
+      const active = facets[0] || { label: "Profile", eyebrow: "Resolved profile", rows: [] };
+      const tabH = 24, tabGap = 6;
+      const tabW = facets.length ? (paneW - (facets.length - 1) * tabGap) / facets.length : paneW;
+      facets.forEach(function (fct, i) {
+        const tx = paneX + i * (tabW + tabGap), on = i === 0;
+        doc.setFillColor(hx(on ? ctx.brand.primary : T.band));
+        doc.setDrawColor(hx(on ? ctx.brand.primary : T.line)); doc.setLineWidth(0.75);
+        doc.roundedRect(tx, bodyY, tabW, tabH, 4, 4, "FD");
+        midText(fct.label || "", tx + 2, bodyY, tabH,
+          { size: 8.5, style: on ? "bold" : "normal", color: on ? "FFFFFF" : T.muted, align: "center", w: tabW - 4 });
+      });
+      let py = bodyY + tabH + 12;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(hx(ctx.brand.primary));
+      doc.text(String(active.eyebrow || "").toUpperCase(), paneX, py, { charSpace: 1.2 });
+      doc.setFontSize(13); doc.setTextColor(hx(T.ink));
+      doc.text(String(active.label || ""), paneX + 90, py);
+      py += 16;
+      const rows = (active.rows || []).slice(0, 6);
+      const rowH = rows.length ? Math.min(30, (chBottom - py - 8) / rows.length) : 0;
+      rows.forEach(function (r, i) {
+        const ryy = py + i * rowH;
+        if (i > 0) { doc.setFillColor(hx(T.line)); doc.rect(paneX, ryy, paneW, 0.5, "F"); }
+        midText(r.label || "", paneX, ryy, rowH, { size: 9, color: T.muted, w: paneW * 0.42 });
+        midText(r.value || "", paneX + paneW * 0.42, ryy, rowH, { size: 9.5, style: "bold", color: T.ink, w: paneW * 0.58 });
+      });
+    },
+
     agentChat: function (doc, ns, ctx) {
       let top = header(doc, ns, ctx);
       const turns = (ns.chat || []).slice(0, 8);

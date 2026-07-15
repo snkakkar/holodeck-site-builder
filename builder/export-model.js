@@ -109,7 +109,7 @@
     personaIntro:       "splitTextImage",
     personaWishlist:    "splitTextImage",
     personaCard:        "personaCard",
-    unifiedProfile:     "personaCard",
+    unifiedProfile:     "profileConsole",
     agentConversation:  "agentChat",
     kpiScorecard:       "metricScorecard",
     // ── SE-authored DEMO-section layouts (demo-deck-renderer.js vocabulary) ──
@@ -399,37 +399,16 @@
       });
       return { chat: turns };
     }
+    if (template === "profileConsole") {
+      // unifiedProfile renders as a native reproduction of /demo's Data Cloud
+      // console (demo-deck-renderer.js unifiedProfile ~461-611): a browser bar,
+      // a persistent profile rail (avatar monogram + name/role/segment + LTV /
+      // Orders KPIs), facet tabs, and the active facet's label/value rows. We
+      // reconstruct that layout natively rather than flatten it into chips.
+      return profileConsoleFor(slide, cfg, state);
+    }
     if (template === "personaCard") {
       const p = cfg.persona || {};
-      // unifiedProfile mirrors /demo's Data Cloud facet tabs: flatten the
-      // richest facets' rows (Identity, Affinities, Signals) into value/label
-      // chips so the export carries the resolved-profile content, not just the
-      // 3 persona stats. personaCard keeps the leaner stats view.
-      if (layout === "unifiedProfile" && SHARED.profileFacets) {
-        const facetGroups = SHARED.profileFacets({
-          persona: p,
-          products: (state.project && state.project.products) || [],
-          storyFoundations: state.storyFoundations || {},
-          industry: (state.project && state.project.industry) || cfg.customer && cfg.customer.industry || "",
-        }) || [];
-        // Prefer the three most concrete facets; each contributes its top rows.
-        const wanted = ["identity", "affinities", "signals"];
-        const picked = wanted
-          .map(function (k) { return facetGroups.find(function (g) { return g.key === k; }); })
-          .filter(Boolean);
-        const groups = picked.length ? picked : facetGroups.slice(0, 3);
-        const facets = [];
-        groups.forEach(function (g) {
-          (g.rows || []).slice(0, 3).forEach(function (r) {
-            facets.push({ label: plain(r.label), value: plain(r.value) });
-          });
-        });
-        return {
-          facets: facets,
-          quote:  plain(p.quote),
-          products: (cfg.journey && cfg.journey.platform && cfg.journey.platform.capabilities) || [],
-        };
-      }
       return {
         facets: (p.stats || []).map(function (s) { return { label: plain(s.label), value: plain(s.value) }; }),
         quote:  plain(p.quote),
@@ -623,6 +602,63 @@
     return rows;
   }
 
+  // unifiedProfile → profileConsole. Reconstructs /demo's Data Cloud console
+  // (demo-deck-renderer.js unifiedProfile ~461-611) as native export data so
+  // the exporters can draw the same UI — brand bar, profile rail (avatar
+  // monogram + name/role/segment + LTV / Orders KPIs), facet tabs, and the
+  // rows of each facet — rather than scattering the facets into loose chips.
+  function profileConsoleFor(slide, cfg, state) {
+    const p = cfg.persona || {};
+    const cust = cfg.customer || {};
+    const fullName = p.name || cust.name || "Customer";
+    // Same deterministic lifetime-value formula the live renderer uses so the
+    // export shows the identical number for a given persona.
+    const lifetime = "$" + (1500 + ((fullName.length * 137) % 6500)).toLocaleString() + ".00";
+    const monogram = (fullName.trim().split(/\s+/).slice(0, 2)
+      .map(function (w) { return (w[0] || "").toUpperCase(); }).join("")) || "C";
+    const roleText = plain(p.role || p.jobTitle || ((cust.industry || "Customer") + " customer"));
+    const segText  = plain(p.customerOf || (cust.industry ? cust.industry + " segment" : "Known customer"));
+
+    const facetGroups = (SHARED.profileFacets ? SHARED.profileFacets({
+      persona: p,
+      products: (state.project && state.project.products) || [],
+      storyFoundations: state.storyFoundations || {},
+      industry: (state.project && state.project.industry) || cust.industry || "",
+    }) : []) || [];
+    // The live console surfaces the four richest facets across its tabs.
+    const wanted = ["identity", "affinities", "signals", "predicted"];
+    const picked = wanted
+      .map(function (k) { return facetGroups.find(function (g) { return g.key === k; }); })
+      .filter(Boolean);
+    const groups = (picked.length ? picked : facetGroups).slice(0, 4);
+    const facets = groups.map(function (g) {
+      return {
+        key:     g.key,
+        label:   plain(g.label || ""),
+        eyebrow: plain(g.eyebrow || "Profile"),
+        rows: (g.rows || []).slice(0, 6).map(function (r) {
+          return { label: plain(r.label || ""), value: plain(r.value || "") };
+        }),
+      };
+    });
+
+    return {
+      console: {
+        brand:    plain((cust.name || "BRAND").toUpperCase()).slice(0, 14),
+        name:     plain(fullName),
+        monogram: monogram,
+        role:     roleText,
+        segment:  segText,
+        kpis: [
+          { value: lifetime, label: "Lifetime Value" },
+          { value: "4",      label: "Orders" },
+        ],
+        facets: facets,
+      },
+      quote: plain(p.quote),
+    };
+  }
+
   // ─── Title / eyebrow / headline / sub resolution ───────────────
   // Pull the display-text fields off the resolved editorPaths, with
   // sensible per-template fallbacks to the adapter's customer copy.
@@ -730,6 +766,13 @@
     } else if (template === "personaCard" && layout === "personaCard") {
       // Persona spotlight: a short relevance/pain line under the title.
       out.sub = sub || fit(persona.demoRelevance || persona.painPoints || persona.role, 200);
+    } else if (template === "profileConsole") {
+      // Match /demo's unifiedProfile right-pane copy: a Data Cloud eyebrow and a
+      // "who is she, really?" framing line above the console reproduction.
+      out.eyebrow = eyebrow || "Data Cloud · Unified Profile";
+      out.sub = sub || fit(
+        "Data Cloud builds a rich, real-time profile of " + (persona.name || "the customer") +
+        " from behavior across every channel — resolved into one identity.", 200);
     }
     return out;
   }
@@ -764,6 +807,7 @@
       rows:         structured.rows || [],
       chips:        structured.chips || [],
       chipsLabel:   structured.chipsLabel || "",
+      console:      structured.console || null,
       products:     structured.products || [],
       image:        null, // filled async below
       _imageSlot:   null,

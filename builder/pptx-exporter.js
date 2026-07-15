@@ -290,6 +290,124 @@
       }
     },
 
+    // Unified profile — unifiedProfile. A native reproduction of /demo's Data
+    // Cloud console: browser bar, profile rail (avatar monogram + name/role/
+    // segment + LTV / Orders KPIs), facet tabs, and the active facet's rows.
+    // This "blows up" the actual profile UI rather than showing loose chips.
+    profileConsole: function (slide, ns, ctx) {
+      const c = ns.console;
+      if (!c) { return TEMPLATE_RENDERERS.personaCard(slide, ns, ctx); }
+      const top = header(slide, ns, ctx, { titleW: T.W - 2 * T.MARGIN, titleH: 0.8, titleSize: 26 });
+      // Console card fills the remaining body.
+      const cx0 = T.MARGIN, cyTop = top;
+      const cw = T.W - 2 * T.MARGIN;
+      const chBottom = T.H - 0.72;
+      const chH = chBottom - cyTop;
+      // Outer window frame.
+      slide.addShape(ctx.ShapeType.roundRect, {
+        x: cx0, y: cyTop, w: cw, h: chH, fill: { color: "FFFFFF" },
+        line: { color: T.line, width: 1 }, rectRadius: 0.08,
+      });
+      // Browser/app title bar.
+      const barH = 0.34;
+      slide.addShape(ctx.ShapeType.rect, { x: cx0, y: cyTop, w: cw, h: barH, fill: { color: ctx.brand.navy }, line: { type: "none" } });
+      slide.addText((c.brand || "BRAND") + "   ·   " + (c.name || ""), {
+        x: cx0 + 0.2, y: cyTop, w: cw - 0.4, h: barH, fontSize: 10, bold: true,
+        color: "FFFFFF", fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, charSpacing: 2,
+      });
+
+      const bodyY = cyTop + barH + 0.12;
+      const bodyH = chBottom - bodyY - 0.14;
+      // ── Left rail: avatar + identity + KPIs ──
+      const railW = Math.min(3.0, cw * 0.28);
+      const railX = cx0 + 0.14;
+      slide.addShape(ctx.ShapeType.roundRect, {
+        x: railX, y: bodyY, w: railW, h: bodyH, fill: { color: ctx.brand.navy }, line: { type: "none" }, rectRadius: 0.06,
+      });
+      // Avatar monogram (circle).
+      const avD = 0.9, avX = railX + (railW - avD) / 2, avY = bodyY + 0.22;
+      slide.addShape(ctx.ShapeType.ellipse, { x: avX, y: avY, w: avD, h: avD, fill: { color: ctx.brand.primary }, line: { type: "none" } });
+      slide.addText(c.monogram || "C", {
+        x: avX, y: avY, w: avD, h: avD, fontSize: 26, bold: true, color: "FFFFFF",
+        fontFace: ctx.brand.fontHeading, align: ctx.AlignH.center, valign: ctx.AlignV.middle,
+      });
+      let ry = avY + avD + 0.12;
+      slide.addText(c.name || "Customer", {
+        x: railX + 0.12, y: ry, w: railW - 0.24, h: 0.34, fontSize: 15, bold: true, color: "FFFFFF",
+        fontFace: ctx.brand.fontHeading, align: ctx.AlignH.center, valign: ctx.AlignV.middle, shrinkText: true,
+      });
+      ry += 0.34;
+      slide.addText([
+        { text: (c.role || "") + "", options: { color: "C9D2E3", breakLine: true } },
+        { text: (c.segment || "") + "", options: { color: "8A97AE" } },
+      ], {
+        x: railX + 0.12, y: ry, w: railW - 0.24, h: 0.6, fontSize: 9,
+        fontFace: ctx.brand.fontBody, align: ctx.AlignH.center, valign: ctx.AlignV.top, shrinkText: true,
+      });
+      ry += 0.66;
+      // KPI tiles.
+      (c.kpis || []).slice(0, 2).forEach(function (k) {
+        slide.addShape(ctx.ShapeType.roundRect, {
+          x: railX + 0.16, y: ry, w: railW - 0.32, h: 0.56,
+          fill: { color: "16273D" }, line: { color: "27364C", width: 0.75 }, rectRadius: 0.05,
+        });
+        slide.addText([
+          { text: k.value + "", options: { bold: true, fontSize: 14, color: ctx.brand.accent, breakLine: true } },
+          { text: (k.label || "") + "", options: { fontSize: 8, color: "9AA6BC" } },
+        ], {
+          x: railX + 0.2, y: ry + 0.04, w: railW - 0.4, h: 0.48,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.center, valign: ctx.AlignV.middle, shrinkText: true,
+        });
+        ry += 0.66;
+      });
+
+      // ── Right pane: facet tabs + active facet rows ──
+      const paneX = railX + railW + 0.2;
+      const paneW = (cx0 + cw) - paneX - 0.16;
+      const facets = (c.facets || []);
+      const active = facets[0] || { label: "Profile", eyebrow: "Resolved profile", rows: [] };
+      // Tab row (all facet labels; first highlighted like show(0)).
+      const tabH = 0.32, tabGap = 0.1;
+      const tabW = facets.length ? (paneW - (facets.length - 1) * tabGap) / facets.length : paneW;
+      facets.forEach(function (fct, i) {
+        const tx = paneX + i * (tabW + tabGap);
+        const on = i === 0;
+        slide.addShape(ctx.ShapeType.roundRect, {
+          x: tx, y: bodyY, w: tabW, h: tabH,
+          fill: { color: on ? ctx.brand.primary : T.band },
+          line: { color: on ? ctx.brand.primary : T.line, width: 0.75 }, rectRadius: 0.05,
+        });
+        slide.addText(fct.label || "", {
+          x: tx + 0.04, y: bodyY, w: tabW - 0.08, h: tabH, fontSize: 9, bold: on,
+          color: on ? "FFFFFF" : T.muted, fontFace: ctx.brand.fontBody,
+          align: ctx.AlignH.center, valign: ctx.AlignV.middle, shrinkText: true,
+        });
+      });
+      // Active facet header + rows.
+      let py = bodyY + tabH + 0.14;
+      slide.addText([
+        { text: (active.eyebrow || "").toUpperCase() + "  ", options: { fontSize: 8, bold: true, color: ctx.brand.primary, charSpacing: 2 } },
+        { text: active.label || "", options: { fontSize: 13, bold: true, color: T.ink } },
+      ], {
+        x: paneX, y: py, w: paneW, h: 0.3, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle,
+      });
+      py += 0.36;
+      const rows = (active.rows || []).slice(0, 6);
+      const rowH = rows.length ? Math.min(0.42, (chBottom - py - 0.14) / rows.length) : 0;
+      rows.forEach(function (r, i) {
+        const ryy = py + i * rowH;
+        if (i > 0) slide.addShape(ctx.ShapeType.rect, { x: paneX, y: ryy, w: paneW, h: 0.006, fill: { color: T.line }, line: { type: "none" } });
+        slide.addText(r.label || "", {
+          x: paneX, y: ryy, w: paneW * 0.42, h: rowH, fontSize: 9, color: T.muted,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
+        });
+        slide.addText(r.value || "", {
+          x: paneX + paneW * 0.42, y: ryy, w: paneW * 0.58, h: rowH, fontSize: 9.5, bold: true, color: T.ink,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
+        });
+      });
+    },
+
     // Agent chat — agentConversation. Stacked chat bubbles.
     agentChat: function (slide, ns, ctx) {
       const top = header(slide, ns, ctx);
