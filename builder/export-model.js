@@ -558,8 +558,14 @@
       // Resolve every image slot → data URL (parallel; failures → null).
       const imgJobs = slides.map(function (ns) {
         if (!ns._imageSlot) return Promise.resolve();
-        return imageToDataUrl(ns._imageSlot.url).then(function (img) {
-          if (img) ns.image = { dataUrl: img.dataUrl, w: img.w, h: img.h, kind: ns._imageSlot.kind };
+        // Keep the original (signed) URL alongside the data URL. The
+        // PPTX/PDF exporters embed dataUrl; the Google Slides exporter
+        // POSTs `url` instead (the Slides API's createImage needs a
+        // publicly-reachable URL, not base64 — and it keeps the POST small).
+        const srcUrl = ns._imageSlot.url;
+        const slotKind = ns._imageSlot.kind;
+        return imageToDataUrl(srcUrl).then(function (img) {
+          if (img) ns.image = { dataUrl: img.dataUrl, url: srcUrl, w: img.w, h: img.h, kind: slotKind };
           delete ns._imageSlot;
         });
       });

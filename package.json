@@ -17,6 +17,7 @@
     "@google-cloud/storage": "^7.21.0",
     "compression": "^1.8.1",
     "express": "^4.21.2",
+    "googleapis": "^144.0.0",
     "http-proxy-middleware": "^3.0.7",
     "jose": "^5.10.0"
   },

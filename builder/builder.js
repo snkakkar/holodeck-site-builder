@@ -4763,11 +4763,17 @@
         if (!window.HOLO_PDF) { toast("PDF export isn't available — reload the page and try again."); return; }
         runFileExport("PDF", function () { return window.HOLO_PDF.downloadDeckPdf(s); });
       }),
+      btn("⬆ Create Google Slides", "bx-btn-secondary", function () {
+        if (!window.HOLO_GSLIDES) { toast("Google Slides export isn't available — reload the page and try again."); return; }
+        runFileExport("Google Slides deck", function () { return window.HOLO_GSLIDES.createDeckGoogleSlides(s); });
+      }),
     ]));
     fileCard.appendChild(el("div", { class: "bx-card-sub bx-mt-12",
       text: "Note: these are clean native slides — no CSS device-frame chrome and no live/interactive components. "
           + "A CX component shows its still image if you added one, otherwise a labeled placeholder. "
-          + "Speaker notes are included in the PPTX (PDF has no notes field)." }));
+          + "Speaker notes are included in the PPTX and Google Slides (PDF has no notes field). "
+          + "“Create Google Slides” builds the deck in your own Google Drive — the first time, a Google "
+          + "consent tab opens; click Allow, then press the button again." }));
     wrap.appendChild(fileCard);
 
     // ── Secondary: config-only ─────────────────────────────────

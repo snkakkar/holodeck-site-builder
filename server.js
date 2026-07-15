@@ -1,7 +1,7 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const { jwtVerify } = require("jose");
+const { jwtVerify, SignJWT } = require("jose");
 const compression = require("compression");
 
 // ── .env loading ───────────────────────────────────────────────
@@ -198,6 +198,94 @@ function signGcsUrl(objectPath) {
     .file(objectPath)
     .getSignedUrl({ action: "read", version: "v4", expires: Date.now() + GCS_SIGNED_URL_TTL_MS })
     .then(function (res) { return res[0]; });
+}
+
+// ── Google Slides export (per-user OAuth) ──────────────────────
+// A "Create Google Slides" export builds a real Slides deck in the
+// signed-in user's OWN Google Drive. The user grants consent once
+// via OAuth (the guide's credentials.json flow); we keep only their
+// refresh token, server-side, and never expose the OAuth client
+// secret to the browser (mirrors the Gemini/GCS key isolation above).
+//
+// OAuth client: GOOGLE_OAUTH_CLIENT_JSON holds the JSON contents of
+// the Desktop/Web OAuth client downloaded from Google Cloud Console
+// (the guide's credentials.json). Redirect URI is derived per-request
+// from the request origin (/api/slides/oauth/callback) so it works in
+// both local dev and the deployed host.
+//
+// Token storage: refresh tokens are small; we persist them as tiny
+// JSON objects in the SAME private GCS bucket under oauth/ (keyed by a
+// hash of the user's email). This avoids a new dependency/table and
+// survives dyno restarts. If GCS is unconfigured we fall back to an
+// in-memory map (non-persistent; documented).
+const GOOGLE_OAUTH_CLIENT_JSON = process.env.GOOGLE_OAUTH_CLIENT_JSON || "";
+const SLIDES_SCOPES = [
+  "https://www.googleapis.com/auth/presentations",
+  "https://www.googleapis.com/auth/drive.file",
+];
+const slidesConfigured = () => Boolean(GOOGLE_OAUTH_CLIENT_JSON && JWT_KEY);
+const _oauthTokensMem = new Map(); // email → refresh_token (fallback store)
+
+// Parse the OAuth client JSON once. Google wraps it under `web` or
+// `installed`; accept either.
+let _oauthClientConf = null;
+function oauthClientConf() {
+  if (_oauthClientConf !== null) return _oauthClientConf || null;
+  try {
+    const parsed = JSON.parse(GOOGLE_OAUTH_CLIENT_JSON);
+    _oauthClientConf = parsed.web || parsed.installed || parsed;
+  } catch (err) {
+    console.warn("[holodeck] GOOGLE_OAUTH_CLIENT_JSON parse failed:", (err && err.message) || err);
+    _oauthClientConf = false;
+  }
+  return _oauthClientConf || null;
+}
+
+// Build a fresh OAuth2 client bound to this request's redirect URI.
+function makeOAuthClient(redirectUri) {
+  const conf = oauthClientConf();
+  if (!conf) return null;
+  const { google } = require("googleapis");
+  return new google.auth.OAuth2(conf.client_id, conf.client_secret, redirectUri);
+}
+function redirectUriFor(req) {
+  const proto = (req.get("x-forwarded-proto") || req.protocol || "https").split(",")[0];
+  return `${proto}://${req.get("host")}/api/slides/oauth/callback`;
+}
+
+// Stable, non-reversible object key for a user's stored token.
+function tokenKeyFor(email) {
+  const crypto = require("crypto");
+  return "oauth/slides-" + crypto.createHash("sha256").update(String(email)).digest("hex").slice(0, 32) + ".json";
+}
+function saveRefreshToken(email, refreshToken) {
+  const bucket = getGcsBucket();
+  if (!bucket) { _oauthTokensMem.set(email, refreshToken); return Promise.resolve(); }
+  return bucket.file(tokenKeyFor(email))
+    .save(JSON.stringify({ refresh_token: refreshToken }), { contentType: "application/json", resumable: false });
+}
+function loadRefreshToken(email) {
+  const bucket = getGcsBucket();
+  if (!bucket) return Promise.resolve(_oauthTokensMem.get(email) || null);
+  return bucket.file(tokenKeyFor(email)).download()
+    .then((res) => { try { return JSON.parse(res[0].toString("utf8")).refresh_token || null; } catch (_) { return null; } })
+    .catch(() => null);
+}
+
+// The OAuth callback carries no bearer token (it's a browser redirect),
+// so we round-trip the user's email through a short-lived signed `state`
+// JWT (signed with the same JWT_SECRET). This binds the consent to the
+// user who initiated it and can't be forged.
+function signOAuthState(email) {
+  return new SignJWT({ email: email, purpose: "slides_oauth" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("15m")
+    .sign(JWT_KEY);
+}
+async function verifyOAuthState(state) {
+  const { payload } = await jwtVerify(state, JWT_KEY);
+  if (payload.purpose !== "slides_oauth" || !payload.email) throw new Error("bad state");
+  return String(payload.email);
 }
 
 // ── NDJSON streaming helper ────────────────────────────────────
@@ -508,6 +596,134 @@ app.post("/api/asset/sign", requireHolodeckAuth, async (req, res) => {
     catch (_) { /* unsignable → omit; caller falls back to placeholder */ }
   }));
   return res.json({ urls });
+});
+
+// ── Google Slides export routes ────────────────────────────────
+// Availability probe — the builder hides/disables the button when
+// unconfigured (mirrors /api/gemini/status).
+app.get("/api/slides/status", (_req, res) => {
+  res.json({ available: slidesConfigured() });
+});
+
+// POST /api/slides/create — body is the normalized export model
+// ({ meta, brand, slides }) built in the browser. Creates the deck in
+// the caller's own Drive. Returns { presentationUrl } or, when the user
+// hasn't consented yet, 409 { auth_required:true, authUrl }.
+app.post("/api/slides/create", requireHolodeckAuth, rateLimit, async (req, res) => {
+  if (!slidesConfigured()) {
+    return res.status(503).json({ error: "Google Slides export isn't configured on the server (GOOGLE_OAUTH_CLIENT_JSON unset)." });
+  }
+  const email = req.holoUser.email;
+  const model = req.body || {};
+  if (!Array.isArray(model.slides) || !model.slides.length) {
+    return res.status(400).json({ error: "No slides to export." });
+  }
+
+  const oauth = makeOAuthClient(redirectUriFor(req));
+  if (!oauth) return res.status(503).json({ error: "OAuth client misconfigured." });
+
+  const refreshToken = await loadRefreshToken(email);
+  if (!refreshToken) {
+    // No consent yet → tell the client where to send the user.
+    const state = await signOAuthState(email);
+    const authUrl = oauth.generateAuthUrl({
+      access_type: "offline", prompt: "consent", scope: SLIDES_SCOPES,
+      login_hint: email, state: state,
+    });
+    return res.status(409).json({ auth_required: true, authUrl: authUrl });
+  }
+
+  try {
+    oauth.setCredentials({ refresh_token: refreshToken });
+    const { google } = require("googleapis");
+    const slides = google.slides({ version: "v1", auth: oauth });
+
+    const { buildBatchRequests } = require("./slides-renderer");
+    const built = buildBatchRequests(model);
+
+    const title = (model.meta && model.meta.name) || "Holodeck";
+    const created = await slides.presentations.create({ requestBody: { title: title } });
+    const presentationId = created.data.presentationId;
+
+    // The BLANK layout still ships one default slide (slideId "p"); the
+    // deck reads cleaner without it. We delete it after our slides land.
+    const defaultSlideId = (created.data.slides && created.data.slides[0] && created.data.slides[0].objectId) || null;
+
+    // 1) Create all slides + elements in one batch. The renderer scales
+    //    the PPTX 13.33×7.5in layout down to the presentation's native
+    //    16:9 page (10×5.625in) — see slides-renderer.js PAGE_SCALE.
+    await slides.presentations.batchUpdate({
+      presentationId,
+      requestBody: { requests: built.requests },
+    });
+
+    // 2) Speaker notes need the notes-page placeholder id, known only now.
+    if (built.notes && built.notes.length) {
+      const full = await slides.presentations.get({ presentationId });
+      const byId = {};
+      (full.data.slides || []).forEach((s) => {
+        const notesId = s.slideProperties &&
+          s.slideProperties.notesPage &&
+          (s.slideProperties.notesPage.notesProperties || {}).speakerNotesObjectId;
+        if (notesId) byId[s.objectId] = notesId;
+      });
+      const noteReqs = built.notes
+        .filter((n) => byId[n.pageId])
+        .map((n) => ({ insertText: { objectId: byId[n.pageId], insertionIndex: 0, text: n.text } }));
+      if (noteReqs.length) {
+        await slides.presentations.batchUpdate({ presentationId, requestBody: { requests: noteReqs } });
+      }
+    }
+
+    // 3) Drop the leftover default blank slide.
+    if (defaultSlideId) {
+      try {
+        await slides.presentations.batchUpdate({
+          presentationId, requestBody: { requests: [{ deleteObject: { objectId: defaultSlideId } }] },
+        });
+      } catch (_) { /* non-fatal — leave the stray slide rather than fail the export */ }
+    }
+
+    return res.json({ presentationUrl: `https://docs.google.com/presentation/d/${presentationId}/edit` });
+  } catch (err) {
+    const msg = (err && err.message) || String(err);
+    // A revoked/expired refresh token reads as invalid_grant — force re-consent.
+    if (/invalid_grant|invalid_token|unauthorized/i.test(msg)) {
+      const state = await signOAuthState(email);
+      const authUrl = oauth.generateAuthUrl({ access_type: "offline", prompt: "consent", scope: SLIDES_SCOPES, login_hint: email, state: state });
+      return res.status(409).json({ auth_required: true, authUrl: authUrl });
+    }
+    console.warn("[holodeck] slides create failed:", msg);
+    return res.status(502).json({ error: "Couldn't create the Google Slides deck: " + msg });
+  }
+});
+
+// GET /api/slides/oauth/callback — Google redirects here after consent.
+// Exchange the code for tokens, persist the refresh token, and show a
+// close-this-tab page. No bearer token here; identity comes from `state`.
+app.get("/api/slides/oauth/callback", async (req, res) => {
+  const closeHtml = (msg) => `<!doctype html><html><body style="font-family:system-ui;padding:3rem;text-align:center">
+    <h2>${msg}</h2><p>You can close this tab and return to the builder.</p>
+    <script>setTimeout(function(){window.close();},1500);</script></body></html>`;
+  if (!slidesConfigured()) return res.status(503).send(closeHtml("Google Slides isn’t configured."));
+  const code = typeof req.query.code === "string" ? req.query.code : "";
+  const state = typeof req.query.state === "string" ? req.query.state : "";
+  if (!code || !state) return res.status(400).send(closeHtml("Authorization failed — missing code."));
+  try {
+    const email = await verifyOAuthState(state);
+    const oauth = makeOAuthClient(redirectUriFor(req));
+    const { tokens } = await oauth.getToken(code);
+    if (!tokens.refresh_token) {
+      // Google only returns a refresh token on first consent; prompt=consent
+      // (used above) forces it, but guard anyway.
+      return res.status(200).send(closeHtml("Authorized — but no refresh token was returned. Try again."));
+    }
+    await saveRefreshToken(email, tokens.refresh_token);
+    return res.status(200).send(closeHtml("Google authorized ✓"));
+  } catch (err) {
+    console.warn("[holodeck] oauth callback failed:", (err && err.message) || err);
+    return res.status(400).send(closeHtml("Authorization failed."));
+  }
 });
 
 // ── Real brand logo proxy ──────────────────────────────────────
