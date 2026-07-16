@@ -405,6 +405,9 @@
         phaseTitle:   phaseLabel(i),
         badge:        a && a.salesforceCapabilities ? truncate(a.salesforceCapabilities, 36) : (prods[i] || "Salesforce"),
         emoji:        PHASE_EMOJIS[i],
+        // Optional per-phase circle image (Gemini-generated at export time).
+        // Empty by default → the live map falls back to the emoji.
+        imageUrl:     "",
         circleClass:  PHASE_CIRCLE_CLASSES[i],
         description:  a && a.summary ? fitSentences(a.summary, 200) : phaseDescription(PHASE_TITLES[i]),
         descriptionShort: a && a.summary ? fitSentences(a.summary, 110) : phaseDescription(PHASE_TITLES[i]),
@@ -655,22 +658,63 @@
       ],
     });
 
-    // 3. Affinities — what the behavioral data says they care about (deepened).
-    const affinitySource = Array.isArray(p.wishlist) && p.wishlist.length
-      ? p.wishlist
-      : (Array.isArray(f.valueDrivers) ? f.valueDrivers : []);
-    const affinityRows = affinitySource.slice(0, 5).map(function (w, i) {
-      const label = typeof w === "string" ? w : (w && (w.title || w.label)) || ("Affinity " + (i + 1));
-      return { label: shortenTitle(label) || ("Affinity " + (i + 1)), value: i === 0 ? "Very high" : "High" };
+    // 3. Affinities — what the behavioral data says they care about.
+    // Labels must always read like real interests — never "Affinity N".
+    // Build a deduped, ordered candidate list from (in priority order):
+    // wishlist → valueDrivers → story moments → products → an
+    // industry-aware default set, then pad from a neutral-but-real set.
+    const affinityRatings = ["Very high", "High", "High", "Elevated", "Medium"];
+    const labelOf = function (w) {
+      if (typeof w === "string") return w;
+      return (w && (w.title || w.label || w.name)) || "";
+    };
+    const industryAffinities = (function (ind) {
+      const key = String(ind || "").toLowerCase();
+      if (/retail|commerce|fashion|apparel|store/.test(key))
+        return ["New arrivals", "Seasonal styles", "Loyalty rewards", "Personalized picks"];
+      if (/travel|hospitality|airline|hotel|resort/.test(key))
+        return ["Destinations", "Upgrades", "Loyalty tier", "Travel deals"];
+      if (/financ|bank|insur|wealth|fintech/.test(key))
+        return ["Rewards & offers", "Financial goals", "Account alerts", "Digital self-service"];
+      if (/health|medical|pharma|wellness|care/.test(key))
+        return ["Wellness programs", "Care reminders", "Preventive plans", "Digital access"];
+      if (/tech|software|saas|telecom|media/.test(key))
+        return ["Product updates", "Premium features", "Support & onboarding", "Community"];
+      if (/auto|manufactur|industr|energy/.test(key))
+        return ["Service & upkeep", "New models", "Financing offers", "Trade-in value"];
+      return ["Category interest", "Brand loyalty", "New offers", "Digital-first"];
+    })(input.industry || p.customerOf || "");
+    // Ordered candidates → dedupe (case-insensitive) → clean labels.
+    // Real interests lead (wishlist → value drivers → story moments →
+    // industry-flavored defaults); product-engagement phrasing is a tail
+    // filler so a thin persona still reads as interests, not tech.
+    const candidateSources = []
+      .concat(Array.isArray(p.wishlist) ? p.wishlist : [])
+      .concat(Array.isArray(f.valueDrivers) ? f.valueDrivers : [])
+      .concat(Array.isArray(f.customerMoments) ? f.customerMoments : [])
+      .concat(Array.isArray(f.dataCloudMoments) ? f.dataCloudMoments : [])
+      .concat(industryAffinities)
+      .concat(prods.map(function (pr) { return pr + " engagement"; }));
+    const seenAff = {};
+    const affinityLabels = [];
+    candidateSources.forEach(function (w) {
+      const raw = shortenTitle(labelOf(w));
+      if (!raw) return;
+      const k = raw.toLowerCase();
+      if (seenAff[k]) return;
+      seenAff[k] = true;
+      affinityLabels.push(raw);
     });
+    // Guaranteed non-empty (industryAffinities always contributes ≥4), but
+    // keep an explicit neutral floor so the facet can never blank out.
+    const finalAffLabels = (affinityLabels.length ? affinityLabels : [
+      "Category interest", "Brand loyalty", "Mobile-first", "Price-conscious",
+    ]).slice(0, 5);
     facets.push({
       key: "affinities", label: "Affinities", eyebrow: "Behavioral signals",
-      rows: affinityRows.length ? affinityRows : [
-        { label: "Category interest", value: "High" },
-        { label: "Price sensitivity", value: "Medium" },
-        { label: "Brand loyalty",     value: "High" },
-        { label: "Channel: mobile",   value: "High" },
-      ],
+      rows: finalAffLabels.map(function (label, i) {
+        return { label: label, value: affinityRatings[i] || "Medium" };
+      }),
     });
 
     // 4. Real-time signals — recent moments that drive the next action (deepened).

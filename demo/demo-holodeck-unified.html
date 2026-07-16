@@ -505,7 +505,11 @@
             <div class="tb">${step.detail}</div>
             <div class="tech-row">${step.technologies.map(t => `<span class="t-tag">${t}</span>`).join('')}</div>
           </div>
-          <div class="circle-art ${circleClass[i % circleClass.length]}">${step.emoji}</div>
+          <div class="circle-art ${circleClass[i % circleClass.length]}">${
+            step.imageUrl
+              ? `<img class="circle-img" src="${String(step.imageUrl).replace(/"/g, '&quot;')}" alt="${String(step.title || '').replace(/"/g, '&quot;')}" loading="lazy">`
+              : step.emoji
+          }</div>
         </div>
         <p class="step-desc">${step.description}</p>
         <div class="cta">${step.badge}</div>

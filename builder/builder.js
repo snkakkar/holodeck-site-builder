@@ -2997,6 +2997,102 @@
     ].filter(Boolean).join(" ");
   }
 
+  // ─── Journey-map circle image prompt ─────────────────────────
+  // One contextual scene per journey phase, rendered into the live
+  // /demo map's circle. Mirrors buildAssetPrompt's context extraction
+  // but for a photographic phase moment (no UI mockup, no text).
+  function buildJourneyStepPrompt(s, step, i) {
+    const p = (s && s.project) || {};
+    const f = (s && s.storyFoundations) || {};
+    const persona = (Array.isArray(s && s.personas) && s.personas[0]) || {};
+    const clean = function (v) { const t = String(v || "").trim(); return /^\[TODO/i.test(t) ? "" : t; };
+    const snippet = function (v, n) { const t = clean(v); return t ? t.slice(0, n || 160) : ""; };
+
+    const customer = clean(p.customerName);
+    const industry = clean(p.industry);
+    const personaName = clean(persona.name);
+    const personaRole = clean(persona.role);
+    const personaGoals = snippet(persona.goals, 120);
+    const phaseTitle = clean(step && (step.title || step.phaseTitle)) || ("Phase " + (i + 1));
+    const phaseDesc = snippet(step && (step.descriptionShort || step.description), 180);
+
+    const NO_GARBLE = "Avoid: any text, words, letters, numbers, logos, watermarks, UI, " +
+      "misspelled or garbled type, borders, or captions.";
+
+    const subject = personaRole
+      ? ("a " + personaRole + (personaName ? " (" + personaName + ")" : ""))
+      : (personaName || "a customer");
+
+    const ctx = [];
+    if (customer) ctx.push("Customer: " + customer);
+    if (industry) ctx.push("Industry: " + industry);
+    if (personaGoals) ctx.push("Persona goal: " + personaGoals);
+
+    return [
+      "A cinematic, photographic scene representing the \"" + phaseTitle + "\" moment of a " +
+        (industry ? industry + " " : "") + "customer journey" +
+        (customer ? " for " + customer : "") + ", featuring " + subject +
+        (phaseDesc ? ": " + phaseDesc : "") + ".",
+      ctx.length ? ("Context — " + ctx.join("; ") + ".") : "",
+      "Warm, editorial lighting; a single clear focal subject; centered composition that reads " +
+        "well cropped into a circle. Realistic and on-brand. No text or logos anywhere in the image.",
+      NO_GARBLE,
+    ].filter(Boolean).join(" ");
+  }
+
+  // ─── Journey-map circle image auto-generation (export-time) ───
+  // Called before a demo export/publish builds holodeck.config.js.
+  // For each journey phase MISSING a "journeyStep<i>" asset, generate a
+  // contextual image via Gemini and store it in state.assetLibrary so it
+  // persists (project-store tokenizes it) and flows into the exported
+  // config via buildJourney. Cached: already-generated phases are skipped,
+  // so re-export is free. Degrades gracefully when Gemini is unavailable.
+  function ensureJourneyImages(s) {
+    const GEMINI = window.HOLO_GEMINI;
+    const SHARED = window.HOLO_SHARED;
+    if (!s) return Promise.resolve(0);
+    // isConfigured() is async; skip only on the hard "no client" case and let
+    // per-image generateImage rejections (incl. unconfigured server) fall back
+    // to the emoji gracefully.
+    if (!GEMINI || !GEMINI.generateImage) return Promise.resolve(0);
+    if (!SHARED || !SHARED.bucketActsIntoFive) return Promise.resolve(0);
+
+    const acts = Array.isArray(s.storyActs) ? s.storyActs : [];
+    const prods = (s.project && Array.isArray(s.project.products) ? s.project.products : []).filter(Boolean);
+    const f = s.storyFoundations || {};
+    const steps = SHARED.bucketActsIntoFive(acts, prods, f.journeyPhases) || [];
+    if (!steps.length) return Promise.resolve(0);
+
+    s.assetLibrary = s.assetLibrary || {};
+    const missing = [];
+    steps.forEach(function (step, i) {
+      const slot = "journeyStep" + i;
+      const cur = s.assetLibrary[slot];
+      if (typeof cur === "string" && cur) return; // cached — skip
+      missing.push({ step: step, i: i, slot: slot });
+    });
+    if (!missing.length) return Promise.resolve(0);
+
+    try { toast("Generating " + missing.length + " journey image" + (missing.length > 1 ? "s" : "") + "…"); } catch (_) {}
+
+    return Promise.all(missing.map(function (m) {
+      return GEMINI.generateImage({ prompt: buildJourneyStepPrompt(s, m.step, m.i) })
+        .then(function (url) {
+          if (typeof url === "string" && url) s.assetLibrary[m.slot] = url;
+          return true;
+        })
+        .catch(function (err) {
+          try { console.warn("[holodeck] journey image " + m.i + " failed:", (err && err.message) || err); } catch (_) {}
+          return false; // leave slot empty → emoji fallback
+        });
+    })).then(function (results) {
+      const n = results.filter(Boolean).length;
+      // Persist newly-generated URLs (tokenize → save) if the store is wired.
+      try { if (n && typeof commit === "function") commit(); } catch (_) {}
+      return n;
+    });
+  }
+
   // ─── AI persona-card copy fill ───────────────────────────────
   // Fills the small persona-card text fields (quote/painPoints, the
   // three stat tiles, the three wishlist rows) for every persona that
@@ -4723,11 +4819,14 @@
                        " still need attention. Export anyway?")) return;
         }
         toast("Building polished demo ZIP…");
-        Promise.resolve(window.HOLO_ZIP.downloadCompleteDemoZip(s)).then(function () {
-          toast("Polished demo ZIP downloaded");
-        }).catch(function (e) {
-          toast("Couldn't build the ZIP: " + (e && e.message || e));
-        });
+        Promise.resolve(ensureJourneyImages(s))
+          .catch(function () { return 0; })
+          .then(function () { return window.HOLO_ZIP.downloadCompleteDemoZip(s); })
+          .then(function () {
+            toast("Polished demo ZIP downloaded");
+          }).catch(function (e) {
+            toast("Couldn't build the ZIP: " + (e && e.message || e));
+          });
       }),
     ]));
     wrap.appendChild(zipCard);
@@ -6268,9 +6367,12 @@
     wrap.appendChild(el("div", { class: "bx-modal-actions", style: "margin-top: 0; margin-bottom: 14px;" }, [
       btn("⬇ Download Complete Demo ZIP", "bx-btn-primary", function () {
         toast("Building polished demo ZIP…");
-        Promise.resolve(window.HOLO_ZIP.downloadCompleteDemoZip(app.state)).then(function () {
-          toast("Polished demo ZIP downloaded");
-        }).catch(function (e) { toast("Couldn't build the ZIP: " + (e && e.message || e)); });
+        Promise.resolve(ensureJourneyImages(app.state))
+          .catch(function () { return 0; })
+          .then(function () { return window.HOLO_ZIP.downloadCompleteDemoZip(app.state); })
+          .then(function () {
+            toast("Polished demo ZIP downloaded");
+          }).catch(function (e) { toast("Couldn't build the ZIP: " + (e && e.message || e)); });
       }),
       btn("Download Config JS", "bx-btn-secondary", function () {
         CONFIG.downloadFile("holodeck.config.js", cfgJs, "text/javascript"); toast("Downloaded");
