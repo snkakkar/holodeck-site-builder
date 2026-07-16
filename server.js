@@ -44,6 +44,32 @@ const GEMINI_TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-3.5-flash";
 const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-3-pro-image";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
+// ── Outbound fetch timeouts ────────────────────────────────────
+// Every upstream fetch (Gemini, Aubrey, logo, GCS asset proxy) used a
+// bare fetch() with no timeout, so a slow/hung upstream held the socket
+// open until the OS eventually gave up — a dyno-level reliability hole.
+// fetchWithTimeout wires an AbortController so a dead upstream fails fast
+// through each handler's EXISTING catch branch (same status/shape as a
+// network error). AbortController + fetch are native on the Node 20–22
+// runtime this project targets, so no new dependency. Timeouts are class
+// constants (tune here):
+//   • Gemini text/image: generous — these legitimately run long, and the
+//     NDJSON heartbeat already keeps Heroku's router happy. This is only a
+//     backstop against a truly dead upstream, not a latency cap.
+//   • Aubrey / logo / GCS proxy: short — quick JSON/image fetches should
+//     fail fast to their fallback (502 / next source / 404).
+const FETCH_TIMEOUT_GEMINI_MS = 120000;
+const FETCH_TIMEOUT_PROXY_MS = 10000;
+async function fetchWithTimeout(url, opts, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...(opts || {}), signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── Aubrey Demo: shared-key proxy config ───────────────────────
 // The Aubrey ecosystem (PocketSIC / Scriptwriter / Brand Kit Builder)
 // can be reached with ONE shared API key per app held server-side.
@@ -419,11 +445,11 @@ app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, async (req, res
   // GenerateContentResponse; we concatenate the text parts as they land.
   const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
   try {
-    const upstream = await fetch(url, {
+    const upstream = await fetchWithTimeout(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
       body: JSON.stringify(payload),
-    });
+    }, FETCH_TIMEOUT_GEMINI_MS);
 
     if (!upstream.ok) {
       const raw = await upstream.text();
@@ -513,11 +539,11 @@ app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, async (re
   const { finish } = beginNdjson(res);
   const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`;
   try {
-    const upstream = await fetch(url, {
+    const upstream = await fetchWithTimeout(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
       body: JSON.stringify(payload),
-    });
+    }, FETCH_TIMEOUT_GEMINI_MS);
     const raw = await upstream.text();
     let parsed;
     try { parsed = JSON.parse(raw); } catch (_) { parsed = null; }
@@ -759,7 +785,7 @@ app.get("/api/logo", requireHolodeckAuth, async (req, res) => {
 
   for (const src of sources) {
     try {
-      const upstream = await fetch(src, { redirect: "follow" });
+      const upstream = await fetchWithTimeout(src, { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
       if (!upstream.ok) continue;
       const buf = Buffer.from(await upstream.arrayBuffer());
       // Skip trivially-blank / placeholder responses (a real icon is
@@ -795,7 +821,7 @@ app.get("/api/asset/proxy", requireHolodeckAuth, async (req, res) => {
     return res.status(400).json({ error: "a valid storage.googleapis.com url is required" });
   }
   try {
-    const upstream = await fetch(parsed.toString(), { redirect: "follow" });
+    const upstream = await fetchWithTimeout(parsed.toString(), { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
     if (!upstream.ok) return res.status(upstream.status).json({ error: `upstream ${upstream.status}` });
     const type = upstream.headers.get("content-type") || "image/png";
     if (!/^image\//i.test(type)) return res.status(415).json({ error: "not an image" });
@@ -841,7 +867,7 @@ async function aubreyProxyGet(res, appKey, upstreamPath, email) {
   const headers = {};
   if (cfg.key) headers["X-API-Key"] = cfg.key;
   try {
-    const upstream = await fetch(url, { headers, redirect: "follow" });
+    const upstream = await fetchWithTimeout(url, { headers, redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
     const body = await upstream.text();
     let parsed = null;
     try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
