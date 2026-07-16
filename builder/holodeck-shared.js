@@ -18,6 +18,17 @@
   "use strict";
 
   // ─── Text helpers ─────────────────────────────────────────────
+  // Normalize whitespace AND strip any pre-existing trailing ellipsis ("…" or
+  // "...") plus a dangling connector/punctuation. Every text helper below runs
+  // input through this first, so a "…" baked into old data/exports never
+  // survives to the rendered slot — regardless of whether we then trim.
+  function normIn(s) {
+    return String(s == null ? "" : s)
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\s*(?:\.\.\.|…)\s*$/, "")
+      .replace(/[\s,;:–—-]+$/, "");
+  }
   // Clean word-boundary trim that ends on a COMPLETE word with NO trailing "…".
   // Per product decision: copy must always read as a finished thought — a
   // mid-phrase "…" is never acceptable. On overflow we trim to a word boundary,
@@ -25,7 +36,7 @@
   // sentence-like fragment) close with a period so it reads complete. Shared by
   // truncate/cleanHeadline/oneSentence and the clause/sentence packers below.
   function cleanTrim(s, max, addPeriod) {
-    s = String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+    s = normIn(s);
     if (!s || s.length <= max) return s;
     let out = s.slice(0, max).replace(/\s+\S*$/, "");
     out = out.replace(/[\s,;:–—-]+$/, "").replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by|so|that|which|while|when)$/i, "");
@@ -44,7 +55,7 @@
     return cleanTrim(s, max, false);
   }
   function oneSentence(s, max) {
-    s = String(s || "").replace(/\s+/g, " ").trim();
+    s = normIn(s);
     if (!s) return "";
     const m = s.match(/^[^.!?]+[.!?]/);
     let out = m ? m[0].trim() : s;
@@ -66,7 +77,7 @@
   //     there is no clause boundary at all do we fall back to a clean word-trim
   //     ending on a complete thought (period) — still no "…".
   function fitSentences(s, max) {
-    s = String(s || "").replace(/\s+/g, " ").trim();
+    s = normIn(s);
     if (!s) return "";
     // Match sentences INCLUDING their terminal .?! (and any closing quote).
     const parts = s.match(/[^.!?]+[.!?]+["'”’)]*|[^.!?]+$/g);
@@ -87,7 +98,7 @@
   // No "…" ever. Falls back to a clean word-trim (also no "…") only when the first
   // clause itself exceeds `max` (no earlier boundary to land on).
   function clauseFit(s, max) {
-    s = String(s || "").replace(/\s+/g, " ").trim();
+    s = normIn(s);
     if (!s) return "";
     if (s.length <= max) return s;
     // Reserve one char for the period we append.
@@ -110,7 +121,7 @@
   // ends on a complete word with any dangling connector/punctuation dropped so
   // it reads as a finished label.
   function clampWords(s, maxWords, maxChars) {
-    s = String(s || "").replace(/\s+/g, " ").trim();
+    s = normIn(s);
     if (!s) return "";
     const words = s.split(" ");
     let out = words.slice(0, maxWords).join(" ");

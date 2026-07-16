@@ -440,6 +440,20 @@
       { label: "Speaker notes", path: "__slide.speakerNotes", kind: "textarea", slideField: "speakerNotes" },
     ];
     const extras = defaultEditorPathsForLayout((slide && slide.layout) || "");
+    // An App Moment slide gets a per-slide "Description" (cxDescription) field.
+    // The saved layout may be "embeddedCxComponent" (explicitly linked) OR an
+    // unpromoted layout like "deviceMoment" (auto-matched to a CX component but
+    // not yet promoted — promotion happens at export). Key off CX-linkage so
+    // the field appears in both cases, not only when the layout is literally
+    // embeddedCxComponent. Skip if the layout switch already added it.
+    const isCxLinked = slide && (slide.layout === "embeddedCxComponent"
+      || (slide.linkedCxComponentIds || []).length);
+    if (isCxLinked && !extras["Description"]) {
+      extras["Description"] = {
+        path: "__slide.cxDescription",
+        placeholder: function (sl, st) { return cxDescriptionDefault(sl, st); },
+      };
+    }
     Object.keys(extras).forEach(function (label) {
       // An extras value is either a plain path string, or { path, placeholder }
       // (a true override field: blank keeps the live-derived default while the
@@ -656,6 +670,21 @@
     return pop;
   }
 
+  // Resolve the real, persistent state.slides entry that a (possibly copied)
+  // manifest slide corresponds to, so per-slide field edits survive re-render
+  // and reach export. Match by id; if the passed slide already IS the state
+  // entry (same reference or no id match), just use it.
+  function stateSlideFor(slide, state) {
+    const list = (state && state.slides) || [];
+    if (slide && slide.id) {
+      for (let i = 0; i < list.length; i++) {
+        if (list[i] === slide) return slide;
+        if (list[i] && list[i].id === slide.id) return list[i];
+      }
+    }
+    return slide;
+  }
+
   function buildEditorField(f, slide, state, onChange) {
     const row = el("div", { class: "bx-pop-edit-field" });
     row.appendChild(el("div", { class: "bx-pop-edit-label", text: f.label }));
@@ -664,8 +693,16 @@
     // the state tree (runtime slides via state-path).
     let get, set;
     if (f.slideField) {
-      get = function () { return slide[f.slideField] || ""; };
-      set = function (v) { slide[f.slideField] = v; };
+      // The `slide` handed to the editor is often a per-render COPY built by
+      // buildSlideManifest (Object.assign(...)), NOT the object living in
+      // state.slides. Writing onto the copy is lost on the next re-render and
+      // never reaches export. So resolve the REAL state slide by id and write
+      // through to it (falling back to the passed slide for genuine
+      // state.slides references). This keeps per-slide fields like
+      // cxDescription persistent across re-render, save, and export.
+      const target = stateSlideFor(slide, state);
+      get = function () { return (target[f.slideField] != null ? target[f.slideField] : slide[f.slideField]) || ""; };
+      set = function (v) { target[f.slideField] = v; slide[f.slideField] = v; };
     } else {
       get = function () { return getAtPath(state, f.path); };
       set = function (v) { setAtPath(state, f.path, v); };
