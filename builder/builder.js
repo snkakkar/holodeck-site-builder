@@ -5266,6 +5266,15 @@
   }
 
   // ─── Recompute recommendations from current state ─────────────
+  // Cache for recompute(): the last ctx signature and the rule/manifest output
+  // it produced. The signature is derived from the ctx object itself (below),
+  // so it covers EXACTLY the fields recompute reads — a new ctx field is caught
+  // automatically, never silently stale. Cleared implicitly whenever any ctx
+  // field changes. The selection projection is NOT cached: it must re-run every
+  // call so selectedRecIds toggles reflect immediately (see below).
+  let _recomputeSig = null;
+  let _recomputeOut = null; // { manifestRecs, demoRules }
+
   function recompute() {
     if (!app.state) return;
     const s = app.state;
@@ -5286,16 +5295,32 @@
       bvsMetrics:   s.bvsMetrics,
       scenes:       s.scenes,
     };
-    const res = RULES.recommend(ctx);
-    // Merge the synthetic manifest slides (intro/journey/persona/bv) into the
-    // recommendation list so the selector is 1:1 with what gets generated.
-    // RULES entries for those four fixed sections never render (the export
-    // uses the synthetic slides), so drop them to avoid phantom cards.
-    const manifestRecs = RULES.manifestRecommendations ? RULES.manifestRecommendations(s) : [];
-    const fixedSections = RULES.MANIFEST_SECTIONS || ["intro", "journey-map", "meet-persona", "business-value"];
-    const demoRules = res.recommendations.filter(function (r) {
-      return fixedSections.indexOf(r.sectionId || "demo") < 0;
-    });
+    // Signature over the exact fields recompute consumes. When it matches the
+    // last run, the heavy RULES.recommend() + manifestRecommendations() scan
+    // (signal-map build + ~80-rule + script/act keyword scans) is skipped and
+    // we reuse the prior output — but the merge + selection projection still
+    // run below, so brand-color/presenter edits that call recompute() no longer
+    // pay for a full rule scan they can't affect.
+    let sig;
+    try { sig = JSON.stringify(ctx); } catch (e) { sig = null; }
+    let manifestRecs, demoRules;
+    if (sig != null && sig === _recomputeSig && _recomputeOut) {
+      manifestRecs = _recomputeOut.manifestRecs;
+      demoRules = _recomputeOut.demoRules;
+    } else {
+      const res = RULES.recommend(ctx);
+      // Merge the synthetic manifest slides (intro/journey/persona/bv) into the
+      // recommendation list so the selector is 1:1 with what gets generated.
+      // RULES entries for those four fixed sections never render (the export
+      // uses the synthetic slides), so drop them to avoid phantom cards.
+      manifestRecs = RULES.manifestRecommendations ? RULES.manifestRecommendations(s) : [];
+      const fixedSections = RULES.MANIFEST_SECTIONS || ["intro", "journey-map", "meet-persona", "business-value"];
+      demoRules = res.recommendations.filter(function (r) {
+        return fixedSections.indexOf(r.sectionId || "demo") < 0;
+      });
+      _recomputeSig = sig;
+      _recomputeOut = { manifestRecs: manifestRecs, demoRules: demoRules };
+    }
     s.recommendations = manifestRecs.concat(demoRules);
     s.recommendations.forEach(function (r) {
       // Synthetic slides default ON (everything generated is selected), except
