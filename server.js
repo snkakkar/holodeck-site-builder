@@ -70,6 +70,23 @@ async function fetchWithTimeout(url, opts, ms) {
   }
 }
 
+// One bounded retry for idempotent, read-only GET proxies (logo, Aubrey)
+// against a TRANSIENT failure — a thrown network error or a timeout abort.
+// A returned HTTP response (even 4xx/5xx) is NOT retried: a 404/401 is a
+// real answer from upstream, not a blip, and retrying it just doubles
+// latency. Single retry, short fixed backoff — never blind/unbounded, and
+// deliberately NOT used on Gemini (non-idempotent, already streamed) or any
+// write path.
+const RETRY_BACKOFF_MS = 300;
+async function getWithRetry(url, opts, ms) {
+  try {
+    return await fetchWithTimeout(url, opts, ms);
+  } catch (_) {
+    await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+    return fetchWithTimeout(url, opts, ms);
+  }
+}
+
 // ── Aubrey Demo: shared-key proxy config ───────────────────────
 // The Aubrey ecosystem (PocketSIC / Scriptwriter / Brand Kit Builder)
 // can be reached with ONE shared API key per app held server-side.
@@ -785,7 +802,7 @@ app.get("/api/logo", requireHolodeckAuth, async (req, res) => {
 
   for (const src of sources) {
     try {
-      const upstream = await fetchWithTimeout(src, { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
+      const upstream = await getWithRetry(src, { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
       if (!upstream.ok) continue;
       const buf = Buffer.from(await upstream.arrayBuffer());
       // Skip trivially-blank / placeholder responses (a real icon is
@@ -867,7 +884,7 @@ async function aubreyProxyGet(res, appKey, upstreamPath, email) {
   const headers = {};
   if (cfg.key) headers["X-API-Key"] = cfg.key;
   try {
-    const upstream = await fetchWithTimeout(url, { headers, redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
+    const upstream = await getWithRetry(url, { headers, redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
     const body = await upstream.text();
     let parsed = null;
     try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
