@@ -61,6 +61,15 @@
     return SHARED && SHARED.fitSentences ? SHARED.fitSentences(v, max)
          : (SHARED && SHARED.oneSentence ? SHARED.oneSentence(v, max) : truncate(v, max));
   }
+  // Prefer an AI-authored slot-sized COMPLETE-THOUGHT variant (`*Short`) when
+  // present; otherwise fall back to the long source field. Either way ALWAYS
+  // clamp with the same helper the fallback uses — the model can exceed budget,
+  // and a blank/whitespace short field must degrade to today's behavior.
+  function shortOr(shortVal, longVal, budget, clamp) {
+    const c = clamp || truncate;
+    const sv = String(shortVal == null ? "" : shortVal).trim();
+    return sv ? c(sv, budget) : c(longVal, budget);
+  }
   // Guard against a malformed config where slides is present but not an
   // array — degrade to an empty deck instead of throwing on .filter below.
   const allSlides = Array.isArray(plan.slides) ? plan.slides : [];
@@ -206,9 +215,9 @@
     // + headline + 3 stat chips drawn from foundation fields.
     storyFoundation: function (s) {
       const stats = [];
-      if (f.businessProblem)    stats.push({ val: "Problem",  label: truncate(f.businessProblem,  46) });
-      if (f.currentStatePain)   stats.push({ val: "Today",    label: truncate(f.currentStatePain, 46) });
-      if (f.futureStateVision)  stats.push({ val: "Tomorrow", label: truncate(f.futureStateVision,46) });
+      if (f.businessProblem)    stats.push({ val: "Problem",  label: shortOr(f.businessProblemShort,   f.businessProblem,   46) });
+      if (f.currentStatePain)   stats.push({ val: "Today",    label: shortOr(f.currentStatePainShort,  f.currentStatePain,  46) });
+      if (f.futureStateVision)  stats.push({ val: "Tomorrow", label: shortOr(f.futureStateVisionShort, f.futureStateVision, 46) });
       const headline = f.transformationThesis
         ? ttl(f.transformationThesis)
         : (ttl(s.title) || "From a single moment to a connected future.");
@@ -695,7 +704,8 @@
             // SHORT screen heading — prefer the brief act title; never dump the
             // multi-sentence demoMoment script into the tiny phone screen.
             if (act.title)      return SHARED.cleanHeadline ? SHARED.cleanHeadline(act.title, 42) : act.title;
-            if (act.demoMoment) return SHARED.oneSentence  ? SHARED.oneSentence(act.demoMoment, 42) : act.demoMoment;
+            const dm = act.demoMomentShort || act.demoMoment;
+            if (dm) return SHARED.oneSentence ? SHARED.oneSentence(dm, 42) : dm;
             return s.title || "Moment";
           })() }),
           // Deterministic empty state: render the neutral skeleton cue, NOT a
@@ -725,7 +735,7 @@
               ]),
             ]),
           ]),
-          el("div", { class: "dd-screen-cta", text: act.businessValue ? truncate(act.businessValue, 28).toUpperCase() : "TAKE ACTION" }),
+          el("div", { class: "dd-screen-cta", text: act.businessValue ? truncate(act.businessValueShort || act.businessValue, 28).toUpperCase() : "TAKE ACTION" }),
         ]);
       }
       return twoPanel({
@@ -788,7 +798,7 @@
       // cleanHeadline trims to a word boundary; oneSentence stops at the first
       // sentence so the title stays a single clause.
       const narrativeTitle = function (a) {
-        const src = (a && a.summary) || (a && a.demoMoment) || "";
+        const src = (a && a.summaryShort) || (a && a.summary) || (a && a.demoMoment) || "";
         const one = SHARED && SHARED.oneSentence ? SHARED.oneSentence(src, 46) : truncate(src, 46);
         return one || "";
       };

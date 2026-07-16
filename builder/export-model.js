@@ -569,7 +569,7 @@
       return a && a.title && !(SHARED.isGenericTitle && SHARED.isGenericTitle(a.title)) ? a.title : "";
     };
     const narr = function (a) {
-      const src = (a && a.summary) || (a && a.demoMoment) || "";
+      const src = (a && a.summaryShort) || (a && a.summary) || (a && a.demoMoment) || "";
       return SHARED.oneSentence ? SHARED.oneSentence(src, 46) : src;
     };
     const tTitle = function (v, max, fb) {
@@ -593,10 +593,10 @@
             title: tTitle(good(next) || narr(next) || act.salesforceCapabilities, 46, "What happens next"),
             sub:   tSub(next.demoMoment || next.summary, 150, "The story continues") }
         : { eyebrow: "Where it leads",
-            title: tTitle(act.salesforceCapabilities || act.businessValue, 42, "Where it leads"),
+            title: tTitle(act.salesforceCapabilities || act.businessValueShort || act.businessValue, 42, "Where it leads"),
             sub:   tSub(act.businessValue || f.executiveTakeaway, 150, "The story continues") },
       { eyebrow: "Why it matters",
-        title: tTitle(act.businessValue || f.executiveTakeaway, 42, "Why it matters"),
+        title: tTitle(act.businessValueShort || act.businessValue || f.executiveTakeaway, 42, "Why it matters"),
         sub:   tSub(f.businessProblem || f.executiveTakeaway, 150, "The outcome that counts") },
     ];
     return rows;

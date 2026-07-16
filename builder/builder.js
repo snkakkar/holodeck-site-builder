@@ -1305,6 +1305,115 @@
   // has already populated s.storyActs / s.personas / customerName /
   // products, the script-based extractors below are skipped, so the
   // richer structured result wins.
+  // Parse a Gemini JSON response defensively: strip a ```json fence, then
+  // fall back to the outermost {...} slice if the model wrapped it in prose.
+  // Returns the parsed object or null (never throws). Shared by the extractor
+  // and polishSlideCopy so both handle fenced/preamble responses identically.
+  function safeParseJson(text) {
+    const raw = String(text || "");
+    const tryParse = function (candidate) {
+      try { return JSON.parse(candidate); } catch (_) { return null; }
+    };
+    const fenced = raw.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+    let data = tryParse(fenced.trim());
+    if (!data) {
+      const first = raw.indexOf("{");
+      const last  = raw.lastIndexOf("}");
+      if (first !== -1 && last > first) data = tryParse(raw.slice(first, last + 1));
+    }
+    return (data && typeof data === "object") ? data : null;
+  }
+
+  // ─── Slot-sized complete-thought slide copy (Gemini) ───────────
+  // Generates SHORT, self-contained variants of the foundation + act fields
+  // that render in the tightest slide slots (46/42/28 chars). Writes them as
+  // `*Short` props on state.storyFoundations and each state.storyActs[]; the
+  // renderer + export-model prefer them and always clamp defensively, so a
+  // missing/blank short field silently falls back to today's truncate().
+  //
+  // Contract: resolves to `true` when it wrote at least one new short field,
+  // `false` otherwise (Gemini off, nothing to do, or a soft failure). Never
+  // rejects. Cached/idempotent — skips fields that already have a Short unless
+  // opts.force. Budgets: foundations 46; act summary 46, demoMoment 42,
+  // businessValue 28. Every written value is re-clamped via SHARED.truncate.
+  function polishSlideCopy(state, opts) {
+    opts = opts || {};
+    const GEMINI = window.HOLO_GEMINI;
+    const SHARED = window.HOLO_SHARED;
+    if (!state || !GEMINI || !AI_PROMPT || !AI_PROMPT.getSlideCopyPrompt) return Promise.resolve(false);
+
+    const f = state.storyFoundations || (state.storyFoundations = {});
+    const acts = Array.isArray(state.storyActs) ? state.storyActs : [];
+    const clamp = function (v, max) {
+      const t = SHARED && SHARED.truncate ? SHARED.truncate(v, max) : String(v || "").slice(0, max);
+      return String(t || "").trim();
+    };
+    // A source field "needs" a short variant when it has content but no Short
+    // yet (or force). Nothing needed → skip the network call entirely.
+    const src = function (o, k) { return String((o && o[k]) || "").trim(); };
+    const needs = function (o, k, sk) { return !!src(o, k) && (opts.force || !src(o, sk)); };
+    const foundationNeeds =
+      needs(f, "businessProblem", "businessProblemShort") ||
+      needs(f, "currentStatePain", "currentStatePainShort") ||
+      needs(f, "futureStateVision", "futureStateVisionShort");
+    const actNeeds = acts.some(function (a) {
+      return needs(a, "summary", "summaryShort")
+          || needs(a, "demoMoment", "demoMomentShort")
+          || needs(a, "businessValue", "businessValueShort");
+    });
+    if (!foundationNeeds && !actNeeds) return Promise.resolve(false);
+
+    return Promise.resolve(GEMINI.isConfigured ? GEMINI.isConfigured() : false)
+      .then(function (configured) {
+        if (!configured) return false;
+        return GEMINI.generate({
+          prompt: AI_PROMPT.getSlideCopyPrompt(f, acts),
+          jsonMode: true,
+          fast: true,
+          temperature: 0.3,
+          maxOutputTokens: 2048,
+        }).then(function (text) {
+          const data = safeParseJson(text);
+          if (!data) return false;
+          let changed = false;
+          // Foundations — only fill fields with a source value and (unless
+          // force) no existing short; always clamp the model's output.
+          const fo = (data.foundations && typeof data.foundations === "object") ? data.foundations : {};
+          [
+            ["businessProblem", "businessProblemShort", 46],
+            ["currentStatePain", "currentStatePainShort", 46],
+            ["futureStateVision", "futureStateVisionShort", 46],
+          ].forEach(function (row) {
+            const k = row[0], sk = row[1], max = row[2];
+            if (!needs(f, k, sk)) return;
+            const val = clamp(fo[sk], max);
+            if (val) { f[sk] = val; changed = true; }
+          });
+          // Acts — positional map; skip missing/extra entries.
+          const outActs = Array.isArray(data.acts) ? data.acts : [];
+          acts.forEach(function (a, i) {
+            const oa = outActs[i];
+            if (!a || !oa || typeof oa !== "object") return;
+            [
+              ["summary", "summaryShort", 46],
+              ["demoMoment", "demoMomentShort", 42],
+              ["businessValue", "businessValueShort", 28],
+            ].forEach(function (row) {
+              const k = row[0], sk = row[1], max = row[2];
+              if (!needs(a, k, sk)) return;
+              const val = clamp(oa[sk], max);
+              if (val) { a[sk] = val; changed = true; }
+            });
+          });
+          return changed;
+        });
+      })
+      .catch(function (err) {
+        if (window.console && console.warn) console.warn("polishSlideCopy failed (non-fatal):", err);
+        return false;
+      });
+  }
+
   function applyExtractionToState(f, s) {
     PARSER.mergeExtractedStoryIntoState(f, s);
     s.project = s.project || {};
@@ -1680,6 +1789,18 @@
         applyExtractionToState(f, s);
         app.state.step = "foundations";
         renderShell();
+
+        // ─── Call 3 — slot-sized complete-thought slide copy ─────
+        // Small, cacheable, independently retryable — kept SEPARATE from the
+        // big parse call. Non-blocking: the SE already sees foundations; when
+        // the short variants land we persist + re-render so tight slots show a
+        // complete phrase. A failure or Gemini-off is silent (renderer falls
+        // back to truncate). Guarded so a stale re-render can't clobber a newer
+        // project the SE navigated to mid-flight.
+        if (pb) pb.indeterminate("Polishing slide copy…");
+        polishSlideCopy(s).then(function (changed) {
+          if (changed && app.state === s) { commit(); renderShell(); }
+        }).then(clearBar, clearBar);
       })
       .catch(function (err) {
         showErr((err && err.message) || String(err));
@@ -6354,6 +6475,19 @@
   }
 
   function openExportModal() {
+    // Backfill slot-sized complete-thought copy before building the export
+    // model, so existing projects (extracted before this feature) export with
+    // the short variants too. Cached/idempotent — runs at most once per project
+    // and is a no-op when Gemini is off or every field already has its Short.
+    // Non-blocking to the user is unnecessary here: they clicked Export and
+    // expect the current copy, so we await the (usually cached, instant) result.
+    Promise.resolve(polishSlideCopy(app.state))
+      .then(function (changed) { if (changed) commit(); })
+      .catch(function () {})
+      .then(function () { buildExportModal(); });
+  }
+
+  function buildExportModal() {
     const cfgJs   = (window.HOLO_ADAPTER && window.HOLO_ADAPTER.toPolishedHolodeckConfigJs)
       ? window.HOLO_ADAPTER.toPolishedHolodeckConfigJs(app.state)
       : CONFIG.toHolodeckConfigJs(app.state);

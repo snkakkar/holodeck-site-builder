@@ -699,6 +699,79 @@ CX components (AubreyDemo):
       .replace("<<REQUEST>>", function () { return request; });
   }
 
+  // ─── Slot-sized complete-thought slide copy ───────────────────
+  // The extracted foundations + acts are long, ~180–220-char sentences.
+  // The tightest slide slots (46/42/28 chars) can only show a fragment of
+  // them, which reads as an incomplete thought. This asks Gemini to REWRITE
+  // each into a SHORT, SELF-CONTAINED phrase that fits the slot — compressing
+  // the meaning, NOT truncating the sentence. Returns strict JSON: one
+  // `foundations` object + one `acts[]` entry per input act, IN ORDER.
+  const SLIDE_COPY_PROMPT = [
+    "You are tightening copy for a Salesforce demo deck. Each field below is a",
+    "long sentence that must appear in a SMALL slide slot with a hard character",
+    "budget. Rewrite each as a SHORT, COMPLETE thought that fits the budget —",
+    "compress the meaning into a self-contained phrase. Do NOT simply cut the",
+    "sentence off; do NOT add a trailing \"…\"; keep the customer's own language.",
+    "",
+    "Return ONE valid JSON object (no prose, no markdown fences) EXACTLY shaped:",
+    "{",
+    '  "foundations": {',
+    '    "businessProblemShort":   "<= 46 chars, complete phrase>",',
+    '    "currentStatePainShort":  "<= 46 chars, complete phrase>",',
+    '    "futureStateVisionShort": "<= 46 chars, complete phrase>"',
+    "  },",
+    '  "acts": [',
+    "    {",
+    '      "summaryShort":       "<= 46 chars, complete phrase>",',
+    '      "demoMomentShort":    "<= 42 chars, complete phrase>",',
+    '      "businessValueShort": "<= 28 chars, complete phrase>"',
+    "    }",
+    "    // ...one entry per act below, IN THE SAME ORDER",
+    "  ]",
+    "}",
+    "",
+    "RULES:",
+    "1. Respect every character budget. Shorter is fine; over-budget is not.",
+    "2. Every value is a COMPLETE thought — a reader sees a whole idea, not a",
+    "   sentence chopped mid-clause.",
+    "3. Output one acts[] entry for EACH act below, in the same order. If a",
+    "   source field is empty, return an empty string for its Short variant.",
+    "4. No trailing punctuation dots/ellipses. No markdown. No commentary.",
+    "",
+    "── STORY FOUNDATIONS ──",
+    "<<FOUNDATIONS>>",
+    "",
+    "── ACTS (in order) ──",
+    "<<ACTS>>",
+  ].join("\n");
+
+  // getSlideCopyPrompt(foundations, acts) — foundations is state.story-
+  // Foundations; acts is state.storyActs. Only the source fields that feed
+  // the tight slots are handed to the model, labeled with their budgets.
+  function getSlideCopyPrompt(foundations, acts) {
+    const f = foundations || {};
+    const fLines = [
+      "businessProblem (≤46):   " + (String(f.businessProblem || "").trim()   || "(none)"),
+      "currentStatePain (≤46):  " + (String(f.currentStatePain || "").trim()  || "(none)"),
+      "futureStateVision (≤46): " + (String(f.futureStateVision || "").trim() || "(none)"),
+    ].join("\n");
+    const list = Array.isArray(acts) ? acts : [];
+    const aLines = list.length
+      ? list.map(function (a, i) {
+          a = a || {};
+          return [
+            "Act " + (i + 1) + ":",
+            "  summary (≤46):       " + (String(a.summary || "").trim()       || "(none)"),
+            "  demoMoment (≤42):    " + (String(a.demoMoment || "").trim()    || "(none)"),
+            "  businessValue (≤28): " + (String(a.businessValue || "").trim() || "(none)"),
+          ].join("\n");
+        }).join("\n")
+      : "(no acts)";
+    return SLIDE_COPY_PROMPT
+      .replace("<<FOUNDATIONS>>", function () { return fLines; })
+      .replace("<<ACTS>>", function () { return aLines; });
+  }
+
   const PAGE_HELPER = [
     "We pre-fill the SE Inputs below from your project (script, setup fields,",
     "and any extracted foundations). Review or edit them, then Copy the prompt",
@@ -724,5 +797,7 @@ CX components (AubreyDemo):
     getAgentChatPrompt: getAgentChatPrompt,
     SCRIPT_GEN_PROMPT: SCRIPT_GEN_PROMPT,
     getScriptGenPrompt: getScriptGenPrompt,
+    SLIDE_COPY_PROMPT: SLIDE_COPY_PROMPT,
+    getSlideCopyPrompt: getSlideCopyPrompt,
   };
 })(window);
