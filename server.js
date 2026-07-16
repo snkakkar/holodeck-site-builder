@@ -953,7 +953,12 @@ app.use(
       if (/\.html$/i.test(filePath)) {
         res.set("Cache-Control", "no-cache");
       } else if (/\.(?:js|mjs|css)$/i.test(filePath)) {
-        res.set("Cache-Control", "public, max-age=3600");
+        // no-cache (not no-store): the browser may keep a copy but MUST
+        // revalidate with the server every load, so an edited builder/demo
+        // script is picked up on a normal reload instead of being served
+        // stale for up to an hour. Static assets (images/fonts) below keep
+        // their default (no explicit header).
+        res.set("Cache-Control", "no-cache");
       }
     },
   })
