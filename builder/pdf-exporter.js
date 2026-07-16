@@ -148,7 +148,7 @@
   // ─── Data Cloud console: per-facet "LWC" pane body (PDF) ───────
   // Mirrors the PPTX profilePaneBody + /demo's paneBody. midText is passed in
   // (it closes over the doc); fills [y, y+h] so the console has no empty gap.
-  function profilePaneBodyPdf(doc, ctx, facet, x, y, w, h, midText) {
+  function profilePaneBodyPdf(doc, ctx, facet, x, y, w, h, midText, allFacets) {
     const rows = (facet.rows || []).slice(0, 6);
     const key = facet.key || "identity";
     if (!rows.length) return;
@@ -160,21 +160,28 @@
       if (/low/.test(s))                             return 0.3;
       return 0.7;
     }
+    // Affinity meter bars — shared by the Affinities tab and the Identity
+    // view's embedded affinity widget.
+    function drawMeters(meterRows, mx, my, mw, mh) {
+      const list = (meterRows || []).slice(0, 5);
+      if (!list.length) return;
+      const rowH = Math.min(42, mh / list.length);
+      list.forEach(function (r, i) {
+        const ry = my + i * rowH;
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(hx(T.ink));
+        doc.text(String(r.label || ""), mx, ry + 9, { maxWidth: mw * 0.7 });
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(hx(ctx.brand.primary));
+        doc.text(String(r.value || ""), mx + mw, ry + 9, { align: "right" });
+        const trackY = ry + 15, trackH = 7;
+        doc.setFillColor("#FFFFFF"); doc.setDrawColor(hx(T.line)); doc.setLineWidth(0.5);
+        doc.roundedRect(mx, trackY, mw, trackH, 3, 3, "FD");
+        doc.setFillColor(hx(ctx.brand.primary));
+        doc.roundedRect(mx, trackY, Math.max(8, mw * meterFrac(r.value)), trackH, 3, 3, "F");
+      });
+    }
 
     if (key === "affinities") {
-      const rowH = Math.min(46, h / rows.length);
-      rows.forEach(function (r, i) {
-        const ry = y + i * rowH;
-        doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(hx(T.ink));
-        doc.text(String(r.label || ""), x, ry + 10, { maxWidth: w * 0.7 });
-        doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(hx(ctx.brand.primary));
-        doc.text(String(r.value || ""), x + w, ry + 10, { align: "right" });
-        const trackY = ry + 18, trackH = 8;
-        doc.setFillColor(hx(T.band)); doc.setDrawColor(hx(T.line)); doc.setLineWidth(0.5);
-        doc.roundedRect(x, trackY, w, trackH, 3, 3, "FD");
-        doc.setFillColor(hx(ctx.brand.primary));
-        doc.roundedRect(x, trackY, Math.max(10, w * meterFrac(r.value)), trackH, 3, 3, "F");
-      });
+      drawMeters(rows, x, y, w, h);
       return;
     }
 
@@ -216,14 +223,38 @@
       return;
     }
 
-    // identity / other → resolved detail grid, distributed to fill the pane.
-    const rowH = h / rows.length;
+    // identity / other → COMPACT two-column detail grid in a short top block,
+    // then an embedded "Affinities" meter widget card below (a second LWC-style
+    // component, matching the PPTX layout).
+    const affinityRows = (allFacets || []).reduce(function (acc, f) {
+      return acc || (f && f.key === "affinities" ? f.rows : null);
+    }, null);
+
+    const cols = 2;
+    const fieldRows = Math.ceil(rows.length / cols);
+    const fRowH = 26;
+    const gridH = fieldRows * fRowH;
+    const colW = w / cols;
     rows.forEach(function (r, i) {
-      const ryy = y + i * rowH;
-      if (i > 0) { doc.setFillColor(hx(T.line)); doc.rect(x, ryy, w, 0.5, "F"); }
-      midText(r.label || "", x, ryy, rowH, { size: 9.5, color: T.muted, w: w * 0.42 });
-      midText(r.value || "", x + w * 0.42, ryy, rowH, { size: 10, style: "bold", color: T.ink, w: w * 0.58 });
+      const cc = i % cols, rr = Math.floor(i / cols);
+      const fx = x + cc * colW, fy = y + rr * fRowH;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(hx(T.muted));
+      doc.text(String(r.label || ""), fx, fy + 9, { charSpace: 0.6, maxWidth: colW - 8 });
+      doc.setFontSize(10); doc.setTextColor(hx(T.ink));
+      doc.text(String(r.value || ""), fx, fy + 21, { maxWidth: colW - 8 });
     });
+
+    if (affinityRows && affinityRows.length) {
+      const wy = y + gridH + 12;
+      const wh = (y + h) - wy;
+      if (wh > 44) {
+        doc.setFillColor(hx(T.band)); doc.setDrawColor(hx(T.line)); doc.setLineWidth(1);
+        doc.roundedRect(x, wy, w, wh, 6, 6, "FD");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(hx(ctx.brand.primary));
+        doc.text("TOP AFFINITIES", x + 14, wy + 16, { charSpace: 1.2 });
+        drawMeters(affinityRows, x + 14, wy + 26, w - 28, wh - 38);
+      }
+    }
   }
 
   // ─── Template renderers ────────────────────────────────────────
@@ -418,7 +449,7 @@
       // Body fills the remaining pane height (no dead whitespace), dispatched
       // per facet like /demo's paneBody: affinity meters, signal timeline,
       // next-best-action card, else a resolved detail grid.
-      profilePaneBodyPdf(doc, ctx, active, paneX, py, paneW, (chBottom - 12) - py, midText);
+      profilePaneBodyPdf(doc, ctx, active, paneX, py, paneW, (chBottom - 12) - py, midText, facets);
     },
 
     agentChat: function (doc, ns, ctx) {

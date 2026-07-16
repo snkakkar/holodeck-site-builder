@@ -123,7 +123,7 @@
   // fills the whole [y, y+h] box so the console never leaves a big empty gap.
   //   affinities → labeled meter bars   signals → dotted timeline
   //   predicted  → Next Best Action card  identity/other → detail grid
-  function profilePaneBody(slide, ctx, facet, x, y, w, h) {
+  function profilePaneBody(slide, ctx, facet, x, y, w, h, allFacets) {
     const rows = (facet.rows || []).slice(0, 6);
     const key = facet.key || "identity";
     if (!rows.length) return;
@@ -137,23 +137,30 @@
       if (/low/.test(s))                             return 0.3;
       return 0.7;
     }
-
-    if (key === "affinities") {
-      const rowH = Math.min(0.62, h / rows.length);
-      rows.forEach(function (r, i) {
-        const ry = y + i * rowH;
+    // Affinity meter bars (label + rating + filled track). Shared by the
+    // Affinities tab and the Identity view's embedded affinity widget.
+    function drawMeters(meterRows, mx, my, mw, mh) {
+      const list = (meterRows || []).slice(0, 5);
+      if (!list.length) return;
+      const rowH = Math.min(0.6, mh / list.length);
+      list.forEach(function (r, i) {
+        const ry = my + i * rowH;
         slide.addText(r.label || "", {
-          x: x, y: ry, w: w, h: 0.22, fontSize: 10, bold: true, color: T.ink,
+          x: mx, y: ry, w: mw, h: 0.2, fontSize: 9.5, bold: true, color: T.ink,
           fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
         });
         slide.addText(r.value || "", {
-          x: x, y: ry, w: w, h: 0.22, fontSize: 9, color: ctx.brand.primary,
+          x: mx, y: ry, w: mw, h: 0.2, fontSize: 8.5, color: ctx.brand.primary,
           fontFace: ctx.brand.fontBody, align: ctx.AlignH.right, valign: ctx.AlignV.middle,
         });
-        const trackY = ry + 0.26, trackH = 0.12;
-        slide.addShape(ctx.ShapeType.roundRect, { x: x, y: trackY, w: w, h: trackH, fill: { color: T.band }, line: { color: T.line, width: 0.5 }, rectRadius: 0.06 });
-        slide.addShape(ctx.ShapeType.roundRect, { x: x, y: trackY, w: Math.max(0.15, w * meterFrac(r.value)), h: trackH, fill: { color: ctx.brand.primary }, line: { type: "none" }, rectRadius: 0.06 });
+        const trackY = ry + 0.23, trackH = 0.11;
+        slide.addShape(ctx.ShapeType.roundRect, { x: mx, y: trackY, w: mw, h: trackH, fill: { color: "FFFFFF" }, line: { color: T.line, width: 0.5 }, rectRadius: 0.055 });
+        slide.addShape(ctx.ShapeType.roundRect, { x: mx, y: trackY, w: Math.max(0.12, mw * meterFrac(r.value)), h: trackH, fill: { color: ctx.brand.primary }, line: { type: "none" }, rectRadius: 0.055 });
       });
+    }
+
+    if (key === "affinities") {
+      drawMeters(rows, x, y, w, h);
       return;
     }
 
@@ -202,21 +209,42 @@
       return;
     }
 
-    // identity / demographics / engagement / value → resolved detail grid,
-    // rows distributed to fill the pane (no clustering at the top).
-    const rowH = h / rows.length;
+    // identity / demographics / engagement / value → a COMPACT two-column
+    // detail grid in a short top block, then an embedded "Affinities" meter
+    // widget card filling the space below (a second LWC-style component, so
+    // the console reads like a real Salesforce workspace, not a tall list).
+    const affinityRows = (allFacets || []).reduce(function (acc, f) {
+      return acc || (f && f.key === "affinities" ? f.rows : null);
+    }, null);
+
+    // Top block: fields in 2 columns, 2 per row → short, dense.
+    const cols = 2;
+    const fieldRows = Math.ceil(rows.length / cols);
+    const fRowH = 0.36;
+    const gridH = fieldRows * fRowH;
+    const colW = w / cols;
     rows.forEach(function (r, i) {
-      const ry = y + i * rowH;
-      if (i > 0) slide.addShape(ctx.ShapeType.rect, { x: x, y: ry, w: w, h: 0.006, fill: { color: T.line }, line: { type: "none" } });
-      slide.addText(r.label || "", {
-        x: x, y: ry, w: w * 0.42, h: rowH, fontSize: 9.5, color: T.muted,
-        fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
-      });
-      slide.addText(r.value || "", {
-        x: x + w * 0.42, y: ry, w: w * 0.58, h: rowH, fontSize: 10, bold: true, color: T.ink,
-        fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
-      });
+      const cc = i % cols, rr = Math.floor(i / cols);
+      const fx = x + cc * colW, fy = y + rr * fRowH;
+      slide.addText([
+        { text: (r.label || "") + "", options: { fontSize: 7.5, bold: true, color: T.muted, charSpacing: 1, breakLine: true } },
+        { text: (r.value || "") + "", options: { fontSize: 10, bold: true, color: T.ink } },
+      ], { x: fx, y: fy, w: colW - 0.12, h: fRowH - 0.03, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true });
     });
+
+    // Affinity widget card below the fields.
+    if (affinityRows && affinityRows.length) {
+      const wy = y + gridH + 0.16;
+      const wh = (y + h) - wy;
+      if (wh > 0.6) {
+        slide.addShape(ctx.ShapeType.roundRect, { x: x, y: wy, w: w, h: wh, fill: { color: T.band }, line: { color: T.line, width: 1 }, rectRadius: 0.06 });
+        slide.addText("TOP AFFINITIES", {
+          x: x + 0.18, y: wy + 0.12, w: w - 0.36, h: 0.2, fontSize: 8, bold: true, color: ctx.brand.primary,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, charSpacing: 2,
+        });
+        drawMeters(affinityRows, x + 0.18, wy + 0.42, w - 0.36, wh - 0.56);
+      }
+    }
   }
 
   // ─── Template renderers ────────────────────────────────────────
@@ -501,7 +529,7 @@
       // dispatched per facet like /demo's paneBody (affinity meters, signal
       // timeline, next-best-action card, else a resolved detail grid).
       const bodyBottom = chBottom - 0.2;
-      profilePaneBody(slide, ctx, active, paneX, py, paneW, bodyBottom - py);
+      profilePaneBody(slide, ctx, active, paneX, py, paneW, bodyBottom - py, facets);
     },
 
     // Agent chat — agentConversation. Stacked chat bubbles.
