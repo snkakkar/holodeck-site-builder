@@ -7652,6 +7652,21 @@
       try { releaseActiveLock(); } catch (e) { /* ignore */ }
     });
 
+    // Global save shortcut: Cmd+S (mac) / Ctrl+S (win/linux) saves the active
+    // project from anywhere, so the SE never has to scroll up to the Save
+    // button. We always preventDefault the browser's "save page" dialog while
+    // in the builder view; the actual write is a no-op in read-only sessions
+    // (saveActive guards that) and off the builder view.
+    document.addEventListener("keydown", function (e) {
+      const isSaveKey = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey
+        && (e.key === "s" || e.key === "S");
+      if (!isSaveKey) return;
+      if (app.view !== "builder" || !app.state) return; // let the browser handle it elsewhere
+      e.preventDefault();
+      if (app.readOnly) { toast("This project is open in read-only mode."); return; }
+      saveActive().then(function () { toast("Saved"); });
+    }, true);
+
     // Auth gate: no Data API calls until we have a verified session.
     AUTH.init().then(function (user) {
       if (!user) {
