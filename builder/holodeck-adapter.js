@@ -152,6 +152,11 @@
   }
   function products(p) { return (p && p.products) || []; }
   function sub2(project, f) {
+    // vi-2 "Eyebrow" SE override wins verbatim so the exported title-slide
+    // kicker matches the preview eyebrow the SE edited.
+    if (f && f.storyHookEyebrowOverride && String(f.storyHookEyebrowOverride).trim()) {
+      return String(f.storyHookEyebrowOverride).trim();
+    }
     if (project.theme) return project.theme;
     if (project.industry) return project.industry + " · " + (project.audience || "Executive") + " story";
     return "Connected customer experience";
@@ -501,7 +506,8 @@
       : "A <strong>connected journey</strong>";
     // Phase bucketing lives in HOLO_SHARED so the preview's
     // journeyMapMatrix and the export's circle row share defaults.
-    const steps = SHARED.bucketActsIntoFive ? SHARED.bucketActsIntoFive(acts, prods, f && f.journeyPhases) : [];
+    const steps = SHARED.bucketActsIntoFive ? SHARED.bucketActsIntoFive(acts, prods, f && f.journeyPhases,
+      { titles: f && f.journeyPhaseTitles, descriptions: f && f.journeyPhaseDescriptions }) : [];
     // Fold any Gemini-generated per-phase circle image (slot "journeyStep<i>")
     // into the step so the exported config carries it. Empty when unset →
     // the live map renders the emoji fallback.

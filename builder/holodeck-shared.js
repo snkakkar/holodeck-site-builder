@@ -289,6 +289,9 @@
   }
   function storyHookSubText(f) {
     f = f || {};
+    // SE override (vi-2 "Sub-line" editor field) — verbatim when set, so what
+    // the SE types is exactly what shows.
+    if (f.storyHookSubOverride && String(f.storyHookSubOverride).trim()) return truncate(f.storyHookSubOverride, 280);
     // Prefer an AI-authored complete-thought variant so the hook sub-line reads
     // whole (the raw businessProblem is a run-on that trims to a fragment).
     if (f.businessProblemMedium) return truncate(f.businessProblemMedium, 280);
@@ -327,6 +330,7 @@
     acts  = acts  || f.__acts  || [];
     prods = prods || f.__prods || [];
     const tOv = Array.isArray(f.threeActTitles) ? f.threeActTitles : [];
+    const dOv = Array.isArray(f.threeActDescriptions) ? f.threeActDescriptions : [];
     const buckets = bucketActsIntoFive(acts, prods, f.journeyPhases);   // 3–5 phases, same as map
     const lead = groupBucketsIntoThree(buckets.length);
     return [0, 1, 2].map(function (i) {
@@ -343,9 +347,11 @@
       const title = (tOv[i] && String(tOv[i]).trim())
         || derived
         || THREE_ACT_DEFAULT_TITLES[i];
-      // Description: the bucket's description (== the map's copy) so the two
-      // slides say the same thing; fall back to the canonical act copy.
-      const description = (b && b.description)
+      // Description: SE override (vi-3 "Act N · …" editor field) wins so what
+      // you type is what shows; else the bucket's description (== the map's
+      // copy) so the two slides say the same thing; else the canonical act copy.
+      const description = (dOv[i] && String(dOv[i]).trim())
+        || (b && b.description)
         || [
             "Data Cloud unifies the customer's signals across channels — a foundation for every downstream moment.",
             "Personalized engagement adapts to the customer's intent in real time. Proactive re-engagement closes near-misses.",
@@ -403,9 +409,17 @@
   // label so the journey map reads in the customer's own language; absent, we
   // fall back to Know/Reach/Engage/Recover/Convert. Backward-compatible: old
   // 2-arg callers pass no journeyPhases and get the canonical labels.
-  function bucketActsIntoFive(acts, prods, journeyPhases) {
+  // `overrides` (optional 4th arg) = { titles:[], descriptions:[] } — per-phase
+  // SE edits (journey-map Phase N Title / Description editor fields). When a
+  // slot is set it wins verbatim so what the SE types is exactly what shows;
+  // absent, the phase falls back to its derived title/description. Backward-
+  // compatible: old 2/3-arg callers pass nothing and get the derived values.
+  function bucketActsIntoFive(acts, prods, journeyPhases, overrides) {
     prods = prods || [];
     const jp = Array.isArray(journeyPhases) ? journeyPhases : [];
+    const ov = overrides || {};
+    const titleOv = Array.isArray(ov.titles) ? ov.titles : [];
+    const descOv  = Array.isArray(ov.descriptions) ? ov.descriptions : [];
     // Per-index phase label: story-specific journeyPhases[i] wins; else the
     // canonical stage name. titleCase keeps it headline-cased either way.
     const phaseLabel = function (i) {
@@ -426,9 +440,13 @@
       // three-acts cards + intro vignettes read whole (the raw summary is a
       // run-on that fitSentences trims to a fragment). Falls back to summary.
       const descSrc = (a && a.summaryMedium) || (a && a.summary) || "";
+      // SE per-phase overrides win verbatim; else the derived value.
+      const titleOvI = titleOv[i] && String(titleOv[i]).trim();
+      const descOvI  = descOv[i] && String(descOv[i]).trim();
       out.push({
         index:        i,
-        title:        a && a.title && !isGenericTitle(a.title) ? punchyTitle(a.title) : phaseLabel(i),
+        title:        titleOvI
+                        || (a && a.title && !isGenericTitle(a.title) ? punchyTitle(a.title) : phaseLabel(i)),
         phaseTitle:   phaseLabel(i),
         badge:        a && a.salesforceCapabilities ? truncate(a.salesforceCapabilities, 36) : (prods[i] || "Salesforce"),
         emoji:        PHASE_EMOJIS[i],
@@ -436,8 +454,8 @@
         // Empty by default → the live map falls back to the emoji.
         imageUrl:     "",
         circleClass:  PHASE_CIRCLE_CLASSES[i],
-        description:  descSrc ? fitSentences(descSrc, 200) : phaseDescription(PHASE_TITLES[i]),
-        descriptionShort: descSrc ? fitSentences(descSrc, 110) : phaseDescription(PHASE_TITLES[i]),
+        description:  descOvI ? fitSentences(descOvI, 200) : (descSrc ? fitSentences(descSrc, 200) : phaseDescription(PHASE_TITLES[i])),
+        descriptionShort: descOvI ? fitSentences(descOvI, 110) : (descSrc ? fitSentences(descSrc, 110) : phaseDescription(PHASE_TITLES[i])),
         detail:       a && (a.notes || a.summary) ? truncate((a.notes || "") + " " + (a.summary || ""), 280)
                         : phaseDescription(PHASE_TITLES[i]) + " [TODO: enrich with customer-specific detail]",
         technologies: a && a.salesforceCapabilities
@@ -807,12 +825,17 @@
     story = story || {};
     f = f || {};
     const first = personaFirstName(p);
-    // CTA button label is SE-overridable (mr-4 "CTA button label").
+    // CTA label + headline + sub are all SE-overridable (mr-4 editor fields) —
+    // verbatim when set, so what the SE types is exactly what shows.
     const labelOverride = (f.personaCtaLabel && String(f.personaCtaLabel).trim()) || "";
+    const headline = (f.personaCtaHeadline && String(f.personaCtaHeadline).trim())
+      || (first ? "Let's follow " + first + "'s journey." : "Let's follow the journey.");
+    const sub = (f.personaCtaSub && String(f.personaCtaSub).trim())
+      || truncate(p.demoRelevance || story.futureVision || "From first touch to lasting loyalty.", 110);
     return {
       label:    labelOverride || "BEGIN THE JOURNEY &nbsp;→",
-      headline: first ? "Let's follow " + first + "'s journey." : "Let's follow the journey.",
-      sub:      truncate(p.demoRelevance || story.futureVision || "From first touch to lasting loyalty.", 110),
+      headline: headline,
+      sub:      sub,
     };
   }
   function personaIntroSub(p, customerName) {
@@ -840,10 +863,14 @@
     // (was "A <Customer> store." — retail-only). Kept in lock-step with
     // demo-deck-renderer.js defaultOpenerSub().
     const place = customer ? "With " + customer : "A new story";
+    const sub = when + ". " + place + ". " + personaName + "'s story begins.";
+    // SE overrides (chapter-opener Eyebrow/Headline/Sub-line editor fields) —
+    // verbatim when set, so what the SE types is exactly what shows.
+    const ov = function (v, def) { return (v && String(v).trim()) ? String(v) : def; };
     return {
-      eyebrow:  eyebrow,
-      headline: headline,
-      sub:      when + ". " + place + ". " + personaName + "'s story begins.",
+      eyebrow:  ov(opts.eyebrowOverride,  eyebrow),
+      headline: ov(opts.headlineOverride, headline),
+      sub:      ov(opts.subOverride,      sub),
     };
   }
 
@@ -878,6 +905,14 @@
       return vignettesFor(st.storyFoundations || {},
                           st.storyActs || [],
                           (st.project && st.project.products) || []);
+    }
+    function journeyPhasesFromState(st) {
+      st = st || {};
+      const f = st.storyFoundations || {};
+      return bucketActsIntoFive(st.storyActs || [],
+                                (st.project && st.project.products) || [],
+                                f.journeyPhases,
+                                { titles: f.journeyPhaseTitles, descriptions: f.journeyPhaseDescriptions });
     }
     // includeDeselected: when true, emit EVERY synthetic slide regardless of
     // selection. The Step-5 selector passes this so deselected slides stay
@@ -923,27 +958,29 @@
     add({ id: "_rt_intro_hook", synthetic: true, sectionId: "intro",
           layout: "introStoryHook", title: "Story hook (vi-2)",
           editorPaths: {
+            // 1:1 with the vi-2 slide: Eyebrow, Headline, Sub-line — each
+            // prefilled with the rendered value and writing to the override
+            // the renderer reads first.
+            "Eyebrow":           { path: "storyFoundations.storyHookEyebrowOverride",
+                                   prefill: function (sl, st) {
+                                     st = st || {};
+                                     const p = st.project || {};
+                                     const theme = p.theme || "Salesforce Customer Experience Vision";
+                                     const sub2 = p.industry
+                                       ? p.industry + " · " + (p.audience || "Executive") + " story"
+                                       : "Connected customer experience";
+                                     return theme + " · " + sub2;
+                                   } },
             "Headline":          { path: "storyFoundations.storyHookOverride",
-                                   placeholder: function (sl, st) {
+                                   prefill: function (sl, st) {
                                      st = st || {};
                                      return storyHookDefault(st.storyFoundations || {});
                                    } },
-            // These two feed the SUB-line (storyHookSubText), not the
-            // headline; businessProblem wins, primaryNarrative is the
-            // fallback. Labelled so the precedence is clear. Prefill the
-            // sub with the rendered default so it's never blank.
-            "Sub-line · business problem":      { path: "storyFoundations.businessProblem",
-                                                  prefill: function (sl, st) {
-                                                    st = st || {};
-                                                    return storyHookSubText(st.storyFoundations || {});
-                                                  } },
-            "Sub-line · primary narrative":     "storyFoundations.primaryNarrative",
-            "Theme (top label / eyebrow)":      { path: "project.theme",
-                                                  prefill: function (sl, st) {
-                                                    st = st || {};
-                                                    return ((st.project && st.project.theme) || "").trim()
-                                                      || "Salesforce Customer Experience Vision";
-                                                  } },
+            "Sub-line":          { path: "storyFoundations.storyHookSubOverride",
+                                   prefill: function (sl, st) {
+                                     st = st || {};
+                                     return storyHookSubText(st.storyFoundations || {});
+                                   } },
           } });
     add({ id: "_rt_intro_three", synthetic: true, sectionId: "intro",
           layout: "introThreeActs", title: "Three acts (vi-3)",
@@ -956,15 +993,15 @@
                                           prefill: function () { return "What you'll see today"; } },
             "Headline":                 { path: "storyFoundations.threeActsHeadline",
                                           prefill: function () { return "Three acts. One agentic journey."; } },
-            // Single-line, 1:1 with each act's description. Each binds to
-            // index [0] of the moments array the renderer (threeActsFor)
-            // actually reads, so what you type is what shows. Prefill the
-            // title + description with the rendered default.
+            // 1:1 with each act card: title + description. Each binds to the
+            // override array threeActsFor reads FIRST (threeActTitles /
+            // threeActDescriptions), so what you type is what shows. Prefill
+            // with the rendered value.
             "Act 1 title":              { path: "storyFoundations.threeActTitles[0]",
                                           prefill: function (sl, st) {
                                             return actsFromState(st)[0].title;
                                           } },
-            "Act 1 · Know & Reach":     { path: "storyFoundations.dataCloudMoments[0]",
+            "Act 1 · Know & Reach":     { path: "storyFoundations.threeActDescriptions[0]",
                                           prefill: function (sl, st) {
                                             return actsFromState(st)[0].description;
                                           } },
@@ -972,7 +1009,7 @@
                                           prefill: function (sl, st) {
                                             return actsFromState(st)[1].title;
                                           } },
-            "Act 2 · Engage & Recover": { path: "storyFoundations.commerceMoments[0]",
+            "Act 2 · Engage & Recover": { path: "storyFoundations.threeActDescriptions[1]",
                                           prefill: function (sl, st) {
                                             return actsFromState(st)[1].description;
                                           } },
@@ -980,15 +1017,16 @@
                                           prefill: function (sl, st) {
                                             return actsFromState(st)[2].title;
                                           } },
-            "Act 3 · Convert":          { path: "storyFoundations.agentforceMoments[0]",
+            "Act 3 · Convert":          { path: "storyFoundations.threeActDescriptions[2]",
                                           prefill: function (sl, st) {
                                             return actsFromState(st)[2].description;
                                           } },
           } });
     [0, 1, 2].forEach(function (i) {
-      // Each vignette renders exactly ONE moments field (by runtimeIndex):
-      //   vig1 → dataCloud, vig2 → marketing, vig3 → agentforce.
-      const vigField = ["dataCloudMoments", "marketingMoments", "agentforceMoments"][i];
+      // The vignette subtitle IS the matching act's description (vignettesFor
+      // derives it from threeActsFor), so it binds to the SAME override array
+      // (threeActDescriptions[i]) the three-acts card uses — editing one keeps
+      // the two slides in lock-step, by design.
       const vigLabel = ["Subtitle · Know & Reach", "Subtitle · Engage & Recover", "Subtitle · Convert"][i];
       add({ id: "_rt_intro_vig_" + i, synthetic: true, sectionId: "intro",
             layout: "introVignette", runtimeIndex: i,
@@ -1009,7 +1047,7 @@
                     return vignettesFromState(st)[i].title;
                   } };
               ep[vigLabel] =
-                { path: "storyFoundations." + vigField + "[0]",
+                { path: "storyFoundations.threeActDescriptions[" + i + "]",
                   prefill: function (sl, st) {
                     return vignettesFromState(st)[i].subtitle;
                   } };
@@ -1017,26 +1055,50 @@
             })() });
     });
 
-    // JOURNEY MAP ─ single 5-phase matrix slide
+    // JOURNEY MAP ─ single 4–5-phase matrix slide
     add({ id: "_rt_journey_matrix", synthetic: true, sectionId: "journey-map",
           layout: "journeyMapMatrix", title: "Journey map",
-          editorPaths: {
-            "Eyebrow (small label above the title)":
-                                     { path: "storyFoundations.journeyEyebrow",
-                                       prefill: function (sl, st) {
-                                         st = st || {};
-                                         const cn = (st.project && st.project.customerName) || "";
-                                         return cn ? cn + " · journey" : "Customer journey";
-                                       } },
-            "Customer name":         "project.customerName",
-            "Products":              "project.products",
-            "Transformation thesis": { path: "storyFoundations.transformationThesis",
-                                       prefill: function (sl, st) {
-                                         st = st || {};
-                                         const t = (st.storyFoundations && st.storyFoundations.transformationThesis) || "";
-                                         return t.trim() || "A connected journey";
-                                       } },
-          } });
+          editorPaths: (function () {
+            const ep = {
+              "Eyebrow (small label above the title)":
+                                       { path: "storyFoundations.journeyEyebrow",
+                                         prefill: function (sl, st) {
+                                           st = st || {};
+                                           const cn = (st.project && st.project.customerName) || "";
+                                           return cn ? cn + " · journey" : "Customer journey";
+                                         } },
+              // Headline: the renderer shows truncate(transformationThesis,70).
+              "Headline (transformation thesis)":
+                                       { path: "storyFoundations.transformationThesis",
+                                         prefill: function (sl, st) {
+                                           st = st || {};
+                                           const t = (st.storyFoundations && st.storyFoundations.transformationThesis) || "";
+                                           return t.trim() || "A connected journey";
+                                         } },
+              "Products (capability badges)": "project.products",
+            };
+            // One Title + Description field per RENDERED phase (adaptive 4–5),
+            // each binding to the override array bucketActsIntoFive reads first
+            // and prefilled with the rendered phase value.
+            const phaseCount = Math.max(4, Math.min(5, journeyPhasesFromState(state).length || 4));
+            for (let i = 0; i < phaseCount; i++) {
+              (function (idx) {
+                ep["Phase " + (idx + 1) + " · title"] =
+                  { path: "storyFoundations.journeyPhaseTitles[" + idx + "]",
+                    prefill: function (sl, st) {
+                      const ph = journeyPhasesFromState(st)[idx];
+                      return ph ? ph.title : "";
+                    } };
+                ep["Phase " + (idx + 1) + " · description"] =
+                  { path: "storyFoundations.journeyPhaseDescriptions[" + idx + "]",
+                    prefill: function (sl, st) {
+                      const ph = journeyPhasesFromState(st)[idx];
+                      return ph ? ph.descriptionShort : "";
+                    } };
+              })(i);
+            }
+            return ep;
+          })() });
 
     // MEET PERSONA ─ mr-1 intro, mr-2 spotlight, mr-3 wishlist, mr-4 CTA
     add({ id: "_rt_persona_intro", synthetic: true, sectionId: "meet-persona",
@@ -1047,17 +1109,17 @@
                                  prefill: function () { return "Customer Spotlight"; } },
             "Persona name (headline shows first name)": "personas[0].name",
             "Customer name":   "project.customerName",
-            // Sub-line: "<Customer> · <journey arc>". demoRelevance wins,
-            // goals is the fallback (matches personaIntroSub). Prefill the
-            // winning field with the rendered sub so it isn't blank.
-            "Sub-line · demo relevance (wins)":
+            // Journey arc (the "· <arc>" half of the sub-line; the customer
+            // name half has its own field above). Single field prefilled with
+            // the arc actually shown — demoRelevance wins over goals — and
+            // writing demoRelevance, which the renderer reads first.
+            "Journey arc (sub-line)":
                                { path: "personas[0].demoRelevance",
                                  prefill: function (sl, st) {
                                    st = st || {};
                                    const p = (st.personas && st.personas[0]) || {};
-                                   return personaIntroSub(p, (st.project && st.project.customerName) || "");
+                                   return truncate(p.demoRelevance || p.goals || "[TODO: one-line journey arc]", 110);
                                  } },
-            "Sub-line · goals (fallback)":      "personas[0].goals",
           } });
     add({ id: "_rt_persona_card", synthetic: true, sectionId: "meet-persona",
           layout: "personaCard", title: "Spotlight · stats + quote (mr-2)",
@@ -1083,16 +1145,15 @@
                                          { value: "[TODO]", label: "Signal"     },
                                        ];
                                      } },
-            // Quote = pain points, falling back to goals. Prefill with the
-            // rendered quote text (pain points wins).
-            "Quote (pain points)": { path: "personas[0].painPoints",
+            // Quote — single field prefilled with the rendered quote (pain
+            // points wins over goals) and writing painPoints, which the
+            // renderer reads first, so what you type is what shows.
+            "Quote":               { path: "personas[0].painPoints",
                                      prefill: function (sl, st) {
                                        st = st || {};
                                        const p = (st.personas && st.personas[0]) || {};
                                        return p.painPoints || p.goals || "";
                                      } },
-            // Quote falls back to goals when pain points is empty — expose it.
-            "Quote fallback · goals": "personas[0].goals",
           } });
     add({ id: "_rt_persona_wishlist", synthetic: true, sectionId: "meet-persona",
           layout: "personaWishlist", title: "Wishlist (mr-3)",
@@ -1138,6 +1199,24 @@
             "Eyebrow (small label above the title)":
                                 { path: "storyFoundations.personaCtaEyebrow",
                                   prefill: function () { return "The Customer Journey"; } },
+            // Headline — override the shared default verbatim; prefill with
+            // the rendered headline.
+            "Headline":         { path: "storyFoundations.personaCtaHeadline",
+                                  prefill: function (sl, st) {
+                                    st = st || {};
+                                    const cta = personaCtaCopy((st.personas && st.personas[0]) || {},
+                                                               st.story || {}, st.storyFoundations || {});
+                                    return cta.headline;
+                                  } },
+            // Sub-line — override the shared default verbatim; prefill with
+            // the rendered sub.
+            "Sub-line":         { path: "storyFoundations.personaCtaSub",
+                                  prefill: function (sl, st) {
+                                    st = st || {};
+                                    const cta = personaCtaCopy((st.personas && st.personas[0]) || {},
+                                                               st.story || {}, st.storyFoundations || {});
+                                    return cta.sub;
+                                  } },
             // CTA button label — prefill the shared default (arrow + caps),
             // stripped of the &nbsp; the export keeps.
             "CTA button label": { path: "storyFoundations.personaCtaLabel",
@@ -1147,20 +1226,6 @@
                                                                st.story || {}, st.storyFoundations || {});
                                     return String(cta.label).replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
                                   } },
-            "Persona name":     "personas[0].name",
-            // Sub-line: demoRelevance wins over futureVision (relabeled so
-            // the precedence is clear — editing futureVision is dead when
-            // demoRelevance is set). Prefill the winning field with the
-            // rendered CTA sub.
-            "Sub-line · demo relevance (wins)":
-                                { path: "personas[0].demoRelevance",
-                                  prefill: function (sl, st) {
-                                    st = st || {};
-                                    const cta = personaCtaCopy((st.personas && st.personas[0]) || {},
-                                                               st.story || {}, st.storyFoundations || {});
-                                    return cta.sub;
-                                  } },
-            "Sub-line · future vision (fallback)": "story.futureVision",
           } });
 
     // DEMO ─ chapter opener (auto-prepend) + state.slides[demo only]
@@ -1171,12 +1236,29 @@
     if (!hasOpener) {
       add({ id: "_rt_demo_opener", synthetic: true, sectionId: "demo",
             layout: "chapterOpener", title: "Chapter opener",
-            editorPaths: {
-              "Theme":         "project.theme",
-              "Demo title":    "storyFoundations.demoTitle",
-              "Customer name": "project.customerName",
-              "Persona name":  "personas[0].name",
-            } });
+            // 1:1 with the slide: Eyebrow, Headline, Sub-line — each prefilled
+            // with the rendered value (chapterOpenerCopy) and writing to the
+            // override the renderer reads first.
+            editorPaths: (function () {
+              function cc(st) {
+                st = st || {};
+                return chapterOpenerCopy({
+                  customerName: (st.project && st.project.customerName) || "",
+                  persona:      (st.personas && st.personas[0]) || null,
+                  acts:         st.storyActs || [],
+                  theme:        (st.project && st.project.theme) || "",
+                  demoTitle:    (st.storyFoundations && st.storyFoundations.demoTitle) || "",
+                });
+              }
+              return {
+                "Eyebrow":   { path: "storyFoundations.chapterOpenerEyebrow",
+                               prefill: function (sl, st) { return cc(st).eyebrow; } },
+                "Headline":  { path: "storyFoundations.chapterOpenerHeadline",
+                               prefill: function (sl, st) { return cc(st).headline; } },
+                "Sub-line":  { path: "storyFoundations.chapterOpenerSub",
+                               prefill: function (sl, st) { return cc(st).sub; } },
+              };
+            })() });
     }
     // Journey timeline (above/below-the-line milestones). Lives in the DEMO
     // section — emitted FIRST (right after the chapter opener, before the
@@ -1193,12 +1275,8 @@
                                     prefill: function () { return "The Customer Journey"; } },
             "Headline":           { path: "storyFoundations.journeyTimelineHeadline",
                                     prefill: function () { return "One journey. Every channel. Always personal."; } },
-            "Sub-line":           { path: "storyFoundations.journeyTimelineSub",
-                                    prefill: function (sl, st) {
-                                      st = st || {};
-                                      const t = (st.storyFoundations && st.storyFoundations.transformationThesis) || "";
-                                      return t.trim() || "From one moment, AI turns identity into months of personalized engagement.";
-                                    } },
+            // (No Sub-line field — the journeyTimeline renderer draws only the
+            // eyebrow, headline, and events; a sub-line was never rendered.)
             // Timeline events — resolves to the dynamic list-objects editor
             // (add / remove / reorder + per-row icon picker). Blank = fall
             // back to storyActs at render time, so legacy projects are

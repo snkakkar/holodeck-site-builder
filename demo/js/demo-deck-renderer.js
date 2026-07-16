@@ -173,10 +173,16 @@
     // Visual: serif italic display headline on a soft Salesforce
     // gradient, with floating particles + an anchor sub line.
     chapterOpener: function (s) {
-      const opener = (s && s.title) ? s.title : defaultOpenerHeadline();
-      const sub    = (s && (s.sub || s.speakerNotes)) || defaultOpenerSub();
-      const eyebrow = (s && (s.eyebrow || s.section)) ||
-        (customer.demoTitle ? customer.demoTitle : "Customer Demo");
+      // SE overrides (chapter-opener editor fields) win verbatim so the /demo
+      // opener matches what the SE edited in the builder preview; else the
+      // slide's own copy; else the auto-woven defaults.
+      const ovE = (f.chapterOpenerEyebrow  && String(f.chapterOpenerEyebrow).trim())  || "";
+      const ovH = (f.chapterOpenerHeadline && String(f.chapterOpenerHeadline).trim()) || "";
+      const ovS = (f.chapterOpenerSub      && String(f.chapterOpenerSub).trim())      || "";
+      const opener = ovH || ((s && s.title) ? s.title : defaultOpenerHeadline());
+      const sub    = ovS || ((s && (s.sub || s.speakerNotes)) || defaultOpenerSub());
+      const eyebrow = ovE || ((s && (s.eyebrow || s.section)) ||
+        (customer.demoTitle ? customer.demoTitle : "Customer Demo"));
       const cap = el("div", { class: "dd-opener" }, [
         el("div", { class: "dd-opener-particles" }, openerParticles()),
         el("p", { class: "dd-opener-eyebrow", text: eyebrow }),

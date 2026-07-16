@@ -566,7 +566,8 @@
         return {
           "Eyebrow":         "storyFoundations.journeyTimelineEyebrow",
           "Headline":        "storyFoundations.journeyTimelineHeadline",
-          "Sub-line":        "storyFoundations.journeyTimelineSub",
+          // No "Sub-line" — the journeyTimeline renderer draws only the
+          // eyebrow, headline, and events; a sub-line was never rendered.
           "Timeline events": "storyFoundations.timelineEvents",
         };
       case "embeddedCxComponent":
@@ -1739,7 +1740,8 @@
       const prods = data.products || [];
       const f = data.foundations || {};
       const phases = SHARED.bucketActsIntoFive
-        ? SHARED.bucketActsIntoFive(data.acts || [], prods, f.journeyPhases)
+        ? SHARED.bucketActsIntoFive(data.acts || [], prods, f.journeyPhases,
+            { titles: f.journeyPhaseTitles, descriptions: f.journeyPhaseDescriptions })
         : [];
       const root = el("div", { class: "hp hp-jmatrix" });
       const headline = f.transformationThesis
@@ -1810,7 +1812,11 @@
       const subText = SHARED.storyHookSubText
         ? SHARED.storyHookSubText(f)
         : "Every interaction builds context. Every context makes the next experience more personal.";
-      root.appendChild(el("div", { class: "hp-eyebrow", text: theme + " · " + sub2 }));
+      // Eyebrow: single SE override (vi-2 "Eyebrow" editor field) wins verbatim
+      // so what the SE types is exactly what shows; else the derived
+      // "<theme> · <industry/audience>" line.
+      const eyebrow = fOr(data, "storyHookEyebrowOverride", theme + " · " + sub2);
+      root.appendChild(el("div", { class: "hp-eyebrow", text: eyebrow }));
       root.appendChild(el("h2", { class: "hp-title", text: hook }));
       root.appendChild(el("p", { class: "hp-sub", text: truncate(subText, mode === "expanded" ? 280 : 180) }));
       return root;
@@ -1948,13 +1954,17 @@
     // are byte-identical to demo-deck-renderer.js defaultOpenerSub.
     chapterOpener: function (data, mode) {
       const root = el("div", { class: "hp hp-opener" });
+      const cf = data.foundations || {};
       const c = SHARED.chapterOpenerCopy
         ? SHARED.chapterOpenerCopy({
             customerName: data.customerName,
             persona:      data.persona,
             acts:         data.acts || [],
             theme:        data.theme,
-            demoTitle:    (data.foundations && data.foundations.demoTitle) || "",
+            demoTitle:    cf.demoTitle || "",
+            eyebrowOverride:  cf.chapterOpenerEyebrow,
+            headlineOverride: cf.chapterOpenerHeadline,
+            subOverride:      cf.chapterOpenerSub,
           })
         : { eyebrow: "Customer Demo",
             headline: "Every relationship begins with a single moment.",
