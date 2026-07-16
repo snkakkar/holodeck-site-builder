@@ -8,7 +8,9 @@
     "prestart": "npm run sync:shared",
     "heroku-postbuild": "bash bin/fetch-postgrest.sh && npm --prefix auth-service install --omit=dev && npm run sync:shared",
     "sync:shared": "cp builder/holodeck-shared.js demo/js/holodeck-shared.js",
-    "check:shared": "cmp builder/holodeck-shared.js demo/js/holodeck-shared.js && echo 'holodeck-shared.js copies are in sync'"
+    "check:shared": "cmp builder/holodeck-shared.js demo/js/holodeck-shared.js && echo 'holodeck-shared.js copies are in sync'",
+    "test": "node --test test/",
+    "smoke": "node --test test/smoke.mjs"
   },
   "engines": {
     "node": ">=20 <23"
