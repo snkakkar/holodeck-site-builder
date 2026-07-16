@@ -1615,6 +1615,7 @@
         fast: true,            // disable the model's thinking pass — big latency win
         temperature: 0.2,      // extraction is deterministic, not creative
         maxOutputTokens: 8192, // large scripts + full storyFoundations schema can exceed 4k and truncate the JSON
+        useCache: true,        // deterministic parse — re-extracting an unchanged script reuses the result (0 tokens)
       });
     })
       .then(function (text) {
@@ -5456,7 +5457,7 @@
     // CONFIG_TEMPLATE is a sample config, not an OpenAPI schema, so
     // it can't be a responseSchema — JSON mode + the prompt is the
     // reliable path, and VALIDATOR.importConfig enforces the shape.
-    GEMINI.generate({ prompt: promptText, jsonMode: true })
+    GEMINI.generate({ prompt: promptText, jsonMode: true, useCache: true })
       .then(function (text) {
         // Strip a stray ```json … ``` fence if the model added one.
         const cleaned = String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");

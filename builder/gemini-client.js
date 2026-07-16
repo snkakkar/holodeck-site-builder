@@ -52,12 +52,59 @@
     return status().then(function (s) { return Boolean(s && s.configured); });
   }
 
+  // ─── Response cache (opt-in, per-page-session) ──────────────
+  // Two calls are expensive AND deterministic (fast/low-temp JSON): the
+  // Step-1 story extraction and the full config generation. An SE who
+  // re-clicks Extract/Generate on an UNCHANGED script pays the whole
+  // call again for the same answer. When a caller passes useCache:true,
+  // we hash the request shape and reuse a prior successful result for
+  // the rest of the page session. Default OFF — with no flag, generate()
+  // behaves byte-identically to before, so no other call site changes.
+  //
+  // Guards (belt-and-suspenders — the cache only ever holds safe-to-reuse
+  // calls): never cache a grounded call (web results are time-sensitive)
+  // or a creative one (temperature > 0.4). Bounded to CACHE_MAX entries so
+  // it can't grow without limit; oldest evicted first. A one-character
+  // prompt change → different hash → fresh call, so it never serves stale
+  // output for changed input.
+  const CACHE_MAX = 20;
+  const _cache = new Map(); // key → resolved text
+
+  // Small, fast, non-cryptographic string hash (djb2 xor). We only need a
+  // stable key for equal inputs, not collision resistance — and we log the
+  // hash, never the prompt content, to respect the privacy boundary.
+  function hashKey(str) {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+    return "g" + h.toString(36) + "_" + str.length;
+  }
+  function cacheKeyFor(payload) {
+    return hashKey(JSON.stringify([
+      payload.prompt, payload.model || "", !!payload.jsonMode,
+      payload.schema || null, payload.temperature, payload.maxOutputTokens,
+      !!payload.groundWithSearch,
+    ]));
+  }
+  function cacheEligible(opts, payload) {
+    return opts.useCache === true &&
+      !payload.groundWithSearch &&
+      !(typeof payload.temperature === "number" && payload.temperature > 0.4);
+  }
+  function cacheStore(key, text) {
+    if (_cache.has(key)) _cache.delete(key);
+    _cache.set(key, text);
+    while (_cache.size > CACHE_MAX) _cache.delete(_cache.keys().next().value);
+  }
+
   // ─── Generation ──────────────────────────────────────────────
-  // opts: { prompt: string, jsonMode?: bool, schema?: object, model?: string }
+  // opts: { prompt: string, jsonMode?: bool, schema?: object, model?: string,
+  //         useCache?: bool }
   // Resolves to the raw model text (a string). Pass jsonMode:true to
   // ask Gemini for application/json output (the prompt defines the
   // shape). `schema` additionally constrains output to an OpenAPI
   // responseSchema — only pass a real schema object, not a sample.
+  // Pass useCache:true to reuse a prior identical result this page
+  // session (see the cache notes above); default off.
   function generate(opts) {
     const prompt = opts && opts.prompt;
     if (!prompt || !String(prompt).trim()) {
@@ -77,6 +124,14 @@
     // (responseMimeType/responseSchema), so callers use it for the free-text
     // research pass, NOT the JSON extraction. See server.js.
     if (opts.groundWithSearch) payload.groundWithSearch = true;
+
+    // Opt-in cache: serve a prior identical result instantly (0 tokens).
+    const useCache = cacheEligible(opts, payload);
+    const cacheKey = useCache ? cacheKeyFor(payload) : null;
+    if (useCache && _cache.has(cacheKey)) {
+      if (window.console && console.debug) console.debug("[gemini] cache hit", cacheKey);
+      return Promise.resolve(_cache.get(cacheKey));
+    }
 
     // The proxy streams a newline-delimited JSON (NDJSON) response —
     // a {type:"start"} line, periodic {type:"ping"} heartbeats while
@@ -110,6 +165,8 @@
           if (msg.type === "error") throw new Error(msg.error || "Gemini error");
           if (msg.type === "done") {
             if (typeof msg.text !== "string") throw new Error("Unexpected response from the Gemini proxy");
+            // Cache only successful, eligible results (never errors).
+            if (useCache && cacheKey) cacheStore(cacheKey, msg.text);
             return msg.text; // terminal value
           }
           return undefined; // start / ping → keep reading
