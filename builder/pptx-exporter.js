@@ -24,9 +24,16 @@
 
   function safeSlug(state) {
     if (global.HOLO_ZIP && global.HOLO_ZIP.safeSlug) return global.HOLO_ZIP.safeSlug(state);
-    const p = (state && state.project) || {};
-    const base = (p.customerName || p.name || "demo").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    return (base || "demo").slice(0, 48);
+    // Fallback only when HOLO_ZIP hasn't loaded. Mirror the canonical
+    // zip-exporter logic exactly (field order + empty-guard) so a missing
+    // HOLO_ZIP can never rename an export differently than the ZIP does.
+    const candidate = (state && (state.name
+      || (state.project && state.project.customerName)
+      || "demo")) || "demo";
+    return String(candidate).toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "demo";
   }
 
   // ─── Download entry ────────────────────────────────────────────
@@ -86,12 +93,12 @@
       });
     }
   }
-  function sectionLabel(id) {
+  const sectionLabel = MODEL.sectionLabel || function (id) {
     return ({
       "intro": "INTRODUCTION", "journey-map": "JOURNEY MAP", "meet-persona": "MEET THE PERSONA",
       "demo": "THE DEMO", "business-value": "BUSINESS VALUE",
-    })[id] || String(id).toUpperCase();
-  }
+    })[id] || String(id || "").toUpperCase();
+  };
   // Eyebrow + big title header used by several templates. Returns the
   // y-offset below the header so callers can lay content beneath it.
   function header(slide, ns, ctx, opts) {
@@ -124,127 +131,73 @@
   //   affinities → labeled meter bars   signals → dotted timeline
   //   predicted  → Next Best Action card  identity/other → detail grid
   function profilePaneBody(slide, ctx, facet, x, y, w, h, allFacets) {
-    const rows = (facet.rows || []).slice(0, 6);
-    const key = facet.key || "identity";
-    if (!rows.length) return;
+    // Decision logic + geometry are shared (HOLO_EXPORT_MODEL.profilePaneOps,
+    // canonical inch space — the same units PPTX draws in, so ops pass through
+    // 1:1). This adapter maps each op's SEMANTIC color token to real hex and
+    // emits the PptxGenJS declarative call. The meter internals (track height
+    // 0.11", radius 0.055) live here so the tuned PPTX look is preserved.
+    const ops = (MODEL.profilePaneOps || function () { return []; })(facet, x, y, w, h, allFacets);
+    if (!ops.length) return;
 
-    // A word→fill-fraction map so "Very high / High / Medium / Low" become bars.
-    function meterFrac(v) {
-      const s = String(v || "").toLowerCase();
-      if (/very high|98|primed|very strong/.test(s)) return 0.96;
-      if (/high|strong|elevated/.test(s))            return 0.8;
-      if (/medium|moderate/.test(s))                 return 0.55;
-      if (/low/.test(s))                             return 0.3;
-      return 0.7;
-    }
-    // Affinity meter bars (label + rating + filled track). Shared by the
-    // Affinities tab and the Identity view's embedded affinity widget.
-    function drawMeters(meterRows, mx, my, mw, mh) {
-      const list = (meterRows || []).slice(0, 5);
-      if (!list.length) return;
-      const rowH = Math.min(0.6, mh / list.length);
-      list.forEach(function (r, i) {
-        const ry = my + i * rowH;
-        slide.addText(r.label || "", {
-          x: mx, y: ry, w: mw, h: 0.2, fontSize: 9.5, bold: true, color: T.ink,
-          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
-        });
-        slide.addText(r.value || "", {
-          x: mx, y: ry, w: mw, h: 0.2, fontSize: 8.5, color: ctx.brand.primary,
-          fontFace: ctx.brand.fontBody, align: ctx.AlignH.right, valign: ctx.AlignV.middle,
-        });
-        const trackY = ry + 0.23, trackH = 0.11;
-        slide.addShape(ctx.ShapeType.roundRect, { x: mx, y: trackY, w: mw, h: trackH, fill: { color: "FFFFFF" }, line: { color: T.line, width: 0.5 }, rectRadius: 0.055 });
-        slide.addShape(ctx.ShapeType.roundRect, { x: mx, y: trackY, w: Math.max(0.12, mw * meterFrac(r.value)), h: trackH, fill: { color: ctx.brand.primary }, line: { type: "none" }, rectRadius: 0.055 });
-      });
-    }
-
-    if (key === "affinities") {
-      drawMeters(rows, x, y, w, h);
-      return;
-    }
-
-    if (key === "signals") {
-      const rowH = Math.min(0.7, h / rows.length);
-      const dotX = x + 0.06;
-      // Vertical rail behind the dots.
-      slide.addShape(ctx.ShapeType.rect, { x: dotX + 0.055, y: y + 0.08, w: 0.02, h: Math.max(0.1, (rows.length - 1) * rowH), fill: { color: T.line }, line: { type: "none" } });
-      rows.forEach(function (r, i) {
-        const ry = y + i * rowH;
-        slide.addShape(ctx.ShapeType.ellipse, { x: dotX, y: ry + 0.04, w: 0.14, h: 0.14, fill: { color: ctx.brand.accent }, line: { color: ctx.brand.primary, width: 1 } });
-        slide.addText([
-          { text: (r.label || "") + "", options: { fontSize: 8, bold: true, color: T.muted, charSpacing: 1, breakLine: true } },
-          { text: (r.value || "") + "", options: { fontSize: 10.5, bold: true, color: T.ink } },
-        ], { x: dotX + 0.3, y: ry, w: w - 0.36, h: rowH - 0.08, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.top, shrinkText: true });
-      });
-      return;
-    }
-
-    if (key === "predicted") {
-      // Next Best Action card: eyebrow + headline (row[0].value) + supporting
-      // detail rows + a faux action button.
-      const headline = (rows[0] && rows[0].value) || "Personalized offer";
-      const rest = rows.slice(1);
-      slide.addShape(ctx.ShapeType.roundRect, { x: x, y: y, w: w, h: h, fill: { color: T.band }, line: { color: T.line, width: 1 }, rectRadius: 0.06 });
-      slide.addText("NEXT BEST ACTION", {
-        x: x + 0.2, y: y + 0.16, w: w - 0.4, h: 0.22, fontSize: 8, bold: true, color: ctx.brand.primary,
-        fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, charSpacing: 2,
-      });
-      slide.addText(headline, {
-        x: x + 0.2, y: y + 0.4, w: w - 0.4, h: 0.5, fontSize: 15, bold: true, color: T.ink,
-        fontFace: ctx.brand.fontHeading, align: ctx.AlignH.left, valign: ctx.AlignV.top, shrinkText: true,
-      });
-      let py2 = y + 0.94;
-      const availH = (y + h - 0.62) - py2;
-      const rH = rest.length ? Math.min(0.4, availH / rest.length) : 0;
-      rest.forEach(function (r, i) {
-        const ry = py2 + i * rH;
-        slide.addText(r.label || "", { x: x + 0.2, y: ry, w: w * 0.42, h: rH, fontSize: 9, color: T.muted, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true });
-        slide.addText(r.value || "", { x: x + 0.2 + w * 0.42, y: ry, w: w * 0.58 - 0.4, h: rH, fontSize: 9.5, bold: true, color: T.ink, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true });
-      });
-      // Faux "Launch action" button pinned to the card bottom.
-      const btnW = 1.5, btnH = 0.34, btnY = y + h - btnH - 0.16;
-      slide.addShape(ctx.ShapeType.roundRect, { x: x + 0.2, y: btnY, w: btnW, h: btnH, fill: { color: ctx.brand.primary }, line: { type: "none" }, rectRadius: 0.05 });
-      slide.addText("Launch action", { x: x + 0.2, y: btnY, w: btnW, h: btnH, fontSize: 9, bold: true, color: "FFFFFF", fontFace: ctx.brand.fontBody, align: ctx.AlignH.center, valign: ctx.AlignV.middle });
-      return;
-    }
-
-    // identity / demographics / engagement / value → a COMPACT two-column
-    // detail grid in a short top block, then an embedded "Affinities" meter
-    // widget card filling the space below (a second LWC-style component, so
-    // the console reads like a real Salesforce workspace, not a tall list).
-    const affinityRows = (allFacets || []).reduce(function (acc, f) {
-      return acc || (f && f.key === "affinities" ? f.rows : null);
-    }, null);
-
-    // Top block: fields in 2 columns, 2 per row → short, dense.
-    const cols = 2;
-    const fieldRows = Math.ceil(rows.length / cols);
-    const fRowH = 0.36;
-    const gridH = fieldRows * fRowH;
-    const colW = w / cols;
-    rows.forEach(function (r, i) {
-      const cc = i % cols, rr = Math.floor(i / cols);
-      const fx = x + cc * colW, fy = y + rr * fRowH;
-      slide.addText([
-        { text: (r.label || "") + "", options: { fontSize: 7.5, bold: true, color: T.muted, charSpacing: 1, breakLine: true } },
-        { text: (r.value || "") + "", options: { fontSize: 10, bold: true, color: T.ink } },
-      ], { x: fx, y: fy, w: colW - 0.12, h: fRowH - 0.03, fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true });
-    });
-
-    // Affinity widget card below the fields.
-    if (affinityRows && affinityRows.length) {
-      const wy = y + gridH + 0.16;
-      const wh = (y + h) - wy;
-      if (wh > 0.6) {
-        slide.addShape(ctx.ShapeType.roundRect, { x: x, y: wy, w: w, h: wh, fill: { color: T.band }, line: { color: T.line, width: 1 }, rectRadius: 0.06 });
-        slide.addText("TOP AFFINITIES", {
-          x: x + 0.18, y: wy + 0.12, w: w - 0.36, h: 0.2, fontSize: 8, bold: true, color: ctx.brand.primary,
-          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, charSpacing: 2,
-        });
-        drawMeters(affinityRows, x + 0.18, wy + 0.42, w - 0.36, wh - 0.56);
+    // Semantic color token → hex. brand.primary/accent are already hex.
+    function col(token) {
+      switch (token) {
+        case "primary": return ctx.brand.primary;
+        case "accent":  return ctx.brand.accent;
+        case "white":   return "FFFFFF";
+        case "ink":     return T.ink;
+        case "muted":   return T.muted;
+        case "line":    return T.line;
+        case "band":    return T.band;
+        default:        return token || T.ink;
       }
     }
+    function fontFor(o) { return o.heading ? ctx.brand.fontHeading : ctx.brand.fontBody; }
+
+    ops.forEach(function (o) {
+      if (o.op === "rect") {
+        slide.addShape(ctx.ShapeType.rect, { x: o.x, y: o.y, w: o.w, h: o.h, fill: { color: col(o.fill) }, line: { type: "none" } });
+        return;
+      }
+      if (o.op === "roundRect") {
+        const shape = { x: o.x, y: o.y, w: o.w, h: o.h, fill: { color: col(o.fill) }, rectRadius: o.radius };
+        shape.line = o.line ? { color: col(o.line), width: o.lineWidth || 1 } : { type: "none" };
+        slide.addShape(ctx.ShapeType.roundRect, shape);
+        return;
+      }
+      if (o.op === "ellipse") {
+        slide.addShape(ctx.ShapeType.ellipse, { x: o.x, y: o.y, w: o.w, h: o.h, fill: { color: col(o.fill) }, line: { color: col(o.line), width: o.lineWidth || 1 } });
+        return;
+      }
+      if (o.op === "text") {
+        const common = { x: o.x, y: o.y, w: o.w, h: o.h, fontFace: fontFor(o),
+          align: ctx.AlignH[o.align || "left"], valign: ctx.AlignV[o.valign || "top"], shrinkText: true };
+        if (o.spans) {
+          const runs = o.spans.map(function (s) {
+            return { text: s.text, options: { fontSize: s.size, bold: !!s.bold, color: col(s.color), charSpacing: s.charSpacing, breakLine: !!s.break } };
+          });
+          slide.addText(runs, common);
+        } else {
+          slide.addText(o.text || "", Object.assign({}, common, { fontSize: o.size, bold: !!o.bold, color: col(o.color), charSpacing: o.charSpacing }));
+        }
+        return;
+      }
+      if (o.op === "meterBar") {
+        // One affinity row: label (left) + rating (right) + track + fill.
+        slide.addText(o.label, {
+          x: o.x, y: o.y, w: o.w, h: 0.2, fontSize: 9.5, bold: true, color: T.ink,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.middle, shrinkText: true,
+        });
+        slide.addText(o.value, {
+          x: o.x, y: o.y, w: o.w, h: 0.2, fontSize: 8.5, color: ctx.brand.primary,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.right, valign: ctx.AlignV.middle,
+        });
+        const trackY = o.y + 0.23, trackH = 0.11;
+        slide.addShape(ctx.ShapeType.roundRect, { x: o.x, y: trackY, w: o.w, h: trackH, fill: { color: "FFFFFF" }, line: { color: T.line, width: 0.5 }, rectRadius: 0.055 });
+        slide.addShape(ctx.ShapeType.roundRect, { x: o.x, y: trackY, w: Math.max(0.12, o.w * o.frac), h: trackH, fill: { color: ctx.brand.primary }, line: { type: "none" }, rectRadius: 0.055 });
+        return;
+      }
+    });
   }
 
   // ─── Template renderers ────────────────────────────────────────

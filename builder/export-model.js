@@ -65,6 +65,163 @@
     return cur;
   }
 
+  // ─── Shared exporter helpers ───────────────────────────────────
+  // These were duplicated byte-for-byte in pdf-exporter.js and
+  // pptx-exporter.js (both load AFTER this module). Owned here so a fix
+  // to the fraction map or the label lookup lands in one place; each
+  // exporter keeps a matched local fallback in case load order shifts.
+  //
+  // meterFrac: maps a rating word ("Very high / High / Medium / Low") to a
+  // 0–1 fill fraction for the affinity meter bars.
+  function meterFrac(v) {
+    const s = String(v || "").toLowerCase();
+    if (/very high|98|primed|very strong/.test(s)) return 0.96;
+    if (/high|strong|elevated/.test(s))            return 0.8;
+    if (/medium|moderate/.test(s))                 return 0.55;
+    if (/low/.test(s))                             return 0.3;
+    return 0.7;
+  }
+  // sectionLabel: fixed section id → display eyebrow, else the id upper-cased.
+  function sectionLabel(id) {
+    return ({
+      "intro": "INTRODUCTION", "journey-map": "JOURNEY MAP", "meet-persona": "MEET THE PERSONA",
+      "demo": "THE DEMO", "business-value": "BUSINESS VALUE",
+    })[id] || String(id || "").toUpperCase();
+  }
+
+  // ─── Persona profile-console pane: shared op list ──────────────
+  // The Data Cloud "unifiedProfile" console draws a per-facet "LWC" pane.
+  // The DECISION LOGIC (facet-key dispatch, row slicing, meterFrac math,
+  // grid/card/timeline geometry) was copy-pasted byte-for-byte into both
+  // exporters and had begun to drift (meter track height, corner radius).
+  // profilePaneOps owns that logic ONCE and returns an ordered list of
+  // format-agnostic primitives in the PPTX inch coordinate space (the
+  // canonical geometry — THEME is authored in inches; the PDF exporter
+  // scales ×72). Each exporter keeps only a thin adapter that walks these
+  // ops and emits its native draw calls (jsPDF imperative / PptxGenJS
+  // declarative). Colors are given as SEMANTIC tokens the adapter maps to
+  // real hex, so brand/theme resolution stays in the exporter.
+  //
+  // Op shapes (all coords/sizes in inches, canonical space):
+  //   { op:"roundRect", x,y,w,h, radius, fill, line, lineWidth }
+  //   { op:"rect",      x,y,w,h, fill }
+  //   { op:"ellipse",   x,y,w,h, fill, line, lineWidth }
+  //   { op:"text",      x,y,w,h, size, bold, color, align, valign,
+  //                     charSpacing?, spans?[{text,size,bold,color,break}] }
+  //   { op:"meterBar",  x,y,w, label, value, frac }   // one affinity row
+  // Color tokens: "ink" | "muted" | "line" | "band" | "white" | "primary"
+  //   | "accent"  (adapter resolves brand/theme).
+  function profilePaneOps(facet, x, y, w, h, allFacets) {
+    const rows = ((facet && facet.rows) || []).slice(0, 6);
+    const key = (facet && facet.key) || "identity";
+    const ops = [];
+    if (!rows.length) return ops;
+
+    // Affinity meter rows → one meterBar op each (label + rating + track).
+    // Shared by the Affinities tab and the Identity view's embedded widget.
+    function pushMeters(meterRows, mx, my, mw, mh) {
+      const list = (meterRows || []).slice(0, 5);
+      if (!list.length) return;
+      const rowH = Math.min(0.6, mh / list.length);
+      list.forEach(function (r, i) {
+        ops.push({
+          op: "meterBar", x: mx, y: my + i * rowH, w: mw,
+          label: r.label || "", value: r.value || "", frac: meterFrac(r.value),
+        });
+      });
+    }
+
+    if (key === "affinities") {
+      pushMeters(rows, x, y, w, h);
+      return ops;
+    }
+
+    if (key === "signals") {
+      const rowH = Math.min(0.7, h / rows.length);
+      const dotX = x + 0.06;
+      // Vertical rail behind the dots.
+      ops.push({ op: "rect", x: dotX + 0.055, y: y + 0.08, w: 0.02,
+        h: Math.max(0.1, (rows.length - 1) * rowH), fill: "line" });
+      rows.forEach(function (r, i) {
+        const ry = y + i * rowH;
+        ops.push({ op: "ellipse", x: dotX, y: ry + 0.04, w: 0.14, h: 0.14,
+          fill: "accent", line: "primary", lineWidth: 1 });
+        ops.push({ op: "text", x: dotX + 0.3, y: ry, w: w - 0.36, h: rowH - 0.08,
+          align: "left", valign: "top", spans: [
+            { text: (r.label || "") + "", size: 8, bold: true, color: "muted", charSpacing: 1, break: true },
+            { text: (r.value || "") + "", size: 10.5, bold: true, color: "ink" },
+          ] });
+      });
+      return ops;
+    }
+
+    if (key === "predicted") {
+      // Next Best Action card: eyebrow + headline (row[0].value) + detail
+      // rows + a faux action button.
+      const headline = (rows[0] && rows[0].value) || "Personalized offer";
+      const rest = rows.slice(1);
+      ops.push({ op: "roundRect", x: x, y: y, w: w, h: h, radius: 0.06,
+        fill: "band", line: "line", lineWidth: 1 });
+      ops.push({ op: "text", x: x + 0.2, y: y + 0.16, w: w - 0.4, h: 0.22,
+        text: "NEXT BEST ACTION", size: 8, bold: true, color: "primary",
+        align: "left", valign: "middle", charSpacing: 2 });
+      ops.push({ op: "text", x: x + 0.2, y: y + 0.4, w: w - 0.4, h: 0.5,
+        text: headline, size: 15, bold: true, color: "ink", heading: true,
+        align: "left", valign: "top" });
+      const py2 = y + 0.94;
+      const availH = (y + h - 0.62) - py2;
+      const rH = rest.length ? Math.min(0.4, availH / rest.length) : 0;
+      rest.forEach(function (r, i) {
+        const ry = py2 + i * rH;
+        ops.push({ op: "text", x: x + 0.2, y: ry, w: w * 0.42, h: rH,
+          text: r.label || "", size: 9, color: "muted", align: "left", valign: "middle" });
+        ops.push({ op: "text", x: x + 0.2 + w * 0.42, y: ry, w: w * 0.58 - 0.4, h: rH,
+          text: r.value || "", size: 9.5, bold: true, color: "ink", align: "left", valign: "middle" });
+      });
+      const btnW = 1.5, btnH = 0.34, btnY = y + h - btnH - 0.16;
+      ops.push({ op: "roundRect", x: x + 0.2, y: btnY, w: btnW, h: btnH, radius: 0.05, fill: "primary" });
+      ops.push({ op: "text", x: x + 0.2, y: btnY, w: btnW, h: btnH,
+        text: "Launch action", size: 9, bold: true, color: "white", align: "center", valign: "middle" });
+      return ops;
+    }
+
+    // identity / demographics / engagement / value → a COMPACT two-column
+    // detail grid in a short top block, then an embedded "Affinities" meter
+    // widget card filling the space below.
+    const affinityRows = (allFacets || []).reduce(function (acc, f) {
+      return acc || (f && f.key === "affinities" ? f.rows : null);
+    }, null);
+
+    const cols = 2;
+    const fieldRows = Math.ceil(rows.length / cols);
+    const fRowH = 0.36;
+    const gridH = fieldRows * fRowH;
+    const colW = w / cols;
+    rows.forEach(function (r, i) {
+      const cc = i % cols, rr = Math.floor(i / cols);
+      const fx = x + cc * colW, fy = y + rr * fRowH;
+      ops.push({ op: "text", x: fx, y: fy, w: colW - 0.12, h: fRowH - 0.03,
+        align: "left", valign: "middle", spans: [
+          { text: (r.label || "") + "", size: 7.5, bold: true, color: "muted", charSpacing: 1, break: true },
+          { text: (r.value || "") + "", size: 10, bold: true, color: "ink" },
+        ] });
+    });
+
+    if (affinityRows && affinityRows.length) {
+      const wy = y + gridH + 0.16;
+      const wh = (y + h) - wy;
+      if (wh > 0.6) {
+        ops.push({ op: "roundRect", x: x, y: wy, w: w, h: wh, radius: 0.06,
+          fill: "band", line: "line", lineWidth: 1 });
+        ops.push({ op: "text", x: x + 0.18, y: wy + 0.12, w: w - 0.36, h: 0.2,
+          text: "TOP AFFINITIES", size: 8, bold: true, color: "primary",
+          align: "left", valign: "middle", charSpacing: 2 });
+        pushMeters(affinityRows, x + 0.18, wy + 0.42, w - 0.36, wh - 0.56);
+      }
+    }
+    return ops;
+  }
+
   // ─── Theme / geometry ──────────────────────────────────────────
   // Shared geometry (in the PPTX 13.33×7.5in coordinate space) + the
   // brand-independent palette bits. Both exporters read from THEME so
@@ -920,5 +1077,8 @@
     plain:             plain,
     stripEmoji:        stripEmoji,
     getAtPath:         getAtPath,
+    meterFrac:         meterFrac,
+    sectionLabel:      sectionLabel,
+    profilePaneOps:    profilePaneOps,
   };
 })(window);

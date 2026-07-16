@@ -32,9 +32,16 @@
 
   function safeSlug(state) {
     if (global.HOLO_ZIP && global.HOLO_ZIP.safeSlug) return global.HOLO_ZIP.safeSlug(state);
-    const p = (state && state.project) || {};
-    const base = (p.customerName || p.name || "demo").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    return (base || "demo").slice(0, 48);
+    // Fallback only when HOLO_ZIP hasn't loaded. Mirror the canonical
+    // zip-exporter logic exactly (field order + empty-guard) so a missing
+    // HOLO_ZIP can never rename an export differently than the ZIP does.
+    const candidate = (state && (state.name
+      || (state.project && state.project.customerName)
+      || "demo")) || "demo";
+    return String(candidate).toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "demo";
   }
   const hx = function (c) { const s = String(c || "").replace(/^#/, ""); return "#" + (/^[0-9a-fA-F]{6}$/.test(s) ? s : "1A1A2E"); };
 
@@ -111,12 +118,12 @@
     doc.text(String(ns.eyebrow).toUpperCase(), tx, y, { align: align || "left", charSpace: 1.2 });
     return y + 18;
   }
-  function sectionLabel(id) {
+  const sectionLabel = MODEL.sectionLabel || function (id) {
     return ({
       "intro": "INTRODUCTION", "journey-map": "JOURNEY MAP", "meet-persona": "MEET THE PERSONA",
       "demo": "THE DEMO", "business-value": "BUSINESS VALUE",
     })[id] || String(id || "").toUpperCase();
-  }
+  };
   function footer(doc, ns, ctx) {
     doc.setFillColor(hx(ctx.brand.primary));
     doc.rect(0, PH - px(0.28), PW, px(0.06), "F");
@@ -154,112 +161,95 @@
   // Mirrors the PPTX profilePaneBody + /demo's paneBody. midText is passed in
   // (it closes over the doc); fills [y, y+h] so the console has no empty gap.
   function profilePaneBodyPdf(doc, ctx, facet, x, y, w, h, midText, allFacets) {
-    const rows = (facet.rows || []).slice(0, 6);
-    const key = facet.key || "identity";
-    if (!rows.length) return;
-    function meterFrac(v) {
-      const s = String(v || "").toLowerCase();
-      if (/very high|98|primed|very strong/.test(s)) return 0.96;
-      if (/high|strong|elevated/.test(s))            return 0.8;
-      if (/medium|moderate/.test(s))                 return 0.55;
-      if (/low/.test(s))                             return 0.3;
-      return 0.7;
-    }
-    // Affinity meter bars — shared by the Affinities tab and the Identity
-    // view's embedded affinity widget.
-    function drawMeters(meterRows, mx, my, mw, mh) {
-      const list = (meterRows || []).slice(0, 5);
-      if (!list.length) return;
-      const rowH = Math.min(42, mh / list.length);
-      list.forEach(function (r, i) {
-        const ry = my + i * rowH;
-        doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(hx(T.ink));
-        doc.text(String(r.label || ""), mx, ry + 9, { maxWidth: mw * 0.7 });
-        doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(hx(ctx.brand.primary));
-        doc.text(String(r.value || ""), mx + mw, ry + 9, { align: "right" });
-        const trackY = ry + 15, trackH = 7;
-        doc.setFillColor("#FFFFFF"); doc.setDrawColor(hx(T.line)); doc.setLineWidth(0.5);
-        doc.roundedRect(mx, trackY, mw, trackH, 3, 3, "FD");
-        doc.setFillColor(hx(ctx.brand.primary));
-        doc.roundedRect(mx, trackY, Math.max(8, mw * meterFrac(r.value)), trackH, 3, 3, "F");
-      });
-    }
+    // Decision logic + geometry are shared (HOLO_EXPORT_MODEL.profilePaneOps,
+    // canonical INCH space). This adapter converts each op's inch coords → pt
+    // via px(), maps its semantic color token to hex, and emits the jsPDF
+    // imperative call. Font sizes in ops are already pt (both formats share
+    // them) and pass through. NOTE: because ops are authored in the PPTX inch
+    // space, PDF geometry now tracks PPTX exactly — a few positions shift by
+    // sub-point amounts vs the old hand-tuned PDF numbers (e.g. meter track
+    // 7pt → 0.11"·72 ≈ 7.9pt); this is the intentional unification of the two
+    // previously-drifted copies. `midText` param kept for the caller's ABI.
+    const ops = (MODEL.profilePaneOps || function () { return []; })(facet, x, y, w, h, allFacets);
+    if (!ops.length) return;
 
-    if (key === "affinities") {
-      drawMeters(rows, x, y, w, h);
-      return;
-    }
-
-    if (key === "signals") {
-      const rowH = Math.min(52, h / rows.length);
-      const dotX = x + 5;
-      doc.setFillColor(hx(T.line)); doc.rect(dotX + 3.5, y + 6, 1.5, Math.max(6, (rows.length - 1) * rowH), "F");
-      rows.forEach(function (r, i) {
-        const ry = y + i * rowH;
-        doc.setFillColor(hx(ctx.brand.accent)); doc.setDrawColor(hx(ctx.brand.primary)); doc.setLineWidth(1);
-        doc.circle(dotX + 4, ry + 8, 5, "FD");
-        doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(hx(T.muted));
-        doc.text(String(r.label || ""), dotX + 22, ry + 6, { charSpace: 0.8 });
-        doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(hx(T.ink));
-        doc.text(String(r.value || ""), dotX + 22, ry + 20, { maxWidth: w - 30 });
-      });
-      return;
-    }
-
-    if (key === "predicted") {
-      const headline = (rows[0] && rows[0].value) || "Personalized offer";
-      const rest = rows.slice(1);
-      doc.setFillColor(hx(T.band)); doc.setDrawColor(hx(T.line)); doc.setLineWidth(1);
-      doc.roundedRect(x, y, w, h, 6, 6, "FD");
-      doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(hx(ctx.brand.primary));
-      doc.text("NEXT BEST ACTION", x + 14, y + 18, { charSpace: 1.2 });
-      doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(hx(T.ink));
-      doc.text(String(headline), x + 14, y + 40, { maxWidth: w - 28 });
-      let py2 = y + 58;
-      const rH = rest.length ? Math.min(28, (y + h - 44 - py2) / rest.length) : 0;
-      rest.forEach(function (r, i) {
-        const ryy = py2 + i * rH;
-        midText(r.label || "", x + 14, ryy, rH, { size: 9, color: T.muted, w: w * 0.42 });
-        midText(r.value || "", x + 14 + w * 0.42, ryy, rH, { size: 9.5, style: "bold", color: T.ink, w: w * 0.58 - 28 });
-      });
-      const btnW = 108, btnH = 24, btnY = y + h - btnH - 12;
-      doc.setFillColor(hx(ctx.brand.primary)); doc.roundedRect(x + 14, btnY, btnW, btnH, 4, 4, "F");
-      midText("Launch action", x + 14, btnY, btnH, { size: 9, style: "bold", color: "FFFFFF", align: "center", w: btnW });
-      return;
-    }
-
-    // identity / other → COMPACT two-column detail grid in a short top block,
-    // then an embedded "Affinities" meter widget card below (a second LWC-style
-    // component, matching the PPTX layout).
-    const affinityRows = (allFacets || []).reduce(function (acc, f) {
-      return acc || (f && f.key === "affinities" ? f.rows : null);
-    }, null);
-
-    const cols = 2;
-    const fieldRows = Math.ceil(rows.length / cols);
-    const fRowH = 26;
-    const gridH = fieldRows * fRowH;
-    const colW = w / cols;
-    rows.forEach(function (r, i) {
-      const cc = i % cols, rr = Math.floor(i / cols);
-      const fx = x + cc * colW, fy = y + rr * fRowH;
-      doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(hx(T.muted));
-      doc.text(String(r.label || ""), fx, fy + 9, { charSpace: 0.6, maxWidth: colW - 8 });
-      doc.setFontSize(10); doc.setTextColor(hx(T.ink));
-      doc.text(String(r.value || ""), fx, fy + 21, { maxWidth: colW - 8 });
-    });
-
-    if (affinityRows && affinityRows.length) {
-      const wy = y + gridH + 12;
-      const wh = (y + h) - wy;
-      if (wh > 44) {
-        doc.setFillColor(hx(T.band)); doc.setDrawColor(hx(T.line)); doc.setLineWidth(1);
-        doc.roundedRect(x, wy, w, wh, 6, 6, "FD");
-        doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(hx(ctx.brand.primary));
-        doc.text("TOP AFFINITIES", x + 14, wy + 16, { charSpace: 1.2 });
-        drawMeters(affinityRows, x + 14, wy + 26, w - 28, wh - 38);
+    function col(token) {
+      switch (token) {
+        case "primary": return hx(ctx.brand.primary);
+        case "accent":  return hx(ctx.brand.accent);
+        case "white":   return "#FFFFFF";
+        case "ink":     return hx(T.ink);
+        case "muted":   return hx(T.muted);
+        case "line":    return hx(T.line);
+        case "band":    return hx(T.band);
+        default:        return hx(token || T.ink);
       }
     }
+    // Draw a single-line text op vertically centered in its [y, y+h] box.
+    function drawText(o) {
+      doc.setFont("helvetica", o.bold ? "bold" : "normal");
+      doc.setFontSize(o.size || 10);
+      doc.setTextColor(col(o.color));
+      const bx = px(o.x), bw = px(o.w), bh = px(o.h);
+      const align = o.align || "left";
+      const tx = align === "center" ? bx + bw / 2 : (align === "right" ? bx + bw : bx);
+      doc.text(String(o.text == null ? "" : o.text), tx, px(o.y) + bh / 2 + (o.size || 10) * 0.35,
+        { align: align, maxWidth: bw, charSpace: o.charSpacing || 0 });
+    }
+    // Draw a two-line "spans" op (label over value) — jsPDF has no rich runs,
+    // so the two spans stack at the top of the box (mirrors the old PDF grid /
+    // signal layout: label baseline near the top, value one line below).
+    function drawSpans(o) {
+      const bx = px(o.x), bw = px(o.w), topY = px(o.y);
+      const label = o.spans[0] || {}, value = o.spans[1] || {};
+      doc.setFont("helvetica", label.bold ? "bold" : "normal");
+      doc.setFontSize(label.size || 8); doc.setTextColor(col(label.color));
+      doc.text(String(label.text || ""), bx, topY + (label.size || 8) + 1,
+        { charSpace: label.charSpacing || 0, maxWidth: bw });
+      doc.setFont("helvetica", value.bold ? "bold" : "normal");
+      doc.setFontSize(value.size || 10); doc.setTextColor(col(value.color));
+      doc.text(String(value.text || ""), bx, topY + (label.size || 8) + (value.size || 10) + 5,
+        { maxWidth: bw });
+    }
+
+    ops.forEach(function (o) {
+      if (o.op === "rect") {
+        doc.setFillColor(col(o.fill));
+        doc.rect(px(o.x), px(o.y), px(o.w), px(o.h), "F");
+        return;
+      }
+      if (o.op === "roundRect") {
+        const rad = px(o.radius || 0);
+        doc.setFillColor(col(o.fill));
+        if (o.line) { doc.setDrawColor(col(o.line)); doc.setLineWidth(o.lineWidth || 1); }
+        doc.roundedRect(px(o.x), px(o.y), px(o.w), px(o.h), rad, rad, o.line ? "FD" : "F");
+        return;
+      }
+      if (o.op === "ellipse") {
+        // Op ellipses are circles (w===h); use the radius.
+        const r = px(o.w) / 2;
+        doc.setFillColor(col(o.fill)); doc.setDrawColor(col(o.line)); doc.setLineWidth(o.lineWidth || 1);
+        doc.circle(px(o.x) + r, px(o.y) + r, r, "FD");
+        return;
+      }
+      if (o.op === "text") {
+        if (o.spans) drawSpans(o); else drawText(o);
+        return;
+      }
+      if (o.op === "meterBar") {
+        const mx = px(o.x), my = px(o.y), mw = px(o.w);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(hx(T.ink));
+        doc.text(String(o.label || ""), mx, my + 9, { maxWidth: mw * 0.7 });
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(hx(ctx.brand.primary));
+        doc.text(String(o.value || ""), mx + mw, my + 9, { align: "right" });
+        const trackY = my + px(0.23), trackH = px(0.11), rad = px(0.055);
+        doc.setFillColor("#FFFFFF"); doc.setDrawColor(hx(T.line)); doc.setLineWidth(0.5);
+        doc.roundedRect(mx, trackY, mw, trackH, rad, rad, "FD");
+        doc.setFillColor(hx(ctx.brand.primary));
+        doc.roundedRect(mx, trackY, Math.max(8, mw * o.frac), trackH, rad, rad, "F");
+        return;
+      }
+    });
   }
 
   // ─── Template renderers ────────────────────────────────────────
