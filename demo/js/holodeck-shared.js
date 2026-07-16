@@ -289,6 +289,9 @@
   }
   function storyHookSubText(f) {
     f = f || {};
+    // Prefer an AI-authored complete-thought variant so the hook sub-line reads
+    // whole (the raw businessProblem is a run-on that trims to a fragment).
+    if (f.businessProblemMedium) return truncate(f.businessProblemMedium, 280);
     if (f.businessProblem)  return truncate(f.businessProblem, 280);
     if (f.primaryNarrative) return truncate(f.primaryNarrative, 280);
     return "Every interaction builds context. Every context makes the next experience more personal.";
@@ -419,6 +422,10 @@
     const count = Math.max(4, Math.min(5, milestones.length || 0)) || 4;
     for (let i = 0; i < count; i++) {
       const a = milestones[i];
+      // Prefer an AI-authored complete-thought variant of the act summary so the
+      // three-acts cards + intro vignettes read whole (the raw summary is a
+      // run-on that fitSentences trims to a fragment). Falls back to summary.
+      const descSrc = (a && a.summaryMedium) || (a && a.summary) || "";
       out.push({
         index:        i,
         title:        a && a.title && !isGenericTitle(a.title) ? punchyTitle(a.title) : phaseLabel(i),
@@ -429,8 +436,8 @@
         // Empty by default → the live map falls back to the emoji.
         imageUrl:     "",
         circleClass:  PHASE_CIRCLE_CLASSES[i],
-        description:  a && a.summary ? fitSentences(a.summary, 200) : phaseDescription(PHASE_TITLES[i]),
-        descriptionShort: a && a.summary ? fitSentences(a.summary, 110) : phaseDescription(PHASE_TITLES[i]),
+        description:  descSrc ? fitSentences(descSrc, 200) : phaseDescription(PHASE_TITLES[i]),
+        descriptionShort: descSrc ? fitSentences(descSrc, 110) : phaseDescription(PHASE_TITLES[i]),
         detail:       a && (a.notes || a.summary) ? truncate((a.notes || "") + " " + (a.summary || ""), 280)
                         : phaseDescription(PHASE_TITLES[i]) + " [TODO: enrich with customer-specific detail]",
         technologies: a && a.salesforceCapabilities

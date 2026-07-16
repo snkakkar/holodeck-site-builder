@@ -1354,10 +1354,12 @@
     const needs = function (o, k, sk) { return !!src(o, k) && (opts.force || !src(o, sk)); };
     const foundationNeeds =
       needs(f, "businessProblem", "businessProblemShort") ||
+      needs(f, "businessProblem", "businessProblemMedium") ||
       needs(f, "currentStatePain", "currentStatePainShort") ||
       needs(f, "futureStateVision", "futureStateVisionShort");
     const actNeeds = acts.some(function (a) {
       return needs(a, "summary", "summaryShort")
+          || needs(a, "summary", "summaryMedium")
           || needs(a, "demoMoment", "demoMomentShort")
           || needs(a, "businessValue", "businessValueShort");
     });
@@ -1371,7 +1373,7 @@
           jsonMode: true,
           fast: true,
           temperature: 0.3,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 4096,
         }).then(function (text) {
           const data = safeParseJson(text);
           if (!data) return false;
@@ -1381,6 +1383,7 @@
           const fo = (data.foundations && typeof data.foundations === "object") ? data.foundations : {};
           [
             ["businessProblem", "businessProblemShort", 46],
+            ["businessProblem", "businessProblemMedium", 180],
             ["currentStatePain", "currentStatePainShort", 46],
             ["futureStateVision", "futureStateVisionShort", 46],
           ].forEach(function (row) {
@@ -1396,6 +1399,7 @@
             if (!a || !oa || typeof oa !== "object") return;
             [
               ["summary", "summaryShort", 46],
+              ["summary", "summaryMedium", 180],
               ["demoMoment", "demoMomentShort", 42],
               ["businessValue", "businessValueShort", 28],
             ].forEach(function (row) {

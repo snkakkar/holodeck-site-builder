@@ -717,12 +717,14 @@ CX components (AubreyDemo):
     "{",
     '  "foundations": {',
     '    "businessProblemShort":   "<= 46 chars, complete phrase>",',
+    '    "businessProblemMedium":  "<= 180 chars, complete sentence>",',
     '    "currentStatePainShort":  "<= 46 chars, complete phrase>",',
     '    "futureStateVisionShort": "<= 46 chars, complete phrase>"',
     "  },",
     '  "acts": [',
     "    {",
     '      "summaryShort":       "<= 46 chars, complete phrase>",',
+    '      "summaryMedium":      "<= 180 chars, complete sentence>",',
     '      "demoMomentShort":    "<= 42 chars, complete phrase>",',
     '      "businessValueShort": "<= 28 chars, complete phrase>"',
     "    }",
@@ -737,6 +739,9 @@ CX components (AubreyDemo):
     "3. Output one acts[] entry for EACH act below, in the same order. If a",
     "   source field is empty, return an empty string for its Short variant.",
     "4. No trailing punctuation dots/ellipses. No markdown. No commentary.",
+    "5. The *Medium variants (≤180) are for wider slots: give a fuller,",
+    "   complete sentence that still ends on a clean boundary — never a",
+    "   fragment, never the raw source verbatim if it exceeds 180.",
     "",
     "── STORY FOUNDATIONS ──",
     "<<FOUNDATIONS>>",
@@ -751,7 +756,7 @@ CX components (AubreyDemo):
   function getSlideCopyPrompt(foundations, acts) {
     const f = foundations || {};
     const fLines = [
-      "businessProblem (≤46):   " + (String(f.businessProblem || "").trim()   || "(none)"),
+      "businessProblem (Short ≤46, Medium ≤180): " + (String(f.businessProblem || "").trim()   || "(none)"),
       "currentStatePain (≤46):  " + (String(f.currentStatePain || "").trim()  || "(none)"),
       "futureStateVision (≤46): " + (String(f.futureStateVision || "").trim() || "(none)"),
     ].join("\n");
@@ -761,7 +766,7 @@ CX components (AubreyDemo):
           a = a || {};
           return [
             "Act " + (i + 1) + ":",
-            "  summary (≤46):       " + (String(a.summary || "").trim()       || "(none)"),
+            "  summary (Short ≤46, Medium ≤180): " + (String(a.summary || "").trim()       || "(none)"),
             "  demoMoment (≤42):    " + (String(a.demoMoment || "").trim()    || "(none)"),
             "  businessValue (≤28): " + (String(a.businessValue || "").trim() || "(none)"),
           ].join("\n");
