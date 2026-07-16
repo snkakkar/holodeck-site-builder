@@ -602,7 +602,12 @@
     s = s.replace(/^notes?\s*:\s*/i, "");
     s = s.replace(/^\d+[.)]\s+/, "");
     s = s.replace(/\s+/g, " ");
-    if (s.length > 140) s = s.slice(0, 137).replace(/\s+\S*$/, "") + "…";
+    // End on a complete word (no "…"); downstream clamps re-fit to slot width.
+    if (s.length > 140) {
+      s = s.slice(0, 140).replace(/\s+\S*$/, "")
+        .replace(/[\s,;:–—-]+$/, "").replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "");
+      if (s && !/[.!?]$/.test(s)) s += ".";
+    }
     return s;
   }
 
@@ -815,7 +820,11 @@
     if (!maxWords) return s;
     const words = s.split(/\s+/);
     if (words.length <= maxWords) return s;
-    return words.slice(0, maxWords).join(" ") + "…";
+    // End on a complete word with a period, no "…".
+    let out = words.slice(0, maxWords).join(" ")
+      .replace(/[\s,;:–—-]+$/, "").replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "");
+    if (out && !/[.!?]$/.test(out)) out += ".";
+    return out;
   }
   function stripPunct(s) {
     return String(s || "").replace(/^[\s•\-–—*\.]+/, "").trim();

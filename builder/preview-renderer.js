@@ -191,6 +191,19 @@
       .filter(Boolean);
   }
 
+  // The default sub-line the App Moment (embeddedCxComponent) slide shows when
+  // the SE hasn't written a per-slide description: the linked component's own
+  // description, else the shared live-demo line. Mirrors the exported
+  // demo-deck-renderer.js embeddedCxComponent sub resolution so the placeholder
+  // shows exactly what will render.
+  function cxDescriptionDefault(slide, state) {
+    const linked = linkedCxFor(slide, state);
+    const c = linked[0] || ((state && state.cxComponents) || [])[0] || null;
+    return (c && c.description)
+      ? c.description
+      : "A live, click-through Aubrey demo screen embedded right inside the deck.";
+  }
+
   function deriveEyebrow(slide, project) {
     const parts = [];
     if (project && project.industry)   parts.push(project.industry);
@@ -428,13 +441,18 @@
     ];
     const extras = defaultEditorPathsForLayout((slide && slide.layout) || "");
     Object.keys(extras).forEach(function (label) {
-      const path = extras[label];
+      // An extras value is either a plain path string, or { path, placeholder }
+      // (a true override field: blank keeps the live-derived default while the
+      // placeholder shows what will render).
+      const raw = extras[label];
+      const path = (raw && typeof raw === "object") ? raw.path : raw;
+      const placeholder = (raw && typeof raw === "object") ? raw.placeholder : undefined;
       // A "__slide.<field>" path binds the editor directly to a per-slide
       // field (like the base title/notes), instead of the global state tree.
       // Lets layouts such as storyInterstitial carry their own copy without
       // a dedicated state array.
       const m = /^__slide\.(.+)$/.exec(String(path || ""));
-      const field = { label: label, path: path, kind: kindForPath(path, label) };
+      const field = { label: label, path: path, placeholder: placeholder, kind: kindForPath(path, label) };
       if (m) field.slideField = m[1];
       base.push(field);
     });
@@ -537,9 +555,23 @@
           "Sub-line":        "storyFoundations.journeyTimelineSub",
           "Timeline events": "storyFoundations.timelineEvents",
         };
+      case "embeddedCxComponent":
+        // The App Moment slide embeds a live CX component; its screen/still and
+        // link come from Step 5, but the sub-line under the headline is a
+        // per-slide description the SE can rewrite here. Bound via "__slide.*"
+        // so each App Moment slide keeps its own copy; blank = the component
+        // description (or the default live-demo line). See the renderer's
+        // embeddedCxComponent sub resolution.
+        return {
+          "Description": {
+            path: "__slide.cxDescription",
+            placeholder: function (slide, state) {
+              return cxDescriptionDefault(slide, state);
+            },
+          },
+        };
       case "deviceMoment":
       case "demoMap":
-      case "embeddedCxComponent":
       case "nextSteps":
       default:
         // These pull entirely from arrays the SE manages elsewhere
@@ -574,6 +606,7 @@
     if (/Notes$/.test(p) || /narrative$/i.test(p) || /takeaway$/i.test(p) || /vision$/i.test(p)
         || /problem$/i.test(p) || /pain$/i.test(p) || /painPoints$/i.test(p) || /goals$/i.test(p)
         || /demoRelevance$/i.test(p) || /relevance$/i.test(p) || /thesis$/i.test(p)
+        || /cxDescription$/i.test(p)
         || label === "Speaker notes") return "textarea";
     return "text";
   }
@@ -2044,7 +2077,10 @@
     if (!s) return "";
     s = String(s).replace(/\s+/g, " ").trim();
     if (s.length <= max) return s;
-    return s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+    var out = s.slice(0, max).replace(/\s+\S*$/, "")
+      .replace(/[\s,;:–—-]+$/, "").replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "");
+    if (out && !/[.!?]$/.test(out)) out += ".";
+    return out;
   }
 
   // ═══════════════════════════════════════════════════════════════

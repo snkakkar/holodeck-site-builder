@@ -88,7 +88,12 @@
     let lines = doc.splitTextToSize(text, w);
     if (opts.maxLines && lines.length > opts.maxLines) {
       lines = lines.slice(0, opts.maxLines);
-      lines[lines.length - 1] = String(lines[lines.length - 1]).replace(/\.*$/, "") + "…";
+      // Physical line-clamp safety net (copy is already pre-clamped upstream).
+      // End the last visible line on a complete word with a period — never "…".
+      var last = String(lines[lines.length - 1]).replace(/\s+\S*$/, "")
+        .replace(/[\s,;:–—-]+$/, "").replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by|so|that|which|while|when)$/i, "");
+      if (last && !/[.!?]$/.test(last)) last += ".";
+      lines[lines.length - 1] = last;
     }
     const align = opts.align || "left";
     const tx = align === "center" ? x + w / 2 : (align === "right" ? x + w : x);

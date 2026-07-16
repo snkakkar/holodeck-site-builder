@@ -487,7 +487,8 @@
   function cleanQuote(s) {
     s = String(s || "").replace(/\s+/g, " ").trim();
     if (!s) return "";
-    if (s.length > 140) s = s.slice(0, 137).replace(/\s+\S*$/, "") + "…";
+    // End clean on a complete word/thought — no "…".
+    if (s.length > 140) return truncate(s, 140);
     return s;
   }
 
@@ -1039,6 +1040,10 @@
             kicker:   s.kicker   || "",
             headline: s.headline || "",
             sub:      s.sub      || "",
+            // Per-slide App Moment (embeddedCxComponent) description override,
+            // edited in the Step 8 preview editor. Blank → renderer falls back
+            // to the linked component's description, then the default line.
+            cxDescription: s.cxDescription || "",
             imageSlot: s.imageSlot || "",
           };
         });
@@ -1053,7 +1058,10 @@
     return SHARED.truncate ? SHARED.truncate(s, max) : (function () {
       s = String(s || "").replace(/\s+/g, " ").trim();
       if (s.length <= max) return s;
-      return s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+      var out = s.slice(0, max).replace(/\s+\S*$/, "")
+        .replace(/[\s,;:–—-]+$/, "").replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "");
+      if (out && !/[.!?]$/.test(out)) out += ".";
+      return out;
     })();
   }
   function slug(s) {

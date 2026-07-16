@@ -18,28 +18,38 @@
   "use strict";
 
   // ─── Text helpers ─────────────────────────────────────────────
+  // Clean word-boundary trim that ends on a COMPLETE word with NO trailing "…".
+  // Per product decision: copy must always read as a finished thought — a
+  // mid-phrase "…" is never acceptable. On overflow we trim to a word boundary,
+  // drop any dangling connector/punctuation, and (when the trimmed text is a
+  // sentence-like fragment) close with a period so it reads complete. Shared by
+  // truncate/cleanHeadline/oneSentence and the clause/sentence packers below.
+  function cleanTrim(s, max, addPeriod) {
+    s = String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+    if (!s || s.length <= max) return s;
+    let out = s.slice(0, max).replace(/\s+\S*$/, "");
+    out = out.replace(/[\s,;:–—-]+$/, "").replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by|so|that|which|while|when)$/i, "");
+    if (!out) return "";
+    // Add a closing period only when asked and the text doesn't already end on
+    // terminal punctuation — never for titles/eyebrows (addPeriod=false).
+    if (addPeriod && !/[.!?]$/.test(out)) out += ".";
+    return out;
+  }
   function truncate(s, max) {
-    if (!s) return "";
-    s = String(s).replace(/\s+/g, " ").trim();
-    if (s.length <= max) return s;
-    // Trim to a word boundary, then drop a trailing connector/punctuation so the
-    // "…" never attaches to an orphaned "and"/"the"/comma (reads as complete).
-    return s.slice(0, max - 1).replace(/\s+\S*$/, "").replace(/[\s,;:–—-]+$|\s+(?:and|or|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "") + "…";
+    // Narrative/body slot → end clean with a period, no "…".
+    return cleanTrim(s, max, true);
   }
   function cleanHeadline(s, max) {
-    s = String(s || "").replace(/\s+/g, " ").trim();
-    if (s.length > max) s = s.slice(0, max - 1).replace(/\s+\S*$/, "").replace(/[\s,;:–—-]+$|\s+(?:and|or|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "") + "…";
-    return s;
+    // Headline/title slot → clean word-trim, no period, no "…".
+    return cleanTrim(s, max, false);
   }
   function oneSentence(s, max) {
     s = String(s || "").replace(/\s+/g, " ").trim();
     if (!s) return "";
     const m = s.match(/^[^.!?]+[.!?]/);
     let out = m ? m[0].trim() : s;
-    // On overflow, trim to a word boundary then drop a trailing connector/
-    // punctuation (same rule as truncate) so the "…" never attaches to an
-    // orphaned "and"/"the"/comma — reads as a complete thought.
-    if (out.length > max) out = out.slice(0, max - 1).replace(/\s+\S*$/, "").replace(/[\s,;:–—-]+$|\s+(?:and|or|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "") + "…";
+    // On overflow, clean word-trim ending on a complete thought (period), no "…".
+    if (out.length > max) out = cleanTrim(out, max, true);
     return out;
   }
   // Pack as many WHOLE sentences as fit `max`, ending on real punctuation with
@@ -53,8 +63,8 @@
   //     common case for our one-sentence summaries), trim to the last CLAUSE
   //     boundary (comma / semicolon / dash) that fits, add a period, and return
   //     with NO "…" — a clause boundary reads as a finished thought. Only if
-  //     there is no clause boundary at all do we fall back to a hard word-trim
-  //     with "…" (true last resort).
+  //     there is no clause boundary at all do we fall back to a clean word-trim
+  //     ending on a complete thought (period) — still no "…".
   function fitSentences(s, max) {
     s = String(s || "").replace(/\s+/g, " ").trim();
     if (!s) return "";
@@ -74,8 +84,8 @@
   }
   // Trim `s` to the longest prefix that (a) fits `max` and (b) ends on a natural
   // clause boundary (, ; : — –), then finish with a period so it reads complete.
-  // No "…" ever. Falls back to a clean word-trim + "…" only when the first clause
-  // itself exceeds `max` (no earlier boundary to land on).
+  // No "…" ever. Falls back to a clean word-trim (also no "…") only when the first
+  // clause itself exceeds `max` (no earlier boundary to land on).
   function clauseFit(s, max) {
     s = String(s || "").replace(/\s+/g, " ").trim();
     if (!s) return "";
@@ -90,25 +100,26 @@
       out = out.replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by|so|that|which|while|when)$/i, "");
       if (out) return out + ".";
     }
-    // No usable clause boundary — clean word-trim with "…" (true last resort).
+    // No usable clause boundary — clean word-trim ending on a complete thought
+    // (period, no "…") via oneSentence.
     return oneSentence(s, max);
   }
   // Clamp to at most maxWords words (and optionally maxChars). Used for the
   // journey-timeline milestones, which must stay VERY short: titles ≤ 3-4
-  // words, sub-lines ≤ 15-20 words. Adds an ellipsis only when it actually cut.
+  // words, sub-lines ≤ 15-20 words. Per product decision, NO trailing "…" —
+  // ends on a complete word with any dangling connector/punctuation dropped so
+  // it reads as a finished label.
   function clampWords(s, maxWords, maxChars) {
     s = String(s || "").replace(/\s+/g, " ").trim();
     if (!s) return "";
     const words = s.split(" ");
-    let cut = words.length > maxWords;
     let out = words.slice(0, maxWords).join(" ");
     if (maxChars && out.length > maxChars) {
-      out = out.slice(0, maxChars - 1).replace(/\s+\S*$/, "");
-      cut = true;
+      out = out.slice(0, maxChars).replace(/\s+\S*$/, "");
     }
-    // Drop a trailing connector/punctuation before appending the ellipsis.
-    out = out.replace(/[\s,;:–—-]+$/, "");
-    return cut ? out + "…" : out;
+    // Drop a trailing connector/punctuation so the label ends clean.
+    out = out.replace(/[\s,;:–—-]+$/, "").replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "");
+    return out;
   }
   function shortenTitle(s) {
     s = String(s || "").replace(/\s+/g, " ").trim();
@@ -126,18 +137,16 @@
     const STOP = { the: 1, of: 1, a: 1, an: 1, to: 1, in: 1, for: 1, and: 1, "&": 1, with: 1, on: 1, from: 1, at: 1, by: 1, or: 1, "&amp;": 1 };
     const orig = String(s || "").replace(/\s+/g, " ").trim();
     if (!orig) return "";
-    // Reduce to at most 4 words / ~28 chars — clampWords drops a trailing connector
-    // before any ellipsis, so we never end on a dangling "&"/"-".
+    // Reduce to at most 4 words / ~28 chars — clampWords ends on a complete word
+    // with any dangling connector dropped, and never appends "…".
     let out = clampWords(orig, 4, 28);
-    const cut = /…$/.test(out);
-    let words = out.replace(/…$/, "").split(/\s+/).filter(function (w) { return w; });
-    // Drop leading/trailing filler stopwords so we never end on "…and" / "…of".
+    let words = out.split(/\s+/).filter(function (w) { return w; });
+    // Drop leading/trailing filler stopwords so we never end on a dangling "and"/"of".
     while (words.length && STOP[words[0].toLowerCase()]) words.shift();
     while (words.length && STOP[words[words.length - 1].toLowerCase()]) words.pop();
     if (!words.length) return shortenTitle(orig);
-    // Keep the ellipsis only when clampWords genuinely truncated a longer title
-    // (≥4 words survived); a 2-4 word title that fits shows whole, no "…".
-    return titleCase(words.join(" ")) + (cut && words.length >= 4 ? "…" : "");
+    // A short title always reads as complete — no ellipsis.
+    return titleCase(words.join(" "));
   }
   function isHeaderTitle(t) {
     return !t || /^(intro|opening|open|chapter\s|section\s|close|closing)/i.test(t);

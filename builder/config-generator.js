@@ -206,6 +206,8 @@
                 linkedCxComponentIds: mergedCx,
                 deviceFrame: s.deviceFrame || "",
                 speakerNotes: s.speakerNotes || "",
+                // Per-slide App Moment description override (Step 8 editor).
+                cxDescription: s.cxDescription || "",
                 missingInputs: s.missingInputs || [],
               };
             });

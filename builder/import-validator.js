@@ -306,6 +306,7 @@
         deviceFrame:           frameToMobile(strOr(s && s.deviceFrame, "")),
         fallbackLinks:         arrOr(s && s.fallbackLinks, []),
         subtitle:              strOr(s && s.subtitle, ""),
+        cxDescription:         strOr(s && s.cxDescription, ""),
       };
     }).sort(function (a, b) { return (a.order || 0) - (b.order || 0); })
       .map(function (s, i) { s.order = i; return s; });

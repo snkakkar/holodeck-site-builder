@@ -924,7 +924,11 @@
         right: rightCopy({
           eyebrow:  ebrow(c && c.type ? ("Live · " + c.type) : "Live CX moment"),
           headlineHtml: s.title ? escapeHtml(ttl(s.title)) : (c && c.name ? escapeHtml(ttl(c.name)) : "Embedded demo screen"),
-          sub:      c && c.description ? c.description : "A live, click-through Aubrey demo screen embedded right inside the deck.",
+          // Per-slide description (Step 8 editor) wins → linked component's
+          // description → the shared default live-demo line.
+          sub:      (s && s.cxDescription) ? s.cxDescription
+                    : (c && c.description) ? c.description
+                    : "A live, click-through Aubrey demo screen embedded right inside the deck.",
           chips:    capsList(s).map(function (cap) { return { type:"blue", label:cap }; }),
         }),
       });
@@ -1362,9 +1366,14 @@
     ];
   }
   function truncate(s, max) {
+    // Prefer the shared clean-trim (period, no "…"); local fallback matches it.
+    if (SHARED && SHARED.truncate) return SHARED.truncate(s, max);
     s = String(s || "").replace(/\s+/g, " ").trim();
     if (s.length <= max) return s;
-    return s.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+    var out = s.slice(0, max).replace(/\s+\S*$/, "")
+      .replace(/[\s,;:–—-]+$/, "").replace(/\s+(?:and|or|but|the|of|to|for|with|from|a|an|in|on|at|by)$/i, "");
+    if (out && !/[.!?]$/.test(out)) out += ".";
+    return out;
   }
 
   // ─── Build a single slide ─────────────────────────────────────
