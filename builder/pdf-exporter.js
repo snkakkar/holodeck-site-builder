@@ -170,7 +170,13 @@
     // sub-point amounts vs the old hand-tuned PDF numbers (e.g. meter track
     // 7pt → 0.11"·72 ≈ 7.9pt); this is the intentional unification of the two
     // previously-drifted copies. `midText` param kept for the caller's ABI.
-    const ops = (MODEL.profilePaneOps || function () { return []; })(facet, x, y, w, h, allFacets);
+    //
+    // UNIT BOUNDARY: this renderer works in POINTS (the caller passes px()-
+    // scaled x/y/w/h), but profilePaneOps is authored in INCHES. Convert the
+    // incoming box to inches for the shared builder, then px() the returned
+    // ops back to points as we draw.
+    const ops = (MODEL.profilePaneOps || function () { return []; })(
+      facet, x / S, y / S, w / S, h / S, allFacets);
     if (!ops.length) return;
 
     function col(token) {
