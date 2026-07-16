@@ -1069,15 +1069,22 @@
       onInput: function (v) { s.project.customerName = v; commit(); renderTopbar(); renderSide(); } }));
     grid1.appendChild(field({ label: "Customer website", placeholder: "https://www.example.com",
       value: s.project.website, onInput: function (v) { s.project.website = v; commit(); } }));
+    // These three selects affect ONLY the stepper badge (setupReady flips the
+    // Setup step to Complete) and the Live Suggestions side panel — nothing in
+    // this main pane derives from them beyond the <select> value the browser
+    // already updated. So re-render just the stepper + side instead of the full
+    // shell, avoiding a teardown/rebuild (flash + scroll/focus jump) of the
+    // whole Setup form. (Products stays on renderShell() — its main-pane
+    // "auto-detected" hint must update on uncheck.)
     grid1.appendChild(field({ label: "Industry", type: "select", options: INDUSTRIES,
       value: s.project.industry,
-      onInput: function (v) { s.project.industry = v; recompute(); renderShell(); commit(); } }));
+      onInput: function (v) { s.project.industry = v; recompute(); renderStepper(); renderSide(); commit(); } }));
     grid1.appendChild(field({ label: "Demo audience", type: "select", options: AUDIENCES,
       value: s.project.audience,
-      onInput: function (v) { s.project.audience = v; recompute(); renderShell(); commit(); } }));
+      onInput: function (v) { s.project.audience = v; recompute(); renderStepper(); renderSide(); commit(); } }));
     grid1.appendChild(field({ label: "Sales stage", type: "select", options: STAGES,
       value: s.project.salesStage,
-      onInput: function (v) { s.project.salesStage = v; recompute(); renderShell(); commit(); } }));
+      onInput: function (v) { s.project.salesStage = v; recompute(); renderStepper(); renderSide(); commit(); } }));
     grid1.appendChild(field({ label: "Tone", help: "(optional)", type: "select", options: TONES,
       value: s.project.tone, onInput: function (v) { s.project.tone = v; commit(); } }));
     c1.appendChild(grid1);
