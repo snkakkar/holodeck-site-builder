@@ -1,33 +1,31 @@
-# Holodeck Website Guide (End-User Edition)
+# Holodeck Website Guide (End User)
 
-## What This Site Does
+## What Holodeck Is
 
-Holodeck helps you build a polished customer demo quickly, even if you are non-technical.
+Holodeck is a guided website for building polished customer demos quickly, even if you are not technical.
 
 You can:
-- Create demos from notes, scripts, or AI
-- Build a complete story and slide flow
-- Add branding, links, visuals, and presenter details
-- Share projects with teammates
-- Export a full interactive demo, plus PowerPoint and PDF
+- Create and manage demo projects
+- Use AI to generate a first draft
+- Build story, slides, assets, and live moments
+- Collaborate with teammates
+- Export a complete interactive demo, plus PowerPoint and PDF
 
 ---
 
-## What Is New (Latest Features)
+## Latest Features You Should Know
 
-- Project collaboration with **Shared with me**
-- Publish projects to **Team Gallery** for team discovery/duplication
-- New export options: **PowerPoint (.pptx)** and **PDF (.pdf)**
-- AI flow improvements:
-  - pre-filled AI inputs
-  - **Generate with Gemini** option (when available)
+- Collaboration tabs: **Shared with me** and **Team Gallery**
+- Publish/unpublish projects to the team gallery
+- New portable export formats: **PowerPoint (.pptx)** and **PDF (.pdf)**
+- AI improvements:
+  - pre-filled AI inputs from your project
+  - direct **Generate with Gemini** option (when enabled)
   - clear **Import AI response** handoff
-- AI onboarding improvements:
-  - one-time AI tour
-  - **Take the tour again** replay link
-- AI-assisted asset workflow:
+  - one-time tour + **Take the tour again**
+- Asset AI improvements:
   - **Generate all empty slots with AI**
-  - fills missing persona copy + placeholder imagery
+  - auto-fills missing persona copy and placeholder visuals
 - Smarter logo handling:
   - tries real logo first
   - falls back to AI-generated lookalike if needed
@@ -37,37 +35,37 @@ You can:
 ## Quick Start (10 Minutes)
 
 1. Sign in and create a project.
-2. Go to **Script & Story** and add your script/notes.
+2. Add script/notes in **Script & Story**.
 3. Click **Extract Story Foundations**.
-4. Fill customer + audience + product details in **Setup**.
+4. Fill customer + audience + products in **Setup**.
 5. Keep/edit recommendations in **Slide Selection**.
-6. (Optional) Add live links in **CX Components**.
-7. (Optional) Add visuals in **Assets**.
-8. Do a final check in **Preview**.
+6. Optional: add links in **CX Components**.
+7. Optional: add visuals in **Assets**.
+8. Final check in **Preview**.
 9. Download from **Export**.
 
-Fastest default flow:  
+Fast default path:  
 Script & Story -> Setup -> Slide Selection -> Preview -> Export
 
 ---
 
-## AI Fast Lane (Easiest First Draft)
+## AI Fast Lane
 
-Use this when you want AI to create a draft quickly.
+Use this when you want a quick first draft.
 
-### Option A: Claude/ChatGPT (copy/paste flow)
+### Option A: Claude/ChatGPT
 1. Open **AI Prompt**.
-2. Review the pre-filled inputs.
+2. Review pre-filled inputs.
 3. Click **Copy AI Prompt**.
 4. Run in Claude/ChatGPT.
-5. Copy the JSON result.
+5. Copy the JSON output.
 6. Return and click **Import AI response**.
 7. Paste and import.
 
-### Option B: Gemini (direct generation)
-If enabled in your environment, click **Generate with Gemini** to generate directly.
+### Option B: Gemini
+If available, click **Generate with Gemini** for direct generation.
 
-### What AI Can Auto-Fill
+### What AI Can Fill
 - Setup details
 - Personas
 - Story acts
@@ -77,35 +75,35 @@ If enabled in your environment, click **Generate with Gemini** to generate direc
 - Asset suggestions
 
 ### Helpful Notes
-- AI Prompt has a one-time guided tour.
-- You can replay it any time with **Take the tour again**.
-- In most cases, the prompt already includes required context, so no extra schema step is needed.
+- AI Prompt includes a one-time guided tour.
+- Use **Take the tour again** any time.
+- Prompt context is usually already included for you.
 
 ---
 
 ## Full Walkthrough
 
 ### 1) Login and Account
-- Sign in with email + one-time code.
-- Resume previous projects automatically.
-- Sign out safely when done.
+- Sign in with one-time code
+- Resume where you left off
+- Sign out safely
 
 If code does not arrive, check spelling and spam folder.
 
-### 2) Home, Projects, and Team Collaboration
+### 2) Home, Projects, and Collaboration
 
 #### My Projects
 - Create, open, duplicate, rename, delete
-- Search and filter your project list
+- Search and filter projects
 
 #### Shared with me
 - View projects shared by teammates
-- Respect permission type (`view` or `edit`)
+- Respect permissions (`view` or `edit`)
 
 #### Team Gallery
-- Browse projects published by teammates
-- Duplicate team projects into your own workspace
-- Publish/unpublish your own projects for the team
+- Browse published team projects
+- Duplicate gallery projects into your own workspace
+- Publish/unpublish your own projects
 
 ### 3) Setup
 Fill business context:
@@ -114,33 +112,33 @@ Fill business context:
 - audience
 - sales stage
 - products
-- branding mode/colors/logos
+- branding mode/colors/logo
 - presenter details
 
-This section strongly improves recommendation quality.
+This improves recommendation quality.
 
 ### 4) Script & Story
-- Paste text or upload script files
+- Paste text or upload files
 - Extract foundations, personas, and acts
-- Refine story source material before slide planning
+- Refine source story before slide planning
 
 ### 5) Story Foundations
-Define your strategic narrative:
+Define narrative backbone:
 - business problem
 - current pain
-- future-state vision
+- future vision
 - thesis + executive takeaway
 - value drivers
 - assumptions/open questions
 
 Run **Story Quality Check** to catch gaps early.
 
-### 6) Slide Selection (Recommended Narrative)
+### 6) Slide Selection
 - Keep/remove recommended slides
-- Use required/recommended/optional statuses
-- Rename titles
+- Rename slide titles
 - Use section grouping + bulk actions
-- Switch view mode as needed
+- Switch views as needed
+- Use required/recommended/optional status signals
 
 ### 7) Assets
 - Upload visuals by slot
@@ -148,47 +146,43 @@ Run **Story Quality Check** to catch gaps early.
 - Replace/clear uploads
 
 AI helpers:
-- **Generate all empty slots with AI** for fast completion
-- Persona copy + visuals can be auto-generated
-- For animated moments, upload GIF/MP4 if motion is required
+- **Generate all empty slots with AI**
+- Persona copy and visuals can be auto-generated
+- Upload GIF/MP4 when you need true animation
 
 ### 8) CX Components
 - Add live URLs
-- Map each link to the right slide/moment
-- Accept auto-match suggestions where helpful
+- Map each URL to the right slide/moment
+- Use auto-match suggestions when helpful
 
 ### 9) Preview
-- Check runtime-like full flow
-- Review missing inputs
-- Edit text inline for quick polish
+- Review full flow
+- Check missing inputs
+- Edit text inline
 - Use keyboard navigation in full preview mode
 
 ### 10) Export
 
-#### Primary export
+Primary:
 - **Complete Demo ZIP** (recommended)
 
-#### Portable exports
+Portable:
 - **Download PowerPoint (.pptx)**
 - **Download PDF (.pdf)**
 
-#### Final readiness
-- Review warnings
-- Export with confirmation if soft warnings remain
-
 Before sharing:
 - replace placeholders (`[TODO: ...]`, `XX%`)
-- verify live links
+- verify links
 - confirm branding/presenter details
 
 ### 11) Feedback
 Submit:
-- bug reports
-- complaints/confusing behavior
-- likes/dislikes
-- improvement suggestions
+- bugs
+- confusing behavior
+- dislikes/likes
+- improvement ideas
 
-Best feedback format:
+Best format:
 - what you did
 - what you expected
 - what happened
@@ -197,41 +191,39 @@ Best feedback format:
 
 ## Troubleshooting
 
-### “Import AI response failed”
-- ensure full JSON is pasted
+### Import AI response failed
+- paste complete JSON
 - re-run AI prompt
 - retry import
 
-### “Slides are too generic”
-- add stronger business problem + outcomes
+### Slides are too generic
+- strengthen business problem and outcomes
 - set audience and stage clearly
-- improve value-driver quality
+- improve value drivers
 
-### “Live links are broken”
+### Live links do not load
 - test URL directly
-- replace invalid link
-- re-map link to correct slide
+- replace invalid links
+- re-map to correct slide
 
-### “Missing visuals”
+### Visuals are missing
 - verify upload completed
 - verify slot mapping
 - re-export
 
-### “Latest edits not visible”
+### Latest edits not visible
 - refresh browser
-- confirm you are opening the newest export
+- open newest export
 
 ---
 
-## AI Prompts For Easy Post-Export Edits
+## Easy AI Prompts For Post-Export Edits
 
-Use these prompts with Claude/ChatGPT after you download your project.
-
-### Basic Prompt Rules
-- Ask for small focused updates
-- Do not invent customer facts/metrics
-- Use `[TODO: ...]` for unknown details
-- Ask for a clear summary of changes
+### Ground Rules
+- ask for small focused changes
+- do not invent facts/metrics
+- use `[TODO: ...]` for unknown details
+- ask for a clear summary of what changed
 
 ### 1) Rename customer everywhere
 ```text
@@ -253,7 +245,7 @@ Keep the same storyline.
 ### 3) Adapt to a new industry
 ```text
 Adapt this demo for [INDUSTRY].
-Keep story flow the same, but update examples and benefits to match the industry.
+Keep story flow the same, but update examples and benefits for that industry.
 Do not invent customer facts.
 ```
 
@@ -292,7 +284,7 @@ Replace persona with:
 Update related slides so details stay consistent.
 ```
 
-### 9) Localize for region
+### 9) Localize by region
 ```text
 Adjust wording for [REGION/COUNTRY] audience (tone, spelling, terminology).
 Keep structure and storyline unchanged.
@@ -333,12 +325,12 @@ If FAIL, return only minimal required fixes.
 
 ---
 
-## Glossary (Plain Language)
+## Glossary
 
 - **Persona**: main customer character in your story
 - **Story acts**: key moments in the journey
-- **Slide recommendation**: suggested slide choices based on your inputs
+- **Slide recommendation**: suggested slide choices from your inputs
 - **CX component**: live URL-based demo moment
-- **Asset slot**: place where you can upload an image/media
-- **Readiness**: how close content is to being presentation-ready
-- **Export package**: downloadable finished demo files
+- **Asset slot**: place where you upload image/media
+- **Readiness**: how close content is to presentation-ready
+- **Export package**: downloadable final demo files
