@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clienteling</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ============ INTRO SCENE (standalone — before the clienteling app) ============ -->
+  <!-- Alan, traveling, opens his Total Wine app and signs up for the class. -->
+  <div id="introScene" class="intro-scene">
+    <div class="intro-overlay"></div>
+    <div class="intro-inner">
+      <div class="intro-caption">
+        <div class="eyebrow" style="color:#e9dcc2">Scene 1 &middot; Before the visit</div>
+        <h1 class="serif" style="margin:6px 0 0;font-size:34px;color:#fff;line-height:1.1">Alan opens the Total Wine app</h1>
+        <p style="margin:10px 0 0;max-width:520px;font-size:14px;color:rgba(255,255,255,.88);line-height:1.6">
+          Traveling for business, Grand Reserve member <strong>Alan R.</strong> sees a personalized
+          <strong>Wine &amp; Cheese Pairing Class</strong> at the store near his hotel &mdash; and signs up.
+        </p>
+      </div>
+
+      <div class="intro-phone">
+        <iframe
+          id="introFrame"
+          title="Intro mobile app scene"
+          allow="clipboard-read; clipboard-write"
+          loading="eager"></iframe>
+      </div>
+    </div>
+
+    <!-- subtle advance control, bottom-right -->
+    <button class="intro-next" onclick="enterStore()" title="Enter the store">
+      <span>Enter the store</span>
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+    </button>
+  </div>
+
+  <div class="app">
+
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-row">
+          <div class="tw-mark" style="width:42px;height:42px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 3h12l-1 6a5 5 0 01-10 0L6 3zM12 14v6M8 21h8"/></svg>
+          </div>
+          <div>
+            <div class="brand-name" id="brandName">TOTAL WINE</div>
+            <div class="brand-sub" id="brandSub">&amp; MORE</div>
+          </div>
+        </div>
+        <div class="brand-heritage" id="brandHub">Clienteling Hub</div>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-group-label">STORE</div>
+        <button class="nav-item" data-view="dashboard" onclick="switchView('dashboard')">
+          <svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></svg>
+          <span>Floor Dashboard</span>
+        </button>
+        <button class="nav-item" data-view="signin" onclick="switchView('signin')">
+          <svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+          <span>Check-In</span>
+        </button>
+
+        <div class="nav-group-label">CUSTOMER</div>
+        <button class="nav-item" data-view="profile" onclick="switchView('profile')">
+          <svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>Customer 360</span>
+        </button>
+        <button class="nav-item" data-view="event" onclick="switchView('event')">
+          <svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>
+          <span>Event / Class</span>
+        </button>
+        <button class="nav-item" data-view="inventory" onclick="switchView('inventory')">
+          <svg fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+          <span>Inventory</span>
+        </button>
+      </nav>
+
+      <div class="nav-status">
+        <span class="live-dot" style="width:8px;height:8px;border-radius:9999px;background:var(--green);display:inline-block"></span>
+        <span>San Diego store · online</span>
+      </div>
+      <div class="nav-foot">
+        <div class="avatar avatar-teal" style="width:34px;height:34px;font-size:12px">JO</div>
+        <div>
+          <div style="font-size:13px;color:var(--charcoal)">James O.</div>
+          <div class="dim" style="font-size:11px">Store Manager</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ MAIN ============ -->
+    <div class="main">
+      <!-- mobile top bar (small screens) -->
+      <div class="mobile-bar">
+        <div class="brand-row">
+          <div class="tw-mark" style="width:32px;height:32px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M6 3h12l-1 6a5 5 0 01-10 0L6 3zM12 14v6M8 21h8"/></svg>
+          </div>
+          <div class="brand-name" id="brandNameMobile" style="font-size:14px">TOTAL WINE</div>
+        </div>
+        <div class="mobile-tabs">
+          <button class="chip" onclick="switchView('dashboard')">Floor</button>
+          <button class="chip" onclick="switchView('signin')">Check-In</button>
+          <button class="chip" onclick="switchView('profile')">360</button>
+          <button class="chip" onclick="switchView('inventory')">Stock</button>
+        </div>
+      </div>
+
+      <div class="topbar">
+        <div class="search">
+          <svg width="16" height="16" fill="none" stroke="var(--warm-gray)" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          <input placeholder="Search guests, wines, orders..." />
+        </div>
+        <div style="flex:1"></div>
+        <span class="eyebrow" style="color:var(--warm-gray)">Wine &amp; Cheese Pairing Class · Tonight 7PM</span>
+        <button class="icon-btn" title="Notifications">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
+        </button>
+      </div>
+
+      <div class="content">
+        <section id="view-dashboard" class="view"></section>
+        <section id="view-signin" class="view"></section>
+        <section id="view-profile" class="view"></section>
+        <section id="view-event" class="view"></section>
+        <section id="view-inventory" class="view"></section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VIP ARRIVAL DROP ============ -->
+  <div id="arrivalDrop" class="arrival-drop"></div>
+
+  <!-- ============ CHAT FAB ============ -->
+  <button class="chat-fab" onclick="openChat()">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 3h12l-1 6a5 5 0 01-10 0L6 3zM12 14v6M8 21h8"/></svg>
+    <span class="js-concierge-name" style="font-size:13px;font-weight:600">Vino Concierge</span>
+  </button>
+
+  <!-- ============ DOCKED CHAT PANEL ============ -->
+  <div id="chatScrim" class="chat-scrim" onclick="closeChat()"></div>
+  <div id="chatPanel" class="chat-panel">
+    <div class="chat-panel-head">
+      <div class="avatar avatar-teal" style="width:30px;height:30px">
+        <svg width="15" height="15" fill="none" stroke="#fff" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 3h12l-1 6a5 5 0 01-10 0L6 3zM12 14v6M8 21h8"/></svg>
+      </div>
+      <div>
+        <div class="js-concierge-full" style="font-size:13.5px;color:var(--charcoal)">Vino Concierge · Agentforce</div>
+        <div class="dim" style="font-size:10px;display:flex;align-items:center;gap:5px"><span class="live-dot" style="width:6px;height:6px;border-radius:9999px;background:var(--green);display:inline-block"></span> Online · Floor Assist</div>
+      </div>
+      <button class="modal-x x" onclick="closeChat()" title="Close">&times;</button>
+    </div>
+    <div class="chat-log" id="panelLog"></div>
+    <div class="quick-row" id="panelQuick"></div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="panelInput" placeholder="Ask about Alan, wines, inventory..." onkeydown="if(event.key==='Enter'){AF.send(this.value);this.value=''}" />
+      <button class="btn btn-primary btn-sm" onclick="AF.sendFromInput('panelInput')">Send</button>
+    </div>
+  </div>
+
+  <!-- ============ MODAL ============ -->
+  <div id="modal" class="modal-back" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 class="serif silver-text" id="modalTitle" style="margin:0;font-size:20px">Action</h3>
+        <button class="modal-x" onclick="closeModal()" title="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- ============ TOAST ============ -->
+  <div id="toast" class="toast"></div>
+
+  <!-- ============ SCRIPTS (order matters) ============ -->
+  <script src="app-config.js"></script>
+  <script src="agentforce.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

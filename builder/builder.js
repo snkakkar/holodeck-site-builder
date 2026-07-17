@@ -29,19 +29,21 @@
   const FEEDBACK  = window.HOLO_FEEDBACK;
 
   // ─── App-level constants ──────────────────────────────────────
-  // 8-step guided flow. Story used to be one step doing three things
+  // 9-step guided flow. Story used to be one step doing three things
   // (paste, foundations, regenerate). Splitting it into Script /
   // Foundations / Narrative makes each user decision its own surface
-  // with one obvious next action.
+  // with one obvious next action. The "Demos" step (after Foundations)
+  // is where the one story fans out into a deck + optional apps.
   const STEPS = [
     { id: "script",      num: "1",  label: "Script & Story",        help: "Paste, upload, or generate your demo script with AI" },
     { id: "setup",       num: "2",  label: "Setup",                 help: "Customer, audience, products" },
     { id: "foundations", num: "3",  label: "Story Foundations",     help: "Review what was extracted" },
-    { id: "recs",        num: "4",  label: "Slide Selection",       help: "Customize the slide plan by section" },
-    { id: "assets",      num: "5",  label: "Assets",                help: "Upload images for the slides you selected (optional)" },
-    { id: "cx",          num: "6",  label: "CX Components",         help: "Optionally embed live web screens (AubreyDemo or any URL)" },
-    { id: "preview",     num: "7",  label: "Preview",               help: "Review the full demo before exporting" },
-    { id: "export",      num: "8",  label: "Export",                help: "Download the complete demo ZIP" },
+    { id: "apps",        num: "4",  label: "Demos",                 help: "Choose what to build from this story — slide deck and optional apps" },
+    { id: "recs",        num: "5",  label: "Slide Selection",       help: "Customize the slide plan by section" },
+    { id: "assets",      num: "6",  label: "Assets",                help: "Upload images for the slides you selected (optional)" },
+    { id: "cx",          num: "7",  label: "CX Components",         help: "Optionally embed live web screens (AubreyDemo or any URL)" },
+    { id: "preview",     num: "8",  label: "Preview",               help: "Review the full demo before exporting" },
+    { id: "export",      num: "9",  label: "Export",                help: "Download the complete demo ZIP" },
   ];
   const INDUSTRIES = ["Retail","Consumer Goods","Hospitality","Travel","Financial Services","Healthcare","Other"];
   const AUDIENCES  = ["Executive","IT","Marketing","Sales","Service","Store Ops","Field Ops","Mixed"];
@@ -864,6 +866,7 @@
     if      (step === "setup")       main.appendChild(viewSetup());
     else if (step === "script")      main.appendChild(viewScript());
     else if (step === "foundations") main.appendChild(viewFoundations());
+    else if (step === "apps")        main.appendChild(viewApps());
     else if (step === "cx")          main.appendChild(viewCxComponents());
     else if (step === "recs")        main.appendChild(viewRecommendations());
     else if (step === "assets")      main.appendChild(viewAssets());
@@ -967,6 +970,12 @@
       title.textContent = "Plan health";
       sub.textContent = "Missing inputs surface here";
       sidePlanHealth(body);
+    } else if (step === "apps") {
+      const a = app.state.apps || {};
+      const on = ["slides", "clienteling", "cimulate"].filter(function (k) { return a[k] && a[k].enabled; });
+      title.textContent = "Demos selected";
+      sub.textContent = on.length + " selected to build";
+      sideAppsSummary(body);
     } else if (step === "cx") {
       title.textContent = "CX Components";
       sub.textContent = ((app.state.cxComponents || []).length) + " linked so far";
@@ -2336,10 +2345,287 @@
   }
 
   // ─── STEP 3: CX COMPONENTS (AubreyDemo) ───────────────────────
+  // ─── Demos step (R1) ──────────────────────────────────────────
+  // The single "what do you want to build from this story?" surface.
+  // The slide deck is always on. Two optional apps (clienteling, cimulate)
+  // are opt-in. In R1 the cards are static and preview the DEFAULT template
+  // (Total Wine data) — script-driven Recommended badges (R2) and per-project
+  // config generation (R3) light up the same cards later without moving them.
+  const APP_CATALOG = [
+    {
+      id: "clienteling",
+      name: "Clienteling app",
+      tagline: "Store-associate tool — customer 360, walk-ins, tasks, guided selling",
+      icon: "🛍️",
+      previewUrl: "/demo-apps/clienteling/",
+    },
+    {
+      id: "cimulate",
+      name: "Cimulate search demo",
+      tagline: "Intent-aware product search + shopper/service concierge agent",
+      icon: "🔎",
+      previewUrl: "/demo-apps/cimulate/",
+    },
+  ];
+
+  // Safe accessor: returns the app slice, defaulting for older projects that
+  // predate state.apps. Mirrors the inline `state.x || default` idiom used
+  // elsewhere rather than a central normalizer.
+  function appsState() {
+    const s = app.state;
+    if (!s.apps) {
+      s.apps = {
+        slides:      { enabled: true,  status: "recommended" },
+        clienteling: { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null },
+        cimulate:    { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null },
+      };
+    }
+    // Backfill any app key missing from an older slice.
+    if (!s.apps.slides)      s.apps.slides      = { enabled: true,  status: "recommended" };
+    if (!s.apps.clienteling) s.apps.clienteling = { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null };
+    if (!s.apps.cimulate)    s.apps.cimulate    = { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null };
+    return s.apps;
+  }
+
+  function viewApps() {
+    const wrap = el("div");
+    wrap.appendChild(stepHeader(
+      "Step 4 · Demos",
+      "Choose what to build from this story",
+      "Everything here springs from the one script you extracted. The slide deck is always built. The apps below are optional — turn one on to preview it, then generate a version branded to your customer. Nothing is built until you turn it on."
+    ));
+    const apps = appsState();
+
+    // Read intent signals from the current story. Best-effort: if the rules
+    // engine isn't loaded for any reason, everything falls back to opt-in.
+    let intents = { clienteling: { hasSignal: false, evidence: [] }, cimulate: { hasSignal: false, evidence: [] } };
+    try {
+      if (window.HOLO_RULES && HOLO_RULES.detectAppIntents) {
+        intents = HOLO_RULES.detectAppIntents(app.state);
+      }
+    } catch (e) { /* keep the opt-in fallback */ }
+
+    // Slides card — always on, not toggleable.
+    const slidesCard = el("div", { class: "bx-card" });
+    slidesCard.appendChild(el("div", { class: "bx-row bx-row-between" }, [
+      el("div", {}, [
+        el("div", { class: "bx-card-title", text: "🖥️  Slide deck" }),
+        el("div", { class: "bx-card-sub", text: "The narrated Holodeck deck — built from your slide selection. Always included." }),
+      ]),
+      el("span", { class: "bx-pill bx-pill-ok", text: "Always on" }),
+    ]));
+    wrap.appendChild(slidesCard);
+
+    // Split optional apps into "recommended (or already on)" vs. "opt-in".
+    // An app the user already enabled always shows in the main list even if
+    // signals later disappear — we never hide something they turned on.
+    const recommended = [];
+    const optIn = [];
+    APP_CATALOG.forEach(function (def) {
+      const slice = apps[def.id];
+      const intent = intents[def.id] || { hasSignal: false, evidence: [] };
+      if (intent.hasSignal || slice.enabled) recommended.push({ def: def, slice: slice, intent: intent });
+      else optIn.push({ def: def, slice: slice, intent: intent });
+    });
+
+    recommended.forEach(function (r) { wrap.appendChild(appCard(r.def, r.slice, r.intent)); });
+
+    // Opt-in apps live behind an "Add more demos" expander so the step stays
+    // focused on what the script actually calls for (honors the no-auto-build
+    // rule: these require an explicit toggle).
+    if (optIn.length) {
+      const exp = el("details", { class: "bx-apps-expander bx-mt-18" });
+      const summary = el("summary", { class: "bx-apps-expander-summary" });
+      summary.appendChild(el("span", { text: "＋ Add more demos" }));
+      summary.appendChild(el("span", { class: "bx-apps-expander-hint",
+        text: "No signals for these in your script — enable manually if you want them." }));
+      exp.appendChild(summary);
+      optIn.forEach(function (r) { exp.appendChild(appCard(r.def, r.slice, r.intent)); });
+      wrap.appendChild(exp);
+    }
+
+    wrap.appendChild(el("div", { class: "bx-help bx-mt-18",
+      html: "<strong>Previewing the template:</strong> until you generate a branded version, the preview shows the default sample data. Generate to personalize it to your customer." }));
+
+    wrap.appendChild(stepFooter("apps"));
+    return wrap;
+  }
+
+  function appCard(def, slice, intent) {
+    intent = intent || { hasSignal: false, evidence: [] };
+    const card = el("div", { class: "bx-card bx-mt-12" });
+
+    // Header row: title + status pill(s) + toggle.
+    const toggle = el("input", { type: "checkbox" });
+    if (slice.enabled) toggle.setAttribute("checked", "checked");
+    toggle.addEventListener("change", function () {
+      slice.enabled = toggle.checked;
+      commit();
+      renderMain(); // re-render to show/hide the preview panel
+    });
+    const toggleLabel = el("label", { class: "bx-switch" }, [toggle, el("span", { class: "bx-switch-track" })]);
+
+    const pills = el("div", { class: "bx-row" });
+    if (intent.hasSignal) pills.appendChild(el("span", { class: "bx-pill bx-pill-rec", text: "★ Recommended" }));
+    pills.appendChild(el("span", { class: "bx-pill", text: slice.enabled ? (slice.extracted ? "On · branded" : "On") : "Opt-in" }));
+    pills.appendChild(toggleLabel);
+
+    card.appendChild(el("div", { class: "bx-row bx-row-between" }, [
+      el("div", {}, [
+        el("div", { class: "bx-card-title", text: def.icon + "  " + def.name }),
+        el("div", { class: "bx-card-sub", text: def.tagline }),
+      ]),
+      pills,
+    ]));
+
+    // Evidence chips — the actual keywords in the script that triggered the
+    // recommendation. Shown whenever there are signals, on or off.
+    if (intent.hasSignal && intent.evidence && intent.evidence.length) {
+      const chips = el("div", { class: "bx-chips bx-mt-12" });
+      chips.appendChild(el("span", { class: "bx-chips-label", text: "Signals in your script:" }));
+      // De-dupe by keyword; cap at 6 so a keyword-heavy script doesn't flood.
+      const seen = {};
+      intent.evidence.forEach(function (ev) {
+        if (seen[ev.keyword]) return;
+        seen[ev.keyword] = 1;
+        if (Object.keys(seen).length > 6) return;
+        chips.appendChild(el("span", { class: "bx-chip", text: ev.keyword }));
+      });
+      card.appendChild(chips);
+    }
+
+    // Preview + generate panel — only when enabled.
+    if (slice.enabled) {
+      const panel = el("div", { class: "bx-mt-12" });
+
+      // Generate / regenerate row (R3). Personalizes the preview to the project.
+      const genRow = el("div", { class: "bx-row bx-mt-12" });
+      const genLabel = slice._generating
+        ? "⏳ Generating…"
+        : (slice.extracted ? "↻ Regenerate for this customer" : "✨ Generate this app");
+      const genBtn = btn(genLabel, "bx-btn-primary", function () {
+        if (!slice._generating) generateApp(def, slice);
+      });
+      if (slice._generating) genBtn.setAttribute("disabled", "disabled");
+      genRow.appendChild(genBtn);
+      genRow.appendChild(btn("↗ Open full-screen", "bx-btn-secondary", function () {
+        window.open(previewUrlFor(def, slice), "_blank", "noopener");
+      }));
+      panel.appendChild(genRow);
+
+      // Live status line while generating (updated in place by generateApp).
+      const statusText = slice._generating
+        ? (slice._genStatus || "Working…")
+        : (slice._genStatus || (slice.extracted
+            ? ("Personalized preview — generated from this project's story data." + (slice._usedGemini === false ? " (template fallback — AI unavailable)" : ""))
+            : ("Showing the sample template. Click Generate to personalize it to " + (custName() || "your customer") + ".")));
+      panel.appendChild(el("div", {
+        class: "bx-help bx-mt-12" + (slice._generating ? " bx-appgen-busy" : ""),
+        id: "bx-appgen-status-" + def.id,
+        text: statusText,
+      }));
+
+      // Inline iframe in a light device frame.
+      const frame = el("div", { class: "bx-app-preview-frame" });
+      const iframe = el("iframe", {
+        src: previewUrlFor(def, slice),
+        title: def.name + " preview",
+        loading: "lazy",
+        sandbox: "allow-scripts allow-same-origin allow-forms allow-popups",
+        style: "width:100%;height:520px;border:0;border-radius:10px;background:#fff",
+      });
+      frame.appendChild(iframe);
+      panel.appendChild(frame);
+
+      card.appendChild(panel);
+    }
+
+    return card;
+  }
+
+  function custName() {
+    return app.state && app.state.project && app.state.project.customerName;
+  }
+
+  // The preview URL. Once an app has a generated config we append a token so
+  // the iframe's app-config.js loads the generated APP_CONFIG from
+  // sessionStorage (see the "BUILDER PREVIEW OVERRIDE" shim in each
+  // demo-apps/<app>/app-config.js).
+  function previewUrlFor(def, slice) {
+    if (slice.extracted && slice._previewToken) {
+      return def.previewUrl + "?holo=" + encodeURIComponent(slice._previewToken);
+    }
+    return def.previewUrl;
+  }
+
+  // Persist a generated config where the preview iframe can read it. A stable
+  // per-app token keeps the sessionStorage key predictable and lets a
+  // regenerate overwrite in place. Returns the token.
+  function stashPreviewConfig(appId, config) {
+    const token = appId + "-" + (app.state && app.state.id ? app.state.id : "local");
+    try {
+      window.sessionStorage.setItem("holo-appconfig-" + token, JSON.stringify(config));
+    } catch (e) { /* preview will fall back to sample data */ }
+    return token;
+  }
+
+  // R3/R4: generate a per-customer version of an app, personalize the preview.
+  // Runs foundation extraction (+ Gemini), then optionally product photos,
+  // then swaps the iframe to the generated config. Guarded so a failure never
+  // leaves the card stuck — worst case it keeps sample data.
+  function generateApp(def, slice) {
+    if (slice._generating) return;
+    slice._generating = true;
+    renderMain(); // reflect the busy state immediately
+
+    const setStatus = function (msg) {
+      slice._genStatus = msg;
+      const node = document.getElementById("bx-appgen-status-" + def.id);
+      if (node) node.textContent = msg;
+    };
+
+    if (!window.HOLO_APPFOUND) {
+      slice._generating = false;
+      slice._genStatus = "Generator unavailable.";
+      renderMain();
+      return;
+    }
+
+    HOLO_APPFOUND.generate(def.id, app.state, { onStatus: setStatus })
+      .then(function (out) {
+        slice.config = out.config;
+        slice.extracted = true;
+        slice._usedGemini = out.usedGemini;
+        // R4: product photos (default on). Best-effort; SVG fallback per item.
+        setStatus("Generating product photos…");
+        return HOLO_APPFOUND.generateProductPhotos(def.id, out.config, { onStatus: setStatus })
+          .then(function (images) {
+            if (images && Object.keys(images).length) {
+              out.config.productImages = Object.assign({}, out.config.productImages, images);
+              slice.productImages = out.config.productImages;
+            }
+            return out.config;
+          })
+          .catch(function () { return out.config; });
+      })
+      .then(function (config) {
+        slice._previewToken = stashPreviewConfig(def.id, config);
+        slice._generating = false;
+        slice._genStatus = "";
+        commit();
+        renderMain(); // iframe now points at ?holo=<token> → customer data
+      })
+      .catch(function (err) {
+        slice._generating = false;
+        slice._genStatus = "Generation failed: " + ((err && err.message) || err);
+        renderMain();
+      });
+  }
+
   function viewCxComponents() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 6 · iFrame CX Components",
+      "Step 7 · iFrame CX Components",
       "Embed live, interactive demo screens (optional)",
       "These are live iFrame embeds — an AubreyDemo scene, a storefront, a Salesforce screen — shown as interactive screens in the Demo section. This is different from Assets (static images / GIFs you upload or generate): use Assets for imagery, use this step for interactive embeddable URLs. Skip if you don't have any; your demo works fine without it."
     ));
@@ -2891,7 +3177,7 @@
       const customised = state.customRecTitles && state.customRecTitles[sl.id];
       if (!customised && /^Slide \d/.test(sl.title)) {
         out.push({
-          label: "Title for '" + sl.title + "'", source: "Step 4 · Slide Selection",
+          label: "Title for '" + sl.title + "'", source: "Step 5 · Slide Selection",
           placeholder: "Give this slide a real title",
           type: "input",
           get: function () { return sl.title || ""; },
@@ -3307,7 +3593,7 @@
   function viewAssets() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 5 · Assets",
+      "Step 6 · Assets",
       "Upload images for your deck (optional)",
       "We only show the slots that the slides you picked actually use. Anything you skip leaves a clean placeholder in the demo — you can still export and present without uploading anything."
     ));
@@ -3973,7 +4259,7 @@
   function viewRecommendations() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 4 · Slide Selection",
+      "Step 5 · Slide Selection",
       "Every slide in your demo — toggle any off",
       "These are the exact slides that will be generated, grouped by section, all on by default. Turn off anything you don't want, rename inline, or expand a card for details."
     ));
@@ -4464,7 +4750,7 @@
 
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 7 · Preview",
+      "Step 8 · Preview",
       "Preview the holodeck",
       "Review how the story will feel before downloading the complete demo package. What you see here is what the exported demo will render."
     ));
@@ -4889,7 +5175,7 @@
   function viewExport() {
     const wrap = el("div");
     wrap.appendChild(stepHeader(
-      "Step 8 · Export",
+      "Step 9 · Export",
       "Download your demo",
       "Use Complete Demo ZIP for a ready-to-run package. Use Config only when you want to update an existing demo folder."
     ));
@@ -4928,23 +5214,42 @@
     zipCard.appendChild(el("div", { class: "bx-card-title", text: "Download Complete Demo ZIP" }));
     zipCard.appendChild(el("div", { class: "bx-card-sub",
       text: "Use this when you want a ready-to-run demo folder with HTML, CSS, JS, config, assets, and instructions." }));
-    const zipFiles = el("ul", { class: "bx-zip-tree" }, [
+    // Which companion apps will be packaged (enabled + generated).
+    const exportAppIds = (window.HOLO_ZIP && window.HOLO_ZIP.enabledAppIds)
+      ? window.HOLO_ZIP.enabledAppIds(s) : [];
+    const appMeta = (window.HOLO_ZIP && window.HOLO_ZIP.APP_META) || {};
+    const zipTreeItems = [
       el("li", { text: "📄 README.md  ·  HOW_TO_RUN.md" }),
-      el("li", { text: "📁 demo/" }, [
-        el("ul", {}, [
-          el("li", { text: "index.html" }),
-          el("li", { text: "holodeck.config.js  ·  data/holodeck-config.json" }),
-          el("li", { text: "css/styles.css" }),
-          el("li", { text: "js/app.js  ·  js/renderer.js" }),
-          el("li", { text: "assets/  (with ASSET_INSTRUCTIONS.md)" }),
-        ]),
+    ];
+    if (exportAppIds.length) {
+      zipTreeItems.push(el("li", { text: "📄 index.html  (hub — links deck + apps)" }));
+    }
+    zipTreeItems.push(el("li", { text: "📁 demo/" }, [
+      el("ul", {}, [
+        el("li", { text: "index.html" }),
+        el("li", { text: "holodeck.config.js  ·  data/holodeck-config.json" }),
+        el("li", { text: "css/styles.css" }),
+        el("li", { text: "js/app.js  ·  js/renderer.js" }),
+        el("li", { text: "assets/  (with ASSET_INSTRUCTIONS.md)" }),
       ]),
-      el("li", { text: "📁 source/  (builder metadata for re-import)" }),
-    ]);
-    zipCard.appendChild(zipFiles);
+    ]));
+    if (exportAppIds.length) {
+      zipTreeItems.push(el("li", { text: "📁 apps/" }, [
+        el("ul", {}, exportAppIds.map(function (id) {
+          const nm = (appMeta[id] && appMeta[id].name) || id;
+          return el("li", { text: id + "/  (" + nm + " — branded, runnable)" });
+        })),
+      ]));
+    }
+    zipTreeItems.push(el("li", { text: "📁 source/  (builder metadata for re-import)" }));
+    zipCard.appendChild(el("ul", { class: "bx-zip-tree" }, zipTreeItems));
     zipCard.appendChild(el("div", { class: "bx-card-sub bx-mt-12",
-      text: "To run: unzip and open demo/index.html in your browser — no server needed. "
-          + "(Only if a live CX component won't load, serve the demo/ folder with python3 -m http.server.)" }));
+      text: exportAppIds.length
+        ? ("To run: unzip and open index.html — the hub links the deck and your "
+           + exportAppIds.length + " companion app" + (exportAppIds.length === 1 ? "" : "s")
+           + ". No server needed.")
+        : ("To run: unzip and open demo/index.html in your browser — no server needed. "
+           + "(Only if a live CX component won't load, serve the demo/ folder with python3 -m http.server.)") }));
     zipCard.appendChild(el("div", { class: "bx-row bx-mt-12" }, [
       btn("⬇ Download Complete Demo ZIP", "bx-btn-primary", function () {
         if (incomplete > 0) {
@@ -5092,6 +5397,24 @@
       });
     }
 
+    // Companion apps — flag any that are enabled on the Demos step but not
+    // yet generated. Ungenerated apps are silently skipped in the ZIP, so
+    // surface it here rather than let the SE ship a deck-only package by
+    // surprise. The label names the app so it's actionable.
+    const apps = s.apps || {};
+    Object.keys(apps).forEach(function (id) {
+      if (id === "slides") return;
+      const slice = apps[id];
+      if (!slice || !slice.enabled) return;
+      const nm = (window.HOLO_ZIP && window.HOLO_ZIP.APP_META && window.HOLO_ZIP.APP_META[id] && window.HOLO_ZIP.APP_META[id].name) || id;
+      const ready = !!slice.config;
+      out.push({
+        label: nm + " app generated",
+        done: ready,
+        hint: ready ? "Will be packaged under apps/" + id + "/" : "Enabled but not generated — click Generate on the Demos step, or it won't be in the ZIP",
+      });
+    });
+
     return out;
   }
 
@@ -5201,6 +5524,26 @@
       body.appendChild(card);
     });
   }
+  function sideAppsSummary(body) {
+    const a = app.state.apps || {};
+    const rows = [
+      { key: "slides",      name: "Slide deck",         always: true },
+      { key: "clienteling", name: "Clienteling app" },
+      { key: "cimulate",    name: "Cimulate search demo" },
+    ];
+    rows.forEach(function (r) {
+      const slice = a[r.key] || {};
+      const enabled = r.always || slice.enabled;
+      const card = el("div", { class: "bx-side-card" });
+      card.appendChild(el("div", { class: "bx-side-card-t", text: r.name }));
+      const label = r.always
+        ? "Always built"
+        : (enabled ? (slice.extracted ? "On · branded" : "On · sample data") : "Not selected");
+      card.appendChild(el("div", { class: "bx-side-card-s", text: label }));
+      body.appendChild(card);
+    });
+  }
+
   function sideCxSummary(body) {
     const s = app.state;
     const components = s.cxComponents || [];

@@ -68,6 +68,44 @@
     { src: "../demo/assets/sf-icon.png",                 dest: "demo/assets/sf-icon.png",                 kind: "binary", optional: true },
   ];
 
+  // ── Demo-app template manifests (R5) ─────────────────────────
+  // The two opt-in demo apps (clienteling + cimulate) live in /demo-apps.
+  // Each is a self-contained static folder. On export we copy every file
+  // verbatim EXCEPT its stock app-config.js: that file mixes the per-
+  // customer data object (window.APP_CONFIG = {…}) with runtime helpers
+  // (money/productById/getBottleSVG/productImage/applyBrandColors…). We
+  // regenerate the data object from the project (HOLO_APPGEN.toConfigJs)
+  // and graft it onto the stock file's preserved helper tail — see
+  // buildAppConfigJs. `dest` is the path INSIDE the app's export folder;
+  // buildAppPayload roots it under apps/<appId>/.
+  const APP_TEMPLATE_FILES = {
+    clienteling: {
+      configName: "app-config.js",
+      files: [
+        { src: "../demo-apps/clienteling/index.html",    dest: "index.html",    kind: "text" },
+        { src: "../demo-apps/clienteling/styles.css",    dest: "styles.css",    kind: "text" },
+        { src: "../demo-apps/clienteling/app-config.js", dest: "app-config.js", kind: "text" },
+        { src: "../demo-apps/clienteling/agentforce.js", dest: "agentforce.js", kind: "text" },
+        { src: "../demo-apps/clienteling/app.js",        dest: "app.js",        kind: "text" },
+      ],
+    },
+    cimulate: {
+      configName: "app-config.js",
+      files: [
+        { src: "../demo-apps/cimulate/index.html",    dest: "index.html",    kind: "text" },
+        { src: "../demo-apps/cimulate/app.css",       dest: "app.css",       kind: "text" },
+        { src: "../demo-apps/cimulate/app-config.js", dest: "app-config.js", kind: "text" },
+        { src: "../demo-apps/cimulate/app.js",        dest: "app.js",        kind: "text" },
+      ],
+    },
+  };
+
+  // Human-facing metadata for the root hub index + README.
+  const APP_META = {
+    clienteling: { name: "Clienteling",       blurb: "Store-associate concierge — unified guest view, live coaching, and event prep." },
+    cimulate:    { name: "Cimulate Search",   blurb: "Intent-aware product search + shopper/service concierge agent." },
+  };
+
   // ─── Public entry point ──────────────────────────────────────
   // The polished export is async because it fetches the /demo/
   // template files from the same origin the builder is served from.
@@ -121,7 +159,35 @@
           "http://localhost:8000/builder/index.html and export again."
         );
       }
-      return buildPolishedPayload(state, slug, root, templateFiles);
+      const payload = buildPolishedPayload(state, slug, root, templateFiles);
+      // Fetch + package each enabled+generated companion app, then fold
+      // their files (and a root hub index) into the same payload.
+      const appIds = enabledAppIds(state);
+      if (!appIds.length) return payload;
+      return Promise.all(appIds.map(function (id) {
+        return fetchAppTemplate(id)
+          .then(function (files) { return { id: id, files: files }; })
+          .catch(function (err) {
+            if (typeof console !== "undefined" && console.warn) {
+              console.warn("[holo] Skipping app '" + id + "' in export — template fetch failed:", err && err.message);
+            }
+            return null;   // one bad app never aborts the whole export
+          });
+      })).then(function (fetched) {
+        const packagedIds = [];
+        fetched.filter(Boolean).forEach(function (r) {
+          if (!r.files || !r.files.length) return;
+          buildAppPayload(state, r.id, root, r.files).forEach(function (f) { payload.files.push(f); });
+          packagedIds.push(r.id);
+        });
+        if (packagedIds.length) {
+          payload.files.push({ path: root + "index.html", content: generateHubIndexHtml(state, packagedIds) });
+          payload.apps = packagedIds;
+        }
+        // Re-sort so the merged payload stays byte-stable across runs.
+        payload.files.sort(function (a, b) { return a.path < b.path ? -1 : (a.path > b.path ? 1 : 0); });
+        return payload;
+      });
     });
   }
 
@@ -170,6 +236,157 @@
     files.sort(function (a, b) { return a.path < b.path ? -1 : (a.path > b.path ? 1 : 0); });
 
     return { files: files, slug: slug, root: root, mode: "polished" };
+  }
+
+  // ─── Demo-app packaging (R5) ─────────────────────────────────
+  // Returns the list of app ids the user enabled AND generated a config
+  // for. Gating mirrors the Demos step: enabled + a config object present.
+  // Slides are always the deck (handled by the polished payload) and are
+  // not part of this list.
+  function enabledAppIds(state) {
+    const apps = (state && state.apps) || {};
+    return Object.keys(APP_TEMPLATE_FILES).filter(function (id) {
+      const slice = apps[id];
+      return slice && slice.enabled && slice.config;
+    });
+  }
+
+  // Fetch one app's template files (verbatim) over http. Resolves to an
+  // array of { dest, content } or rejects if a required file is missing.
+  function fetchAppTemplate(appId) {
+    const tpl = APP_TEMPLATE_FILES[appId];
+    if (!tpl || typeof fetch !== "function") return Promise.resolve(null);
+    const promises = tpl.files.map(function (tf) {
+      return fetch(tf.src, { cache: "no-store" }).then(function (res) {
+        if (!res.ok) {
+          if (tf.optional) return null;
+          throw new Error("HTTP " + res.status + " on " + tf.src);
+        }
+        return res.text().then(function (text) { return { dest: tf.dest, content: text }; });
+      }).catch(function (err) {
+        if (tf.optional) return null;
+        throw err;
+      });
+    });
+    return Promise.all(promises).then(function (results) { return results.filter(Boolean); });
+  }
+
+  // Graft the generated per-customer APP_CONFIG onto the stock config's
+  // preserved helper tail. The stock app-config.js is:
+  //   window.APP_CONFIG = {…};              ← replace with generated data
+  //   /* BUILDER PREVIEW OVERRIDE */ IIFE   ← drop (builder-only)
+  //   window.money / productById / …SVG /   ← KEEP verbatim (runtime helpers
+  //   productImage / applyBrandColors…         the app.js depends on)
+  // We split at the first `window.money` helper (present in both apps,
+  // the first helper after the override shim) and keep everything from
+  // there on. If the marker isn't found we fall back to appending the
+  // helpers we can detect, and worst case ship the generated data alone
+  // (the app still renders; brand-apply just no-ops).
+  function buildAppConfigJs(appId, stockConfigText, generatedConfig) {
+    const APPGEN = HOLO_APPGEN();
+    const header = appId === "clienteling"
+      ? "Clienteling app-config.js"
+      : "Cimulate app-config.js";
+    const generatedData = APPGEN
+      ? APPGEN.toConfigJs(generatedConfig, header)
+      : ("/* " + header + " */\nwindow.APP_CONFIG = " + JSON.stringify(generatedConfig, null, 2) + ";\n");
+
+    let helperTail = "";
+    if (stockConfigText) {
+      // First helper after the preview-override shim is `window.money`.
+      const idx = stockConfigText.search(/\/\*[^*]*Shared helpers[\s\S]*?\*\/\s*\n\s*window\.money|window\.money\s*=/);
+      if (idx !== -1) {
+        // Back up to the comment block that introduces the helpers, if present.
+        const commentStart = stockConfigText.lastIndexOf("/*", stockConfigText.indexOf("window.money", idx));
+        helperTail = stockConfigText.slice(commentStart !== -1 && commentStart >= idx - 400 ? commentStart : idx);
+      }
+    }
+    if (!helperTail) {
+      // Marker missing — leave a clear note; the app still runs on data alone.
+      helperTail = "\n/* NOTE: runtime helpers could not be extracted from the template;\n" +
+        "   brand-apply / procedural fallbacks may be inactive. Re-export from a\n" +
+        "   builder served over http:// to bundle them. */\n";
+    }
+    return generatedData + "\n" + helperTail;
+  }
+
+  function HOLO_APPGEN() { return (typeof window !== "undefined") ? window.HOLO_APPGEN : null; }
+
+  // Build the file list for ONE enabled app, rooted under apps/<appId>/.
+  function buildAppPayload(state, appId, root, templateFiles) {
+    const tpl = APP_TEMPLATE_FILES[appId];
+    const slice = state.apps[appId];
+    const appRoot = root + "apps/" + appId + "/";
+    const files = [];
+    let stockConfig = null;
+    templateFiles.forEach(function (tf) {
+      if (tf.dest === tpl.configName) { stockConfig = tf.content; }
+    });
+    templateFiles.forEach(function (tf) {
+      if (tf.dest === tpl.configName) {
+        files.push({ path: appRoot + tf.dest, content: buildAppConfigJs(appId, stockConfig, slice.config) });
+      } else {
+        files.push({ path: appRoot + tf.dest, content: tf.content });
+      }
+    });
+    return files;
+  }
+
+  // Root hub index.html — a small landing page linking the deck + built apps.
+  function generateHubIndexHtml(state, appIds) {
+    const project = state.project || {};
+    const customer = escapeHtml(project.customerName || state.name || "Customer");
+    const cards = [
+      { href: "demo/index.html", name: "Slide Deck", blurb: "The full polished Holodeck deck — journey, persona, demo moments, business value." },
+    ].concat(appIds.map(function (id) {
+      const m = APP_META[id] || { name: id, blurb: "" };
+      return { href: "apps/" + id + "/index.html", name: m.name, blurb: m.blurb };
+    }));
+    const cardHtml = cards.map(function (c) {
+      return [
+        '    <a class="card" href="' + c.href + '">',
+        '      <div class="card-name">' + escapeHtml(c.name) + '</div>',
+        '      <div class="card-blurb">' + escapeHtml(c.blurb) + '</div>',
+        '      <div class="card-cta">Open →</div>',
+        '    </a>',
+      ].join("\n");
+    }).join("\n");
+    return [
+      "<!DOCTYPE html>",
+      '<html lang="en">',
+      "<head>",
+      '  <meta charset="UTF-8" />',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1" />',
+      "  <title>" + customer + " — Holodeck</title>",
+      '  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" />',
+      "  <style>",
+      "    :root { --ink:#0d1b2e; --ink2:#4a5a6a; --line:rgba(13,27,46,.12); --bg:#f5f7fb; --card:#fff; --accent:#0176d3; }",
+      "    * { box-sizing:border-box; }",
+      "    body { margin:0; font-family:'Inter',-apple-system,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; padding:64px 24px; }",
+      "    .wrap { max-width:960px; margin:0 auto; }",
+      "    .eyebrow { font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }",
+      "    h1 { font-family:'Fraunces',Georgia,serif; font-size:44px; font-weight:700; margin:8px 0 6px; letter-spacing:-.01em; }",
+      "    .sub { font-size:16px; color:var(--ink2); margin:0 0 40px; }",
+      "    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; }",
+      "    .card { display:block; text-decoration:none; color:inherit; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:24px; transition:transform .15s ease, box-shadow .15s ease; }",
+      "    .card:hover { transform:translateY(-3px); box-shadow:0 14px 40px rgba(13,27,46,.12); }",
+      "    .card-name { font-family:'Fraunces',Georgia,serif; font-size:22px; font-weight:700; }",
+      "    .card-blurb { font-size:14px; color:var(--ink2); line-height:1.5; margin:8px 0 16px; }",
+      "    .card-cta { font-size:13px; font-weight:700; color:var(--accent); }",
+      "  </style>",
+      "</head>",
+      "<body>",
+      '  <div class="wrap">',
+      '    <div class="eyebrow">Salesforce Holodeck</div>',
+      "    <h1>" + customer + "</h1>",
+      '    <p class="sub">This package contains the demo deck' + (appIds.length ? " and " + appIds.length + " companion app" + (appIds.length > 1 ? "s" : "") : "") + ". Everything runs in a browser — no build step.</p>",
+      '    <div class="grid">',
+      cardHtml,
+      "    </div>",
+      "  </div>",
+      "</body>",
+      "</html>",
+    ].join("\n");
   }
 
   // Legacy generator-built runtime removed: the single polished runtime
@@ -255,6 +472,28 @@
     const project = state.project || {};
     const customer = project.customerName || "Customer";
     const products = (project.products || []).join(", ") || "—";
+    const appIds = enabledAppIds(state);
+    const appsSection = appIds.length ? [
+      "",
+      "## Companion apps",
+      "",
+      "This package includes " + appIds.length + " companion demo app" + (appIds.length > 1 ? "s" : "") +
+        " alongside the deck. Open the root `index.html` for a hub linking all of them:",
+      "",
+    ].concat(appIds.map(function (id) {
+      const m = APP_META[id] || { name: id, blurb: "" };
+      return "- **" + m.name + "** (`apps/" + id + "/index.html`) — " + m.blurb;
+    })).concat([
+      "",
+      "Each app is a self-contained static folder — open its `index.html` directly,",
+      "no server or build step. Customer data, brand colors, and any AI product",
+      "photos are baked into `apps/<app>/app-config.js`.",
+      "",
+      "> **Note on product photos:** AI-generated product images use time-limited",
+      "> signed URLs. If images stop loading (roughly a week after they were",
+      "> generated), the apps automatically fall back to illustrated product",
+      "> graphics — nothing breaks. Re-generate and re-export to refresh them.",
+    ]) : [];
     return [
       "# " + (state.name || customer + " Holodeck"),
       "",
@@ -327,6 +566,7 @@
       "- **Slides:** " + ((state.slides || []).length),
       "- **Personas:** " + ((state.personas || []).length),
       "- **Story acts:** " + ((state.storyActs || []).length),
+    ].concat(appsSection).concat([
       "",
       "## Editing",
       "",
@@ -353,7 +593,7 @@
       "`holodeck.config.js` — the `url` field controls what's embedded, and",
       "the `deviceFrame` field controls the phone / desktop / tablet chrome.",
       "",
-    ].join("\n");
+    ]).join("\n");
   }
 
   // ─── CLAUDE_MODIFY.md ────────────────────────────────────────
@@ -1409,5 +1649,7 @@
     generateHowToRun:        generateHowToRun,
     generateExportMetadata:  generateExportMetadata,
     generateAssetInstructions: generateAssetInstructions,
+    enabledAppIds:           enabledAppIds,
+    APP_META:                APP_META,
   };
 })(window);

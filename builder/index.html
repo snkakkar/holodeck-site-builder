@@ -82,6 +82,9 @@
   <script defer src="google-slides-exporter.js"></script>
   <script defer src="aubrey-client.js"></script>
   <script defer src="gemini-client.js"></script>
+  <!-- Demo-app builders (R3/R4): generator must load before the extractor that uses it. -->
+  <script defer src="app-config-generator.js"></script>
+  <script defer src="app-foundations.js"></script>
   <!-- module: uses dynamic import()/import.meta to lazy-load vendored pdf.js -->
   <script type="module" src="doc-extract.js"></script>
   <!-- Scale the authoring UI with the viewport. Sets --bx-scale on <html>;

@@ -3234,3 +3234,82 @@ button { font-family: inherit; }
 }
 .bx-feedback-row-foot-label { font-size: 12px; color: var(--bx-ink-3); }
 .bx-feedback-status-sel { max-width: 160px; }
+
+/* ─── Demos step (R1): pills, toggle switch, app preview frame ─── */
+.bx-pill {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: var(--bx-radius-pill);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--bx-ink-2); background: var(--bx-line);
+  border: 1px solid var(--bx-line-2); white-space: nowrap;
+}
+.bx-pill-ok {
+  color: #0a7d4a; background: rgba(10, 125, 74, 0.10);
+  border-color: rgba(10, 125, 74, 0.28);
+}
+.bx-pill-rec {
+  color: var(--bx-blue); background: rgba(1, 118, 211, 0.10);
+  border-color: rgba(1, 118, 211, 0.30);
+}
+
+/* iOS-style toggle switch */
+.bx-switch {
+  position: relative; display: inline-block;
+  width: 42px; height: 24px; flex: 0 0 auto; cursor: pointer;
+}
+.bx-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.bx-switch-track {
+  position: absolute; inset: 0; border-radius: 999px;
+  background: var(--bx-line-2); transition: background 0.18s ease;
+}
+.bx-switch-track::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  transition: transform 0.18s ease;
+}
+.bx-switch input:checked + .bx-switch-track { background: var(--bx-blue); }
+.bx-switch input:checked + .bx-switch-track::after { transform: translateX(18px); }
+.bx-switch input:focus-visible + .bx-switch-track {
+  outline: 2px solid var(--bx-blue); outline-offset: 2px;
+}
+
+/* Evidence chips under a recommended app card */
+.bx-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bx-chips-label { font-size: 12px; color: var(--bx-ink-3); margin-right: 2px; }
+.bx-chip {
+  display: inline-flex; align-items: center;
+  padding: 2px 9px; border-radius: var(--bx-radius-pill);
+  font-size: 11px; font-weight: 500;
+  color: var(--bx-blue); background: rgba(1, 118, 211, 0.08);
+  border: 1px solid rgba(1, 118, 211, 0.22);
+}
+
+/* "Add more demos" expander wrapping the opt-in app cards */
+.bx-apps-expander {
+  border: 1px dashed var(--bx-line-2); border-radius: var(--bx-radius-s);
+  padding: 4px 14px 14px;
+}
+.bx-apps-expander[open] { padding-bottom: 14px; }
+.bx-apps-expander-summary {
+  cursor: pointer; padding: 12px 0; list-style: none;
+  display: flex; align-items: baseline; gap: 10px;
+  font-weight: 600; color: var(--bx-ink);
+}
+.bx-apps-expander-summary::-webkit-details-marker { display: none; }
+.bx-apps-expander-hint { font-weight: 400; font-size: 12px; color: var(--bx-ink-3); }
+
+/* Generation status line while an app is being personalized */
+.bx-appgen-busy {
+  color: var(--bx-blue); font-weight: 500;
+  animation: bx-appgen-pulse 1.2s ease-in-out infinite;
+}
+@keyframes bx-appgen-pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+/* Inline app preview: light device chrome around the iframe */
+.bx-app-preview-frame {
+  margin-top: 10px; border: 1px solid var(--bx-line-2);
+  border-radius: 12px; overflow: hidden; background: #fff;
+  box-shadow: 0 6px 20px rgba(13, 27, 46, 0.08);
+}
+.bx-app-preview-frame iframe { display: block; }

@@ -13,3 +13,6 @@ npm-debug.log*
 
 # PostgREST binary is fetched at build (bin/fetch-postgrest.sh), never committed.
 bin/postgrest
+
+# Local reference source for the demo-app builders (Total Wine originals) — never committed.
+Total Wine/

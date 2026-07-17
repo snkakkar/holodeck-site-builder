@@ -1221,8 +1221,104 @@
     };
   }
 
+  // ─── App intent detection (R2) ─────────────────────────────────
+  // Decides, per optional demo app, whether the current project's story
+  // shows signals that make it a RECOMMENDED build (vs. a hidden opt-in).
+  // Reuses the same signal machinery as slide recommendations so the two
+  // stay consistent. Returns per-app:
+  //   { hasSignal, weight, evidence:[{keyword, signal}] }
+  // `evidence` powers the chips under a recommended card — it lists the
+  // actual matched keywords, not the internal signal names.
+  //
+  // Mapping rules:
+  //   clienteling — any `retail_store` signal (store / associate / clienteling
+  //                 / inventory / pos, or Retail industry).
+  //   cimulate    — `commerce` signal, OR (`agentforce` present AND a retail/
+  //                 consumer context), OR `retail_store`. This mirrors the
+  //                 concierge app: intent-aware commerce search + a shopper/
+  //                 service agent, which fits retail/consumer + agentic stories.
+  const APP_SIGNAL_RULES = {
+    clienteling: { any: ["retail_store"] },
+    cimulate:    { any: ["commerce", "retail_store"], allGroups: [["agentforce", "retail_store"], ["agentforce", "commerce"]] },
+  };
+
+  // Which keywords, if present in the project's free text, count as evidence
+  // for each app. Derived from KEYWORD_SIGNALS so it never drifts.
+  function keywordsForSignals(signalSet) {
+    const out = [];
+    Object.keys(KEYWORD_SIGNALS).forEach(function (kw) {
+      if (signalSet.indexOf(KEYWORD_SIGNALS[kw]) !== -1) out.push(kw);
+    });
+    return out;
+  }
+
+  function detectAppIntents(state) {
+    const ctx = stateToCtx(state);
+    const map = buildSignalMap(ctx);
+
+    // Gather the free text once so evidence chips can quote real matches.
+    const freeText = [
+      ctx.scriptText,
+      (ctx.storyActs || []).map(function (a) {
+        return [a.title, a.summary, a.demoMoment, a.notes].join(" ");
+      }).join(" "),
+    ].join(" ").toLowerCase();
+
+    const isRetailContext =
+      (ctx.industry === "Retail" || ctx.industry === "Consumer Goods") ||
+      !!map.retail_store || !!map.commerce;
+
+    function evidenceFor(signals) {
+      const kws = keywordsForSignals(signals);
+      const hits = [];
+      kws.forEach(function (kw) {
+        if (freeText.indexOf(kw) !== -1) hits.push({ keyword: kw, signal: KEYWORD_SIGNALS[kw] });
+      });
+      // Industry can trigger a signal with no literal keyword — surface it too.
+      if (signals.indexOf("retail_store") !== -1 && !map.retail_store && isRetailContext && ctx.industry) {
+        hits.push({ keyword: ctx.industry + " (industry)", signal: "retail_store" });
+      }
+      if (signals.indexOf("commerce") !== -1 && map.commerce && !hits.some(function (h) { return h.signal === "commerce"; }) && ctx.industry) {
+        hits.push({ keyword: ctx.industry + " (industry)", signal: "commerce" });
+      }
+      return hits;
+    }
+
+    function evalApp(appId) {
+      const rule = APP_SIGNAL_RULES[appId];
+      let weight = 0;
+      let hit = false;
+      // "any": a single matching signal triggers.
+      (rule.any || []).forEach(function (sig) {
+        if (map[sig]) { hit = true; weight += map[sig]; }
+      });
+      // "allGroups": every signal in a group must be present.
+      (rule.allGroups || []).forEach(function (group) {
+        if (group.every(function (sig) { return !!map[sig]; })) {
+          hit = true;
+          group.forEach(function (sig) { weight += map[sig]; });
+        }
+      });
+      // Collect the union of signals this app cares about for evidence.
+      const careSignals = {};
+      (rule.any || []).forEach(function (s) { careSignals[s] = 1; });
+      (rule.allGroups || []).forEach(function (g) { g.forEach(function (s) { careSignals[s] = 1; }); });
+      return {
+        hasSignal: hit,
+        weight: weight,
+        evidence: hit ? evidenceFor(Object.keys(careSignals)) : [],
+      };
+    }
+
+    return {
+      clienteling: evalApp("clienteling"),
+      cimulate:    evalApp("cimulate"),
+    };
+  }
+
   global.HOLO_RULES = {
     extractScriptSignals: extractScriptSignals,
+    detectAppIntents: detectAppIntents,
     buildSignalMap: buildSignalMap,
     recommend: recommend,
     LAYOUTS: LAYOUTS,
