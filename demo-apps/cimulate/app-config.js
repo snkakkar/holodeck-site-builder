@@ -270,14 +270,22 @@ window.APP_CONFIG = {
     recent:["Caymus Cabernet (Nov)","Hakushu Distiller's Reserve (Sep)","Veuve Clicquot (Aug)"],
   },
 
-  /* ── SEARCH — the intent-hint chips shown under the search box. Each is an
-     industry-appropriate example query. Builder regenerates per-customer. */
+  /* ── SEARCH — the intent chips shown under the search box. This is a scripted
+     demo: search is chip-driven ONLY (no free typing). Each chip is DETERMINISTIC
+     — it pins exactly the products it should return via resultIds, and those
+     products are the ones that appear on the results page. The union of all
+     chips' resultIds defines the catalog. Builder regenerates per-customer:
+     4 chips × 3 resultIds. `signals` (optional) are the Data-360 explanation
+     tags shown on the results page. */
   searchChips: [
-    { icon:"fa-fire",           q:"smoky Japanese whisky under $80",          tag:"spirits" },
-    { icon:"fa-fish",           q:"crisp white wine for summer seafood",       tag:"wine" },
-    { icon:"fa-beer-mug-empty", q:"easy-drinking craft IPA for a party",       tag:"beer" },
-    { icon:"fa-wine-bottle",    q:"a bold red under $100 to impress guests",   tag:"wine" },
-    { icon:"fa-star",           q:"Dwayne Johnson",                            tag:"celebrity" },
+    { icon:"fa-fire",  label:"smoky Japanese whisky under $80", q:"smoky Japanese whisky under $80",
+      resultIds:["hakushu","nikka","macallan18"], signals:["category: Spirits","taste: smoky","origin: Japan","price ≤ $80"] },
+    { icon:"fa-fish",  label:"crisp white wine for summer seafood", q:"crisp white wine for summer seafood",
+      resultIds:["kimcrawford","cakebread","meiomi"], signals:["category: Wine","color: white","occasion: seafood"] },
+    { icon:"fa-beer-mug-empty", label:"easy-drinking craft IPA for a party", q:"easy-drinking craft IPA for a party",
+      resultIds:["sierraneva","voodoo","stellabeer"], signals:["category: Beer","style: IPA","occasion: party"] },
+    { icon:"fa-wine-bottle", label:"a bold red under $100 to impress guests", q:"a bold red under $100 to impress guests",
+      resultIds:["caymus","silveroak","josephphelps"], signals:["category: Wine","color: red","price ≤ $100"] },
   ],
 
   /* ── SOMM CONCIERGE — greeting/service chips + curated rails + service
@@ -671,7 +679,8 @@ window.applyBrandText = function(){
     // back in the handler — NOT interpolated into an inline JS string, which
     // breaks on apostrophes/ampersands and silently kills the click.
     chipsEl.innerHTML = APP_CONFIG.searchChips.map(c=>{
-      return `<div class="sh-chip" data-q="${esc(String(c.q||""))}" onclick="runSearch(this.getAttribute('data-q'))"><i class="fa-solid ${esc(c.icon||"fa-magnifying-glass")}"></i> ${esc(c.q||"")}${c.tag?` <small>${esc(c.tag)}</small>`:""}</div>`;
+      const label = c.label || c.q || "";
+      return `<div class="sh-chip" data-q="${esc(String(c.q||""))}" onclick="runSearch(this.getAttribute('data-q'))"><i class="fa-solid ${esc(c.icon||"fa-magnifying-glass")}"></i> ${esc(label)}${c.tag?` <small>${esc(c.tag)}</small>`:""}</div>`;
     }).join("");
   }
   // Optional feature band (config-driven; hidden unless configured)

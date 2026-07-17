@@ -37,9 +37,11 @@
     <div class="search">
       <div class="search-inner">
         <div class="search-ai-badge" id="search-ai-badge"><i class="fa-solid fa-wand-magic-sparkles"></i> Cimulate&nbsp;AI</div>
-        <input id="searchInput" type="text" placeholder="Search by taste, occasion, or intent — e.g. &ldquo;smoky Japanese whisky under $80&rdquo;"
-               onfocus="showSearchHints(true)" onkeydown="if(event.key==='Enter')runSearch(this.value)"/>
-        <button class="search-btn" onclick="runSearch(document.getElementById('searchInput').value)"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <!-- Scripted demo: search is chip-driven only (no free typing). The
+             input is a display surface; clicking it reveals the intent chips. -->
+        <input id="searchInput" type="text" readonly placeholder="Tap an intent below to see Cimulate in action"
+               onclick="showSearchHints(true)" onfocus="showSearchHints(true)"/>
+        <button class="search-btn" onclick="showSearchHints(true)"><i class="fa-solid fa-magnifying-glass"></i></button>
       </div>
       <div class="search-hint" id="searchHint">
         <div class="sh-label"><i class="fa-solid fa-wand-magic-sparkles"></i> <span id="search-hint-label">Cimulate understands intent — try one</span></div>

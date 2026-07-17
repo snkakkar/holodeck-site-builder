@@ -245,7 +245,11 @@ function buildServiceIntents(){
 
 const SOMM_INTENTS = buildShoppingIntents().concat(buildServiceIntents());
 
-const SOMM_STOP = new Set(["a","an","the","my","me","for","to","of","and","or","is","it","in","on","at","with","your","you","i","do","does","can","help","please","get","show","find","some","something","thing","want","need","would","like","how"]);
+// Generic words (articles + common CTA verbs/nouns like "book"/"session") that
+// carry NO category/intent signal. Excluded from overlap scoring so a shared
+// generic word ("book a fitting SESSION" vs "launch monitor SESSION") can never
+// count as a distinctive match and mis-route the chip.
+const SOMM_STOP = new Set(["a","an","the","my","me","for","to","of","and","or","is","it","in","on","at","with","your","you","i","do","does","can","help","please","get","show","find","some","something","thing","want","need","would","like","how","book","booking","reserve","reservation","schedule","appointment","session","set","up","today","now"]);
 function sommRespond(text){
   const t=" "+text.toLowerCase().replace(/[^a-z0-9$ ]/g," ").replace(/\s+/g," ").trim()+" ";
   // Pass 1 — score every intent by its LONGEST whole-word matching keyword, so
@@ -258,19 +262,34 @@ function sommRespond(text){
   }
   if(best)return best.reply();
   // Pass 2 — token-overlap fallback. Generated chips (e.g. "Book a Fitting
-  // session") aren't guaranteed to phrase-match any intent's keys, which used
-  // to dead-end into the generic fallback. Route to the intent sharing the most
-  // meaningful words with the message so the chip still does something on-point.
+  // session") aren't guaranteed to phrase-match any intent's keys. Route by
+  // shared MEANINGFUL words, but weight rarer words higher so a match on a
+  // distinctive term ("fitting") beats an incidental one ("book"/"session")
+  // that appears across many intents — this is what caused "book a fitting
+  // session" to mis-route to a launch-monitor intent. Require a clear signal
+  // (a distinctive word must match), not just any single generic overlap.
   const words=t.trim().split(" ").filter(w=>w && !SOMM_STOP.has(w));
   if(words.length){
-    let bestScore=0;
+    // Document frequency: how many intents' keys contain each query word.
+    const df={};
+    for(const w of words){ let n=0; for(const it of SOMM_INTENTS){ if((it.keys||[]).join(" ").toLowerCase().indexOf(w)>=0)n++; } df[w]=n; }
+    let bestScore=0, bestHadDistinct=false;
     for(const it of SOMM_INTENTS){
       const hay=(it.keys||[]).join(" ").toLowerCase();
-      let score=0;
-      for(const w of words){ if(hay.indexOf(w)>=0) score++; }
-      if(score>bestScore){ bestScore=score; best=it; }
+      let score=0, hadDistinct=false;
+      for(const w of words){
+        if(hay.indexOf(w)>=0){
+          // rarer word ⇒ higher weight; a word matching ≤2 intents is "distinctive"
+          const weight = df[w]<=1 ? 4 : df[w]<=2 ? 2 : 1;
+          score+=weight;
+          if(df[w]<=2) hadDistinct=true;
+        }
+      }
+      if(score>bestScore){ bestScore=score; best=it; bestHadDistinct=hadDistinct; }
     }
-    if(best && bestScore>0) return best.reply();
+    // Only accept the match if it hinged on a distinctive word — otherwise the
+    // chip is genuinely unrelated and should fall through to the generic reply.
+    if(best && bestHadDistinct) return best.reply();
   }
   return `<p>${tpl("sommFallback","Great question! Tell me what you're after and I'll take care of it.")}</p>${quicks(GREET_CHIPS)}`;
 }
@@ -316,166 +335,36 @@ function openSomm(){
 function closeSomm(){ document.getElementById("sommPanel").classList.remove("open"); document.getElementById("sommFab").classList.remove("hidden"); }
 
 /* =====================================================================
-   CIMULATE CONTEXTUAL SEARCH — intent parsing (scripted) + ranking
+   CIMULATE CONTEXTUAL SEARCH — deterministic, chip-driven (scripted demo)
+   ---------------------------------------------------------------------
+   Search has NO free typing: the only entry point is the intent chips, and
+   each chip pins its exact result products via resultIds. There is no intent
+   parser / scorer — the former beverage-keyword parser (parseIntent /
+   scoreProduct / wineColorOf / spiritTypeOf / findCeleb) was removed because
+   it was wine-locked and unreachable once search became chip-pinned.
    ===================================================================== */
-const SEARCH_STOP=["under","over","a","an","the","for","with","and","to","of","$","me","show"];
-// Celebrity/affinity tie-in lookup. Tolerates BOTH config shapes:
-//   • stock array:  [{ match:[...], name, brand, ids:[...], blurb }]
-//   • generated map: { "<lowercasename>": { match:string, productIds:[...] } }
-// Returns a normalized { ids, brand, blurb } or null. Fully guarded so a
-// missing/oddly-shaped celebs field can never throw and abort the search.
-function findCeleb(t){
-  const raw=APP_CONFIG.celebs;
-  if(!raw) return null;
-  // Normalize to a list of {keys:[...], ids:[...], brand, blurb}.
-  let list=[];
-  if(Array.isArray(raw)){
-    list=raw.map(c=>({
-      keys: Array.isArray(c.match) ? c.match : (c.match ? [String(c.match)] : (c.name ? [String(c.name)] : [])),
-      ids: Array.isArray(c.ids) ? c.ids : (Array.isArray(c.productIds) ? c.productIds : []),
-      brand: c.brand || c.name || "",
-      blurb: c.blurb || "",
-    }));
-  } else if(typeof raw==="object"){
-    list=Object.keys(raw).map(name=>{
-      const c=raw[name]||{};
-      return {
-        keys: Array.isArray(c.match) ? c.match : [String(name)],
-        ids: Array.isArray(c.ids) ? c.ids : (Array.isArray(c.productIds) ? c.productIds : []),
-        brand: c.brand || name || "",
-        blurb: c.blurb || (typeof c.match==="string" ? c.match : ("Cimulate recognized <b>"+esc(name)+"</b> and connected them to their brand.")),
-      };
-    });
-  }
-  const hit=list.find(c=>c.keys.some(m=>m && t.includes(String(m).toLowerCase())));
-  return (hit && hit.ids.length) ? hit : null; // only trigger celeb path if it maps to real products
+// Find the searchChip whose query matches `q` (exact, then case-insensitive).
+// The chips are the ONLY entry point to search (this is a scripted demo), so a
+// chip always exists for any q that reaches here.
+function chipFor(q){
+  const chips=APP_CONFIG.searchChips||[];
+  const t=String(q||"").trim().toLowerCase();
+  return chips.find(c=>String(c.q||"").trim().toLowerCase()===t) || null;
 }
-// Distinct product categories present in the live catalog, in first-seen order.
-// Drives the facet rail + category matching so search adapts to ANY customer.
-function catalogCats(){
-  const seen=[], out=[];
-  (APP_CONFIG.products||[]).forEach(p=>{ if(p.cat && !seen.includes(p.cat)){ seen.push(p.cat); out.push(p.cat); } });
-  return out;
-}
-function hasCat(name){ return catalogCats().some(c=>c.toLowerCase()===name.toLowerCase()); }
-function parseIntent(q){
-  const t=q.toLowerCase();
-  const priceMatch=t.match(/\$?\s?(\d{2,4})/);
-  const maxPrice=priceMatch?parseInt(priceMatch[1]):null;
-  const flavors=[];
-  ["smoky","japanese","whisky","whiskey","scotch","bold","crisp","white","summer","seafood","ipa","craft","party","easy-drinking","lager","citrus","celebration","peat"].forEach(f=>{ if(t.includes(f))flavors.push(f); });
-  // Category detection: first try to match any LIVE catalog category by name
-  // (so a golf retailer matches "clubs"/"apparel", etc.); then fall back to the
-  // beverage keyword heuristics, but ONLY for categories the catalog actually has.
-  let cat=null;
-  const cats=catalogCats();
-  for(const c of cats){ const cl=c.toLowerCase(); if(cl.length>2 && (t.includes(cl)||t.includes(cl.replace(/s$/,"")))){ cat=c; break; } }
-  if(!cat){
-    if(hasCat("Spirits") && /whisk|scotch|tequila|vodka|\bgin\b|\brum\b|mezcal|spirit|bourbon|cognac/.test(t))cat="Spirits";
-    else if(hasCat("Wine") && /wine|red|white|cabernet|pinot|chardonnay|sauvignon|champagne|rosé|rose|merlot|malbec|riesling|prosecco/.test(t))cat="Wine";
-    else if(hasCat("Beer") && /beer|ipa|lager|ale|pilsner|stout|pale ale/.test(t))cat="Beer";
-  }
-  // Wine color intent — "bold red", "cabernet", "pinot" ⇒ red; "crisp white", "chardonnay", "sauvignon blanc" ⇒ white
-  let wineColor=null;
-  if(cat==="Wine"){
-    if(/\bred\b|bold|cabernet|pinot noir|merlot|malbec|syrah|zinfandel/.test(t))wineColor="red";
-    else if(/\bwhite\b|crisp|chardonnay|sauvignon|pinot grigio|riesling/.test(t))wineColor="white";
-    else if(/champagne|sparkling|prosecco|bubbly/.test(t))wineColor="sparkling";
-    else if(/rosé|rose/.test(t))wineColor="rosé";
-  }
-  // Spirit type intent — keeps tequila/vodka/etc. out of a "whisky" search and vice-versa
-  let spiritType=null;
-  if(cat==="Spirits"){
-    if(/whisk|scotch|bourbon/.test(t))spiritType="whisky";
-    else if(/tequila/.test(t))spiritType="tequila";
-    else if(/mezcal/.test(t))spiritType="mezcal";
-    else if(/vodka/.test(t))spiritType="vodka";
-    else if(/\bgin\b/.test(t))spiritType="gin";
-    else if(/\brum\b/.test(t))spiritType="rum";
-    else if(/cognac/.test(t))spiritType="cognac";
-  }
-  const wantsJapanese=/japanese|japan/.test(t);
-  const celeb=findCeleb(t);
-  return {maxPrice,flavors,cat,wineColor,spiritType,wantsJapanese,celeb,raw:q};
-}
-// Classify a wine product as red / white / sparkling / rosé
-function wineColorOf(p){
-  const s=((p.type||"")+" "+(p.name||"")+" "+((p.flavors||[]).join(" "))).toLowerCase();
-  if(/champagne|sparkling|prosecco|cava|crémant|cremant/.test(s))return "sparkling";
-  if(/rosé|rose\b/.test(s))return "rosé";
-  if(/cabernet|pinot noir|merlot|malbec|syrah|zinfandel|red blend|\bred\b|bold/.test(s))return "red";
-  return "white"; // chardonnay, sauv blanc, riesling, etc.
-}
-// Classify a spirit by type from its data
-function spiritTypeOf(p){
-  const s=((p.type||"")+" "+(p.name||"")+" "+((p.flavors||[]).join(" "))).toLowerCase();
-  if(/whisk|scotch|bourbon/.test(s))return "whisky";
-  if(/tequila/.test(s))return "tequila";
-  if(/mezcal/.test(s))return "mezcal";
-  if(/vodka/.test(s))return "vodka";
-  if(/\bgin\b/.test(s))return "gin";
-  if(/\brum\b/.test(s))return "rum";
-  if(/cognac|brandy/.test(s))return "cognac";
-  return "other";
-}
-function scoreProduct(p,intent){
-  let score=0;
-  if(intent.cat && p.cat===intent.cat)score+=40;
-  // Wine color: reward a match, strongly penalize the wrong color (keeps whites out of a "bold red" search)
-  if(intent.wineColor && p.cat==="Wine"){
-    if(wineColorOf(p)===intent.wineColor)score+=30; else score-=80;
-  }
-  // Spirit type: reward a match, strongly penalize wrong type (keeps tequila out of a "whisky" search)
-  if(intent.spiritType && p.cat==="Spirits"){
-    if(spiritTypeOf(p)===intent.spiritType)score+=30; else score-=80;
-  }
-  // Japanese origin preference (soft) — lifts Japanese products when asked
-  if(intent.wantsJapanese){
-    const isJp=/japan/.test(((p.region||"")+" "+(p.type||"")).toLowerCase());
-    if(isJp)score+=20; else if(p.cat==="Spirits")score-=25;
-  }
-  intent.flavors.forEach(f=>{ if((p.flavors||[]).includes(f)||(p.type||"").toLowerCase().includes(f))score+=14; });
-  // Free-text token overlap: lets INTENT-style queries ("driver to fix my
-  // slice", "waterproof jacket for tournaments") surface the right product for
-  // ANY industry, not just beverage keywords. Match query words against the
-  // product's name/type/notes/flavors/category.
-  const hay=((p.name||"")+" "+(p.type||"")+" "+(p.notes||"")+" "+(p.cat||"")+" "+((p.flavors||[]).join(" "))+" "+((p.pairings||[]).join(" "))).toLowerCase();
-  const STOP={the:1,a:1,an:1,to:1,for:1,my:1,me:1,of:1,and:1,or:1,with:1,in:1,on:1,under:1,best:1,good:1,some:1,that:1,this:1,i:1,need:1,want:1,find:1,looking:1,new:1,get:1};
-  ((intent.raw||"").toLowerCase().match(/[a-z]{3,}/g)||[]).forEach(w=>{ if(!STOP[w] && hay.includes(w))score+=12; });
-  if(intent.maxPrice && p.price<=intent.maxPrice)score+=18;
-  if(intent.maxPrice && p.price>intent.maxPrice)score-=60; // hard filter-ish
-  // Data 360 personalization: lift items matching the shopper's affinity SKUs.
-  // Sourced from config (profile.affinityIds) so it's per-customer, not wine.
-  const affIds=(APP_CONFIG.profile&&APP_CONFIG.profile.affinityIds)||[];
-  if(affIds.includes(p.id))score+=8;
-  score+=((Number(p.rating)||85)-85); // guard: missing rating must not make score NaN
-  return score;
+// Resolve a chip's pinned result products, in the order Gemini specified.
+// DETERMINISTIC: each chip carries resultIds:[...]; we render exactly those.
+function chipResults(chip){
+  const ids=(chip && Array.isArray(chip.resultIds)) ? chip.resultIds : [];
+  return ids.map(id=>byId(id)).filter(Boolean);
 }
 function runSearch(q){
   q=(q||"").trim(); if(!q)return;
   showSearchHints(false);
-  const intent=parseIntent(q);
-  let results;
-  if(intent.celeb){
-    // Celebrity search: surface that person's owned brand, ranked by rating.
-    results=intent.celeb.ids.map(id=>byId(id)).filter(Boolean)
-      .map(p=>({p,s:(Number(p.rating)||85)})).sort((a,b)=>b.s-a.s);
-    if(!results.length){ // celeb's product ids not in this catalog → don't dead-end
-      results=APP_CONFIG.products.map(p=>({p,s:scoreProduct(p,intent)})).sort((a,b)=>b.s-a.s).slice(0,3);
-      intent.celeb=null; // fall back to the standard intent explanation
-    }
-  } else {
-    results=APP_CONFIG.products
-      .map(p=>({p,s:scoreProduct(p,intent)}))
-      .filter(x=> intent.maxPrice ? byId(x.p.id).price<=intent.maxPrice : true)
-      .filter(x=> intent.cat ? x.p.cat===intent.cat : true)
-      .filter(x=> intent.wineColor && x.p.cat==="Wine" ? wineColorOf(x.p)===intent.wineColor : true)
-      .filter(x=> intent.spiritType && x.p.cat==="Spirits" ? spiritTypeOf(x.p)===intent.spiritType : true)
-      .sort((a,b)=>b.s-a.s);
-    if(!results.length){ // fall back to loose match if nothing passes hard filters
-      results=APP_CONFIG.products.map(p=>({p,s:scoreProduct(p,intent)})).sort((a,b)=>b.s-a.s).slice(0,3);
-    }
-  }
+  const chip=chipFor(q);
+  let results=chipResults(chip);
+  // Defensive only (never expected in the demo): if a chip's ids don't resolve,
+  // show the first few catalog items so the page is never empty.
+  if(!results.length) results=(APP_CONFIG.products||[]).slice(0,3);
   results=results.slice(0,6);
 
   // Profile is customer-variable and may be partial on a generated config —
@@ -487,39 +376,35 @@ function runSearch(q){
   document.getElementById("ssQuery").textContent=`"${q}"`;
   document.getElementById("ssMeta").textContent=`${results.length} intent-matched results · ranked for ${profName} (${profTier})`;
 
-  // signals
-  const sigs=[];
-  if(intent.celeb){
-    const celebCat=(byId(intent.celeb.ids&&intent.celeb.ids[0])||{}).cat;
-    sigs.push(`entity: person recognized`);
-    sigs.push(`brand: ${intent.celeb.brand}`);
-    if(celebCat)sigs.push(`category: ${celebCat}`);
-    sigs.push(`profile: ${profTier} tier`);
-  } else {
-    if(intent.cat)sigs.push(`category: ${intent.cat}`);
-    intent.flavors.slice(0,4).forEach(f=>sigs.push(`taste: ${f}`));
-    if(intent.maxPrice)sigs.push(`price ≤ $${intent.maxPrice}`);
-    sigs.push(`profile: ${profTier} tier`);
-    sigs.push(`profile: your purchase history`);
+  // Explanation signals: prefer the chip's own signals (Gemini-authored so they
+  // describe the ACTUAL query), else derive a couple from the results.
+  let sigs=(chip && Array.isArray(chip.signals) && chip.signals.length) ? chip.signals.slice(0,4) : [];
+  if(!sigs.length){
+    const cat=(results[0]||{}).cat;
+    if(cat) sigs.push(`category: ${cat}`);
+    const maxPrice=results.reduce((m,p)=>Math.max(m,Number(p.price)||0),0);
+    if(maxPrice) sigs.push(`price ≤ $${Math.ceil(maxPrice/10)*10}`);
   }
-  document.getElementById("ssExplain").innerHTML= intent.celeb
-    ? `${intent.celeb.blurb}
-     <div class="ss-signals">${sigs.map(s=>`<span class="sig"><i class="fa-solid fa-check"></i> ${esc(s)}</span>`).join("")}</div>`
-    : `<b>Cimulate understood your intent</b> — not just keywords. It parsed the meaning of your query and ranked results by relevance to <b>${profName}'s unified profile</b>.
-     <div class="ss-signals">${sigs.map(s=>`<span class="sig"><i class="fa-solid fa-check"></i> ${esc(s)}</span>`).join("")}</div>`;
+  sigs.push(`profile: ${profTier} tier`);
+  sigs.push(`profile: your purchase history`);
+  document.getElementById("ssExplain").innerHTML=
+    `<b>Cimulate understood your intent</b> — not just keywords. It parsed the meaning of your query and ranked results by relevance to <b>${esc(profName)}'s unified profile</b>.
+     <div class="ss-signals">${sigs.map(s=>`<span class="sig"><i class="fa-solid fa-check"></i> ${esc(String(s))}</span>`).join("")}</div>`;
 
   document.getElementById("ssGrid").innerHTML=results.map((x,i)=>
-    productCardHTML(x.p,{rankTag:i===0?`Top match for ${tokens().firstName}`:i===1?"Strong match":""})).join("");
+    productCardHTML(x,{rankTag:i===0?`Top match for ${tokens().firstName}`:i===1?"Strong match":""})).join("");
 
-  // Facet rail (nike.com-style refinements — reflect the parsed intent).
-  // Categories are derived from the live catalog so ANY customer's categories
-  // (clubs/apparel/… for a golf retailer, etc.) render — never hardcoded wine.
-  const cats=catalogCats();
+  // Facet rail (nike.com-style refinements). Categories are derived from the
+  // pinned results so the refinements reflect what's actually shown.
+  const cats=[]; results.forEach(p=>{ if(p.cat && !cats.includes(p.cat)) cats.push(p.cat); });
+  const topCat=cats[0]||"";
+  const maxPrice=results.reduce((m,p)=>Math.max(m,Number(p.price)||0),0);
+  const priceCap=maxPrice?Math.ceil(maxPrice/10)*10:100;
   const facetHTML=`
     <h4>Refine</h4>
-    ${cats.map(c=>`<label class="facet ${intent.cat===c?'on':''}"><span><input type="checkbox" ${intent.cat===c?'checked':''} onclick="return false"> ${c}</span><small>${APP_CONFIG.products.filter(p=>p.cat===c).length}</small></label>`).join("")}
+    ${cats.map(c=>`<label class="facet ${c===topCat?'on':''}"><span><input type="checkbox" ${c===topCat?'checked':''} onclick="return false"> ${esc(c)}</span><small>${results.filter(p=>p.cat===c).length}</small></label>`).join("")}
     <h4>Price</h4>
-    <label class="facet ${intent.maxPrice?'on':''}"><span><input type="checkbox" ${intent.maxPrice?'checked':''} onclick="return false"> Under $${intent.maxPrice||100}</span></label>
+    <label class="facet on"><span><input type="checkbox" checked onclick="return false"> Under $${priceCap}</span></label>
     <h4>Ranked for</h4>
     <label class="facet on"><span><input type="checkbox" checked onclick="return false"> ${esc(profName)} · ${esc(profTier)}</span></label>`;
   const fEl=document.getElementById("ssFacets"); if(fEl)fEl.innerHTML=facetHTML;

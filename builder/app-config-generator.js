@@ -341,21 +341,37 @@
     // keyed to that chip's meaningful words so it always routes to a reply.
     const somm = normSommIntents(found.sommIntents);
     const greet = arr(found.greetChips);
-    const CHIP_STOP = { a:1, an:1, the:1, my:1, me:1, for:1, to:1, of:1, and:1, or:1, is:1, it:1, in:1, on:1, at:1, with:1, your:1, you:1, i:1, do:1, does:1, can:1, help:1, please:1, get:1, show:1, find:1, some:1, something:1, want:1, need:1, like:1, how:1 };
+    // Mirror cimulate/app.js SOMM_STOP: articles + generic CTA verbs/nouns that
+    // carry no intent signal, so coverage/keys never hinge on them.
+    const CHIP_STOP = { a:1, an:1, the:1, my:1, me:1, for:1, to:1, of:1, and:1, or:1, is:1, it:1, in:1, on:1, at:1, with:1, your:1, you:1, i:1, do:1, does:1, can:1, help:1, please:1, get:1, show:1, find:1, some:1, something:1, want:1, need:1, like:1, how:1, book:1, booking:1, reserve:1, reservation:1, schedule:1, appointment:1, session:1, set:1, up:1, today:1, now:1 };
     const chipWords = function (q) {
       return String(q || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(function (w) { return w && !CHIP_STOP[w]; });
+    };
+    // Document frequency of a word across all intents' keys — used to decide if
+    // an overlap is DISTINCTIVE (rare) vs. incidental (a generic word like
+    // "book"/"session" shared by many intents). Mirrors the runtime matcher in
+    // cimulate/app.js so "covered" here means the same thing it does at click.
+    const wordDf = function (w) {
+      let n = 0;
+      for (const it of somm) { if ((it.keys || []).join(" ").toLowerCase().indexOf(w) >= 0) n++; }
+      return n;
     };
     const coveredBy = function (q) {
       const t = " " + String(q || "").toLowerCase().replace(/[^a-z0-9$ ]/g, " ").replace(/\s+/g, " ").trim() + " ";
       const words = chipWords(q);
       for (const it of somm) {
+        // Phrase match: an intent key appears verbatim in the chip query.
         for (const k of (it.keys || [])) {
           const kk = String(k || "").toLowerCase();
           if (kk && t.indexOf(" " + kk + " ") >= 0) return true;
         }
-        // token-overlap: chip shares a meaningful word with this intent's keys
-        const hay = (it.keys || []).join(" ").toLowerCase();
-        for (const w of words) { if (hay.indexOf(w) >= 0) return true; }
+      }
+      // Distinctive-word match: the chip shares a RARE word (in ≤2 intents) with
+      // some intent. A match on only generic words is NOT coverage — that chip
+      // gets its own catch-all so it can't mis-route (the launch-monitor bug).
+      for (const w of words) {
+        if (wordDf(w) === 0 || wordDf(w) > 2) continue;
+        for (const it of somm) { if ((it.keys || []).join(" ").toLowerCase().indexOf(w) >= 0) return true; }
       }
       return false;
     };
@@ -366,8 +382,15 @@
       if (coveredBy(q)) return;
       const words = chipWords(q);
       if (!words.length) return;
+      // Key the catch-all on the full phrase (guarantees a phrase match for this
+      // exact chip) plus its rarest word (so a natural variant still routes here
+      // via the distinctive-word path). Avoid keying on every generic word,
+      // which would pollute df and let unrelated chips mis-route here.
+      const rarest = words.slice().sort(function (a, b) { return wordDf(a) - wordDf(b); })[0];
+      const keys = [String(q).toLowerCase().trim()];
+      if (rarest && keys.indexOf(rarest) < 0) keys.push(rarest);
       somm.push({
-        keys: words.concat([String(q).toLowerCase().trim()]),
+        keys: keys,
         text: "I can help with that. Tell me a bit more and I'll take care of it, or ask me to recommend something for you.",
         recIds: products.slice(0, 2).map(function (p) { return p.id; }).filter(Boolean),
       });
@@ -388,19 +411,11 @@
       storeLocation: pick(found.storeLocation, (found.customer && found.customer.location) || "Your City"),
       // Legacy top-level mirrors (kept so older readers/exports don't break).
       heroHeadline: pick(found.heroHeadline, cp("heroHeadline", "Find your next favorite " + unitNoun)),
-      // Normalize search chips: Gemini returns plain query strings, but the
-      // template expects { q, icon, tag } objects. Use a neutral magnifying-
-      // glass icon (never a wine-bottle/beer icon) so generated chips render.
-      searchChips: (function () {
-        const fromGemini = arr(found.searchChips).map(function (c) {
-          if (c && typeof c === "object") {
-            return { q: pick(c.q, c.query || c.label || ""), icon: pick(c.icon, "fa-magnifying-glass"), tag: pick(c.tag, "") };
-          }
-          return { q: String(c || ""), icon: "fa-magnifying-glass", tag: "" };
-        }).filter(function (c) { return c.q; });
-        // Fall back to catalog-derived chips so no tier ever renders empty.
-        return fromGemini.length ? fromGemini : deriveSearchChips(products);
-      })(),
+      // Deterministic search chips: each chip PINS exactly 3 catalog products
+      // via resultIds (this is a scripted demo — clicking shows exactly those).
+      // normalizeSearchChips validates ids against the catalog, pads to 3, and
+      // guarantees 4 chips so the search never returns off-topic results.
+      searchChips: normalizeSearchChips(found.searchChips, products),
       // Prefer Gemini's nav labels; else derive from the live catalog so the
       // dropdown never falls back to the template's hardcoded wine categories.
       navCategories: arr(found.navCategories).length ? arr(found.navCategories) : deriveNavCategories(products),
@@ -522,6 +537,52 @@
   // preview, non-Gemini fallback, or a Gemini response that omitted chips) has
   // working, category-appropriate chips — never empty, never wine-locked.
   // `products` is the mapped cimulate catalog ([{cat, name, price, ...}]).
+  // Deterministic search chips. This is a scripted demo: each chip pins EXACTLY
+  // 3 catalog products (resultIds) and clicking it shows exactly those. We take
+  // Gemini's chips, validate/pad their ids against the real catalog, and always
+  // return 4 chips so the search page is never empty or off-topic. If Gemini
+  // gave nothing usable, fall back to catalog-derived chips.
+  function normalizeSearchChips(raw, products) {
+    const prods = arr(products);
+    const validId = {};
+    prods.forEach(function (p) { if (p && p.id) validId[p.id] = true; });
+    // Pad a chip's resultIds up to 3 with catalog products not already used by
+    // that chip, preferring same-category items so the pinned set stays on-topic.
+    function padTo3(ids, preferCat) {
+      const out = ids.filter(function (id) { return validId[id]; });
+      const used = {}; out.forEach(function (id) { used[id] = true; });
+      if (preferCat) {
+        prods.forEach(function (p) { if (out.length < 3 && p.id && !used[p.id] && p.cat === preferCat) { out.push(p.id); used[p.id] = true; } });
+      }
+      prods.forEach(function (p) { if (out.length < 3 && p.id && !used[p.id]) { out.push(p.id); used[p.id] = true; } });
+      return out.slice(0, 3);
+    }
+    let chips = arr(raw).map(function (c) {
+      if (!c || typeof c !== "object") return null;
+      const q = pick(c.q, c.query || c.label || "");
+      if (!q) return null;
+      const ids = arr(c.resultIds).length ? arr(c.resultIds) : arr(c.ids);
+      const first = prods.filter(function (p) { return ids.indexOf(p.id) >= 0; })[0];
+      return {
+        label: pick(c.label, q),
+        q: q,
+        icon: pick(c.icon, "fa-magnifying-glass"),
+        resultIds: padTo3(ids, first ? first.cat : ""),
+        signals: arr(c.signals).map(String),
+      };
+    }).filter(Boolean).slice(0, 4);
+    // Ensure 4 chips. Backfill from catalog-derived intent chips, giving each a
+    // distinct pinned trio so no two chips show identical results.
+    if (chips.length < 4) {
+      const derived = deriveSearchChips(prods);
+      for (let i = 0; i < derived.length && chips.length < 4; i++) {
+        const d = derived[i];
+        const anchor = prods.filter(function (p) { return (d.q || "").toLowerCase().indexOf((p.name || "").toLowerCase()) >= 0; })[0];
+        chips.push({ label: d.q, q: d.q, icon: d.icon || "fa-magnifying-glass", resultIds: padTo3(anchor ? [anchor.id] : [], anchor ? anchor.cat : ""), signals: [] });
+      }
+    }
+    return chips.slice(0, 4);
+  }
   // Build INTENT-STYLE search chips (natural-language shopper goals, not bare
   // category/SKU names) for the deterministic (non-Gemini) tiers. Each chip is
   // grounded in a real product so clicking it returns results. Gemini's own
