@@ -19,6 +19,7 @@ window.APP_CONFIG = {
       primary:   "#008573",
       primaryDk: "#016d5e",
       primaryDeep: "#013b35",
+      primaryLt: "#12b99e",
       accent:    "#b8975a",
       promo:     "#e01a2b",
       promoDk:   "#b8121f",
@@ -531,13 +532,44 @@ window.productSVG = function(p, w=80, h=232){
   return `<svg viewBox="0 0 80 232" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(p.name)}">${defs}${art}</svg>`;
 };
 
-/* Photo (from APP_CONFIG.productImages) with procedural-SVG fallback */
+/* Neutral shopping-cart placeholder — shown in the GENERIC/PREVIEW app before
+   AI product photos are generated. On-brand accent, no wine/product silhouette.
+   Once AI runs, real photos (productImages) replace this. */
+window.cartPlaceholderSVG = function(p, w=80, h=232){
+  const B=(APP_CONFIG.brand&&APP_CONFIG.brand.colors)||{};
+  const bg=B.primary||"#083b36", fg=B.accent||"#e9c46a";
+  const uid="ph"+String(p&&p.id||"x").replace(/\W/g,"");
+  // Heroicons shopping-cart (outline), centered in an on-brand rounded tile.
+  return `<svg viewBox="0 0 80 232" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Product image coming soon">
+    <defs><linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${bg}" stop-opacity=".92"/><stop offset="1" stop-color="${bg}"/>
+    </linearGradient></defs>
+    <rect x="10" y="46" width="60" height="140" rx="12" fill="url(#${uid})"/>
+    <g transform="translate(24,96) scale(1.35)" fill="none" stroke="${fg}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/>
+    </g>
+  </svg>`;
+};
+
+/* Photo (from APP_CONFIG.productImages) with fallback. In a generic/preview
+   config (before AI), show the neutral shopping-cart placeholder; otherwise the
+   branded procedural silhouette. A generated AI photo always wins. */
 window.productImage = function(p, w, h){
   const src = (APP_CONFIG.productImages||{})[p.id];
-  return src
-    ? `<img class="prod-img" src="${src}" width="${w}" height="${h}" alt="${esc(p.name)}" loading="lazy"/>`
-    : productSVG(p, w, h);
+  if(src) return `<img class="prod-img" src="${src}" width="${w}" height="${h}" alt="${esc(p.name)}" loading="lazy"/>`;
+  if(APP_CONFIG._placeholder) return cartPlaceholderSVG(p, w, h);
+  return productSVG(p, w, h);
 };
+
+/* Lighten a #rrggbb hex toward white by amt (0..1). Used to derive a gradient
+   highlight when the config only supplies a base primary. */
+function lightenHex(hex, amt){
+  const m=String(hex||"").trim().replace(/^#/,"");
+  if(!/^[0-9a-fA-F]{6}$/.test(m)) return hex;
+  const n=(i)=>parseInt(m.slice(i,i+2),16);
+  const up=(v)=>Math.round(v+(255-v)*amt).toString(16).padStart(2,"0");
+  return "#"+up(n(0))+up(n(2))+up(n(4));
+}
 
 /* Apply per-customer brand colors to the CSS --app-* tokens */
 window.applyBrandColors = function(){
@@ -546,6 +578,11 @@ window.applyBrandColors = function(){
   if(c.primary)     r.setProperty("--app-primary",c.primary);
   if(c.primaryDk)   r.setProperty("--app-primary-dk",c.primaryDk);
   if(c.primaryDeep) r.setProperty("--app-primary-deep",c.primaryDeep);
+  // Lighter primary for gradient highlights (hero/badge/promo/cocktail). Prefer
+  // an explicit primaryLt, else lighten the primary so it's never left teal.
+  if(c.primaryLt||c.primary){
+    r.setProperty("--app-primary-lt", c.primaryLt || lightenHex(c.primary, 0.30));
+  }
   if(c.accent)      r.setProperty("--app-accent",c.accent);
   if(c.promo)       r.setProperty("--app-promo",c.promo);
   if(c.promoDk)     r.setProperty("--app-promo-dk",c.promoDk);
@@ -626,9 +663,11 @@ window.applyBrandText = function(){
   // Search-hint chips (from searchChips)
   const chipsEl=document.getElementById("search-hint-chips");
   if(chipsEl && Array.isArray(APP_CONFIG.searchChips)){
+    // Pass the query via a data-attribute (HTML-attribute-escaped) and read it
+    // back in the handler — NOT interpolated into an inline JS string, which
+    // breaks on apostrophes/ampersands and silently kills the click.
     chipsEl.innerHTML = APP_CONFIG.searchChips.map(c=>{
-      const q=esc(String(c.q||"")).replace(/'/g,"\\'");
-      return `<div class="sh-chip" onclick="runSearch('${q}')"><i class="fa-solid ${esc(c.icon||"fa-magnifying-glass")}"></i> ${esc(c.q||"")}${c.tag?` <small>${esc(c.tag)}</small>`:""}</div>`;
+      return `<div class="sh-chip" data-q="${esc(String(c.q||""))}" onclick="runSearch(this.getAttribute('data-q'))"><i class="fa-solid ${esc(c.icon||"fa-magnifying-glass")}"></i> ${esc(c.q||"")}${c.tag?` <small>${esc(c.tag)}</small>`:""}</div>`;
     }).join("");
   }
   // Optional feature band (config-driven; hidden unless configured)

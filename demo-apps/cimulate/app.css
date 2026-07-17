@@ -8,6 +8,7 @@
   --app-primary:#008573;
   --app-primary-dk:#016d5e;
   --app-primary-deep:#013b35;
+  --app-primary-lt:#12b99e;   /* lighter primary for gradient highlights (set by applyBrandColors) */
   --app-accent:#b8975a;
   --app-promo:#e01a2b;
   --app-promo-dk:#b8121f;
@@ -59,7 +60,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none}
 /* Search (Cimulate) — teal pill */
 .search{flex:1;position:relative;max-width:560px}
 .search-inner{display:flex;align-items:center;background:#fff;border:2px solid var(--tw-teal);border-radius:24px;overflow:hidden}
-.search-ai-badge{display:flex;align-items:center;gap:5px;background:linear-gradient(135deg,#00695c,#00a58c);color:#fff;font-size:10px;font-weight:700;letter-spacing:.4px;padding:0 12px;height:40px;white-space:nowrap}
+.search-ai-badge{display:flex;align-items:center;gap:5px;background:linear-gradient(135deg,var(--tw-teal-dark),var(--app-primary-lt));color:#fff;font-size:10px;font-weight:700;letter-spacing:.4px;padding:0 12px;height:40px;white-space:nowrap}
 .search-ai-badge i{color:#ffe6a8}
 .search input{flex:1;border:none;outline:none;height:40px;padding:0 14px;font-size:14px;color:var(--ink)}
 .search .search-btn{background:var(--tw-teal);color:#fff;height:40px;width:52px;font-size:15px;border-radius:0 20px 20px 0}
@@ -98,7 +99,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none}
 .catnav a.deal:hover{border-bottom-color:var(--tw-red)}
 
 /* ---------- Hero / promo banner (teal, image-free) ---------- */
-.hero{background:linear-gradient(110deg,#02463f 0%,#017561 42%,#00a58c 78%,#12b99e 100%);color:#fff;overflow:hidden;position:relative}
+.hero{background:linear-gradient(110deg,var(--tw-teal-deep) 0%,var(--tw-teal-dark) 42%,var(--tw-teal) 78%,var(--app-primary-lt) 100%);color:#fff;overflow:hidden;position:relative}
 /* soccer-pitch mowing stripes */
 .hero::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
   background:repeating-linear-gradient(105deg,rgba(255,255,255,.055) 0 46px,rgba(255,255,255,0) 46px 92px);}
@@ -221,14 +222,14 @@ section.block.soft{background:var(--bg-soft)}
 /* Promo tiles (Summer Savings) */
 .promo-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .promo-tile{border-radius:10px;padding:26px 24px;color:#fff;min-height:120px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
-.promo-tile.teal{background:linear-gradient(120deg,#0a7d6c,#00a58c)}
+.promo-tile.teal{background:linear-gradient(120deg,var(--tw-teal-dark),var(--app-primary-lt))}
 .promo-tile.red{background:linear-gradient(120deg,#e01a2b,#ff5a4d)}
 .promo-tile.gold{background:linear-gradient(120deg,#c99a3a,#e4bd5f)}
 .promo-tile b{font-size:22px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;line-height:1}
 .promo-tile small{font-size:12px;opacity:.95;margin-top:6px;font-weight:700;letter-spacing:1px}
 
 /* Cocktail Central band */
-.cocktail-band{background:linear-gradient(100deg,#0a7d6c,#00a58c);color:#fff;text-align:center;padding:18px;font-family:"Fraunces",Georgia,serif;font-size:26px;font-weight:700;font-style:italic;border-radius:10px;margin-bottom:22px}
+.cocktail-band{background:linear-gradient(100deg,var(--tw-teal-dark),var(--app-primary-lt));color:#fff;text-align:center;padding:18px;font-family:"Fraunces",Georgia,serif;font-size:26px;font-weight:700;font-style:italic;border-radius:10px;margin-bottom:22px}
 
 /* ---------- Footer (charcoal) ---------- */
 footer{background:var(--charcoal);color:#b7bbbd;margin-top:36px;padding:44px 0 22px}
@@ -332,7 +333,7 @@ footer{background:var(--charcoal);color:#b7bbbd;margin-top:36px;padding:44px 0 2
 .sp-title .q-quote{color:var(--tw-teal);font-style:italic}
 .sp-meta{font-size:13px;color:var(--ink-soft)}
 .sp-back{white-space:nowrap}
-.ss-cimbadge{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#0a5d54,#12857a);color:#fff;font-size:11px;font-weight:700;padding:6px 12px;border-radius:20px}
+.ss-cimbadge{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,var(--tw-teal-dark),var(--app-primary-lt));color:#fff;font-size:11px;font-weight:700;padding:6px 12px;border-radius:20px}
 .ss-cimbadge i{color:#ffe6a8}
 .sp-body{display:grid;grid-template-columns:270px 1fr;gap:28px;margin-top:24px;align-items:start}
 .sp-explain{background:#f0f6f5;border:1px solid #cfe6e1;border-left:4px solid var(--tw-teal);padding:16px 18px;border-radius:10px;font-size:13px;line-height:1.5}

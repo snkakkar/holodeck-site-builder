@@ -2538,10 +2538,15 @@
       // spend so look/feel iterations stay cheap.
       const genRow = el("div", { class: "bx-row bx-mt-12" });
       if (slice._generating) {
-        // While busy, show a single disabled label reflecting the running tier.
+        // While busy, show a disabled label for the running tier + a live
+        // Cancel button so the SE can stop a premature/unwanted AI run. Cancel
+        // aborts pending image calls and restores the pre-run version.
         const busy = btn(slice._genMode === "ai" ? "⏳ Generating with AI…" : "⏳ Building preview…", "bx-btn-primary", function () {});
         busy.setAttribute("disabled", "disabled");
         genRow.appendChild(busy);
+        genRow.appendChild(btn("✕ Cancel", "bx-btn-secondary", function () {
+          cancelAppGen(def, slice);
+        }));
       } else if (!slice.extracted) {
         // Nothing generated yet → the cheap preview is the primary action.
         genRow.appendChild(btn("✨ Preview this app", "bx-btn-primary", function () {
@@ -2692,6 +2697,21 @@
     slice._genMode = mode;
     slice._progress = 0;
     slice._genStatus = mode === "ai" ? "Preparing AI generation…" : "Starting preview…";
+    // Cancellation support: an AbortController lets the SE stop an in-flight
+    // AI run (e.g. started prematurely). We also snapshot the pre-run tier
+    // state so a cancel restores exactly what the card showed before.
+    const controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    slice._abort = controller;
+    slice._preRun = {
+      config: slice.config,
+      productImages: slice.productImages,
+      extracted: slice.extracted,
+      _previewToken: slice._previewToken,
+      _previewOnly: slice._previewOnly,
+      _aiGenerated: slice._aiGenerated,
+      _genStatus: "",
+    };
+    slice._cancelled = false;
     renderMain(); // reflect the busy state (and render the progress bar) immediately
 
     // The preview tier is a single text stage → the whole bar is that stage.
@@ -2717,7 +2737,14 @@
 
     // Finish + persist whichever tier we ran.
     function finish(config, tier) {
+      // If the SE cancelled mid-run, cancelAppGen already restored the prior
+      // state — don't let a late-resolving promise clobber it.
+      if (slice._cancelled) return;
       setProgress(1, "Done.");
+      // Product imagery policy: show neutral shopping-cart placeholders until the
+      // AI photo pass runs. The preview (text-only) tier keeps _placeholder; the
+      // AI tier clears it so the branded silhouette / real photos show through.
+      config._placeholder = tier !== "ai";
       slice.config = config;
       slice.extracted = true;
       slice._previewToken = stashPreviewConfig(def.id, config);
@@ -2727,21 +2754,32 @@
       slice._genMode = null;
       slice._progress = 0;
       slice._genStatus = "";
+      slice._abort = null;
+      slice._preRun = null;
       commit();
       renderMain(); // iframe now points at ?holo=<token> → customer data
     }
     function fail(err) {
+      if (slice._cancelled) return; // cancel path already restored state
       slice._generating = false;
       slice._genMode = null;
       slice._progress = 0;
       slice._genStatus = "Generation failed: " + ((err && err.message) || err);
+      slice._abort = null;
+      slice._preRun = null;
       renderMain();
     }
 
     // The per-SKU photo pass (AI tier only). Best-effort; SVG fallback per item.
     function runPhotos(config) {
       photoStatus("Generating product photos…", 0);
-      return HOLO_APPFOUND.generateProductPhotos(def.id, config, { onStatus: photoStatus })
+      const proj = (app.state && app.state.project) || {};
+      return HOLO_APPFOUND.generateProductPhotos(def.id, config, {
+        onStatus: photoStatus,
+        industry: proj.industry || "",
+        customerName: proj.customerName || "",
+        signal: controller ? controller.signal : null,
+      })
         .then(function (images) {
           if (images && Object.keys(images).length) {
             config.productImages = Object.assign({}, config.productImages, images);
@@ -2780,6 +2818,30 @@
       : "Generate with AI? This runs per-product image generation and spends image-generation tokens. (Your preview stays if you cancel.)";
     if (!window.confirm(msg)) return;
     generateApp(def, slice, "ai");
+  }
+
+  // Cancel an in-flight generation (usually a premature AI run). Aborts any
+  // pending image calls and restores the exact tier state the card had before
+  // the run started — so cancelling never loses the previous preview/AI result.
+  function cancelAppGen(def, slice) {
+    if (!slice._generating) return;
+    slice._cancelled = true;
+    try { if (slice._abort) slice._abort.abort(); } catch (_) {}
+    const prev = slice._preRun || {};
+    slice.config        = prev.config != null ? prev.config : slice.config;
+    slice.productImages = prev.productImages != null ? prev.productImages : slice.productImages;
+    slice.extracted     = !!prev.extracted;
+    slice._previewToken = prev._previewToken || null;
+    slice._previewOnly  = !!prev._previewOnly;
+    slice._aiGenerated  = !!prev._aiGenerated;
+    slice._generating   = false;
+    slice._genMode      = null;
+    slice._progress     = 0;
+    slice._genStatus    = "Cancelled — kept the previous version.";
+    slice._abort        = null;
+    slice._preRun       = null;
+    commit();
+    renderMain();
   }
 
   function viewCxComponents() {

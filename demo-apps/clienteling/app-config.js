@@ -447,15 +447,30 @@ window.getProductSVG = function (p, w = 80, h = 220) {
 /* Back-compat alias — older call sites / exports may reference getBottleSVG. */
 window.getBottleSVG = window.getProductSVG;
 
-/* Product image resolver — uses a generated photo when present in
-   APP_CONFIG.productImages, otherwise falls back to the procedural SVG.
+/* Neutral shopping-cart placeholder — shown in the GENERIC/PREVIEW app before
+   AI product photos are generated. On-brand, no product silhouette. Once AI
+   runs, real photos (productImages) replace this. */
+window.cartPlaceholderSVG = function (p, w = 80, h = 220) {
+  const c = (window.APP_CONFIG.brand && window.APP_CONFIG.brand.colors) || {};
+  const bg = c.primary || "#334155", fg = c.accent || c.primaryLt || "#94a3b8";
+  const uid = "phc" + String((p && p.id) || "x").replace(/\W/g, "");
+  return '<svg viewBox="0 0 80 240" width="' + w + '" height="' + h + '" xmlns="http://www.w3.org/2000/svg" aria-label="Product image coming soon">'
+    + '<defs><linearGradient id="' + uid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + bg + '" stop-opacity=".92"/><stop offset="1" stop-color="' + bg + '"/></linearGradient></defs>'
+    + '<rect x="10" y="44" width="60" height="152" rx="12" fill="url(#' + uid + ')"/>'
+    + '<g transform="translate(24,100) scale(1.4)" fill="none" stroke="' + fg + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/></g></svg>';
+};
+
+/* Product image resolver — a generated photo (productImages) always wins. In a
+   generic/preview config (before AI), show the neutral shopping-cart
+   placeholder; otherwise the branded procedural silhouette.
    Signature mirrors getProductSVG so call sites keep width/height args. */
 window.productImage = function (p, w, h) {
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const src = (window.APP_CONFIG.productImages || {})[p.id];
-  return src
-    ? '<img class="prod-img" src="' + src + '" alt="' + esc(p.name) + '" style="max-width:100%;max-height:100%;object-fit:contain"/>'
-    : window.getProductSVG(p, w, h);
+  if (src) return '<img class="prod-img" src="' + src + '" alt="' + esc(p.name) + '" style="max-width:100%;max-height:100%;object-fit:contain"/>';
+  if (window.APP_CONFIG._placeholder) return window.cartPlaceholderSVG(p, w, h);
+  return window.getProductSVG(p, w, h);
 };
 
 /* Apply per-customer brand colors to the CSS :root generic tokens. */

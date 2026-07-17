@@ -40,14 +40,22 @@
     // Commerce
     "cart": "commerce", "checkout": "commerce", "storefront": "commerce",
     "product recommendation": "commerce", "browse": "commerce", "ecommerce": "commerce",
+    "add to cart": "commerce", "product catalog": "commerce", "shopping": "commerce",
     // Loyalty
     "loyalty": "loyalty", "points": "loyalty", "member": "loyalty", "tier": "loyalty",
     // Service
     "case": "service", "service": "service", "contact center": "service",
     "support": "service",
     // Retail / store
-    "store": "retail_store", "associate": "retail_store", "clienteling": "retail_store",
-    "inventory": "retail_store", "pos": "retail_store",
+    // NOTE: "store" alone is a false-positive magnet ("Store Manager" is a
+    // venue role in many scripts), and "inventory" fires on kitchen/F&B
+    // ("Inventory Drop-In") — neither implies a clienteling/shop surface on
+    // its own. Only unambiguous store-associate / retail-shopping words map to
+    // retail_store; the weak words are dropped from the app-intent path.
+    "clienteling": "retail_store",
+    "store associate": "retail_store", "sales associate": "retail_store",
+    "guided selling": "retail_store",
+    "point of sale": "retail_store", "pos terminal": "retail_store",
     // Hospitality / Travel
     "guest": "hospitality", "booking": "hospitality", "reservation": "hospitality",
     "trip": "hospitality", "property": "hospitality", "concierge": "hospitality",
@@ -1230,13 +1238,32 @@
   // `evidence` powers the chips under a recommended card — it lists the
   // actual matched keywords, not the internal signal names.
   //
-  // Mapping rules:
-  //   clienteling — any `retail_store` signal (store / associate / clienteling
-  //                 / inventory / pos, or Retail industry).
-  //   cimulate    — `commerce` signal, OR (`agentforce` present AND a retail/
-  //                 consumer context), OR `retail_store`. This mirrors the
-  //                 concierge app: intent-aware commerce search + a shopper/
-  //                 service agent, which fits retail/consumer + agentic stories.
+  // These apps are catalog/shopping surfaces: cimulate is an e-commerce
+  // browse + concierge storefront, clienteling is a store-associate guided-
+  // selling tool. They only make sense when the story actually has a
+  // shopping/clienteling surface — NOT merely because a script happens to
+  // contain "store", "checkout", or "agent" (e.g. TopGolf's "Store Manager",
+  // bay-terminal "checkout", and Agentforce all fire the naive keyword map
+  // without any browse/catalog surface existing).
+  //
+  // So app intent requires a GENUINE shopping signal, established two ways:
+  //   • a strong shopping keyword actually present in the text
+  //     (browse, storefront, product catalog, ecommerce, add to cart,
+  //      product recommendation, guided selling, clienteling), or
+  //   • an explicit Retail / Consumer Goods industry selection.
+  // "checkout"/"cart"/"store"/"inventory" alone no longer qualify.
+  const STRONG_SHOP_KEYWORDS = [
+    "browse", "storefront", "ecommerce", "product catalog", "product recommendation",
+    "add to cart", "shopping",
+  ];
+  const STRONG_CLIENTELING_KEYWORDS = [
+    "clienteling", "store associate", "sales associate", "guided selling",
+  ];
+  const SHOP_INDUSTRIES = ["Retail", "Consumer Goods"];
+
+  // Mapping rules (only reached once a genuine shopping context is confirmed):
+  //   clienteling — retail_store signal.
+  //   cimulate    — commerce or retail_store signal.
   const APP_SIGNAL_RULES = {
     clienteling: { any: ["retail_store"] },
     cimulate:    { any: ["commerce", "retail_store"], allGroups: [["agentforce", "retail_store"], ["agentforce", "commerce"]] },
@@ -1264,9 +1291,22 @@
       }).join(" "),
     ].join(" ").toLowerCase();
 
+    const industryIsShop = SHOP_INDUSTRIES.indexOf(ctx.industry) !== -1;
+
+    // A genuine shopping surface must be present. An explicit Retail /
+    // Consumer Goods industry counts; otherwise the text must contain a
+    // strong shopping/clienteling keyword. Incidental "store"/"checkout"/
+    // "agent" do NOT qualify — that's what caused false-positive recos.
+    const hasStrongShopKeyword = STRONG_SHOP_KEYWORDS.some(function (kw) {
+      return freeText.indexOf(kw) !== -1;
+    });
+    const hasStrongClientelingKeyword = STRONG_CLIENTELING_KEYWORDS.some(function (kw) {
+      return freeText.indexOf(kw) !== -1;
+    });
+    const shopContext = industryIsShop || hasStrongShopKeyword || hasStrongClientelingKeyword;
+
     const isRetailContext =
-      (ctx.industry === "Retail" || ctx.industry === "Consumer Goods") ||
-      !!map.retail_store || !!map.commerce;
+      industryIsShop || !!map.retail_store || !!map.commerce;
 
     function evidenceFor(signals) {
       const kws = keywordsForSignals(signals);
@@ -1288,6 +1328,16 @@
       const rule = APP_SIGNAL_RULES[appId];
       let weight = 0;
       let hit = false;
+      // Gate 1: no genuine shopping surface → never auto-recommend either app.
+      if (!shopContext) {
+        return { hasSignal: false, weight: 0, evidence: [] };
+      }
+      // Gate 2 (clienteling only): the store-associate tool needs a
+      // clienteling-specific reason, not merely e-commerce browsing. Require
+      // a Retail/Consumer Goods industry or a store-associate keyword.
+      if (appId === "clienteling" && !industryIsShop && !hasStrongClientelingKeyword) {
+        return { hasSignal: false, weight: 0, evidence: [] };
+      }
       // "any": a single matching signal triggers.
       (rule.any || []).forEach(function (sig) {
         if (map[sig]) { hit = true; weight += map[sig]; }

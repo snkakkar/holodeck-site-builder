@@ -25,7 +25,17 @@
     const rules = global.HOLO_RULES;
     const c = (rules && rules.stateToCtx) ? rules.stateToCtx(state) : {};
     const p = (state && state.project) || {};
+    // Flat brand colors from project setup (state.brand.{primary,secondary,
+    // accent}Color). The config generator derives the full theme palette from
+    // these so both apps recolor per-customer instead of staying teal.
+    const b = (state && state.brand) || {};
+    const flatColors = {
+      primary: b.primaryColor || "",
+      secondary: b.secondaryColor || "",
+      accent: b.accentColor || "",
+    };
     return {
+      flatColors: flatColors,
       customerName: c.customerName || p.customerName || "the customer",
       industry: c.industry || p.industry || "Retail",
       website: c.website || p.website || "",
@@ -170,12 +180,16 @@
 
   // A neutral 6-SKU seed catalog when nothing else is available. No wine terms.
   function seedCatalog(cx) {
-    const name = cx.customerName;
+    // When there's no customer yet (generic first preview) use neutral wording
+    // so SKU names don't render with a leading space / empty brand.
+    const name = cx.customerName || "";
+    const label = name ? (name + " ") : "";
+    const owner = name || "our";
     const out = [];
     for (let i = 1; i <= 6; i++) {
       out.push({
         id: "sku" + i,
-        name: name + " Signature Item " + i,
+        name: label + "Signature Item " + i,
         category: "Featured",
         cat: "Featured",
         type: "Signature",
@@ -184,7 +198,7 @@
         price: 20 + i * 15,
         rating: 88 + (i % 5),
         score: 88 + (i % 5),
-        notes: "A popular " + name + " selection — placeholder copy until generated.",
+        notes: "A popular " + owner + " selection — placeholder copy until generated.",
         pairings: [],
         foodPairings: [],
         flavors: [],
@@ -213,7 +227,8 @@
       if (!(state.retailCatalog && state.retailCatalog.length) && shared.length) {
         state.retailCatalog = shared;
       }
-      const brand = (state.brand && state.brand.colors) ? { name: cx.customerName, colors: state.brand.colors } : { name: cx.customerName };
+      const brand = { name: cx.customerName, flatColors: cx.flatColors };
+      if (state.brand && state.brand.colors) brand.colors = state.brand.colors;
       const appgen = APPGEN();
       const config = appId === "clienteling"
         ? appgen.buildClientelingConfig(found, brand, shared)
@@ -260,6 +275,8 @@
   function generateProductPhotos(appId, config, opts) {
     opts = opts || {};
     const status = opts.onStatus || function () {};
+    const signal = opts.signal || null; // AbortSignal — lets the caller cancel mid-run
+    const aborted = function () { return !!(signal && signal.aborted); };
     const gen = global.HOLO_GEMINI;
     const products = (config && (config.products || config.catalog)) || [];
     if (!gen || !gen.generateImage || !products.length) return Promise.resolve({});
@@ -270,11 +287,13 @@
       const images = {};
       let done = 0;
       // Sequential to respect the server rate limit; progress per item. `frac`
-      // is this stage's own 0→1 (photos completed / total).
+      // is this stage's own 0→1 (photos completed / total). If the caller
+      // aborts, we stop issuing new image calls and return what we have.
       return products.reduce(function (chain, p) {
         return chain.then(function () {
+          if (aborted()) return; // cancelled — issue no further image calls
           status("Generating photo " + (done + 1) + " of " + total + "…", done / total);
-          return gen.generateImage({ prompt: photoPrompt(p, config) })
+          return gen.generateImage({ prompt: photoPrompt(p, config, opts) })
             .then(function (res) {
               const url = (res && (res.url || res.signedUrl || res)) || null;
               if (url && typeof url === "string") images[p.id] = url;
@@ -283,21 +302,30 @@
             .then(function () { done++; });
         });
       }, Promise.resolve()).then(function () {
+        if (aborted()) { status("Cancelled.", done / total); return images; }
         status("Generated " + Object.keys(images).length + " of " + total + " photos.", 1);
         return images;
       });
     });
   }
 
-  function photoPrompt(p, config) {
+  function photoPrompt(p, config, opts) {
+    opts = opts || {};
     const brand = (config && config.brand) || {};
     const name = p.name || "product";
     const cat = p.cat || p.category || p.variety || "";
+    const brandName = opts.customerName || brand.logoTop || brand.name || "";
+    const industry = opts.industry || "";
+    // Is this genuinely a beverage? Only then may the image show a bottle/glass.
+    // Otherwise the photo must depict the actual product in the customer's
+    // category — never default to wine/bottles for non-beverage retailers.
+    const bevCat = /wine|spirit|beer|liquor|whisk|vodka|tequila|champagne|cocktail|beverage|drink/i.test(cat + " " + name);
     return [
-      "Photorealistic studio product photo of \"" + name + "\"" + (cat ? (" (" + cat + ")") : "") + ",",
-      "centered on a clean neutral seamless background, soft even lighting, subtle reflection,",
+      "Photorealistic studio product photo of \"" + name + "\"" + (cat ? (" (a " + cat + " product)") : "") + ",",
+      industry ? ("a real retail product sold by a " + industry + " retailer" + (brandName ? (" (" + brandName + ")") : "") + ".") : "",
+      "Centered on a clean neutral seamless background, soft even lighting, subtle reflection,",
       "e-commerce hero shot, no text overlay, no watermark, high detail.",
-      brand.logoTop ? ("Brand context: " + brand.logoTop + ".") : "",
+      bevCat ? "" : "IMPORTANT: This is NOT a beverage. Do NOT depict a wine bottle, liquor bottle, glass, or any alcohol — show the actual " + (cat || "retail") + " item itself.",
     ].filter(Boolean).join(" ");
   }
 
@@ -321,11 +349,18 @@
     }
     const found = fallbackFoundation(appId, cx);
     const shared = found.catalog || [];
-    const brand = { name: cx.customerName || "" };
+    // Keep the customer's brand colors even in the generic preview so the flow
+    // is shown ON-BRAND from the very first (pre-Gemini) render.
+    const brand = { name: cx.customerName || "", flatColors: cx.flatColors };
     const appgen = APPGEN();
-    return appId === "clienteling"
+    const config = appId === "clienteling"
       ? appgen.buildClientelingConfig(found, brand, shared)
       : appgen.buildCimulateConfig(found, brand, shared);
+    // Mark the generic/preview config so the app shows neutral shopping-cart
+    // placeholders for products (no AI photos yet). The AI pass clears this by
+    // supplying real productImages; the confirmed preview drops the flag too.
+    if (opts.generic) config._placeholder = true;
+    return config;
   }
 
   global.HOLO_APPFOUND = {

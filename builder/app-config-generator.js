@@ -27,6 +27,57 @@
   function pick(v, dflt) { return (v === undefined || v === null || v === "") ? dflt : v; }
   function arr(v) { return Array.isArray(v) ? v : []; }
 
+  // ── color helpers ────────────────────────────────────────────
+  // Project setup captures three flat colors (primary/secondary/accent). The
+  // app themes need a fuller palette (a darker + lighter primary, plus a deep
+  // shade for cimulate). We derive the missing shades by shifting lightness so
+  // the whole app recolors from just the three picked colors.
+  function clamp8(n) { return n < 0 ? 0 : n > 255 ? 255 : Math.round(n); }
+  function parseHex(hex) {
+    const m = String(hex || "").trim().replace(/^#/, "");
+    if (!/^[0-9a-fA-F]{6}$/.test(m)) return null;
+    return { r: parseInt(m.slice(0, 2), 16), g: parseInt(m.slice(2, 4), 16), b: parseInt(m.slice(4, 6), 16) };
+  }
+  function toHex(c) {
+    const h = function (n) { return clamp8(n).toString(16).padStart(2, "0"); };
+    return "#" + h(c.r) + h(c.g) + h(c.b);
+  }
+  // amt > 0 lightens toward white, amt < 0 darkens toward black. |amt| in 0..1.
+  function shade(hex, amt) {
+    const c = parseHex(hex);
+    if (!c) return hex;
+    if (amt >= 0) return toHex({ r: c.r + (255 - c.r) * amt, g: c.g + (255 - c.g) * amt, b: c.b + (255 - c.b) * amt });
+    const k = 1 + amt; // amt is negative
+    return toHex({ r: c.r * k, g: c.g * k, b: c.b * k });
+  }
+  // Build a clienteling palette from a flat {primary, secondary, accent} set.
+  // secondary is unused by the clienteling theme today (kept for parity).
+  function clientPaletteFrom(flat) {
+    const p = parseHex(flat.primary) ? flat.primary : null;
+    const a = parseHex(flat.accent) ? flat.accent : null;
+    if (!p && !a) return null;
+    const prim = p || DEFAULT_CLIENT_COLORS.primary;
+    const acc = a || DEFAULT_CLIENT_COLORS.accent;
+    return {
+      primary: prim, primaryDk: shade(prim, -0.28), primaryLt: shade(prim, 0.28),
+      accent: acc, accentDk: shade(acc, -0.28), accentLt: shade(acc, 0.32),
+    };
+  }
+  // Build a cimulate palette. promo/promoDk stay on the default red (a
+  // sale/promo accent, intentionally not the brand hue).
+  function cimPaletteFrom(flat) {
+    const p = parseHex(flat.primary) ? flat.primary : null;
+    const a = parseHex(flat.accent) ? flat.accent : null;
+    if (!p && !a) return null;
+    const prim = p || DEFAULT_CIM_COLORS.primary;
+    const acc = a || DEFAULT_CIM_COLORS.accent;
+    return {
+      primary: prim, primaryDk: shade(prim, -0.22), primaryDeep: shade(prim, -0.55),
+      primaryLt: shade(prim, 0.32),
+      accent: acc, promo: DEFAULT_CIM_COLORS.promo, promoDk: DEFAULT_CIM_COLORS.promoDk,
+    };
+  }
+
   // Default brand palettes (used when branding hasn't produced colors yet).
   const DEFAULT_CLIENT_COLORS = { primary: "#01665c", primaryDk: "#014a43", primaryLt: "#0a877a", accent: "#b8975a", accentDk: "#96773f", accentLt: "#d8bd85" };
   const DEFAULT_CIM_COLORS    = { primary: "#008573", primaryDk: "#016d5e", primaryDeep: "#013b35", accent: "#b8975a", promo: "#e01a2b", promoDk: "#b8121f" };
@@ -68,6 +119,12 @@
   function buildClientelingConfig(found, brand, catalog) {
     found = found || {};
     brand = brand || {};
+    // Resolve the theme palette from the project's brand colors. Accept either
+    // a full palette (brand.colors) or the flat setup trio (brand.flatColors),
+    // deriving dark/light shades from the latter. This keeps swatchFor + the
+    // config's brand.colors on the SAME per-customer palette (no teal leak).
+    const clientPalette = clientPaletteFrom(brand.flatColors || {});
+    if (clientPalette) brand = Object.assign({}, brand, { colors: Object.assign({}, clientPalette, brand.colors || {}) });
     const cat = mapCatalogToClienteling(arr(catalog).length ? catalog : found.catalog, brand);
     const cust = found.customer || {};
     const mgr = found.homeStoreManager || {};
@@ -219,6 +276,9 @@
   function buildCimulateConfig(found, brand, catalog) {
     found = found || {};
     brand = brand || {};
+    // Resolve the cimulate theme palette (see buildClientelingConfig).
+    const cimPalette = cimPaletteFrom(brand.flatColors || {});
+    if (cimPalette) brand = Object.assign({}, brand, { colors: Object.assign({}, cimPalette, brand.colors || {}) });
     const products = mapCatalogToCimulate(arr(catalog).length ? catalog : found.catalog, brand);
     const custName = found.customerName || brand.name || "Your Brand";
     // The prompt returns a nested `brand` object; tolerate a flat legacy shape.
@@ -248,7 +308,19 @@
       storeLocation: pick(found.storeLocation, (found.customer && found.customer.location) || "Your City"),
       // Legacy top-level mirrors (kept so older readers/exports don't break).
       heroHeadline: pick(found.heroHeadline, cp("heroHeadline", "Find your next favorite " + unitNoun)),
-      searchChips: arr(found.searchChips),
+      // Normalize search chips: Gemini returns plain query strings, but the
+      // template expects { q, icon, tag } objects. Use a neutral magnifying-
+      // glass icon (never a wine-bottle/beer icon) so generated chips render.
+      searchChips: (function () {
+        const fromGemini = arr(found.searchChips).map(function (c) {
+          if (c && typeof c === "object") {
+            return { q: pick(c.q, c.query || c.label || ""), icon: pick(c.icon, "fa-magnifying-glass"), tag: pick(c.tag, "") };
+          }
+          return { q: String(c || ""), icon: "fa-magnifying-glass", tag: "" };
+        }).filter(function (c) { return c.q; });
+        // Fall back to catalog-derived chips so no tier ever renders empty.
+        return fromGemini.length ? fromGemini : deriveSearchChips(products);
+      })(),
       navCategories: arr(found.navCategories),
       promoTiles: arr(found.promoTiles).length ? found.promoTiles : DEFAULT_PROMO_TILES,
       footerBlurb: pick(found.footerBlurb, custName + " — personalized shopping, powered by your unified profile."),
@@ -363,6 +435,34 @@
         stock: p.stock || { sanDiego: 6, modesto: 6, total: 12 },
       };
     });
+  }
+  // Build search-suggestion chips from the live catalog so EVERY tier (generic
+  // preview, non-Gemini fallback, or a Gemini response that omitted chips) has
+  // working, category-appropriate chips — never empty, never wine-locked.
+  // `products` is the mapped cimulate catalog ([{cat, name, price, ...}]).
+  function deriveSearchChips(products) {
+    const chips = [];
+    const seen = {};
+    // One chip per distinct category (e.g. "Clubs", "Apparel"), in catalog order.
+    arr(products).forEach(function (p) {
+      const c = (p.cat || "").trim();
+      if (c && !seen[c.toLowerCase()]) {
+        seen[c.toLowerCase()] = true;
+        chips.push({ q: c, icon: "fa-magnifying-glass", tag: "" });
+      }
+    });
+    // Fill toward ~4 chips with a couple of real product names.
+    for (let i = 0; i < products.length && chips.length < 4; i++) {
+      const n = (products[i].name || "").trim();
+      if (n && !seen[n.toLowerCase()]) { seen[n.toLowerCase()] = true; chips.push({ q: n, icon: "fa-magnifying-glass", tag: "" }); }
+    }
+    // Absolute floor if the catalog is empty (generic first preview with no SKUs).
+    if (!chips.length) {
+      ["Featured", "Best sellers", "New arrivals", "Deals"].forEach(function (q) {
+        chips.push({ q: q, icon: "fa-magnifying-glass", tag: "" });
+      });
+    }
+    return chips;
   }
   function mapCatalogToCimulate(catalog, brand) {
     return arr(catalog).map(function (p, i) {
