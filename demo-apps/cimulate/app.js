@@ -245,10 +245,11 @@ function buildServiceIntents(){
 
 const SOMM_INTENTS = buildShoppingIntents().concat(buildServiceIntents());
 
+const SOMM_STOP = new Set(["a","an","the","my","me","for","to","of","and","or","is","it","in","on","at","with","your","you","i","do","does","can","help","please","get","show","find","some","something","thing","want","need","would","like","how"]);
 function sommRespond(text){
   const t=" "+text.toLowerCase().replace(/[^a-z0-9$ ]/g," ").replace(/\s+/g," ").trim()+" ";
-  // Score every intent by its LONGEST whole-word matching keyword, so specific
-  // phrases (e.g. "update my delivery") beat short generic ones (e.g. "delivery").
+  // Pass 1 — score every intent by its LONGEST whole-word matching keyword, so
+  // specific phrases (e.g. "update my delivery") beat short generic ones.
   let best=null, bestLen=0;
   for(const it of SOMM_INTENTS){
     for(const k of it.keys){
@@ -256,6 +257,21 @@ function sommRespond(text){
     }
   }
   if(best)return best.reply();
+  // Pass 2 — token-overlap fallback. Generated chips (e.g. "Book a Fitting
+  // session") aren't guaranteed to phrase-match any intent's keys, which used
+  // to dead-end into the generic fallback. Route to the intent sharing the most
+  // meaningful words with the message so the chip still does something on-point.
+  const words=t.trim().split(" ").filter(w=>w && !SOMM_STOP.has(w));
+  if(words.length){
+    let bestScore=0;
+    for(const it of SOMM_INTENTS){
+      const hay=(it.keys||[]).join(" ").toLowerCase();
+      let score=0;
+      for(const w of words){ if(hay.indexOf(w)>=0) score++; }
+      if(score>bestScore){ bestScore=score; best=it; }
+    }
+    if(best && bestScore>0) return best.reply();
+  }
   return `<p>${tpl("sommFallback","Great question! Tell me what you're after and I'll take care of it.")}</p>${quicks(GREET_CHIPS)}`;
 }
 
@@ -303,7 +319,37 @@ function closeSomm(){ document.getElementById("sommPanel").classList.remove("ope
    CIMULATE CONTEXTUAL SEARCH — intent parsing (scripted) + ranking
    ===================================================================== */
 const SEARCH_STOP=["under","over","a","an","the","for","with","and","to","of","$","me","show"];
-function findCeleb(t){ return APP_CONFIG.celebs.find(c=>c.match.some(m=>t.includes(m))) || null; }
+// Celebrity/affinity tie-in lookup. Tolerates BOTH config shapes:
+//   • stock array:  [{ match:[...], name, brand, ids:[...], blurb }]
+//   • generated map: { "<lowercasename>": { match:string, productIds:[...] } }
+// Returns a normalized { ids, brand, blurb } or null. Fully guarded so a
+// missing/oddly-shaped celebs field can never throw and abort the search.
+function findCeleb(t){
+  const raw=APP_CONFIG.celebs;
+  if(!raw) return null;
+  // Normalize to a list of {keys:[...], ids:[...], brand, blurb}.
+  let list=[];
+  if(Array.isArray(raw)){
+    list=raw.map(c=>({
+      keys: Array.isArray(c.match) ? c.match : (c.match ? [String(c.match)] : (c.name ? [String(c.name)] : [])),
+      ids: Array.isArray(c.ids) ? c.ids : (Array.isArray(c.productIds) ? c.productIds : []),
+      brand: c.brand || c.name || "",
+      blurb: c.blurb || "",
+    }));
+  } else if(typeof raw==="object"){
+    list=Object.keys(raw).map(name=>{
+      const c=raw[name]||{};
+      return {
+        keys: Array.isArray(c.match) ? c.match : [String(name)],
+        ids: Array.isArray(c.ids) ? c.ids : (Array.isArray(c.productIds) ? c.productIds : []),
+        brand: c.brand || name || "",
+        blurb: c.blurb || (typeof c.match==="string" ? c.match : ("Cimulate recognized <b>"+esc(name)+"</b> and connected them to their brand.")),
+      };
+    });
+  }
+  const hit=list.find(c=>c.keys.some(m=>m && t.includes(String(m).toLowerCase())));
+  return (hit && hit.ids.length) ? hit : null; // only trigger celeb path if it maps to real products
+}
 // Distinct product categories present in the live catalog, in first-seen order.
 // Drives the facet rail + category matching so search adapts to ANY customer.
 function catalogCats(){
@@ -413,7 +459,11 @@ function runSearch(q){
   if(intent.celeb){
     // Celebrity search: surface that person's owned brand, ranked by rating.
     results=intent.celeb.ids.map(id=>byId(id)).filter(Boolean)
-      .map(p=>({p,s:p.rating})).sort((a,b)=>b.s-a.s);
+      .map(p=>({p,s:(Number(p.rating)||85)})).sort((a,b)=>b.s-a.s);
+    if(!results.length){ // celeb's product ids not in this catalog → don't dead-end
+      results=APP_CONFIG.products.map(p=>({p,s:scoreProduct(p,intent)})).sort((a,b)=>b.s-a.s).slice(0,3);
+      intent.celeb=null; // fall back to the standard intent explanation
+    }
   } else {
     results=APP_CONFIG.products
       .map(p=>({p,s:scoreProduct(p,intent)}))

@@ -204,8 +204,40 @@ function renderDashboard() {
   `);
 }
 
+// Resolve a coaching brief for a walk-in. Generated configs don't always keep
+// walkIn.id in lockstep with the coach map keys (Gemini may key coach entries
+// differently, or omit them), so resolve defensively: exact key → fuzzy match
+// on coach keys → synthesize a brief from the walk-in itself. Never returns a
+// null that would leave the CTA a dead click.
+function coachFor(key) {
+  const coach = (APP_CONFIG && APP_CONFIG.coach) || {};
+  if (coach[key]) return coach[key];
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const want = norm(key);
+  if (want) {
+    for (const k in coach) {
+      if (!Object.prototype.hasOwnProperty.call(coach, k)) continue;
+      const nk = norm(k);
+      if (nk && (nk === want || nk.indexOf(want) >= 0 || want.indexOf(nk) >= 0)) return coach[k];
+    }
+  }
+  // No coach entry — synthesize one from the walk-in so the panel still fills.
+  const w = ((APP_CONFIG && APP_CONFIG.walkIns) || []).find((x) => x && x.id === key) || {};
+  const starters = [];
+  if (w.detail) starters.push(w.detail);
+  const name = (w.name || "").split(" ")[0] || "the guest";
+  starters.push("Greet " + name + " by name and reference their history with us.");
+  starters.push("Ask what brought them in today and tailor your recommendations.");
+  return {
+    badge: w.tag || "",
+    title: w.headline || (w.name ? w.name + " — Personalized brief" : "Guest brief"),
+    starters: starters,
+    nba: w.cta ? ("Next best action: " + w.cta + ".") : "Offer to hold a recommended item or book a follow-up.",
+  };
+}
+
 function selectCoach(key) {
-  const d = APP_CONFIG.coach[key];
+  const d = coachFor(key);
   const body = document.getElementById("coachBody");
   if (!body || !d) return;
   setHTML(body, `

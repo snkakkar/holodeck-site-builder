@@ -2395,7 +2395,7 @@
   function appsState() {
     const s = app.state;
     const freshSlice = function () {
-      return { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null, _previewOnly: false, _aiGenerated: false };
+      return { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null, _previewOnly: false, _aiGenerated: false, _imageStorySig: null };
     };
     if (!s.apps) {
       s.apps = {
@@ -2419,6 +2419,14 @@
         const hadPhotos = sl.productImages && Object.keys(sl.productImages).length;
         sl._aiGenerated = !!hadPhotos;
         sl._previewOnly = !hadPhotos;
+      }
+      // Migrated slices predate _imageStorySig. If one already has AI images,
+      // stamp the current story signature so a first "Refresh preview" keeps
+      // them (reopening a project isn't a story change). Only backfill when
+      // missing — never overwrite a real recorded signature.
+      if (sl && sl._aiGenerated && sl._imageStorySig == null &&
+          sl.productImages && Object.keys(sl.productImages).length) {
+        sl._imageStorySig = storySignature();
       }
       // The generic-preview config lives in (per-session) sessionStorage, so its
       // token is stale after a reload. Clear the flag so ensureGenericPreview
@@ -2694,6 +2702,47 @@
     if (!slice._previewToken) slice._previewToken = token;
   }
 
+  // A stable signature over the STORY inputs that drive app generation. When
+  // this changes, previously-generated per-SKU images are stale (products may
+  // have been renamed/replaced) and should be dropped; when it's unchanged, a
+  // text-only "Refresh preview" can safely carry the existing images forward.
+  // Uses the same ctx the generator reads (HOLO_RULES.stateToCtx) plus the
+  // persona so the signature tracks exactly what feeds the catalog + copy.
+  function storySignature() {
+    try {
+      const rules = window.HOLO_RULES;
+      const cx = (rules && rules.stateToCtx) ? rules.stateToCtx(app.state) : {};
+      const persona = (app.state && app.state.personas && app.state.personas[0]) || null;
+      const sig = {
+        customerName: cx.customerName || "",
+        industry: cx.industry || "",
+        website: cx.website || "",
+        audience: cx.audience || "",
+        products: cx.products || [],
+        storyActs: cx.storyActs || [],
+        scriptText: cx.scriptText || "",
+        bigProblem: cx.bigProblem || "",
+        futureVision: cx.futureVision || "",
+        persona: persona ? { name: persona.name, role: persona.role } : null,
+      };
+      return JSON.stringify(sig);
+    } catch (e) { return ""; }
+  }
+
+  // Carry already-generated product images from a prior config onto a freshly
+  // rebuilt (text-refresh) config, matched by product id. Ids come from the
+  // shared catalog so they're stable across a text refresh when the story is
+  // unchanged. Returns the count of images carried over.
+  function carryImagesForward(prevConfig, newConfig) {
+    const prev = (prevConfig && prevConfig.productImages) || {};
+    const ids = {};
+    ((newConfig && newConfig.products) || []).forEach(function (p) { if (p && p.id) ids[p.id] = true; });
+    const kept = {};
+    Object.keys(prev).forEach(function (id) { if (ids[id]) kept[id] = prev[id]; });
+    if (Object.keys(kept).length) newConfig.productImages = Object.assign({}, newConfig.productImages, kept);
+    return Object.keys(kept).length;
+  }
+
   // Persist a generated config where the preview iframe can read it. A stable
   // per-app token keeps the storage key predictable and lets a regenerate
   // overwrite in place. Returns the token.
@@ -2795,16 +2844,46 @@
       // Product imagery policy: show neutral shopping-cart placeholders until the
       // AI photo pass runs. The preview (text-only) tier keeps _placeholder; the
       // AI tier clears it so the branded silhouette / real photos show through.
-      config._placeholder = tier !== "ai";
+      //
+      // BUT: a text-only "Refresh preview" must NOT discard images already
+      // generated — unless the STORY changed (which makes them stale). If the
+      // slice had AI images and the story signature is unchanged, carry them
+      // forward, keep the AI tier, and keep photos visible. If the story
+      // changed, let them drop (placeholders) so the SE knows to regenerate.
+      const prevRun = slice._preRun || {};
+      const hadImages = !!(prevRun._aiGenerated || (slice.productImages && Object.keys(slice.productImages).length));
+      const sigNow = storySignature();
+      const storyUnchanged = hadImages && slice._imageStorySig && slice._imageStorySig === sigNow;
+      let keepAiTier = false;
+      if (tier === "preview" && storyUnchanged) {
+        const carried = carryImagesForward({ productImages: slice.productImages }, config);
+        if (carried) {
+          keepAiTier = true;
+          slice._genStatus = "Preview refreshed — kept your " + carried + " AI product image" + (carried === 1 ? "" : "s") + " (story unchanged).";
+        }
+      } else if (tier === "preview" && hadImages && !storyUnchanged) {
+        // Story changed → existing images are stale; drop them and flag it.
+        slice.productImages = null;
+        slice._genStatus = "Preview refreshed — story changed, so AI images were cleared. Regenerate with AI to refresh them.";
+      }
+      const effTier = keepAiTier ? "ai" : tier;
+      config._placeholder = effTier !== "ai";
       slice.config = config;
       slice.extracted = true;
       slice._previewToken = stashPreviewConfig(def.id, config);
-      slice._previewOnly = tier === "preview";
-      slice._aiGenerated = tier === "ai";
+      slice._previewOnly = effTier === "preview";
+      slice._aiGenerated = effTier === "ai";
+      // Record the story signature whenever images are now in play, so a later
+      // refresh can tell whether they're still valid.
+      if (effTier === "ai") { slice._imageStorySig = sigNow; slice.productImages = config.productImages || slice.productImages; }
+      else if (!hadImages || !storyUnchanged) { slice._imageStorySig = null; }
       slice._generating = false;
       slice._genMode = null;
       slice._progress = 0;
-      slice._genStatus = "";
+      // Keep an informative refresh message (kept/cleared images) as the resting
+      // status; otherwise clear it. finish set _genStatus above only in those
+      // cases — everything else should rest blank.
+      if (slice._genStatus === "Done.") slice._genStatus = "";
       slice._abort = null;
       slice._preRun = null;
       commit();

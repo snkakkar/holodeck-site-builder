@@ -162,6 +162,45 @@
     // the app; missing keys degrade to the template's neutral fallback.
     const gcopy = found.copy || {};
 
+    // Reconcile walkIns ↔ coach so every walk-in CTA resolves to a coaching
+    // brief. The template's selectCoach(walkIn.id) reads APP_CONFIG.coach[id];
+    // Gemini doesn't guarantee its coach keys equal the walkIn ids (or that a
+    // coach entry exists at all), which makes the CTA a silent no-op. Key the
+    // coach map by walkIn.id, matching Gemini's entry by exact/fuzzy key and
+    // synthesizing a brief from the walk-in when none is provided.
+    const walkIns = arr(found.walkIns).map(function (w, i) {
+      w = w || {};
+      if (!w.id) w.id = "guest" + (i + 1);
+      return w;
+    });
+    const rawCoach = found.coach || {};
+    const normKey = function (s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); };
+    const coach = {};
+    walkIns.forEach(function (w) {
+      let entry = rawCoach[w.id];
+      if (!entry) {
+        const want = normKey(w.id);
+        for (const k in rawCoach) {
+          if (!Object.prototype.hasOwnProperty.call(rawCoach, k)) continue;
+          const nk = normKey(k);
+          if (nk && (nk === want || nk.indexOf(want) >= 0 || want.indexOf(nk) >= 0)) { entry = rawCoach[k]; break; }
+        }
+      }
+      if (!entry) {
+        const first = (w.name || "").split(" ")[0] || "the guest";
+        entry = {
+          badge: w.tag || "",
+          title: w.headline || (w.name ? w.name + " — Personalized brief" : "Guest brief"),
+          starters: [
+            w.detail || ("Recognize " + first + " and reference their history with us."),
+            "Ask what brought " + first + " in today and tailor recommendations.",
+          ],
+          nba: w.cta ? ("Next best action: " + w.cta + ".") : "Offer to hold a recommended item or book a follow-up.",
+        };
+      }
+      coach[w.id] = entry;
+    });
+
     return {
       brand: {
         name: pick(brand.name, custName).toUpperCase(),
@@ -248,9 +287,9 @@
         managerTitle: pick(st.managerTitle, "Store Manager"),
         kpis: kpis,
       },
-      walkIns: arr(found.walkIns),
+      walkIns: walkIns,
       tasks: arr(found.tasks),
-      coach: found.coach || {},
+      coach: coach,
       productImages: found.productImages || {},
     };
   }
@@ -292,6 +331,47 @@
     const conciergeName = pick(fb.conciergeName, pick(found.conciergeName, custName + " Concierge"));
     const unitNoun = pick(found.unitNoun, "item");
     const cp = function (key, dflt) { return pick(gc[key], dflt); };
+
+    // Reconcile concierge chips ↔ intents so every clickable chip does
+    // something on-point. A chip's `q` is matched against each intent's
+    // `keys[]` at runtime; Gemini generates chips and intents separately, so a
+    // chip (e.g. "Book a Fitting session") can point at an intent that doesn't
+    // exist and dead-end into the generic fallback. Guarantee coverage: for any
+    // chip `q` not covered by an existing intent's keys, add a catch-all intent
+    // keyed to that chip's meaningful words so it always routes to a reply.
+    const somm = normSommIntents(found.sommIntents);
+    const greet = arr(found.greetChips);
+    const CHIP_STOP = { a:1, an:1, the:1, my:1, me:1, for:1, to:1, of:1, and:1, or:1, is:1, it:1, in:1, on:1, at:1, with:1, your:1, you:1, i:1, do:1, does:1, can:1, help:1, please:1, get:1, show:1, find:1, some:1, something:1, want:1, need:1, like:1, how:1 };
+    const chipWords = function (q) {
+      return String(q || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(function (w) { return w && !CHIP_STOP[w]; });
+    };
+    const coveredBy = function (q) {
+      const t = " " + String(q || "").toLowerCase().replace(/[^a-z0-9$ ]/g, " ").replace(/\s+/g, " ").trim() + " ";
+      const words = chipWords(q);
+      for (const it of somm) {
+        for (const k of (it.keys || [])) {
+          const kk = String(k || "").toLowerCase();
+          if (kk && t.indexOf(" " + kk + " ") >= 0) return true;
+        }
+        // token-overlap: chip shares a meaningful word with this intent's keys
+        const hay = (it.keys || []).join(" ").toLowerCase();
+        for (const w of words) { if (hay.indexOf(w) >= 0) return true; }
+      }
+      return false;
+    };
+    const allChipQs = [];
+    greet.forEach(function (c) { if (c && c.q) allChipQs.push(c.q); });
+    somm.forEach(function (it) { arr(it.chips).forEach(function (c) { if (c && c.q) allChipQs.push(c.q); }); });
+    allChipQs.forEach(function (q) {
+      if (coveredBy(q)) return;
+      const words = chipWords(q);
+      if (!words.length) return;
+      somm.push({
+        keys: words.concat([String(q).toLowerCase().trim()]),
+        text: "I can help with that. Tell me a bit more and I'll take care of it, or ask me to recommend something for you.",
+        recIds: products.slice(0, 2).map(function (p) { return p.id; }).filter(Boolean),
+      });
+    });
 
     return {
       brand: {
@@ -384,9 +464,9 @@
       ),
       // Conversational concierge. Gemini supplies industry-appropriate chips +
       // intents; neutral service chips/data below keep the service flows working.
-      greetChips: arr(found.greetChips),
+      greetChips: greet,
       serviceChips: arr(found.serviceChips).length ? found.serviceChips : DEFAULT_SERVICE_CHIPS,
-      sommIntents: normSommIntents(found.sommIntents),
+      sommIntents: somm,
       serviceData: Object.assign({}, DEFAULT_SERVICE_DATA, found.serviceData || {}),
       celebs: found.celebs || {},
       productImages: found.productImages || {},
