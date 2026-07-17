@@ -206,35 +206,6 @@
     return base;
   }
 
-  // Merge two catalogs into one superset keyed by stable id. Preserves id order
-  // (prev first, then any new ids from `next`), and for a shared id merges the
-  // two product objects field-by-field so BOTH apps' vocabularies coexist on the
-  // SKU (a value from `next` fills a field only when prev's is missing/empty —
-  // so neither app clobbers the other's already-set fields; identity fields like
-  // name/price stay stable from whichever app defined them first). Returns a new
-  // array; if either side is empty, returns the non-empty one.
-  function mergeCatalogById(prev, next) {
-    const P = Array.isArray(prev) ? prev : [];
-    const N = Array.isArray(next) ? next : [];
-    if (!P.length) return N.slice();
-    if (!N.length) return P.slice();
-    const isEmpty = function (v) {
-      return v == null || v === "" || (Array.isArray(v) && v.length === 0);
-    };
-    const byId = {};
-    const order = [];
-    const add = function (p) {
-      if (!p || !p.id) return;
-      if (!byId[p.id]) { byId[p.id] = Object.assign({}, p); order.push(p.id); return; }
-      // Shared id: fill only fields the existing record is missing.
-      const cur = byId[p.id];
-      Object.keys(p).forEach(function (k) { if (isEmpty(cur[k]) && !isEmpty(p[k])) cur[k] = p[k]; });
-    };
-    P.forEach(add);
-    N.forEach(add);
-    return order.map(function (id) { return byId[id]; });
-  }
-
   // A neutral 12-SKU seed catalog when nothing else is available. GENERIC RETAIL
   // (no wine terms) so the pre-context preview reads like a real store — the
   // distinct `cat` values also drive the storefront category nav + search chips.
@@ -286,27 +257,38 @@
 
     const prompt = appId === "clienteling" ? promptForClienteling(cx) : promptForCimulate(cx);
 
-    // Build the runtime config from an extracted/fallback foundation. Merges the
-    // catalog into the shared superset (see comment below), then hands the merged
-    // store to the per-app config builder.
+    // Build the runtime config from an extracted/fallback foundation. Resolves
+    // the shared 12-SKU catalog (reuse-or-rebuild, never a growing union), then
+    // hands it to the per-app config builder.
     function assemble(found) {
-      // ── ONE SUPERSET CATALOG, TWO VIEWS ────────────────────────
+      // ── ONE SHARED CATALOG, TWO VIEWS ──────────────────────────
       // Both apps share a single 12-SKU brand catalog keyed by STABLE ids
       // (sku1..sku12), so "sku3" is the SAME physical product in the storefront
-      // (cimulate) and the in-store tool (clienteling) — a coherent brand, not
-      // two unrelated product lists. Each app's Gemini prompt returns its own
-      // per-product fields (clienteling: tastingNotes/story/score; cimulate:
-      // notes/flavors/rating), so we MERGE BY ID rather than let one app clobber
-      // the other: the shared store accumulates every app's fields on each SKU,
-      // and the union of ids is preserved (the richer 12-SKU set wins over any
-      // smaller seed). Downstream mappers already read both field vocabularies.
+      // (cimulate) and the in-store tool (clienteling). The catalog is built
+      // ONCE and keyed to the story signature (opts.storySig): the first app to
+      // generate seeds state.retailCatalog; the second app REUSES it verbatim
+      // (0 image calls downstream). We only REBUILD — replacing the whole set,
+      // never unioning — when there is no shared catalog yet or the story
+      // signature changed (opts.rebuildCatalog). This is what keeps the catalog
+      // pinned at exactly 12 SKUs instead of ballooning on each regenerate.
       const own = Array.isArray(found.catalog) ? found.catalog : [];
-      const shared = mergeCatalogById(state.retailCatalog, own);
-      if (shared.length) state.retailCatalog = shared;
-      // Re-point this app's found.catalog at the merged superset so the config
-      // is built against the shared SKU universe (its own fields still win for
-      // this app because they were merged in last / preserved per id).
-      if (shared.length) found.catalog = shared;
+      const prevShared = Array.isArray(state.retailCatalog) ? state.retailCatalog : [];
+      const haveShared = prevShared.length >= 1;
+      const sigMatch = opts.storySig != null && state.retailCatalogSig === opts.storySig;
+      let shared;
+      if (haveShared && sigMatch && !opts.rebuildCatalog) {
+        // REUSE: same story, catalog already built — keep it exactly as-is.
+        shared = prevShared;
+      } else {
+        // REBUILD: fresh, complete set (replace, not union). Fall back to the
+        // neutral seed so we always land a clean 12. Clear the shared images —
+        // they were generated against the old catalog and must be regenerated.
+        shared = own.length ? own : seedCatalog(cx);
+        state.retailCatalog = shared;
+        state.retailCatalogSig = opts.storySig || "";
+        state.retailImages = null;
+      }
+      found.catalog = shared;
       const brand = { name: cx.customerName, flatColors: cx.flatColors };
       if (state.brand && state.brand.colors) brand.colors = state.brand.colors;
       const appgen = APPGEN();
@@ -352,6 +334,11 @@
   // a { id → signedUrl } map to drop into config.productImages. SVG remains
   // the fallback for any product that fails. Batched, cache-friendly, and
   // fully skippable — returns {} if Gemini image-gen is unavailable.
+  //
+  // opts.existingImages ({id:url}) lets the caller pass the SHARED image store
+  // so already-imaged SKUs are reused, not regenerated. This is what makes the
+  // second app (and an unchanged-story regenerate) cost 0 image calls: it starts
+  // from the shared 12 and only images the ids that are actually missing.
   function generateProductPhotos(appId, config, opts) {
     opts = opts || {};
     const status = opts.onStatus || function () {};
@@ -359,17 +346,23 @@
     const aborted = function () { return !!(signal && signal.aborted); };
     const gen = global.HOLO_GEMINI;
     const products = (config && (config.products || config.catalog)) || [];
-    if (!gen || !gen.generateImage || !products.length) return Promise.resolve({});
+    // Start from any images the caller already has (shared store) so we skip them.
+    const images = Object.assign({}, opts.existingImages || {});
+    if (!products.length) return Promise.resolve(images);
 
-    const total = products.length;
+    // Only the products still missing an image need a Gemini call.
+    const pending = products.filter(function (p) { return p && p.id && !images[p.id]; });
+    if (!pending.length) { status("Reusing existing product photos.", 1); return Promise.resolve(images); }
+    if (!gen || !gen.generateImage) return Promise.resolve(images);
+
+    const total = pending.length;
     return gen.isConfigured().then(function (ok) {
-      if (!ok) { status("Image generation unavailable — keeping illustrated fallbacks.", 1); return {}; }
-      const images = {};
+      if (!ok) { status("Image generation unavailable — keeping illustrated fallbacks.", 1); return images; }
       let done = 0;
       // Sequential to respect the server rate limit; progress per item. `frac`
       // is this stage's own 0→1 (photos completed / total). If the caller
       // aborts, we stop issuing new image calls and return what we have.
-      return products.reduce(function (chain, p) {
+      return pending.reduce(function (chain, p) {
         return chain.then(function () {
           if (aborted()) return; // cancelled — issue no further image calls
           status("Generating photo " + (done + 1) + " of " + total + "…", done / total);
@@ -383,7 +376,7 @@
         });
       }, Promise.resolve()).then(function () {
         if (aborted()) { status("Cancelled.", done / total); return images; }
-        status("Generated " + Object.keys(images).length + " of " + total + " photos.", 1);
+        status("Generated " + Object.keys(images).length + " of " + products.length + " photos.", 1);
         return images;
       });
     });

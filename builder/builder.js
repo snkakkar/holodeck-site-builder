@@ -2434,6 +2434,32 @@
       // token and fall back to the stock Total Wine sample.
       if (sl && !sl.extracted) sl._genericToken = false;
     });
+    // Shared-catalog migration (pre-fix projects). The catalog used to grow via a
+    // union-by-id, so old projects may have ballooned past 12 SKUs, and none have
+    // the new retailCatalogSig / retailImages fields. Heal + backfill so the next
+    // generate reuses (rather than rebuilds/re-images) whenever the story matches.
+    if (Array.isArray(s.retailCatalog)) {
+      // Heal an already-ballooned catalog: the shared contract is exactly 12.
+      if (s.retailCatalog.length > 12) s.retailCatalog = s.retailCatalog.slice(0, 12);
+      // Stamp the signature only if a catalog exists AND at least one app is
+      // AI-generated (so the story is presumed the one it was built at) — avoids
+      // a spurious rebuild on first reopen. Never overwrite a real signature.
+      if (s.retailCatalogSig == null && s.retailCatalog.length &&
+          ((s.apps.clienteling && s.apps.clienteling._aiGenerated) ||
+           (s.apps.cimulate && s.apps.cimulate._aiGenerated))) {
+        s.retailCatalogSig = storySignature();
+      }
+      // Seed the shared image store from both apps' per-app maps so the next
+      // generate reuses those images instead of re-imaging the shared 12.
+      if (s.retailImages == null) {
+        const seed = {};
+        ["clienteling", "cimulate"].forEach(function (id) {
+          const imgs = s.apps[id] && s.apps[id].productImages;
+          if (imgs) Object.keys(imgs).forEach(function (k) { if (!seed[k]) seed[k] = imgs[k]; });
+        });
+        if (Object.keys(seed).length) s.retailImages = seed;
+      }
+    }
     return s.apps;
   }
 
@@ -2822,6 +2848,19 @@
     const FOUND_WEIGHT = mode === "preview" ? 1 : (needsText ? 0.25 : 0);
     const PHOTO_WEIGHT = mode === "preview" ? 0 : (1 - FOUND_WEIGHT);
 
+    // Shared 12-SKU catalog policy (single source of truth for reuse-vs-rebuild).
+    // The catalog is built ONCE and pinned to the story signature: the first app
+    // to generate seeds app.state.retailCatalog; the second app (and any
+    // unchanged-story regenerate) reuses it verbatim. We only rebuild — replacing
+    // the whole set, never unioning — when there's no shared catalog yet or the
+    // story changed. This keeps the catalog at exactly 12 SKUs (12 image calls),
+    // instead of ballooning on each regenerate. app-foundations.js assemble()
+    // applies the decision; we just compute it here where storySignature() lives.
+    const sigNow = storySignature();
+    const rebuildCatalog = !(Array.isArray(app.state.retailCatalog) &&
+      app.state.retailCatalog.length &&
+      app.state.retailCatalogSig === sigNow);
+
     // Update in place so per-photo ticks don't trigger a full re-render (which
     // would reload the preview iframe). Mirrors the bx-appgen-status pattern.
     function setProgress(frac, text) {
@@ -2851,14 +2890,26 @@
       // forward, keep the AI tier, and keep photos visible. If the story
       // changed, let them drop (placeholders) so the SE knows to regenerate.
       const prevRun = slice._preRun || {};
-      const hadImages = !!(prevRun._aiGenerated || (slice.productImages && Object.keys(slice.productImages).length));
       const sigNow = storySignature();
-      const storyUnchanged = hadImages && slice._imageStorySig && slice._imageStorySig === sigNow;
+      // The shared image store counts as "images we can carry" even if THIS app
+      // never generated them — that's how app B's preview shows the shared 12.
+      const sharedFresh = !!(app.state.retailImages &&
+        Object.keys(app.state.retailImages).length &&
+        app.state.retailCatalogSig === sigNow);
+      const hadImages = !!(prevRun._aiGenerated ||
+        (slice.productImages && Object.keys(slice.productImages).length) ||
+        sharedFresh);
+      // Story is "unchanged" for carry purposes if this slice's own image sig
+      // matches OR the shared store was built at the current signature.
+      const storyUnchanged = hadImages && ((slice._imageStorySig && slice._imageStorySig === sigNow) || sharedFresh);
       let keepAiTier = false;
       if (tier === "preview" && storyUnchanged) {
-        const carried = carryImagesForward({ productImages: slice.productImages }, config);
+        // Pool this app's own images on top of the shared store (own wins).
+        const pool = Object.assign({}, app.state.retailImages || {}, slice.productImages || {});
+        const carried = carryImagesForward({ productImages: pool }, config);
         if (carried) {
           keepAiTier = true;
+          slice.productImages = config.productImages;
           slice._genStatus = "Preview refreshed — kept your " + carried + " AI product image" + (carried === 1 ? "" : "s") + " (story unchanged).";
         }
       } else if (tier === "preview" && hadImages && !storyUnchanged) {
@@ -2901,19 +2952,28 @@
     }
 
     // The per-SKU photo pass (AI tier only). Best-effort; SVG fallback per item.
+    // Reuses the SHARED image store (app.state.retailImages) when it matches the
+    // current story, so the second app / an unchanged-story regenerate spend 0
+    // image calls; then writes any newly generated images back to the shared
+    // store so it stays authoritative for the other app.
     function runPhotos(config) {
       photoStatus("Generating product photos…", 0);
       const proj = (app.state && app.state.project) || {};
+      const sharedImgs = (app.state.retailImages && app.state.retailCatalogSig === storySignature())
+        ? app.state.retailImages : {};
       return HOLO_APPFOUND.generateProductPhotos(def.id, config, {
         onStatus: photoStatus,
         industry: proj.industry || "",
         customerName: proj.customerName || "",
+        existingImages: sharedImgs,
         signal: controller ? controller.signal : null,
       })
         .then(function (images) {
           if (images && Object.keys(images).length) {
             config.productImages = Object.assign({}, config.productImages, images);
             slice.productImages = config.productImages;
+            // Keep the shared store authoritative so the other app reuses these.
+            app.state.retailImages = Object.assign({}, app.state.retailImages, config.productImages);
           }
           return config;
         })
@@ -2930,7 +2990,7 @@
     }
 
     // Preview tier, or AI tier with no cached config yet: run text first.
-    HOLO_APPFOUND.generate(def.id, app.state, { onStatus: foundStatus })
+    HOLO_APPFOUND.generate(def.id, app.state, { onStatus: foundStatus, storySig: sigNow, rebuildCatalog: rebuildCatalog })
       .then(function (out) {
         slice._usedGemini = out.usedGemini;
         if (mode === "preview") return { config: out.config, tier: "preview" };
