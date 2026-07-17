@@ -384,7 +384,11 @@ window.APP_CONFIG = {
   try {
     var m = /[?&]holo=([^&]+)/.exec(window.location.search);
     if (!m) return;
-    var raw = window.sessionStorage.getItem("holo-appconfig-" + decodeURIComponent(m[1]));
+    var key = "holo-appconfig-" + decodeURIComponent(m[1]);
+    // localStorage first so "Open full-screen" (a separate tab/context, where
+    // sessionStorage isn't shared) still sees the generated config; fall back
+    // to sessionStorage for compatibility.
+    var raw = window.localStorage.getItem(key) || window.sessionStorage.getItem(key);
     if (!raw) return;
     var override = JSON.parse(raw);
     if (override && typeof override === "object") window.APP_CONFIG = override;

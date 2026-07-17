@@ -389,13 +389,20 @@ function scoreProduct(p,intent){
     if(isJp)score+=20; else if(p.cat==="Spirits")score-=25;
   }
   intent.flavors.forEach(f=>{ if((p.flavors||[]).includes(f)||(p.type||"").toLowerCase().includes(f))score+=14; });
+  // Free-text token overlap: lets INTENT-style queries ("driver to fix my
+  // slice", "waterproof jacket for tournaments") surface the right product for
+  // ANY industry, not just beverage keywords. Match query words against the
+  // product's name/type/notes/flavors/category.
+  const hay=((p.name||"")+" "+(p.type||"")+" "+(p.notes||"")+" "+(p.cat||"")+" "+((p.flavors||[]).join(" "))+" "+((p.pairings||[]).join(" "))).toLowerCase();
+  const STOP={the:1,a:1,an:1,to:1,for:1,my:1,me:1,of:1,and:1,or:1,with:1,in:1,on:1,under:1,best:1,good:1,some:1,that:1,this:1,i:1,need:1,want:1,find:1,looking:1,new:1,get:1};
+  ((intent.raw||"").toLowerCase().match(/[a-z]{3,}/g)||[]).forEach(w=>{ if(!STOP[w] && hay.includes(w))score+=12; });
   if(intent.maxPrice && p.price<=intent.maxPrice)score+=18;
   if(intent.maxPrice && p.price>intent.maxPrice)score-=60; // hard filter-ish
   // Data 360 personalization: lift items matching the shopper's affinity SKUs.
   // Sourced from config (profile.affinityIds) so it's per-customer, not wine.
   const affIds=(APP_CONFIG.profile&&APP_CONFIG.profile.affinityIds)||[];
   if(affIds.includes(p.id))score+=8;
-  score+=(p.rating-85);
+  score+=((Number(p.rating)||85)-85); // guard: missing rating must not make score NaN
   return score;
 }
 function runSearch(q){
@@ -421,8 +428,14 @@ function runSearch(q){
   }
   results=results.slice(0,6);
 
+  // Profile is customer-variable and may be partial on a generated config —
+  // read defensively so a missing name/tier never throws and aborts the render.
+  const prof=APP_CONFIG.profile||{};
+  const profName=prof.name||"you";
+  const profTier=prof.tier||"Member";
+
   document.getElementById("ssQuery").textContent=`"${q}"`;
-  document.getElementById("ssMeta").textContent=`${results.length} intent-matched results · ranked for ${APP_CONFIG.profile.name} (${APP_CONFIG.profile.tier})`;
+  document.getElementById("ssMeta").textContent=`${results.length} intent-matched results · ranked for ${profName} (${profTier})`;
 
   // signals
   const sigs=[];
@@ -431,18 +444,18 @@ function runSearch(q){
     sigs.push(`entity: person recognized`);
     sigs.push(`brand: ${intent.celeb.brand}`);
     if(celebCat)sigs.push(`category: ${celebCat}`);
-    sigs.push(`profile: ${APP_CONFIG.profile.tier} tier`);
+    sigs.push(`profile: ${profTier} tier`);
   } else {
     if(intent.cat)sigs.push(`category: ${intent.cat}`);
     intent.flavors.slice(0,4).forEach(f=>sigs.push(`taste: ${f}`));
     if(intent.maxPrice)sigs.push(`price ≤ $${intent.maxPrice}`);
-    sigs.push(`profile: ${APP_CONFIG.profile.tier} tier`);
+    sigs.push(`profile: ${profTier} tier`);
     sigs.push(`profile: your purchase history`);
   }
   document.getElementById("ssExplain").innerHTML= intent.celeb
     ? `${intent.celeb.blurb}
      <div class="ss-signals">${sigs.map(s=>`<span class="sig"><i class="fa-solid fa-check"></i> ${esc(s)}</span>`).join("")}</div>`
-    : `<b>Cimulate understood your intent</b> — not just keywords. It parsed the meaning of your query and ranked results by relevance to <b>${APP_CONFIG.profile.name}'s unified profile</b>.
+    : `<b>Cimulate understood your intent</b> — not just keywords. It parsed the meaning of your query and ranked results by relevance to <b>${profName}'s unified profile</b>.
      <div class="ss-signals">${sigs.map(s=>`<span class="sig"><i class="fa-solid fa-check"></i> ${esc(s)}</span>`).join("")}</div>`;
 
   document.getElementById("ssGrid").innerHTML=results.map((x,i)=>
@@ -458,7 +471,7 @@ function runSearch(q){
     <h4>Price</h4>
     <label class="facet ${intent.maxPrice?'on':''}"><span><input type="checkbox" ${intent.maxPrice?'checked':''} onclick="return false"> Under $${intent.maxPrice||100}</span></label>
     <h4>Ranked for</h4>
-    <label class="facet on"><span><input type="checkbox" checked onclick="return false"> ${esc(APP_CONFIG.profile.name)} · ${esc(APP_CONFIG.profile.tier)}</span></label>`;
+    <label class="facet on"><span><input type="checkbox" checked onclick="return false"> ${esc(profName)} · ${esc(profTier)}</span></label>`;
   const fEl=document.getElementById("ssFacets"); if(fEl)fEl.innerHTML=facetHTML;
 
   // Show the results PAGE, hide the home sections (nike.com-style navigation)

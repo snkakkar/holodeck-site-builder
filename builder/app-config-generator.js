@@ -321,7 +321,9 @@
         // Fall back to catalog-derived chips so no tier ever renders empty.
         return fromGemini.length ? fromGemini : deriveSearchChips(products);
       })(),
-      navCategories: arr(found.navCategories),
+      // Prefer Gemini's nav labels; else derive from the live catalog so the
+      // dropdown never falls back to the template's hardcoded wine categories.
+      navCategories: arr(found.navCategories).length ? arr(found.navCategories) : deriveNavCategories(products),
       promoTiles: arr(found.promoTiles).length ? found.promoTiles : DEFAULT_PROMO_TILES,
       footerBlurb: pick(found.footerBlurb, custName + " — personalized shopping, powered by your unified profile."),
       sectionHeadings: {
@@ -440,29 +442,55 @@
   // preview, non-Gemini fallback, or a Gemini response that omitted chips) has
   // working, category-appropriate chips — never empty, never wine-locked.
   // `products` is the mapped cimulate catalog ([{cat, name, price, ...}]).
+  // Build INTENT-STYLE search chips (natural-language shopper goals, not bare
+  // category/SKU names) for the deterministic (non-Gemini) tiers. Each chip is
+  // grounded in a real product so clicking it returns results. Gemini's own
+  // story-grounded chips are preferred upstream; this is the fallback.
   function deriveSearchChips(products) {
     const chips = [];
-    const seen = {};
-    // One chip per distinct category (e.g. "Clubs", "Apparel"), in catalog order.
+    const seenProd = {};
+    // One goal-oriented chip per distinct category, anchored on a real product
+    // name from that category so the query always matches something.
+    const catSeen = {};
     arr(products).forEach(function (p) {
       const c = (p.cat || "").trim();
-      if (c && !seen[c.toLowerCase()]) {
-        seen[c.toLowerCase()] = true;
-        chips.push({ q: c, icon: "fa-magnifying-glass", tag: "" });
-      }
+      const n = (p.name || "").trim();
+      if (!c || catSeen[c.toLowerCase()] || !n || chips.length >= 4) return;
+      catSeen[c.toLowerCase()] = true;
+      seenProd[n.toLowerCase()] = true;
+      // e.g. "best driver in Clubs", "top-rated Nike Vapor" — reads as intent,
+      // still contains real tokens (category + product) so search returns hits.
+      chips.push({ q: "best " + n.toLowerCase() + " for me", icon: "fa-magnifying-glass", tag: "" });
     });
-    // Fill toward ~4 chips with a couple of real product names.
+    // Fill toward ~4 chips with a "under $X" style intent on remaining products.
     for (let i = 0; i < products.length && chips.length < 4; i++) {
       const n = (products[i].name || "").trim();
-      if (n && !seen[n.toLowerCase()]) { seen[n.toLowerCase()] = true; chips.push({ q: n, icon: "fa-magnifying-glass", tag: "" }); }
+      const price = Number(products[i].price) || 0;
+      if (!n || seenProd[n.toLowerCase()]) continue;
+      seenProd[n.toLowerCase()] = true;
+      chips.push({ q: price ? (n.toLowerCase() + " under $" + Math.ceil(price / 10) * 10) : ("show me " + n.toLowerCase()), icon: "fa-magnifying-glass", tag: "" });
     }
     // Absolute floor if the catalog is empty (generic first preview with no SKUs).
     if (!chips.length) {
-      ["Featured", "Best sellers", "New arrivals", "Deals"].forEach(function (q) {
+      ["show me your best sellers", "what's new this week", "top-rated picks for me", "great gifts under $50"].forEach(function (q) {
         chips.push({ q: q, icon: "fa-magnifying-glass", tag: "" });
       });
     }
     return chips;
+  }
+  // Distinct product categories from the mapped catalog, in first-seen order.
+  // Drives the storefront category nav so it reflects THIS customer's catalog
+  // (clubs/apparel/… for a golf retailer) instead of the template's wine nav.
+  function deriveNavCategories(products) {
+    const seen = {}, out = [];
+    arr(products).forEach(function (p) {
+      const c = (p.cat || "").trim();
+      if (c && !seen[c.toLowerCase()]) { seen[c.toLowerCase()] = true; out.push(c); }
+    });
+    // Generic-retail floor so the storefront nav can NEVER fall back to the
+    // template's hardcoded wine categories, even with an empty catalog.
+    if (!out.length) return ["Featured", "Best Sellers", "New Arrivals", "Accessories"];
+    return out;
   }
   function mapCatalogToCimulate(catalog, brand) {
     return arr(catalog).map(function (p, i) {

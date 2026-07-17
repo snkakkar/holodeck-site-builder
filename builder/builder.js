@@ -800,6 +800,17 @@
       if (s._cxSkipped)     return st("optional", "Skipped");
       return st("optional", "Optional");
     }
+    if (id === "apps") {
+      // The slide deck is always built; the two apps are opt-in, so this step
+      // is OPTIONAL by default. Turning an app on (or moving past the step via
+      // Next) marks it complete.
+      const enabledApps = ["clienteling", "cimulate"].filter(function (k) {
+        return s.apps && s.apps[k] && s.apps[k].enabled;
+      });
+      if (enabledApps.length) return st("complete", enabledApps.length + (enabledApps.length === 1 ? " app added" : " apps added"));
+      if (s._appsVisited)      return st("complete", "Deck only");
+      return st("optional", "Optional");
+    }
     if (id === "recs") {
       if (!foundationsHaveContent && !hasSelections && !slideCount) return locked("Review Story Foundations first");
       if (!slideCount) return st("review-needed", "Build slide plan");
@@ -2662,13 +2673,22 @@
   }
 
   // Persist a generated config where the preview iframe can read it. A stable
-  // per-app token keeps the sessionStorage key predictable and lets a
-  // regenerate overwrite in place. Returns the token.
+  // per-app token keeps the storage key predictable and lets a regenerate
+  // overwrite in place. Returns the token.
+  //
+  // We write to localStorage (NOT sessionStorage) because "Open full-screen"
+  // does window.open() into a SEPARATE browsing context, and sessionStorage is
+  // per-tab — the new tab wouldn't see a sessionStorage-only config and would
+  // fall back to the stock Total Wine sample. localStorage is shared across
+  // tabs of the same origin, so the full-screen tab renders the same generated
+  // config as the inline iframe. We also mirror to sessionStorage for older
+  // read shims.
   function stashPreviewConfig(appId, config) {
     const token = appId + "-" + (app.state && app.state.id ? app.state.id : "local");
-    try {
-      window.sessionStorage.setItem("holo-appconfig-" + token, JSON.stringify(config));
-    } catch (e) { /* preview will fall back to sample data */ }
+    const key = "holo-appconfig-" + token;
+    const json = JSON.stringify(config);
+    try { window.localStorage.setItem(key, json); } catch (e) { /* quota */ }
+    try { window.sessionStorage.setItem(key, json); } catch (e) { /* quota */ }
     return token;
   }
 
@@ -5830,7 +5850,12 @@
     const right = el("div");
     if (next) {
       const b = el("button", { class: "bx-btn bx-btn-primary", text: next.label + " →" });
-      b.addEventListener("click", function () { app.state.step = next.id; renderShell(); commit(); });
+      b.addEventListener("click", function () {
+        // The apps step is optional; advancing past it counts as acknowledged,
+        // so its status flips from "Optional" to "Complete".
+        if (stepId === "apps") app.state._appsVisited = true;
+        app.state.step = next.id; renderShell(); commit();
+      });
       right.appendChild(b);
     }
     wrap.appendChild(left); wrap.appendChild(right);

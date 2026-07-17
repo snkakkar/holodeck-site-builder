@@ -89,7 +89,10 @@
     return [
       "You are generating realistic demo data for an INTENT-AWARE PRODUCT SEARCH + concierge-agent shopping experience (an e-commerce storefront) for \"" + cx.customerName + "\" in the " + cx.industry + " industry.",
       cx.website ? ("Their website: " + cx.website + ".") : "",
-      cx.persona ? ("Primary shopper persona: " + JSON.stringify({ name: cx.persona.name, role: cx.persona.role })) : "",
+      cx.bigProblem ? ("Business problem in the demo story: " + cx.bigProblem) : "",
+      cx.futureVision ? ("Future vision the demo builds toward: " + cx.futureVision) : "",
+      cx.persona ? ("Primary shopper persona: " + JSON.stringify({ name: cx.persona.name, role: cx.persona.role, quote: cx.persona.quote })) : "",
+      (cx.storyActs && cx.storyActs.length) ? ("Demo story beats (use these to ground the shopper's goals and the example search queries): " + JSON.stringify(cx.storyActs).slice(0, 1200)) : "",
       "",
       "CRITICAL VOCABULARY RULE: Use " + cx.customerName + "'s REAL industry language everywhere. Do NOT use wine/bottle/sommelier/'Somm'/tasting terminology UNLESS " + cx.customerName + " actually sells wine. The storefront chrome (brand logo text, concierge name/subtitle, hero headline, search suggestion chips, category nav, promo tiles, footer blurb, section headings) is rendered VERBATIM from the fields you return — make every string fit THIS customer's category.",
       "",
@@ -99,7 +102,7 @@
       '  "storeLocation": string,',
       '  "unitNoun": string,       // what one catalog item is called, singular (e.g. "item","club","pair","bottle"). Used in copy like "Find your next favorite <unitNoun>".',
       '  "heroHeadline": string,   // e.g. "Find your next favorite <thing>" in the customer\'s category',
-      '  "searchChips": [string],  // 3-5 realistic example search queries a shopper would type for THIS customer (industry-appropriate, NOT wine)',
+      '  "searchChips": [string],  // 3-5 INTENT-RICH natural-language search queries this persona would type — describe a GOAL or PROBLEM in their own words, not a bare category/product name. Ground them in the demo story above. Each MUST map to a real product in your "catalog" below so clicking it returns results. Good (golf): "driver to fix my slice", "waterproof rain jacket for tournaments", "beginner iron set under $600". Bad: "Clubs", "Drivers", a bare SKU name. NEVER wine unless the customer sells wine.',
       '  "navCategories": [string],// 2-4 top category labels for the storefront nav',
       '  "promoTiles": [{ "title": string, "sub": string }],  // 1-3 merchandising promo tiles',
       '  "footerBlurb": string,    // one-line brand descriptor for the footer (NOT "America\'s Wine Superstore")',
@@ -178,20 +181,26 @@
     return base;
   }
 
-  // A neutral 6-SKU seed catalog when nothing else is available. No wine terms.
+  // A neutral 6-SKU seed catalog when nothing else is available. GENERIC RETAIL
+  // (no wine terms) so the pre-context preview reads like a real store — the
+  // distinct `cat` values also drive the storefront category nav + search chips.
   function seedCatalog(cx) {
     // When there's no customer yet (generic first preview) use neutral wording
     // so SKU names don't render with a leading space / empty brand.
     const name = cx.customerName || "";
     const label = name ? (name + " ") : "";
     const owner = name || "our";
+    // Generic retail departments — rotated across the seed SKUs so the nav /
+    // chips show a believable multi-category store before any real context.
+    const CATS = ["Featured", "Best Sellers", "New Arrivals", "Accessories"];
     const out = [];
     for (let i = 1; i <= 6; i++) {
+      const c = CATS[(i - 1) % CATS.length];
       out.push({
         id: "sku" + i,
         name: label + "Signature Item " + i,
-        category: "Featured",
-        cat: "Featured",
+        category: c,
+        cat: c,
         type: "Signature",
         variety: "Signature",
         region: "",
