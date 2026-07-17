@@ -1488,6 +1488,16 @@
     toast("Foundations extracted — " + vdCount + " value drivers, "
           + s.storyActs.length + " acts, " + s.personas.length + " persona" + (s.personas.length === 1 ? "" : "s")
           + custNote + prodNote);
+
+    // Kick journey-map image generation off NOW (right after acts land), not at
+    // export — so the images are ready during preview and the first export is a
+    // cache hit. Fire-and-forget: idempotent + cached (skips filled slots,
+    // degrades to emoji on failure, commits itself). Guarded so it only runs
+    // once acts exist (ensureJourneyImages no-ops when bucketActsIntoFive yields
+    // no steps). Never blocks the UI. The export-time calls remain as no-ops.
+    if ((s.storyActs || []).length) {
+      try { Promise.resolve(ensureJourneyImages(s)).catch(function () {}); } catch (_) {}
+    }
     return true;
   }
 
@@ -2373,17 +2383,38 @@
   // elsewhere rather than a central normalizer.
   function appsState() {
     const s = app.state;
+    const freshSlice = function () {
+      return { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null, _previewOnly: false, _aiGenerated: false };
+    };
     if (!s.apps) {
       s.apps = {
         slides:      { enabled: true,  status: "recommended" },
-        clienteling: { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null },
-        cimulate:    { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null },
+        clienteling: freshSlice(),
+        cimulate:    freshSlice(),
       };
     }
     // Backfill any app key missing from an older slice.
     if (!s.apps.slides)      s.apps.slides      = { enabled: true,  status: "recommended" };
-    if (!s.apps.clienteling) s.apps.clienteling = { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null };
-    if (!s.apps.cimulate)    s.apps.cimulate    = { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null };
+    if (!s.apps.clienteling) s.apps.clienteling = freshSlice();
+    if (!s.apps.cimulate)    s.apps.cimulate    = freshSlice();
+    // Migrate pre-two-tier slices: an older project that already has a
+    // generated config (generation always ran the photo pass back then) is
+    // effectively AI-generated. If neither tier flag is set but a config
+    // exists, classify it so the card shows the right buttons and never
+    // silently re-spends tokens on reopen.
+    ["clienteling", "cimulate"].forEach(function (id) {
+      const sl = s.apps[id];
+      if (sl && sl.extracted && sl._previewOnly == null && sl._aiGenerated == null) {
+        const hadPhotos = sl.productImages && Object.keys(sl.productImages).length;
+        sl._aiGenerated = !!hadPhotos;
+        sl._previewOnly = !hadPhotos;
+      }
+      // The generic-preview config lives in (per-session) sessionStorage, so its
+      // token is stale after a reload. Clear the flag so ensureGenericPreview
+      // re-seeds it this session — otherwise the iframe would load an empty
+      // token and fall back to the stock Total Wine sample.
+      if (sl && !sl.extracted) sl._genericToken = false;
+    });
     return s.apps;
   }
 
@@ -2467,7 +2498,8 @@
 
     const pills = el("div", { class: "bx-row" });
     if (intent.hasSignal) pills.appendChild(el("span", { class: "bx-pill bx-pill-rec", text: "★ Recommended" }));
-    pills.appendChild(el("span", { class: "bx-pill", text: slice.enabled ? (slice.extracted ? "On · branded" : "On") : "Opt-in" }));
+    const tierLabel = slice._aiGenerated ? "On · AI images" : (slice.extracted ? "On · preview" : "On");
+    pills.appendChild(el("span", { class: "bx-pill", text: slice.enabled ? tierLabel : "Opt-in" }));
     pills.appendChild(toggleLabel);
 
     card.appendChild(el("div", { class: "bx-row bx-row-between" }, [
@@ -2496,34 +2528,83 @@
 
     // Preview + generate panel — only when enabled.
     if (slice.enabled) {
+      // Before anything is generated, seed a generic-retail preview so the
+      // iframe never shows the stock Total Wine sample. Token-free.
+      if (!slice.extracted) ensureGenericPreview(def, slice);
       const panel = el("div", { class: "bx-mt-12" });
 
-      // Generate / regenerate row (R3). Personalizes the preview to the project.
+      // Two-tier generate row (R4). Preview = cheap text-only pass (neutral
+      // SVG products); AI = confirm-gated per-SKU image pass. Tiers gate token
+      // spend so look/feel iterations stay cheap.
       const genRow = el("div", { class: "bx-row bx-mt-12" });
-      const genLabel = slice._generating
-        ? "⏳ Generating…"
-        : (slice.extracted ? "↻ Regenerate for this customer" : "✨ Generate this app");
-      const genBtn = btn(genLabel, "bx-btn-primary", function () {
-        if (!slice._generating) generateApp(def, slice);
-      });
-      if (slice._generating) genBtn.setAttribute("disabled", "disabled");
-      genRow.appendChild(genBtn);
+      if (slice._generating) {
+        // While busy, show a single disabled label reflecting the running tier.
+        const busy = btn(slice._genMode === "ai" ? "⏳ Generating with AI…" : "⏳ Building preview…", "bx-btn-primary", function () {});
+        busy.setAttribute("disabled", "disabled");
+        genRow.appendChild(busy);
+      } else if (!slice.extracted) {
+        // Nothing generated yet → the cheap preview is the primary action.
+        genRow.appendChild(btn("✨ Preview this app", "bx-btn-primary", function () {
+          generateApp(def, slice, "preview");
+        }));
+      } else if (slice._aiGenerated) {
+        // AI images already generated → cached; the only re-spend is a
+        // confirm-gated regenerate. Plain reopens/re-renders reuse the cache.
+        genRow.appendChild(btn("↻ Regenerate with AI", "bx-btn-primary", function () {
+          generateAppAI(def, slice);
+        }));
+        genRow.appendChild(btn("↻ Refresh preview (no AI)", "bx-btn-secondary", function () {
+          generateApp(def, slice, "preview");
+        }));
+      } else {
+        // Preview exists (_previewOnly) → offer the confirm-gated AI upgrade,
+        // plus a cheap re-preview.
+        genRow.appendChild(btn("Looks good — generate with AI ✨", "bx-btn-primary", function () {
+          generateAppAI(def, slice);
+        }));
+        genRow.appendChild(btn("↻ Refresh preview", "bx-btn-secondary", function () {
+          generateApp(def, slice, "preview");
+        }));
+      }
       genRow.appendChild(btn("↗ Open full-screen", "bx-btn-secondary", function () {
         window.open(previewUrlFor(def, slice), "_blank", "noopener");
       }));
       panel.appendChild(genRow);
 
-      // Live status line while generating (updated in place by generateApp).
-      const statusText = slice._generating
-        ? (slice._genStatus || "Working…")
-        : (slice._genStatus || (slice.extracted
-            ? ("Personalized preview — generated from this project's story data." + (slice._usedGemini === false ? " (template fallback — AI unavailable)" : ""))
-            : ("Showing the sample template. Click Generate to personalize it to " + (custName() || "your customer") + ".")));
-      panel.appendChild(el("div", {
-        class: "bx-help bx-mt-12" + (slice._generating ? " bx-appgen-busy" : ""),
-        id: "bx-appgen-status-" + def.id,
-        text: statusText,
-      }));
+      if (slice._generating) {
+        // One unified progress bar for the whole build (foundation → config →
+        // product photos). Fill + label carry stable IDs so generateApp's
+        // setProgress can advance them in place without re-rendering the card.
+        const fill = el("div", {
+          class: "bx-progress-fill",
+          id: "bx-appgen-fill-" + def.id,
+          style: "width:" + Math.round((slice._progress || 0) * 100) + "%",
+        });
+        const track = el("div", { class: "bx-progress" }, [fill]);
+        const label = el("div", {
+          class: "bx-progress-label",
+          id: "bx-appgen-status-" + def.id,
+          text: slice._genStatus || "Working…",
+        });
+        panel.appendChild(el("div", { class: "bx-progress-wrap bx-mt-12" }, [track, label]));
+      } else {
+        // Resting status line — tier-aware.
+        let statusText;
+        if (slice._genStatus) {
+          statusText = slice._genStatus;
+        } else if (!slice.extracted) {
+          statusText = "Showing a generic retail preview. Click Preview to personalize it to " + (custName() || "your customer") + " (no image tokens spent).";
+        } else if (slice._aiGenerated) {
+          statusText = "AI-generated — per-product images created for " + (custName() || "your customer") + ". Cached; reopening won't re-spend tokens." + (slice._usedGemini === false ? " (template fallback — AI unavailable)" : "");
+        } else {
+          statusText = "Preview generated from this project's story data — products use neutral placeholders. Happy with the look? Generate with AI to add real product images." + (slice._usedGemini === false ? " (template fallback — AI unavailable)" : "");
+        }
+        panel.appendChild(el("div", {
+          class: "bx-help bx-mt-12",
+          id: "bx-appgen-status-" + def.id,
+          text: statusText,
+        }));
+      }
 
       // Inline iframe in a light device frame.
       const frame = el("div", { class: "bx-app-preview-frame" });
@@ -2552,10 +2633,27 @@
   // sessionStorage (see the "BUILDER PREVIEW OVERRIDE" shim in each
   // demo-apps/<app>/app-config.js).
   function previewUrlFor(def, slice) {
-    if (slice.extracted && slice._previewToken) {
+    if ((slice.extracted || slice._genericToken) && slice._previewToken) {
       return def.previewUrl + "?holo=" + encodeURIComponent(slice._previewToken);
     }
     return def.previewUrl;
+  }
+
+  // The FIRST preview an enabled-but-not-yet-generated app card shows must be
+  // completely GENERIC RETAIL — never the stock Total Wine sample. We build a
+  // token-free deterministic fallback config with no customer context and stash
+  // it under the app's preview token, so the iframe loads generic retail via
+  // ?holo=<token>. No Gemini call, no image tokens. Real generation later
+  // overwrites this same token in place.
+  function ensureGenericPreview(def, slice) {
+    if (slice.extracted) return;              // a real preview/AI config exists
+    if (slice._genericToken) return;          // already seeded this session
+    if (!window.HOLO_APPFOUND || !window.HOLO_APPFOUND.buildFallbackConfig) return;
+    try {
+      const generic = window.HOLO_APPFOUND.buildFallbackConfig(def.id, app.state, { generic: true });
+      slice._previewToken = stashPreviewConfig(def.id, generic);
+      slice._genericToken = true;
+    } catch (e) { /* fall back to the stock template if this fails */ }
   }
 
   // Persist a generated config where the preview iframe can read it. A stable
@@ -2569,57 +2667,119 @@
     return token;
   }
 
-  // R3/R4: generate a per-customer version of an app, personalize the preview.
-  // Runs foundation extraction (+ Gemini), then optionally product photos,
-  // then swaps the iframe to the generated config. Guarded so a failure never
-  // leaves the card stuck — worst case it keeps sample data.
-  function generateApp(def, slice) {
+  // R3/R4: generate a per-customer version of an app in TWO gated tiers so we
+  // don't crush image-generation tokens on every look/feel iteration.
+  //
+  //   mode "preview" (cheap, default first click): one Gemini TEXT call + local
+  //     assembly. NO per-SKU image generation — products fall back to the
+  //     neutral procedural SVG. Sets _previewOnly. Cheap + re-runnable.
+  //   mode "ai" (expensive, opt-in): the per-SKU photo pass. If a preview
+  //     config is already cached we photograph THAT (no second text call);
+  //     otherwise we run text first, then photos. Sets _aiGenerated, clears
+  //     _previewOnly. This is the ONLY path that spends image tokens.
+  //
+  // Guarded so a failure never leaves the card stuck — worst case it keeps the
+  // previous config / sample data.
+  function generateApp(def, slice, mode) {
+    mode = mode || "preview";
     if (slice._generating) return;
-    slice._generating = true;
-    renderMain(); // reflect the busy state immediately
-
-    const setStatus = function (msg) {
-      slice._genStatus = msg;
-      const node = document.getElementById("bx-appgen-status-" + def.id);
-      if (node) node.textContent = msg;
-    };
-
     if (!window.HOLO_APPFOUND) {
-      slice._generating = false;
       slice._genStatus = "Generator unavailable.";
       renderMain();
       return;
     }
+    slice._generating = true;
+    slice._genMode = mode;
+    slice._progress = 0;
+    slice._genStatus = mode === "ai" ? "Preparing AI generation…" : "Starting preview…";
+    renderMain(); // reflect the busy state (and render the progress bar) immediately
 
-    HOLO_APPFOUND.generate(def.id, app.state, { onStatus: setStatus })
+    // The preview tier is a single text stage → the whole bar is that stage.
+    // The AI tier's bar is dominated by the per-SKU photo stage; if it also has
+    // to run text first (no cached config) we give text a small leading slice.
+    const hasCachedConfig = !!(slice.config && (slice.config.products || slice.config.catalog));
+    const needsText = mode === "preview" || !hasCachedConfig;
+    const FOUND_WEIGHT = mode === "preview" ? 1 : (needsText ? 0.25 : 0);
+    const PHOTO_WEIGHT = mode === "preview" ? 0 : (1 - FOUND_WEIGHT);
+
+    // Update in place so per-photo ticks don't trigger a full re-render (which
+    // would reload the preview iframe). Mirrors the bx-appgen-status pattern.
+    function setProgress(frac, text) {
+      slice._progress = Math.max(0, Math.min(1, frac));
+      if (text != null) slice._genStatus = text;
+      const fill = document.getElementById("bx-appgen-fill-" + def.id);
+      if (fill) fill.style.width = Math.round(slice._progress * 100) + "%";
+      const label = document.getElementById("bx-appgen-status-" + def.id);
+      if (label && text != null) label.textContent = text;
+    }
+    const foundStatus = function (msg, f) { setProgress((f || 0) * FOUND_WEIGHT, msg); };
+    const photoStatus = function (msg, f) { setProgress(FOUND_WEIGHT + (f || 0) * PHOTO_WEIGHT, msg); };
+
+    // Finish + persist whichever tier we ran.
+    function finish(config, tier) {
+      setProgress(1, "Done.");
+      slice.config = config;
+      slice.extracted = true;
+      slice._previewToken = stashPreviewConfig(def.id, config);
+      slice._previewOnly = tier === "preview";
+      slice._aiGenerated = tier === "ai";
+      slice._generating = false;
+      slice._genMode = null;
+      slice._progress = 0;
+      slice._genStatus = "";
+      commit();
+      renderMain(); // iframe now points at ?holo=<token> → customer data
+    }
+    function fail(err) {
+      slice._generating = false;
+      slice._genMode = null;
+      slice._progress = 0;
+      slice._genStatus = "Generation failed: " + ((err && err.message) || err);
+      renderMain();
+    }
+
+    // The per-SKU photo pass (AI tier only). Best-effort; SVG fallback per item.
+    function runPhotos(config) {
+      photoStatus("Generating product photos…", 0);
+      return HOLO_APPFOUND.generateProductPhotos(def.id, config, { onStatus: photoStatus })
+        .then(function (images) {
+          if (images && Object.keys(images).length) {
+            config.productImages = Object.assign({}, config.productImages, images);
+            slice.productImages = config.productImages;
+          }
+          return config;
+        })
+        .catch(function () { return config; });
+    }
+
+    // AI tier with a cached preview config: skip the text call, just photograph.
+    if (mode === "ai" && hasCachedConfig) {
+      runPhotos(slice.config)
+        .then(function (config) { finish(config, "ai"); })
+        .catch(fail);
+      return;
+    }
+
+    // Preview tier, or AI tier with no cached config yet: run text first.
+    HOLO_APPFOUND.generate(def.id, app.state, { onStatus: foundStatus })
       .then(function (out) {
-        slice.config = out.config;
-        slice.extracted = true;
         slice._usedGemini = out.usedGemini;
-        // R4: product photos (default on). Best-effort; SVG fallback per item.
-        setStatus("Generating product photos…");
-        return HOLO_APPFOUND.generateProductPhotos(def.id, out.config, { onStatus: setStatus })
-          .then(function (images) {
-            if (images && Object.keys(images).length) {
-              out.config.productImages = Object.assign({}, out.config.productImages, images);
-              slice.productImages = out.config.productImages;
-            }
-            return out.config;
-          })
-          .catch(function () { return out.config; });
+        if (mode === "preview") return { config: out.config, tier: "preview" };
+        // AI tier without a cache — chain straight into photos.
+        return runPhotos(out.config).then(function (config) { return { config: config, tier: "ai" }; });
       })
-      .then(function (config) {
-        slice._previewToken = stashPreviewConfig(def.id, config);
-        slice._generating = false;
-        slice._genStatus = "";
-        commit();
-        renderMain(); // iframe now points at ?holo=<token> → customer data
-      })
-      .catch(function (err) {
-        slice._generating = false;
-        slice._genStatus = "Generation failed: " + ((err && err.message) || err);
-        renderMain();
-      });
+      .then(function (r) { finish(r.config, r.tier); })
+      .catch(fail);
+  }
+
+  // AI tier is confirm-gated so it can't silently re-spend image tokens.
+  function generateAppAI(def, slice) {
+    const already = slice._aiGenerated;
+    const msg = already
+      ? "Regenerate this app with AI? This re-runs the full AI image pass and spends image-generation tokens."
+      : "Generate with AI? This runs per-product image generation and spends image-generation tokens. (Your preview stays if you cancel.)";
+    if (!window.confirm(msg)) return;
+    generateApp(def, slice, "ai");
   }
 
   function viewCxComponents() {

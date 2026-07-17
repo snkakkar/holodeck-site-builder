@@ -14,7 +14,12 @@ function stars(r){ const full=Math.round(r/20); let s=""; for(let i=0;i<5;i++)s+
    ===================================================================== */
 // deterministic pseudo review-count per product (stable, no RNG)
 function reviewCount(p){ let h=0; for(const c of p.id)h=(h*31+c.charCodeAt(0))%1000; return 40+h*2; }
-function sizeLine(p){ return /pack/i.test(p.type||"") ? p.type.split("·")[1]?.trim()||"6-pack" : "750ml Bottle"; }
+// Sub-line under a product name: prefer the product's own size/type; else the
+// generic type/variety. No wine-specific "750ml Bottle" default.
+function sizeLine(p){
+  if(/pack/i.test(p.type||"")) return p.type.split("·")[1]?.trim()||p.type;
+  return p.size || p.type || p.variety || p.cat || "";
+}
 
 function productCardHTML(p,{rankTag=""}={}){
   const badgeClass = p.cat==="Beer" ? "red" : p.badge==="CELEBRATION"||p.badge==="GRAND RESERVE" ? "gold" : "";
@@ -37,45 +42,42 @@ function productCardHTML(p,{rankTag=""}={}){
 // Circular category thumbnail using a representative product bottle
 function catCircleHTML(label,pid,onclick){
   const p=byId(pid);
-  return `<a href="#featured" ${onclick?`onclick="${onclick}"`:""}><span class="ci">${p?productImage(p,96,248):'<i class="fa-solid fa-wine-bottle"></i>'}</span><span>${esc(label)}</span></a>`;
+  return `<a href="#featured" ${onclick?`onclick="${onclick}"`:""}><span class="ci">${p?productImage(p,96,248):'<i class="fa-solid fa-bag-shopping"></i>'}</span><span>${esc(label)}</span></a>`;
+}
+/* Resolve a section's product ids: prefer config ids that exist in the
+   catalog, else fall back to a slice of the catalog so ANY generated config
+   (with different ids) still fills the rail. */
+function sectionIds(key, fallbackCount){
+  const S=(APP_CONFIG.sections||{})[key]||{};
+  const wanted=(Array.isArray(S.ids)?S.ids:[]).filter(id=>byId(id));
+  if(wanted.length) return wanted;
+  return APP_CONFIG.products.slice(0, fallbackCount||10).map(p=>p.id);
 }
 function renderGrid(){
-  const order=["caymus","hakushu","silveroak","kimcrawford","macallan18","sierraneva","cakebread","veuve","meiomi","casamigos"];
-  document.getElementById("productGrid").innerHTML = order.map(id=>productCardHTML(byId(id))).join("");
+  document.getElementById("productGrid").innerHTML = sectionIds("featured",10).map(id=>productCardHTML(byId(id))).join("");
 }
 function renderTrending(){
-  const ids=["meiomi","casamigos","voodoo","veuve","cakebread","kimcrawford","stellabeer","nikka","sierraneva","silveroak"];
-  document.getElementById("trendingGrid").innerHTML = ids.map(id=>productCardHTML(byId(id))).join("");
+  document.getElementById("trendingGrid").innerHTML = sectionIds("trending",10).map(id=>productCardHTML(byId(id))).join("");
 }
 function renderSpecials(){
-  const ids=["kimcrawford","casamigos","meiomi","stellabeer","cakebread","sierraneva","nikka","hakushu","voodoo","veuve"];
-  document.getElementById("specialsGrid").innerHTML = ids.map(id=>productCardHTML(byId(id))).join("");
+  document.getElementById("specialsGrid").innerHTML = sectionIds("specials",10).map(id=>productCardHTML(byId(id))).join("");
+}
+/* Circle strips: prefer config circles [{label,id,onclick?}]; else derive
+   generic circles from the first products in the catalog. */
+function circlesFor(key, count){
+  const S=(APP_CONFIG.sections||{})[key]||{};
+  const cfg=(Array.isArray(S.circles)?S.circles:[]).filter(c=>c&&byId(c.id));
+  if(cfg.length) return cfg;
+  return APP_CONFIG.products.slice(0, count||6).map(p=>({ label:p.cat||p.type||p.name, id:p.id }));
 }
 function renderCircles(){
-  document.getElementById("matchDayStrip").innerHTML = [
-    catCircleHTML("Bold Reds for Game Day","caymus"),
-    catCircleHTML("Cocktails for Your Team","casamigos"),
-    catCircleHTML("Savings on Red Wine","silveroak"),
-    catCircleHTML("Ready to Drink Sips","stellabeer"),
-    catCircleHTML("Party Beer","sierraneva"),
-    catCircleHTML("Curated Picks","veuve"),
-  ].join("");
-  document.getElementById("topCatStrip").innerHTML = [
-    catCircleHTML("Sauvignon Blanc","kimcrawford"),
-    catCircleHTML("Cabernet Sauvignon","caymus"),
-    catCircleHTML("Reposado","casamigos"),
-    catCircleHTML("Pinot Noir","meiomi"),
-    catCircleHTML("Japanese Whisky","hakushu"),
-    catCircleHTML("Champagne","veuve"),
-  ].join("");
-  document.getElementById("cocktailStrip").innerHTML = [
-    catCircleHTML("French 75","veuve"),
-    catCircleHTML("Whisky Highball","hakushu"),
-    catCircleHTML("Margarita","casamigos"),
-    catCircleHTML("Old Fashioned","macallan18"),
-    catCircleHTML("Summer Cocktails","kimcrawford"),
-    catCircleHTML("Ask Somm to Mix","caymus","openSomm();return false"),
-  ].join("");
+  const strip=(elId,key)=>{
+    const el=document.getElementById(elId); if(!el)return;
+    el.innerHTML = circlesFor(key,6).map(c=>catCircleHTML(c.label,c.id,c.onclick)).join("");
+  };
+  strip("matchDayStrip","matchDay");
+  strip("topCatStrip","topCat");
+  strip("cocktailStrip","cocktail");
 }
 function renderHero(){
   // Hero is now the "Sips for the Cup!" banner (pure CSS) — no SVG bottles to inject.
@@ -92,14 +94,14 @@ function addToCart(id,silent){
   updateCart();
   if(!silent){
     toast("cart",`Added to cart`,`${p.name} · ${money(p.price)}`);
-    toast("data","Data 360 profile updated",`New purchase-intent signal captured for ${APP_CONFIG.profile.name} — feeds future recommendations.`);
+    toast("data", tpl("dataToastTitle","Data 360 profile updated"), tpl("dataToastSub","New purchase-intent signal captured — feeds future recommendations."));
   }
 }
 function updateCart(){
   const count=CART.reduce((n,c)=>n+c.qty,0);
   document.getElementById("cartCount").textContent=count;
   const items=document.getElementById("cartItems");
-  if(!CART.length){ items.innerHTML=`<div class="cart-empty"><i class="fa-solid fa-wine-bottle"></i>Your cart is empty.<br/>Ask Somm for a recommendation!</div>`; }
+  if(!CART.length){ items.innerHTML=`<div class="cart-empty"><i class="fa-solid fa-bag-shopping"></i>${tpl("cartEmpty","Your cart is empty.")}</div>`; }
   else items.innerHTML=CART.map(c=>{const p=byId(c.id);return `<div class="cart-row">
     <div class="cr-media">${productImage(p,36,104)}</div>
     <div class="cr-body"><div class="cr-name">${esc(p.name)}</div><div class="cr-meta">${esc(p.type)} · Qty ${c.qty}</div></div>
@@ -151,118 +153,97 @@ function showCuratedRail(title,sub,ids){
   setTimeout(()=>rail.scrollIntoView({behavior:"smooth",block:"start"}),150);
 }
 
-const SOMM_INTENTS=[
-  { keys:["steak","dinner party","bold red","cabernet","pair with steak","hosting"],
-    reply:()=>{
-      showCuratedRail("Curated for your steak dinner party",
-        "Somm selected these bold reds based on your conversation and your Premium profile (you love big Napa Cabs).",
-        ["caymus","silveroak","veuve"]);
-      return `<p>A steak dinner party — my favorite! 🥩 Since your profile tells me you lean toward <em>bold Napa Cabernet</em>, here are two showstoppers that pair beautifully with a ribeye:</p>
-        ${recCardChat("caymus")}${recCardChat("silveroak")}
-        <p>I've also refreshed the page with a <em>"Curated for your dinner party"</em> selection ↑. Want a sparkling option to open the evening?</p>
-        ${quicks([{label:"Add a Bubbly to start",q:"suggest a champagne to open the party"},{label:"Under $100 Only",q:"keep the reds under $100"}])}`;
-    }},
-  { keys:["champagne","bubbly","sparkling","open the party","celebrate"],
-    reply:()=>`<p>Perfect way to greet guests. The <em>Veuve Clicquot Yellow Label</em> is a crowd-pleaser — crisp, toasty, and always celebratory.</p>${recCardChat("veuve")}`
-  },
-  { keys:["under $100","under $50","keep the reds","budget","cheaper","affordable"],
-    reply:()=>{
-      showCuratedRail("Bold reds under $100","Trimmed to your budget while keeping the impress-your-guests factor.",["caymus","silveroak","meiomi"]);
-      return `<p>Absolutely — all three of these land under $100. The <em>Caymus</em> and <em>Silver Oak</em> are the showstoppers, and the <em>Meiomi</em> is a beautifully smooth value pick:</p>${recCardChat("silveroak")}${recCardChat("meiomi")}<p>I've updated the curated rail to under-$100 reds ↑.</p>`;
-    }},
-  { keys:["whisky","whiskey","scotch","smoky","japanese","bourbon","spirit"],
-    reply:()=>{
-      showCuratedRail("Smoky whiskies you'll love","Grounded on your past whisky purchases (you bought Hakushu in September).",["hakushu","nikka","macallan18"]);
-      return `<p>You've explored Japanese whisky before, so you'll feel right at home here. For something <em>smoky</em>, I'd start with:</p>${recCardChat("hakushu")}${recCardChat("nikka")}<p>Both under $80. Want me to pull up the full smoky-whisky search?</p>${quicks([{label:"Show Full Search",q:"open cimulate search for smoky japanese whisky under $80"}])}`;
-    }},
-  { keys:["cimulate search","open cimulate","full search","open search"],
-    reply:()=>{ setTimeout(()=>runSearch("smoky Japanese whisky under $80"),400); return `<p>On it — opening Cimulate intent search for <em>"smoky Japanese whisky under $80"</em>…</p>`; }},
-  { keys:["beer","ipa","party beer","lager","craft"],
-    reply:()=>{
-      showCuratedRail("Party-ready craft beer","Easy-drinking crowd-pleasers for a gathering.",["sierraneva","voodoo","stellabeer"]);
-      return `<p>For an easy-drinking party crowd-pleaser, you can't go wrong with a juicy hazy IPA:</p>${recCardChat("sierraneva")}<p>I've added a party-beer rail up top ↑ with a few more options.</p>`;
-    }},
-  { keys:["white","seafood","summer","crisp","sauvignon","chardonnay"],
-    reply:()=>{
-      showCuratedRail("Crisp whites for seafood","Bright, zesty whites to match lighter fare.",["kimcrawford","cakebread"]);
-      return `<p>For seafood, a crisp white is ideal. The <em>Kim Crawford Sauvignon Blanc</em> is zesty and refreshing:</p>${recCardChat("kimcrawford")}`;
-    }},
-  { keys:["gift","present","birthday","give"],
-    reply:()=>`<p>A great gift bottle should feel special. For a wine lover, <em>Silver Oak</em> or a bottle of <em>Veuve Clicquot</em> both wrap beautifully and always impress:</p>${recCardChat("veuve")}`
-  },
-  // ---------- SERVICE NEEDS ----------
-  { keys:["help me with something","service","customer service","support","i need help","account help"],
-    reply:()=>`<p>Of course — I can handle service needs right here, no waiting on hold. What do you need a hand with?</p>${quicks(SERVICE_CHIPS)}`
-  },
-  { keys:["order status","track my order","where is my order","track order","order","shipment"],
-    reply:()=>`<p>Here's your latest order, pulled straight from your unified profile:</p>
-      <div class="svc-card"><div class="svc-row"><span>Order</span><b>#TW-48120</b></div>
-        <div class="svc-row"><span>Placed</span><b>Nov 3 · 2 bottles</b></div>
-        <div class="svc-row"><span>Status</span><b class="svc-ok"><i class="fa-solid fa-truck-fast"></i> Out for delivery</b></div>
-        <div class="svc-row"><span>ETA</span><b>By 6:00 PM today · Modesto, CA</b></div></div>
-      <p>Anything you'd like to change on it?</p>${quicks([{label:"Change Delivery Address",q:"update my delivery address"},{label:"Report a Missing Item",q:"report a missing bottle"},{label:"More Service Options",q:"help me with something"}])}`
-  },
-  { keys:["delivery","deliver","track","shipment status","when will it arrive"],
-    reply:()=>`<p>Your order <em>#TW-48120</em> is <em>out for delivery</em> to your Modesto address, arriving <b>by 6 PM today</b>. Signature isn't required (age verified on your Premium profile). Want to reroute it or leave a delivery note?</p>${quicks([{label:"Change Delivery Address",q:"update my delivery address"},{label:"Report a Missing Item",q:"report a missing bottle"}])}`
-  },
-  { keys:["update my delivery","update address","change address","change delivery","reroute"],
-    reply:()=>`<p>Got it — I can reroute order <em>#TW-48120</em>. It's still with the local driver, so a change is easy. Where should it go?</p>${quicks([{label:"To my Home Store for Pickup",q:"send it to my modesto store for pickup"},{label:"Keep Home Delivery",q:"keep home delivery, thanks"}])}`
-  },
-  { keys:["report a missing","missing bottle","missing item","damaged","broken bottle"],
-    reply:()=>`<p>I'm sorry about that — I've opened a case on order <em>#TW-48120</em> and, since you're a <em>Premium</em> member, pre-approved a replacement or refund. A specialist will confirm within a minute; no need to repeat anything. Anything else? 🍷</p>`
-  },
-  { keys:["pickup","store hours","my store","curbside","store location","modesto store","hours"],
-    reply:()=>`<p>Your home store is <em>Total Wine — Modesto, CA</em>.</p>
-      <div class="svc-card"><div class="svc-row"><span>Hours today</span><b>9:00 AM – 9:00 PM</b></div>
-        <div class="svc-row"><span>Curbside pickup</span><b class="svc-ok"><i class="fa-solid fa-circle-check"></i> Available · ~15 min</b></div>
-        <div class="svc-row"><span>Wine consultant</span><b>Marie L. · on floor today</b></div></div>
-      <p>Want me to set up a pickup order or hold a bottle for you?</p>${quicks([{label:"Hold a Bottle for Pickup",q:"hold a bottle at my store"},{label:"Shop for Something",q:"help me shop"}])}`
-  },
-  { keys:["hold a bottle","reserve","set aside","in stock","availability","do you have"],
-    reply:()=>`<p>Done — I can place a <em>same-day hold</em> at your Modesto store. Tell me which bottle (or ask me to recommend one) and I'll reserve it under your Premium account for pickup today.</p>${quicks([{label:"Recommend a Bold Red",q:"recommend a bold red to hold"},{label:"Recommend a Whisky",q:"recommend a whisky to hold"}])}`
-  },
-  { keys:["loyalty","points","rewards","membership","premium perks","my account","account"],
-    reply:()=>`<p>Here's your <em>Total Wine &amp; More Rewards</em> snapshot, Lauren:</p>
-      <div class="svc-card"><div class="svc-row"><span>Tier</span><b>Premium</b></div>
-        <div class="svc-row"><span>Points balance</span><b>4,820 pts</b></div>
-        <div class="svc-row"><span>Available reward</span><b class="svc-ok">$25 off your next order</b></div>
-        <div class="svc-row"><span>Home store</span><b>Modesto, CA</b></div></div>
-      <p>Want me to apply your $25 reward to your cart, or explain how to earn double points this month?</p>${quicks([{label:"Apply my $25 Reward",q:"apply my reward to my cart"},{label:"How Do I Earn More Points?",q:"how do i earn more points"}])}`
-  },
-  { keys:["apply my reward","apply reward","use my points","redeem"],
-    reply:()=>`<p>✅ Applied — <em>$25 off</em> is now attached to your cart and will show at checkout. Your remaining balance is <em>2,320 pts</em>. Anything else I can help with?</p>`
-  },
-  { keys:["earn more points","double points","how do i earn"],
-    reply:()=>`<p>Easy wins this month: Premium members earn <em>2× points</em> on wine over $40 and on any in-store class. You've got the <em>Wine &amp; Cheese Pairing Class</em> available at your Modesto store — that alone is ~600 points. Want me to reserve a seat?</p>${quicks([{label:"Reserve a Class Seat",q:"reserve a class seat for me"},{label:"Maybe Later",q:"maybe later, help me shop"}])}`
-  },
-  { keys:["reserve a class","class seat","book a class","wine class"],
-    reply:()=>`<p>🎉 Reserved! You're confirmed for the <em>Wine &amp; Cheese Pairing Class</em> at Total Wine — Modesto. A confirmation is in your app, and you'll earn double points. See you there, Lauren!</p>`
-  },
-  { keys:["return","refund","send it back","exchange"],
-    reply:()=>`<p>No problem — Total Wine accepts returns on unopened bottles within 30 days. Since I can see your purchase history, I don't need a receipt. Which order would you like to return, or is it the most recent (<em>#TW-48120</em>)?</p>${quicks([{label:"Return Order #TW-48120",q:"return my most recent order"},{label:"A Different Order",q:"return a different order"}])}`
-  },
-  { keys:["return my most recent","return a different","return order"],
-    reply:()=>`<p>Got it — I've started the return on <em>#TW-48120</em> and emailed you a prepaid label. Your refund of <em>$114.98</em> will post to your original payment within 3–5 days. Anything else I can take care of? 🍷</p>`
-  },
-  { keys:["hi","hello","hey","help","what can you"],
-    reply:()=>`<p>Hi Lauren! 👋 I'm <em>Somm</em>, your Total Wine concierge. I can help you <em>discover a bottle</em> or handle <em>service needs</em> — orders, delivery, pickup, rewards, returns. What can I do for you?</p>${quicks(GREET_CHIPS)}`
-  },
-];
-const GREET_CHIPS=[
-  {label:"🥩 Bold Red for a Steak Dinner Party", q:"I'm hosting a dinner party and need a bold red to pair with steak"},
-  {label:"🥃 Smoky Whisky", q:"show me a smoky Japanese whisky"},
-  {label:"🍺 Party Beer", q:"an easy-drinking craft IPA for a party"},
-  {label:"🎁 A Gift Bottle", q:"help me pick a gift bottle"},
+/* Greeting / service chips come from config (fall back to a generic set). */
+const GREET_CHIPS   = (APP_CONFIG.greetChips   && APP_CONFIG.greetChips.length)   ? APP_CONFIG.greetChips   : [
+  {label:"🛍️ Recommend something", q:"recommend something for me"},
+  {label:"🎁 A gift", q:"help me pick a gift"},
   {label:"🛎️ Service & Account Help", q:"help me with something"},
 ];
-// Service-needs menu — surfaced when Lauren asks for help beyond shopping
-const SERVICE_CHIPS=[
+const SERVICE_CHIPS = (APP_CONFIG.serviceChips && APP_CONFIG.serviceChips.length) ? APP_CONFIG.serviceChips : [
   {label:"📦 Track My Order", q:"track my order"},
   {label:"🚚 Delivery & Address", q:"delivery status"},
   {label:"🏬 Store Hours & Pickup", q:"my store hours and pickup"},
   {label:"⭐ Rewards & Points", q:"my loyalty rewards and points"},
-  {label:"↩️ Return or Refund", q:"i want to return a bottle"},
+  {label:"↩️ Return or Refund", q:"i want to return an item"},
 ];
+
+/* Build the shopping intents from APP_CONFIG.sommIntents. Each config intent:
+   { keys[], text, recIds[], rail?{title,sub,ids}, chips?[{label,q}] }.
+   recIds/rail ids are filtered against the catalog so a generated config with
+   different ids never renders a broken card. */
+function buildShoppingIntents(){
+  return (APP_CONFIG.sommIntents||[]).map(it=>({
+    keys: it.keys||[],
+    reply: ()=>{
+      const recIds=(it.recIds||[]).filter(id=>byId(id));
+      if(it.rail && Array.isArray(it.rail.ids)){
+        const ids=it.rail.ids.filter(id=>byId(id));
+        if(ids.length) showCuratedRail(interp(it.rail.title||tpl("curatedTitle")), interp(it.rail.sub||tpl("curatedSub")), ids);
+      }
+      let html=`<p>${interp(it.text||"")}</p>`;
+      html+=recIds.map(id=>recCardChat(id)).join("");
+      if(Array.isArray(it.chips)&&it.chips.length) html+=quicks(it.chips);
+      return html;
+    },
+  }));
+}
+// Interpolate {token} in a raw string via the shared tokens() map.
+function interp(s){ const tk=tokens(); return String(s).replace(/\{(\w+)\}/g,(m,k)=> (k in tk)?tk[k]:m); }
+
+/* Generic service flows — data-driven from APP_CONFIG.serviceData so no
+   customer literals live in code. {order},{eta},{store},{tier},{points},
+   {reward},{associate},{refundAmt} interpolate. */
+function svc(key){ const d=APP_CONFIG.serviceData||{}; return d[key]!=null?d[key]:""; }
+function buildServiceIntents(){
+  const tk=tokens();
+  const rowStore=svc("associate")?`<div class="svc-row"><span>Associate</span><b>${esc(svc("associate"))} · on floor today</b></div>`:"";
+  return [
+    { keys:["help me with something","service","customer service","support","i need help","account help"],
+      reply:()=>`<p>Of course — I can handle service needs right here, no waiting on hold. What do you need a hand with?</p>${quicks(SERVICE_CHIPS)}` },
+    { keys:["order status","track my order","where is my order","track order","order","shipment"],
+      reply:()=>`<p>Here's your latest order, pulled straight from your unified profile:</p>
+        <div class="svc-card"><div class="svc-row"><span>Order</span><b>${esc(svc("order"))}</b></div>
+          <div class="svc-row"><span>Placed</span><b>${esc(svc("orderPlaced"))}</b></div>
+          <div class="svc-row"><span>Status</span><b class="svc-ok"><i class="fa-solid fa-truck-fast"></i> Out for delivery</b></div>
+          <div class="svc-row"><span>ETA</span><b>${esc(svc("eta"))} · ${esc(tk.store)}</b></div></div>
+        <p>Anything you'd like to change on it?</p>${quicks([{label:"Change Delivery Address",q:"update my delivery address"},{label:"Report a Missing Item",q:"report a missing item"},{label:"More Service Options",q:"help me with something"}])}` },
+    { keys:["delivery","deliver","track","shipment status","when will it arrive"],
+      reply:()=>`<p>Your order <em>${esc(svc("order"))}</em> is <em>out for delivery</em>, arriving <b>${esc(svc("eta"))}</b>. Want to reroute it or leave a delivery note?</p>${quicks([{label:"Change Delivery Address",q:"update my delivery address"},{label:"Report a Missing Item",q:"report a missing item"}])}` },
+    { keys:["update my delivery","update address","change address","change delivery","reroute"],
+      reply:()=>`<p>Got it — I can reroute order <em>${esc(svc("order"))}</em>. It's still with the local driver, so a change is easy. Where should it go?</p>${quicks([{label:"To my Store for Pickup",q:"send it to my store for pickup"},{label:"Keep Home Delivery",q:"keep home delivery, thanks"}])}` },
+    { keys:["report a missing","missing item","damaged","broken"],
+      reply:()=>`<p>I'm sorry about that — I've opened a case on order <em>${esc(svc("order"))}</em> and, since you're a <em>${esc(tk.tier)}</em> member, pre-approved a replacement or refund. A specialist will confirm within a minute. Anything else?</p>` },
+    { keys:["pickup","store hours","my store","curbside","store location","hours"],
+      reply:()=>`<p>Your home store is <em>${esc(tk.brand||tk.concierge)} — ${esc(tk.store)}</em>.</p>
+        <div class="svc-card"><div class="svc-row"><span>Hours today</span><b>${esc(svc("hoursToday"))}</b></div>
+          <div class="svc-row"><span>Curbside pickup</span><b class="svc-ok"><i class="fa-solid fa-circle-check"></i> Available · ${esc(svc("pickupEta"))}</b></div>
+          ${rowStore}</div>
+        <p>Want me to set up a pickup order or hold an item for you?</p>${quicks([{label:"Hold an Item for Pickup",q:"hold an item at my store"},{label:"Shop for Something",q:"help me shop"}])}` },
+    { keys:["hold an item","hold a","reserve","set aside","in stock","availability","do you have"],
+      reply:()=>`<p>Done — I can place a <em>same-day hold</em> at ${esc(tk.store)}. Tell me which item (or ask me to recommend one) and I'll reserve it under your ${esc(tk.tier)} account for pickup today.</p>${quicks([{label:"Recommend Something",q:"recommend something to hold"}])}` },
+    { keys:["loyalty","points","rewards","membership","perks","my account","account"],
+      reply:()=>`<p>Here's your <em>${esc(tk.brand||"")} Rewards</em> snapshot, ${esc(tk.firstName)}:</p>
+        <div class="svc-card"><div class="svc-row"><span>Tier</span><b>${esc(tk.tier)}</b></div>
+          <div class="svc-row"><span>Points balance</span><b>${esc(svc("points"))}</b></div>
+          <div class="svc-row"><span>Available reward</span><b class="svc-ok">${esc(svc("reward"))}</b></div>
+          <div class="svc-row"><span>Home store</span><b>${esc(tk.store)}</b></div></div>
+        <p>Want me to apply your reward to your cart, or explain how to earn more points this month?</p>${quicks([{label:"Apply my Reward",q:"apply my reward to my cart"},{label:"How Do I Earn More Points?",q:"how do i earn more points"}])}` },
+    { keys:["apply my reward","apply reward","use my points","redeem"],
+      reply:()=>`<p>✅ Applied — your reward is now attached to your cart and will show at checkout. Anything else I can help with?</p>` },
+    { keys:["earn more points","double points","how do i earn"],
+      reply:()=>`<p>Easy wins this month: ${esc(tk.tier)} members earn <em>2× points</em> on featured items and any in-store event. Want me to reserve a seat at the next one?</p>${quicks([{label:"Reserve a Seat",q:"reserve a seat for me"},{label:"Maybe Later",q:"maybe later, help me shop"}])}` },
+    { keys:["reserve a seat","class seat","book a class","reserve a class"],
+      reply:()=>`<p>🎉 Reserved! You're confirmed. A confirmation is in your app, and you'll earn double points. See you there, ${esc(tk.firstName)}!</p>` },
+    { keys:["return","refund","send it back","exchange"],
+      reply:()=>`<p>No problem — we accept returns on unopened items within 30 days. Since I can see your purchase history, I don't need a receipt. Return the most recent order (<em>${esc(svc("order"))}</em>)?</p>${quicks([{label:"Return "+svc("order"),q:"return my most recent order"},{label:"A Different Order",q:"return a different order"}])}` },
+    { keys:["return my most recent","return a different","return order"],
+      reply:()=>`<p>Got it — I've started the return on <em>${esc(svc("order"))}</em> and emailed you a prepaid label. Your refund of <em>${esc(svc("refundAmt"))}</em> will post within 3–5 days. Anything else I can take care of?</p>` },
+    { keys:["hi","hello","hey","help","what can you"],
+      reply:()=>`<p>${tpl("sommGreetShort")}</p>${quicks(GREET_CHIPS)}` },
+  ];
+}
+
+const SOMM_INTENTS = buildShoppingIntents().concat(buildServiceIntents());
 
 function sommRespond(text){
   const t=" "+text.toLowerCase().replace(/[^a-z0-9$ ]/g," ").replace(/\s+/g," ").trim()+" ";
@@ -275,12 +256,13 @@ function sommRespond(text){
     }
   }
   if(best)return best.reply();
-  return `<p>Great question! I can help with wine, spirits, beer, gifts, pairings — even orders, delivery, pickup, rewards or returns. Tell me what you're after and I'll take care of it.</p>${quicks(GREET_CHIPS)}`;
+  return `<p>${tpl("sommFallback","Great question! Tell me what you're after and I'll take care of it.")}</p>${quicks(GREET_CHIPS)}`;
 }
 
+function userInitial(){ return (tokens().firstName[0]||"?").toUpperCase(); }
 function sommBubble(who,html){
   const log=document.getElementById("sommLog");
-  const ava = who==="ai" ? `<span class="m-ava"><i class="fa-solid fa-wine-glass"></i></span>` : `<span class="m-ava">L</span>`;
+  const ava = who==="ai" ? `<span class="m-ava"><i class="fa-solid fa-wand-magic-sparkles"></i></span>` : `<span class="m-ava">${esc(userInitial())}</span>`;
   const el=document.createElement("div"); el.className="msg "+who;
   el.innerHTML=ava+`<div class="bubble">${html}</div>`;
   log.appendChild(el); log.scrollTop=log.scrollHeight;
@@ -288,7 +270,7 @@ function sommBubble(who,html){
 function sommTyping(){
   const log=document.getElementById("sommLog");
   const el=document.createElement("div"); el.className="msg ai"; el.id="sommTyping";
-  el.innerHTML=`<span class="m-ava"><i class="fa-solid fa-wine-glass"></i></span><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  el.innerHTML=`<span class="m-ava"><i class="fa-solid fa-wand-magic-sparkles"></i></span><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
   log.appendChild(el); log.scrollTop=log.scrollHeight;
 }
 function sommRun(text){
@@ -311,7 +293,7 @@ function openSomm(){
     sommGreeted=true;
     sommTyping();
     setTimeout(()=>{ const t=document.getElementById("sommTyping"); if(t)t.remove();
-      sommBubble("ai",`<p>Hi Lauren! 👋 I'm <em>Somm</em>, your personal Total Wine concierge. I already know a bit about your taste from your <em>Premium</em> profile — bold reds, smoky whisky, and hosting a good gathering.</p><p>What can I help you find today?</p>${quicks(GREET_CHIPS)}`);
+      sommBubble("ai",`<p>${tpl("sommIntro")}</p>${quicks(GREET_CHIPS)}`);
     },700);
   }
 }
@@ -322,16 +304,31 @@ function closeSomm(){ document.getElementById("sommPanel").classList.remove("ope
    ===================================================================== */
 const SEARCH_STOP=["under","over","a","an","the","for","with","and","to","of","$","me","show"];
 function findCeleb(t){ return APP_CONFIG.celebs.find(c=>c.match.some(m=>t.includes(m))) || null; }
+// Distinct product categories present in the live catalog, in first-seen order.
+// Drives the facet rail + category matching so search adapts to ANY customer.
+function catalogCats(){
+  const seen=[], out=[];
+  (APP_CONFIG.products||[]).forEach(p=>{ if(p.cat && !seen.includes(p.cat)){ seen.push(p.cat); out.push(p.cat); } });
+  return out;
+}
+function hasCat(name){ return catalogCats().some(c=>c.toLowerCase()===name.toLowerCase()); }
 function parseIntent(q){
   const t=q.toLowerCase();
   const priceMatch=t.match(/\$?\s?(\d{2,4})/);
   const maxPrice=priceMatch?parseInt(priceMatch[1]):null;
   const flavors=[];
   ["smoky","japanese","whisky","whiskey","scotch","bold","crisp","white","summer","seafood","ipa","craft","party","easy-drinking","lager","citrus","celebration","peat"].forEach(f=>{ if(t.includes(f))flavors.push(f); });
+  // Category detection: first try to match any LIVE catalog category by name
+  // (so a golf retailer matches "clubs"/"apparel", etc.); then fall back to the
+  // beverage keyword heuristics, but ONLY for categories the catalog actually has.
   let cat=null;
-  if(/whisk|scotch|tequila|vodka|\bgin\b|\brum\b|mezcal|spirit|bourbon|cognac/.test(t))cat="Spirits";
-  else if(/wine|red|white|cabernet|pinot|chardonnay|sauvignon|champagne|rosé|rose|merlot|malbec|riesling|prosecco/.test(t))cat="Wine";
-  else if(/beer|ipa|lager|ale|pilsner|stout|pale ale/.test(t))cat="Beer";
+  const cats=catalogCats();
+  for(const c of cats){ const cl=c.toLowerCase(); if(cl.length>2 && (t.includes(cl)||t.includes(cl.replace(/s$/,"")))){ cat=c; break; } }
+  if(!cat){
+    if(hasCat("Spirits") && /whisk|scotch|tequila|vodka|\bgin\b|\brum\b|mezcal|spirit|bourbon|cognac/.test(t))cat="Spirits";
+    else if(hasCat("Wine") && /wine|red|white|cabernet|pinot|chardonnay|sauvignon|champagne|rosé|rose|merlot|malbec|riesling|prosecco/.test(t))cat="Wine";
+    else if(hasCat("Beer") && /beer|ipa|lager|ale|pilsner|stout|pale ale/.test(t))cat="Beer";
+  }
   // Wine color intent — "bold red", "cabernet", "pinot" ⇒ red; "crisp white", "chardonnay", "sauvignon blanc" ⇒ white
   let wineColor=null;
   if(cat==="Wine"){
@@ -394,9 +391,10 @@ function scoreProduct(p,intent){
   intent.flavors.forEach(f=>{ if((p.flavors||[]).includes(f)||(p.type||"").toLowerCase().includes(f))score+=14; });
   if(intent.maxPrice && p.price<=intent.maxPrice)score+=18;
   if(intent.maxPrice && p.price>intent.maxPrice)score-=60; // hard filter-ish
-  // Data 360 personalization: Lauren's affinities lift matching items
-  if(["caymus","silveroak"].includes(p.id))score+=6;          // bold reds
-  if(["hakushu","nikka","macallan18"].includes(p.id))score+=8; // whisky explorer
+  // Data 360 personalization: lift items matching the shopper's affinity SKUs.
+  // Sourced from config (profile.affinityIds) so it's per-customer, not wine.
+  const affIds=(APP_CONFIG.profile&&APP_CONFIG.profile.affinityIds)||[];
+  if(affIds.includes(p.id))score+=8;
   score+=(p.rating-85);
   return score;
 }
@@ -429,16 +427,17 @@ function runSearch(q){
   // signals
   const sigs=[];
   if(intent.celeb){
+    const celebCat=(byId(intent.celeb.ids&&intent.celeb.ids[0])||{}).cat;
     sigs.push(`entity: person recognized`);
     sigs.push(`brand: ${intent.celeb.brand}`);
-    sigs.push(`category: Spirits · Tequila`);
-    sigs.push(`profile: Premium tier`);
+    if(celebCat)sigs.push(`category: ${celebCat}`);
+    sigs.push(`profile: ${APP_CONFIG.profile.tier} tier`);
   } else {
     if(intent.cat)sigs.push(`category: ${intent.cat}`);
     intent.flavors.slice(0,4).forEach(f=>sigs.push(`taste: ${f}`));
     if(intent.maxPrice)sigs.push(`price ≤ $${intent.maxPrice}`);
-    sigs.push(`profile: Premium tier`);
-    sigs.push(`profile: past whisky & bold-red purchases`);
+    sigs.push(`profile: ${APP_CONFIG.profile.tier} tier`);
+    sigs.push(`profile: your purchase history`);
   }
   document.getElementById("ssExplain").innerHTML= intent.celeb
     ? `${intent.celeb.blurb}
@@ -447,10 +446,12 @@ function runSearch(q){
      <div class="ss-signals">${sigs.map(s=>`<span class="sig"><i class="fa-solid fa-check"></i> ${esc(s)}</span>`).join("")}</div>`;
 
   document.getElementById("ssGrid").innerHTML=results.map((x,i)=>
-    productCardHTML(x.p,{rankTag:i===0?"Top match for Lauren":i===1?"Strong match":""})).join("");
+    productCardHTML(x.p,{rankTag:i===0?`Top match for ${tokens().firstName}`:i===1?"Strong match":""})).join("");
 
-  // Facet rail (nike.com-style refinements — reflect the parsed intent)
-  const cats=["Wine","Spirits","Beer"];
+  // Facet rail (nike.com-style refinements — reflect the parsed intent).
+  // Categories are derived from the live catalog so ANY customer's categories
+  // (clubs/apparel/… for a golf retailer, etc.) render — never hardcoded wine.
+  const cats=catalogCats();
   const facetHTML=`
     <h4>Refine</h4>
     ${cats.map(c=>`<label class="facet ${intent.cat===c?'on':''}"><span><input type="checkbox" ${intent.cat===c?'checked':''} onclick="return false"> ${c}</span><small>${APP_CONFIG.products.filter(p=>p.cat===c).length}</small></label>`).join("")}

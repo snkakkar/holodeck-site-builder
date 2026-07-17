@@ -15,7 +15,7 @@
 <!-- ================= UTILITY BAR ================= -->
 <div class="utility">
   <div class="wrap">
-    <span class="u-left"><i class="fa-solid fa-truck-fast"></i> Free pickup in 1 hour &amp; delivery available in <b data-store-location>Modesto, CA</b></span>
+    <span class="u-left"><i class="fa-solid fa-truck-fast"></i> <span id="utility-fulfill">Free pickup in 1 hour &amp; delivery available in</span> <b data-store-location>Modesto, CA</b></span>
     <div class="u-right">
       <a href="#">Track Order</a>
       <a href="#">Store Locator</a>
@@ -42,12 +42,8 @@
         <button class="search-btn" onclick="runSearch(document.getElementById('searchInput').value)"><i class="fa-solid fa-magnifying-glass"></i></button>
       </div>
       <div class="search-hint" id="searchHint">
-        <div class="sh-label"><i class="fa-solid fa-wand-magic-sparkles"></i> Cimulate understands intent — try one</div>
-        <div class="sh-chip" onclick="runSearch('smoky Japanese whisky under $80')"><i class="fa-solid fa-fire"></i> smoky Japanese whisky under $80 <small>spirits</small></div>
-        <div class="sh-chip" onclick="runSearch('crisp white wine for summer seafood')"><i class="fa-solid fa-fish"></i> crisp white wine for summer seafood <small>wine</small></div>
-        <div class="sh-chip" onclick="runSearch('easy-drinking craft IPA for a party')"><i class="fa-solid fa-beer-mug-empty"></i> easy-drinking craft IPA for a party <small>beer</small></div>
-        <div class="sh-chip" onclick="runSearch('a bold red under $100 to impress guests')"><i class="fa-solid fa-wine-bottle"></i> a bold red under $100 to impress guests <small>wine</small></div>
-        <div class="sh-chip" onclick="runSearch('Dwayne Johnson')"><i class="fa-solid fa-star"></i> Dwayne Johnson <small>celebrity</small></div>
+        <div class="sh-label"><i class="fa-solid fa-wand-magic-sparkles"></i> <span id="search-hint-label">Cimulate understands intent — try one</span></div>
+        <div id="search-hint-chips"></div>
       </div>
     </div>
 
@@ -58,8 +54,8 @@
         <i class="fa-solid fa-chevron-down chev"></i>
       </div>
       <div class="h-divider"></div>
-      <a href="#" class="h-act" onclick="return false"><i class="fa-solid fa-award"></i><span class="rewards-tag">&amp; more Rewards</span></a>
-      <a href="#" class="h-act" onclick="return false"><i class="fa-solid fa-user"></i><span>Lauren</span></a>
+      <a href="#" class="h-act" onclick="return false"><i class="fa-solid fa-award"></i><span class="rewards-tag" id="rewards-tag">&amp; more Rewards</span></a>
+      <a href="#" class="h-act" onclick="return false"><i class="fa-solid fa-user"></i><span id="user-name">Lauren</span></a>
       <button class="cart-btn" onclick="openCart()"><i class="fa-solid fa-cart-shopping"></i><span class="cart-count" id="cartCount">0</span></button>
     </div>
   </div>
@@ -86,12 +82,11 @@
 <!-- ================= PROFILE RIBBON (Data 360) ================= -->
 <div class="profile-ribbon">
   <div class="wrap">
-    <div class="pr-avatar">L</div>
-    <div class="pr-text">Welcome back, <b>Lauren</b> — your experience is personalized from your unified profile.</div>
+    <div class="pr-avatar" id="profile-avatar">L</div>
+    <div class="pr-text" id="profile-greeting">Welcome back, <b>Lauren</b> — your experience is personalized from your unified profile.</div>
     <div class="pr-tags">
-      <span class="pr-tag premium"><i class="fa-solid fa-crown"></i> PREMIUM MEMBER</span>
-      <span class="pr-tag"><i class="fa-solid fa-wine-glass"></i> Loves bold reds</span>
-      <span class="pr-tag"><i class="fa-solid fa-whiskey-glass"></i> Whisky explorer</span>
+      <span class="pr-tag premium"><i class="fa-solid fa-crown"></i> <span id="profile-tier-tag">PREMIUM MEMBER</span></span>
+      <span id="profile-affinity-tags"></span>
       <span class="pr-data360"><span class="dot"></span> Data 360 profile · live</span>
     </div>
   </div>
@@ -125,12 +120,12 @@
 <section class="hero" data-home>
   <div class="wrap">
     <div class="hero-copy">
-      <span class="hero-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i> Personalized for you</span>
-      <h1>Find your next favorite <em>bottle</em></h1>
-      <p>Search by taste, occasion or intent — Cimulate reads what you mean and ranks against your unified profile.</p>
+      <span class="hero-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i> <span id="hero-eyebrow-txt">Personalized for you</span></span>
+      <h1 id="hero-headline">Find your next favorite <em>bottle</em></h1>
+      <p id="hero-sub">Search by taste, occasion or intent — Cimulate reads what you mean and ranks against your unified profile.</p>
       <div class="hero-cta">
-        <a href="#featured" class="btn btn-gold"><i class="fa-solid fa-wine-glass"></i> Shop recommended</a>
-        <a href="#" class="btn btn-ghost" onclick="openSomm();return false"><i class="fa-solid fa-comments"></i> Ask the concierge</a>
+        <a href="#featured" class="btn btn-gold"><i class="fa-solid fa-bag-shopping"></i> <span id="hero-shop-cta">Shop recommended</span></a>
+        <a href="#" class="btn btn-ghost" onclick="openSomm();return false"><i class="fa-solid fa-comments"></i> <span id="hero-ask-cta">Ask the concierge</span></a>
       </div>
     </div>
     <div class="hero-visual" id="heroVisual"></div>
@@ -145,18 +140,11 @@
   </div>
 </section>
 
-<!-- ================= THE CUP — nations band ================= -->
-<section class="block soft" data-home style="padding:0">
-  <div class="cup-band">The Cup is in Sight! Toast to Every Nation</div>
+<!-- ================= FEATURE BAND (optional, config-driven) ================= -->
+<section class="block soft" data-home style="padding:0" id="featureBand" hidden>
+  <div class="cup-band" id="feature-band-title"></div>
   <div class="wrap">
-    <div class="flags">
-      <div class="flag"><div class="fc">🇫🇷</div><span>France</span></div>
-      <div class="flag"><div class="fc">🏴󠁧󠁢󠁥󠁮󠁧󠁿</div><span>England</span></div>
-      <div class="flag"><div class="fc">🇦🇷</div><span>Argentina</span></div>
-      <div class="flag"><div class="fc">🇪🇸</div><span>Spain</span></div>
-      <div class="flag"><div class="fc">🇲🇽</div><span>Mexico</span></div>
-      <div class="flag"><div class="fc">🇺🇸</div><span>United States</span></div>
-    </div>
+    <div class="flags" id="feature-band-items"></div>
   </div>
 </section>
 
@@ -206,8 +194,8 @@
   <div class="wrap">
     <div class="section-head">
       <div>
-        <h2><span class="rule">Recommended for you, Lauren</span></h2>
-        <p style="margin-top:10px">Handpicked across wine, spirits &amp; beer — ranked by your unified profile.</p>
+        <h2><span class="rule" id="featured-heading">Recommended for you, Lauren</span></h2>
+        <p style="margin-top:10px" id="featured-sub">Handpicked across wine, spirits &amp; beer — ranked by your unified profile.</p>
       </div>
       <a href="#" class="see-all" onclick="return false">See all &rarr;</a>
     </div>
@@ -238,7 +226,7 @@
     <div class="foot-grid">
       <div class="foot-brand">
         <div class="logo"><span class="l-top">Total Wine</span><span class="l-sub">&amp; MORE</span></div>
-        <p>America's Wine Superstore® — the country's largest independent retailer of fine wine, spirits &amp; beer.</p>
+        <p id="footer-blurb">America's Wine Superstore® — the country's largest independent retailer of fine wine, spirits &amp; beer.</p>
         <div class="foot-social">
           <a href="#" onclick="return false"><i class="fa-brands fa-facebook-f"></i></a>
           <a href="#" onclick="return false"><i class="fa-brands fa-instagram"></i></a>
@@ -248,18 +236,18 @@
       </div>
       <div><h4>About Us</h4><a href="#">Our Company</a><a href="#">Community Impact</a><a href="#">Careers</a><a href="#">For the Media</a><a href="#">For the Trade</a></div>
       <div><h4>Store</h4><a href="#">Store Locator</a><a href="#">Classes &amp; Events</a><a href="#">Gift Cards</a><a href="#">Weddings</a></div>
-      <div><h4>Customer Service</h4><a href="#">Contact Us</a><a href="#">Order Status</a><a href="#">Delivery</a><a href="#" onclick="openSomm();return false">Ask Somm</a><a href="#">Request Missing Points</a></div>
+      <div><h4>Customer Service</h4><a href="#">Contact Us</a><a href="#">Order Status</a><a href="#">Delivery</a><a href="#" onclick="openSomm();return false" id="footer-ask-link">Ask the concierge</a><a href="#">Request Missing Points</a></div>
     </div>
     <div class="foot-bottom">
-      <span>© 2026 Demo experience. Not a live storefront.</span>
-      <span>Please drink responsibly. 21+ only.</span>
+      <span id="footer-disclaimer-1">© 2026 Demo experience. Not a live storefront.</span>
+      <span id="footer-disclaimer-2"></span>
     </div>
   </div>
 </footer>
 
 <!-- ================= SOMM FAB ================= -->
 <button class="somm-fab" id="sommFab" onclick="openSomm()">
-  <span class="somm-ava"><i class="fa-solid fa-wine-glass"></i></span>
+  <span class="somm-ava"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
   <span class="somm-fab-txt"><b id="somm-fab-name">Chat with Somm</b><small>Your wine &amp; spirits concierge</small></span>
   <span class="fab-badge">1</span>
 </button>
@@ -267,7 +255,7 @@
 <!-- ================= SOMM PANEL ================= -->
 <div class="somm-panel" id="sommPanel">
   <div class="somm-head">
-    <span class="somm-ava"><i class="fa-solid fa-wine-glass"></i></span>
+    <span class="somm-ava"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
     <div>
       <div class="sh-name"><span class="live"></span> <span id="somm-head-name">Somm</span></div>
       <div class="sh-sub" id="somm-head-sub">Total Wine Concierge · knows your taste</div>
@@ -280,7 +268,7 @@
       <input id="sommInput" type="text" placeholder="Ask Somm anything…" onkeydown="if(event.key==='Enter')sommSend()"/>
       <button onclick="sommSend()"><i class="fa-solid fa-arrow-up"></i></button>
     </div>
-    <div class="somm-disclaimer">Somm is grounded on your Data 360 unified profile · Demo</div>
+    <div class="somm-disclaimer" id="somm-disclaimer">Somm is grounded on your Data 360 unified profile · Demo</div>
   </div>
 </div>
 
@@ -290,7 +278,7 @@
   <div class="cart-head"><b><i class="fa-solid fa-cart-shopping"></i> Your Cart</b><button class="cd-close" onclick="closeCart()"><i class="fa-solid fa-xmark"></i></button></div>
   <div class="cart-items" id="cartItems"></div>
   <div class="cart-foot">
-    <div class="why"><b>Data 360:</b> every item you add updates Lauren's unified profile — informing future recommendations, journeys &amp; in-store clienteling.</div>
+    <div class="why" id="cart-why"><b>Data 360:</b> every item you add updates Lauren's unified profile — informing future recommendations, journeys &amp; in-store clienteling.</div>
     <div class="cart-total"><span>Subtotal</span><span id="cartTotal">$0.00</span></div>
     <button class="btn btn-teal btn-block">Checkout</button>
   </div>

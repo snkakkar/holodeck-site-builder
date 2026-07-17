@@ -42,6 +42,25 @@
   ];
   function capsuleFor(i) { return CAPSULES[i % CAPSULES.length]; }
 
+  // Industry-neutral cimulate fallbacks (used when Gemini omits the field).
+  const DEFAULT_PROMO_TILES = [
+    { tone: "teal", title: "Deals!<br/>Just For You", sub: "VIEW ALL DEALS ›" },
+    { tone: "red",  title: "Limited-Time<br/>Specials", sub: "SHOP SPECIALS ›" },
+    { tone: "gold", title: "Buy 2<br/>& Save", sub: "SHOP MULTI-BUY ›" },
+  ];
+  const DEFAULT_SERVICE_CHIPS = [
+    { label: "📦 Track My Order",       q: "track my order" },
+    { label: "🚚 Delivery & Address",   q: "delivery status" },
+    { label: "🏬 Store Hours & Pickup", q: "my store hours and pickup" },
+    { label: "⭐ Rewards & Points",     q: "my loyalty rewards and points" },
+    { label: "↩️ Return or Refund",     q: "i want to return an item" },
+  ];
+  const DEFAULT_SERVICE_DATA = {
+    order: "#ORD-48120", orderPlaced: "2 items", eta: "By 6:00 PM today",
+    hoursToday: "9:00 AM – 9:00 PM", pickupEta: "~15 min", associate: "Marie L.",
+    points: "4,820 pts", reward: "$25 off your next order", refundAmt: "$114.98",
+  };
+
   // ── CLIENTELING ──────────────────────────────────────────────
   // found: output of HOLO_APPFOUND.extractClienteling(state) (see that file).
   // brand: { name, sub, colors } (from branding, optional).
@@ -49,31 +68,78 @@
   function buildClientelingConfig(found, brand, catalog) {
     found = found || {};
     brand = brand || {};
-    const cat = mapCatalogToClienteling(arr(catalog).length ? catalog : found.catalog);
+    const cat = mapCatalogToClienteling(arr(catalog).length ? catalog : found.catalog, brand);
     const cust = found.customer || {};
     const mgr = found.homeStoreManager || {};
+    const custName = found.customerName || brand.name || "the customer";
+    const unitNoun = pick(found.unitNoun, "items");
 
     const featuredId = (cat[0] && cat[0].id) || "";
-    if (cat[0]) { cat[0].featured = true; cat[0].badge = cat[0].badge || "TONIGHT'S FEATURE"; }
+    if (cat[0]) { cat[0].featured = true; cat[0].badge = cat[0].badge || "FEATURED"; }
+
+    const ev = found.event || {};
+    const evName = pick(ev.name, "Featured Event");
+    const st = found.store || {};
+    // KPIs: accept the new array shape [{label,value}] from Gemini; fall back
+    // to a neutral generic set (NO wine labels). Legacy object shape tolerated.
+    let kpis = arr(st.kpis);
+    if (!kpis.length && st.kpis && typeof st.kpis === "object") {
+      kpis = Object.keys(st.kpis).map(function (k) { return { label: k, value: st.kpis[k] }; });
+    }
+    if (!kpis.length) {
+      kpis = [
+        { label: "Guests today", value: 184 },
+        { label: "Sign-ups", value: 14 },
+        { label: "VIP arrivals", value: 3 },
+        { label: "Holds pending", value: 7 },
+        { label: "Pipeline", value: 12400 },
+      ];
+    }
+
+    const nav = found.navLabels || {};
+    const intro = found.introScene || {};
+    // `copy` — customer-variable strings read by the template via tpl().
+    // Gemini may return `found.copy`; otherwise the app's own inline fallbacks
+    // (all {token}-interpolated, already industry-neutral) fill the gaps. We
+    // only forward whatever Gemini supplied so per-customer phrasing reaches
+    // the app; missing keys degrade to the template's neutral fallback.
+    const gcopy = found.copy || {};
 
     return {
       brand: {
-        name: pick(brand.name, found.customerName || "YOUR BRAND").toUpperCase(),
+        name: pick(brand.name, custName).toUpperCase(),
         sub: pick(brand.sub, ""),
-        hubLabel: "Clienteling Hub",
-        conciergeName: pick(found.conciergeName, "Concierge"),
+        hubLabel: pick(found.hubLabel, "Clienteling Hub"),
+        conciergeName: pick(found.conciergeName, custName + " Concierge"),
         assistantName: "Agentforce",
         colors: Object.assign({}, DEFAULT_CLIENT_COLORS, brand.colors || {}),
       },
+      unitNoun: unitNoun,
+      introScene: {
+        headline: pick(intro.headline, (pick(cust.name, "Your guest")) + " opens the " + custName + " app"),
+        detail: pick(intro.detail, "A personalized in-store experience, ready when they arrive."),
+        ctaLabel: pick(intro.ctaLabel, "Enter the store"),
+      },
+      navLabels: {
+        dashboard: pick(nav.dashboard, "Floor Dashboard"),
+        checkin: pick(nav.checkin, "Check-In"),
+        customer360: pick(nav.customer360, "Customer 360"),
+        event: pick(nav.event, "Event"),
+        inventory: pick(nav.inventory, "Inventory"),
+      },
+      search: { placeholder: pick(found.searchPlaceholder, "Search guests, " + unitNoun + ", orders…") },
+      // Forward Gemini-supplied copy verbatim; the app fills any omitted key
+      // from its own {token}-interpolated neutral fallbacks.
+      copy: gcopy,
       catalog: cat,
       featuredId: featuredId,
       customer: {
         id: "primary",
-        name: pick(cust.name, "Jordan M."),
-        initials: initialsOf(pick(cust.name, "Jordan M.")),
-        location: pick(cust.location, "Austin, TX"),
-        visitingStore: pick(cust.visitingStore, "Downtown Flagship"),
-        rank: pick(cust.rank, "VIP Member"),
+        name: pick(cust.name, "Your guest"),
+        initials: initialsOf(pick(cust.name, "Your guest")),
+        location: pick(cust.location, "Your City"),
+        visitingStore: pick(cust.visitingStore, "Flagship store"),
+        rank: pick(cust.rank, "Member"),
         memberSince: pick(cust.memberSince, 2015),
         propensity: "Most Likely",
         propensityScore: pick(cust.propensityScore, 92),
@@ -106,20 +172,24 @@
         text: "Please give them a warm welcome and let them know we're thinking of them.",
         when: "Sent via Clienteling",
       },
-      event: found.event || {
+      event: {
         id: "event",
-        name: pick(found.eventName, "VIP Tasting Event"),
-        store: pick(cust.visitingStore, "Flagship"),
-        date: "Tonight · 7:00 PM",
-        host: "Store Manager",
-        seatsTotal: 16,
+        name: evName,
+        type: pick(ev.type, "Event"),
+        displayLabel: pick(ev.displayLabel, evName + " · Tonight 7PM"),
+        store: pick(ev.store, cust.visitingStore || "Flagship"),
+        date: pick(ev.date, "Tonight · 7:00 PM"),
+        host: pick(ev.host, "Store Manager"),
+        seatsTotal: pick(ev.seatsTotal, 16),
         featuredWineId: featuredId,
-        blurb: "An intimate guided experience for members.",
-        attendees: arr(found.attendees),
+        blurb: pick(ev.blurb, "An intimate guided experience for members."),
+        attendees: arr(ev.attendees).length ? ev.attendees : arr(found.attendees),
       },
-      store: found.store || {
-        name: pick(cust.visitingStore, "Flagship"),
-        kpis: { guestsToday: 184, classSignups: 14, vipArrivals: 3, holdsPending: 7, pipeline: 12400 },
+      store: {
+        name: pick(st.name, cust.visitingStore || "Flagship"),
+        statusLabel: pick(st.statusLabel, pick(cust.location, "Your City") + " store · online"),
+        managerTitle: pick(st.managerTitle, "Store Manager"),
+        kpis: kpis,
       },
       walkIns: arr(found.walkIns),
       tasks: arr(found.tasks),
@@ -128,29 +198,122 @@
     };
   }
 
+  // Normalize concierge intents to the shape the cimulate app reads
+  // (keys / text / recIds / rail / chips). Tolerates the prompt's alternate
+  // field names (keywords / reply / productIds) so either shape works.
+  function normSommIntents(list) {
+    return arr(list).map(function (it) {
+      it = it || {};
+      const out = {
+        keys: arr(it.keys).length ? it.keys : arr(it.keywords),
+        text: pick(it.text, pick(it.reply, "")),
+        recIds: arr(it.recIds).length ? it.recIds : arr(it.productIds),
+      };
+      if (it.rail && (Array.isArray(it.rail.ids) || it.rail.title)) out.rail = it.rail;
+      if (arr(it.chips).length) out.chips = it.chips;
+      return out;
+    });
+  }
+
   // ── CIMULATE ─────────────────────────────────────────────────
   function buildCimulateConfig(found, brand, catalog) {
     found = found || {};
     brand = brand || {};
-    const products = mapCatalogToCimulate(arr(catalog).length ? catalog : found.catalog);
+    const products = mapCatalogToCimulate(arr(catalog).length ? catalog : found.catalog, brand);
+    const custName = found.customerName || brand.name || "Your Brand";
+    // The prompt returns a nested `brand` object; tolerate a flat legacy shape.
+    const fb = found.brand || {};
+    const sh = found.sectionHeadings || {};
+    // `copy` is where the template reads every customer-variable string via
+    // tpl(). Gemini may return it as `found.copy` (preferred) or as scattered
+    // flat fields (legacy); tolerate both, and fall back to INDUSTRY-NEUTRAL
+    // strings ({token}s interpolate at runtime — NEVER hardcode wine here).
+    const gc = found.copy || {};
+    const conciergeName = pick(fb.conciergeName, pick(found.conciergeName, custName + " Concierge"));
+    const unitNoun = pick(found.unitNoun, "item");
+    const cp = function (key, dflt) { return pick(gc[key], dflt); };
 
     return {
       brand: {
-        logoTop: pick(brand.name, found.customerName || "Your Brand"),
-        logoSub: pick(brand.sub, ""),
-        conciergeName: pick(found.conciergeName, "Concierge"),
-        conciergeSub: pick(found.conciergeSub, "Your personal concierge"),
+        logoTop: pick(brand.name, pick(fb.logoTop, custName)),
+        logoSub: pick(brand.sub, pick(fb.logoSub, "")),
+        conciergeName: conciergeName,
+        conciergeSub: pick(fb.conciergeSub, pick(found.conciergeSub, "Your personal " + custName + " concierge")),
+        conciergeIntro: pick(fb.conciergeIntro, pick(found.conciergeIntro, "Your personal concierge")),
+        rewardsLabel: pick(fb.rewardsLabel, "Rewards"),
         searchProduct: "Cimulate",
         colors: Object.assign({}, DEFAULT_CIM_COLORS, brand.colors || {}),
       },
+      unitNoun: unitNoun,
       storeLocation: pick(found.storeLocation, (found.customer && found.customer.location) || "Your City"),
-      products: products,
-      profile: found.profile || {
-        name: pick(found.customer && found.customer.name, "Member"),
-        tier: pick(found.customer && found.customer.rank, "Premium"),
-        interests: arr(found.customer && found.customer.interests),
+      // Legacy top-level mirrors (kept so older readers/exports don't break).
+      heroHeadline: pick(found.heroHeadline, cp("heroHeadline", "Find your next favorite " + unitNoun)),
+      searchChips: arr(found.searchChips),
+      navCategories: arr(found.navCategories),
+      promoTiles: arr(found.promoTiles).length ? found.promoTiles : DEFAULT_PROMO_TILES,
+      footerBlurb: pick(found.footerBlurb, custName + " — personalized shopping, powered by your unified profile."),
+      sectionHeadings: {
+        featured: pick(sh.featured, "Featured"),
+        curated: pick(sh.curated, "Curated for you"),
       },
-      sommIntents: arr(found.sommIntents),
+      // ── COPY BLOCK — read by tpl(); {token}s interpolate at runtime. ──
+      copy: {
+        utilityFulfill: cp("utilityFulfill", "Fast pickup & delivery available in"),
+        utilityLinks: arr(gc.utilityLinks).length ? gc.utilityLinks : ["Track Order", "Store Locator", "Events", "Help"],
+        searchPlaceholder: cp("searchPlaceholder", "Search by taste, occasion, or intent…"),
+        searchHintLabel: cp("searchHintLabel", "{searchProduct} understands intent — try one"),
+        profileGreeting: cp("profileGreeting", "Welcome back, {firstName} — your experience is personalized from your unified profile."),
+        profileTierTag: cp("profileTierTag", "PREMIUM MEMBER"),
+        heroEyebrow: cp("heroEyebrow", "Personalized for you"),
+        heroHeadline: cp("heroHeadline", "Find your next favorite " + unitNoun),
+        heroSub: cp("heroSub", "Search by taste, occasion or intent — {searchProduct} reads what you mean and ranks against your unified profile."),
+        heroShopCta: cp("heroShopCta", "Shop recommended"),
+        heroAskCta: cp("heroAskCta", "Ask the concierge"),
+        curatedTitle: cp("curatedTitle", pick(sh.curated, "Curated for you")),
+        curatedSub: cp("curatedSub", "{concierge} selected these based on your conversation and your {tier} profile."),
+        featuredHeading: cp("featuredHeading", "Recommended for you, {firstName}"),
+        featuredSub: cp("featuredSub", "Handpicked for you — ranked by your unified profile."),
+        footerBlurb: cp("footerBlurb", pick(found.footerBlurb, custName + " — personalized shopping, powered by your unified profile.")),
+        footerDisclaimer1: cp("footerDisclaimer1", "© 2026 Demo experience. Not a live storefront."),
+        footerDisclaimer2: cp("footerDisclaimer2", ""),
+        cartWhy: cp("cartWhy", "Data 360: every item you add updates {firstName}'s unified profile — informing future recommendations, journeys & in-store clienteling."),
+        cartEmpty: cp("cartEmpty", "Your cart is empty.<br/>Ask {concierge} for a recommendation!"),
+        dataToastTitle: cp("dataToastTitle", "Data 360 profile updated"),
+        dataToastSub: cp("dataToastSub", "New purchase-intent signal captured for {firstName} — feeds future recommendations."),
+        sommIntro: cp("sommIntro", "Hi {firstName}! 👋 I'm {concierge}, your personal concierge. I already know a bit about your taste from your {tier} profile.<br/>What can I help you find today?"),
+        sommGreetShort: cp("sommGreetShort", "Hi {firstName}! 👋 I'm {concierge}, your concierge. I can help you discover a {unit} or handle service needs. What can I do for you?"),
+        sommFallback: cp("sommFallback", "Great question! Tell me what you're after and I'll take care of it."),
+      },
+      // ── HOMEPAGE SECTIONS — headings drive each rail; circles/ids optional. ──
+      sections: found.sections || {
+        trending:  { heading: pick(sh.trending, "New & Trending") },
+        specials:  { heading: pick(sh.specials, "Limited Time Specials") },
+        matchDay:  { heading: pick(sh.matchDay, "Essentials"), circles: [] },
+        topCat:    { heading: pick(sh.topCat, "Top Categories For You"), circles: [] },
+        cocktail:  { heading: pick(sh.cocktail, "Explore More"), band: pick(sh.cocktail, "Explore More"), circles: [] },
+        savings:   { heading: pick(sh.savings, "Special Savings") },
+      },
+      products: products,
+      profile: Object.assign(
+        {
+          name: pick(found.customer && found.customer.name, "Member"),
+          tier: pick(found.customer && found.customer.rank, "Premium"),
+          interests: arr(found.customer && found.customer.interests),
+          // Affinity SKUs lift matching items in search ranking. Prefer any
+          // Gemini-supplied ids; else seed from the top catalog items so the
+          // "personalized for you" signal shows for any customer (never wine).
+          affinityIds: arr(found.affinityIds).length
+            ? found.affinityIds
+            : products.slice(0, 3).map(function (p) { return p.id; }).filter(Boolean),
+        },
+        found.profile || {}
+      ),
+      // Conversational concierge. Gemini supplies industry-appropriate chips +
+      // intents; neutral service chips/data below keep the service flows working.
+      greetChips: arr(found.greetChips),
+      serviceChips: arr(found.serviceChips).length ? found.serviceChips : DEFAULT_SERVICE_CHIPS,
+      sommIntents: normSommIntents(found.sommIntents),
+      serviceData: Object.assign({}, DEFAULT_SERVICE_DATA, found.serviceData || {}),
       celebs: found.celebs || {},
       productImages: found.productImages || {},
     };
@@ -160,13 +323,29 @@
   // The shared retail catalog is a neutral SKU list. Each app needs a few
   // app-specific fields; these mappers add safe defaults so a raw catalog
   // (even a Gemini/seed one) renders in either template.
-  function mapCatalogToClienteling(catalog) {
+  // The cosmetic swatch for the neutral procedural product SVG. Prefer the
+  // customer's brand accent so product cards are ON-BRAND, not wine-bottle
+  // colored; fall back to the deterministic palette only when there's no brand.
+  function swatchFor(i, brand) {
+    const c = (brand && brand.colors) || {};
+    if (c.primary || c.accent) {
+      return {
+        capsuleColor: c.primary || c.accent || capsuleFor(i).capsuleColor,
+        capsuleShine: c.primaryLt || c.accentLt || c.accent || capsuleFor(i).capsuleShine,
+        glassColor: c.accent || c.primaryDk || capsuleFor(i).glassColor,
+      };
+    }
+    return capsuleFor(i);
+  }
+  function mapCatalogToClienteling(catalog, brand) {
     return arr(catalog).map(function (p, i) {
-      const cap = capsuleFor(i);
+      const cap = swatchFor(i, brand);
       return {
         id: pick(p.id, "sku" + i),
         name: pick(p.name, "Product " + (i + 1)),
-        variety: pick(p.variety, p.type || p.category || ""),
+        // Generic attribute/origin/description — pass through Gemini values,
+        // else empty. NO wine defaults (no "vintage"/"appellation" invention).
+        variety: pick(p.variety, p.type || p.cat || p.category || ""),
         region: pick(p.region, ""),
         appellation: pick(p.appellation, p.region || ""),
         vintage: pick(p.vintage, ""),
@@ -185,9 +364,9 @@
       };
     });
   }
-  function mapCatalogToCimulate(catalog) {
+  function mapCatalogToCimulate(catalog, brand) {
     return arr(catalog).map(function (p, i) {
-      const cap = capsuleFor(i);
+      const cap = swatchFor(i, brand);
       return {
         id: pick(p.id, "sku" + i),
         cat: pick(p.cat, p.category || "General"),

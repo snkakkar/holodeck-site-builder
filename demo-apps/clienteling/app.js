@@ -1,15 +1,70 @@
 /* ============================================================
-   app.js — Total Wine Clienteling controller
+   app.js — Clienteling controller (industry-agnostic)
    View rendering · associate actions · modals · chat wiring
-   Story: Alan (Grand Reserve, traveling) -> mobile signup ->
-   VIP arrival -> check-in greeting w/ Marie's message -> class ->
-   cross-store inventory hold (4 bottles, Modesto, Friday).
+   Story: a traveling VIP member signs up in-app -> arrival alert ->
+   check-in greeting w/ their home-store manager's message -> event ->
+   cross-store inventory hold at their home store.
+   ALL customer/industry/story copy is read from window.APP_CONFIG via
+   the tokens()/tpl()/conciergeName()/unitNoun() helpers — no wine or
+   customer literals live here, so a generated (non-wine) config reads
+   in its own industry voice.
    NOTE: static demo. All markup is app-controlled; free text is
    passed through esc() before injection. No external/untrusted HTML.
    ============================================================ */
 
 const setHTML = (el, html) => { el.innerHTML = html; };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* ---- config accessors (neutral, industry-agnostic) ----
+   Every user-visible chrome string comes from window.APP_CONFIG so a
+   generated (non-wine) config reads in its own industry vocabulary. */
+const CFG = window.APP_CONFIG;
+const conciergeName = () => (CFG.brand && CFG.brand.conciergeName) || "Concierge";
+const unitNoun = () => CFG.unitNoun || "items";
+const navLabel = (k, dflt) => (CFG.navLabels && CFG.navLabels[k]) || dflt;
+const featuredProduct = () => productById((CFG.event && CFG.event.featuredWineId) || CFG.featuredId) || (CFG.catalog && CFG.catalog[0]) || {};
+// store.kpis is an ARRAY of {label,value,guest?,signup?,money?}. These helpers
+// tolerate a legacy object shape too, so any config renders.
+function kpiList() {
+  const k = (CFG.store && CFG.store.kpis) || [];
+  if (Array.isArray(k)) return k;
+  return Object.keys(k).map((key) => ({ label: key, value: k[key] }));
+}
+function kpiBy(flag, idx) {
+  const list = kpiList();
+  const hit = list.find((x) => x && x[flag]);
+  return hit || list[idx] || { label: "", value: 0 };
+}
+const kpiGuest = () => kpiBy("guest", 0);
+const kpiSignup = () => kpiBy("signup", 1);
+const kpiVal = (o) => (o && o.money ? money(o.value) : (o ? o.value : ""));
+
+// Interpolate {tokens} in copy strings from config. Keeps app.js free of
+// customer/story literals — the copy lives in APP_CONFIG.copy (one file).
+function tokens() {
+  const c = CFG.customer || {};
+  const mgr = c.homeStoreManager || {};
+  const feat = featuredProduct();
+  const first = String(c.name || "").trim().split(/\s+/)[0] || (c.name || "guest");
+  return {
+    customer: c.name || "the guest",
+    firstName: first,
+    rank: c.rank || "Member",
+    memberSince: c.memberSince || "",
+    manager: mgr.name || "their home store",
+    managerStore: mgr.store || c.location || "their home store",
+    event: (CFG.event && CFG.event.name) || "event",
+    feature: feat.name || "the featured item",
+    store: (CFG.store && CFG.store.name) || "the store",
+    concierge: conciergeName(),
+    unit: unitNoun(),
+  };
+}
+function tpl(key, fallback) {
+  const raw = (CFG.copy && CFG.copy[key] != null) ? CFG.copy[key] : (fallback || "");
+  const t = tokens();
+  return String(raw).replace(/\{(\w+)\}/g, (m, k) => (t[k] != null ? t[k] : m));
+}
 
 const ICON = {
   store: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5h-3V21M3 13.5V21h18v-7.5M3.75 9.75L5.25 4.5h13.5l1.5 5.25M3.75 9.75h16.5"/></svg>',
@@ -32,23 +87,29 @@ function switchView(view) {
    DASHBOARD (store floor)
    ============================================================ */
 function renderDashboard() {
-  const k = APP_CONFIG.store.kpis;
+  const kpis = kpiList();
+  const g = kpiGuest(), su = kpiSignup();
 
+  // The primary walk-in (matches the profiled customer's rank, or the first
+  // one) routes to the full profile; others to the event. Keyed off data, not
+  // literal IDs, so a generated config with different IDs still routes right.
+  const primaryRank = (APP_CONFIG.customer && APP_CONFIG.customer.rank) || "";
+  const primaryWalkIn = APP_CONFIG.walkIns.find((w) => primaryRank && w.tier === primaryRank) || APP_CONFIG.walkIns[0];
   const walkInCards = APP_CONFIG.walkIns.map((w) => {
-    const vip = w.tier === "Grand Reserve";
-    const action = w.id === "alan"
-      ? "selectCoach('alan'); switchView('profile')"
-      : "selectCoach('dana'); switchView('event')";
+    const vip = primaryWalkIn ? w.id === primaryWalkIn.id : !!w.vip;
+    const action = (primaryWalkIn && w.id === primaryWalkIn.id)
+      ? "selectCoach('" + w.id + "'); switchView('profile')"
+      : "selectCoach('" + w.id + "'); switchView('event')";
     return `
       <div class="card card-pad ${vip ? "teal-border" : ""}" style="position:relative;overflow:hidden">
         ${vip ? '<div style="position:absolute;right:-30px;top:-30px;width:110px;height:110px;border-radius:9999px;background:rgba(1,102,92,.1);filter:blur(28px)"></div>' : ""}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;position:relative">
-          <span class="pill ${vip ? "pill-teal" : "pill-dim"}">${w.tag}</span>
-          <div class="avatar ${vip ? "avatar-teal" : "avatar-brushed"}" style="width:40px;height:40px;font-size:13px">${w.initials}</div>
+          <span class="pill ${vip ? "pill-teal" : "pill-dim"}">${esc(w.tag || "")}</span>
+          <div class="avatar ${vip ? "avatar-teal" : "avatar-brushed"}" style="width:40px;height:40px;font-size:13px">${esc(w.initials || "")}</div>
         </div>
-        <h3 class="serif" style="margin:0;font-size:20px;color:var(--charcoal)">${w.headline}</h3>
-        <p class="dim" style="font-size:13px;margin:8px 0 0;line-height:1.5">${w.detail}</p>
-        <button class="btn ${vip ? "btn-primary" : "btn-ghost-teal"} btn-block" style="margin-top:14px" onclick="${action}">${w.cta}</button>
+        <h3 class="serif" style="margin:0;font-size:20px;color:var(--charcoal)">${esc(w.headline || "")}</h3>
+        <p class="dim" style="font-size:13px;margin:8px 0 0;line-height:1.5">${esc(w.detail || "")}</p>
+        <button class="btn ${vip ? "btn-primary" : "btn-ghost-teal"} btn-block" style="margin-top:14px" onclick="${action}">${esc(w.cta || "")}</button>
       </div>`;
   }).join("");
 
@@ -62,16 +123,21 @@ function renderDashboard() {
       <button class="btn btn-sm" onclick="toast('Task completed')">Done</button>
     </div>`).join("");
 
-  const feat = productById(APP_CONFIG.event.featuredWineId);
+  const feat = featuredProduct();
+  const kpiColors = ["var(--teal)", "var(--gold)", "var(--teal)", "var(--green)", "var(--gold)"];
+  const kpiGridCells = kpis.map((kp, i) => {
+    const cls = i % 2 === 0 ? "teal-text" : "gold-text";
+    return `<div class="kpi"><div class="top-line" style="background:${kpiColors[i % kpiColors.length]}"></div><div class="v ${cls}">${kpiVal(kp)}</div><div class="l">${esc(kp.label || "")}</div></div>`;
+  }).join("");
 
   setHTML(document.getElementById("view-dashboard"), `
     <div class="card" style="position:relative;overflow:hidden;margin-bottom:20px;background:linear-gradient(120deg,var(--teal),var(--teal-dk))">
       <div style="position:relative;padding:30px 28px;display:flex;align-items:center;gap:22px;color:#fff">
         <div class="tw-mark" style="width:74px;height:74px;background:rgba(255,255,255,.14);box-shadow:none">${ICON.glass.replace("viewBox", 'width="34" height="34" viewBox')}</div>
         <div>
-          <div class="eyebrow" style="color:rgba(255,255,255,.85)">Clienteling &middot; Total Wine &amp; More</div>
+          <div class="eyebrow" style="color:rgba(255,255,255,.85)">Clienteling &middot; ${esc((APP_CONFIG.brand && APP_CONFIG.brand.name) || "")}</div>
           <h2 class="serif" style="margin:6px 0 0;font-size:30px;line-height:1.1">The art of the relationship.</h2>
-          <p style="font-size:13.5px;margin:8px 0 0;max-width:480px;color:rgba(255,255,255,.85)">Every guest at the ${APP_CONFIG.store.name} store is a clienteling moment &mdash; a unified view that helps you serve better and sell more.</p>
+          <p style="font-size:13.5px;margin:8px 0 0;max-width:480px;color:rgba(255,255,255,.85)">Every guest at the ${esc(APP_CONFIG.store.name)} store is a clienteling moment &mdash; a unified view that helps you serve better and sell more.</p>
         </div>
       </div>
     </div>
@@ -79,32 +145,27 @@ function renderDashboard() {
     <div id="arrivalBanner"></div>
 
     <div class="eyebrow">Performance</div>
-    <h1 class="serif silver-text" style="margin:4px 0 0;font-size:30px">${APP_CONFIG.store.name} Store &middot; Floor Dashboard</h1>
+    <h1 class="serif silver-text" style="margin:4px 0 0;font-size:30px">${esc(APP_CONFIG.store.name)} Store &middot; ${esc(navLabel("dashboard", "Floor Dashboard"))}</h1>
     <p class="dim" style="font-size:13.5px;margin:6px 0 18px">Shift from transactional selling to a clienteling culture &mdash; recognize every guest, act on every signal.</p>
 
     <div class="traffic">
-      <div class="t-card"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--warm-dim)"></div><div class="t-v" id="guestCount">${k.guestsToday}</div><div class="t-l">Guests today &middot; sensors</div></div>
-      <div class="t-card"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--teal)"></div><div class="t-v teal-text" id="signupCount">${k.classSignups}</div><div class="t-l">Class sign-ups today</div></div>
-      <div class="t-card"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold)"></div><div class="t-v gold-text">${k.vipArrivals}</div><div class="t-l">VIP arrivals</div></div>
+      <div class="t-card"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--warm-dim)"></div><div class="t-v" id="guestCount">${g.value}</div><div class="t-l">${esc(g.label || "Guests today")}</div></div>
+      <div class="t-card"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--teal)"></div><div class="t-v teal-text" id="signupCount">${su.value}</div><div class="t-l">${esc(su.label || "Sign-ups today")}</div></div>
+      <div class="t-card"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold)"></div><div class="t-v gold-text">${kpiVal(kpiList()[2] || { value: 0 })}</div><div class="t-l">${esc((kpiList()[2] || {}).label || "VIP arrivals")}</div></div>
     </div>
 
     <div class="card card-pad brushed" style="margin-bottom:18px;display:flex;gap:20px;align-items:center;flex-wrap:wrap">
       <div class="bottle-frame" style="width:80px;height:150px">${productImage(feat, 62, 140)}</div>
       <div style="flex:1;min-width:220px">
-        <div class="eyebrow">Tonight at ${APP_CONFIG.store.name}</div>
-        <h3 class="serif silver-text" style="margin:4px 0 0;font-size:23px">${APP_CONFIG.event.name}</h3>
-        <p class="dim" style="font-size:13px;margin:6px 0 0">${APP_CONFIG.event.date} &middot; ${APP_CONFIG.event.host} &middot; ${APP_CONFIG.event.attendees.length} of ${APP_CONFIG.event.seatsTotal} seats filled</p>
-        <p style="font-size:12.5px;color:var(--charcoal);margin:8px 0 0">Feature pour: <strong class="teal">${feat.name} ${feat.vintage}</strong></p>
-        <button class="btn btn-ghost-teal btn-sm" style="margin-top:12px" onclick="switchView('event')">Manage the class &rarr;</button>
+        <div class="eyebrow">Tonight at ${esc(APP_CONFIG.store.name)}</div>
+        <h3 class="serif silver-text" style="margin:4px 0 0;font-size:23px">${esc(APP_CONFIG.event.name)}</h3>
+        <p class="dim" style="font-size:13px;margin:6px 0 0">${esc(APP_CONFIG.event.date)} &middot; ${esc(APP_CONFIG.event.host)} &middot; ${APP_CONFIG.event.attendees.length} of ${APP_CONFIG.event.seatsTotal} seats filled</p>
+        <p style="font-size:12.5px;color:var(--charcoal);margin:8px 0 0">Featured: <strong class="teal">${esc(feat.name)} ${esc(feat.vintage || "")}</strong></p>
+        <button class="btn btn-ghost-teal btn-sm" style="margin-top:12px" onclick="switchView('event')">Manage the ${esc((APP_CONFIG.event.type || "event").toLowerCase())} &rarr;</button>
       </div>
     </div>
 
-    <div class="kpi-grid" style="margin-bottom:18px">
-      <div class="kpi"><div class="top-line" style="background:var(--teal)"></div><div class="v teal-text">${k.classSignups}</div><div class="l">Class sign-ups</div></div>
-      <div class="kpi"><div class="top-line" style="background:var(--gold)"></div><div class="v gold-text">${k.vipArrivals}</div><div class="l">VIP arrivals</div></div>
-      <div class="kpi"><div class="top-line" style="background:var(--teal)"></div><div class="v teal-text">${money(k.pipeline)}</div><div class="l">Pipeline value</div></div>
-      <div class="kpi"><div class="top-line" style="background:var(--green)"></div><div class="v">${k.holdsPending}</div><div class="l">Holds pending</div></div>
-    </div>
+    <div class="kpi-grid" style="margin-bottom:18px">${kpiGridCells}</div>
 
     <div class="layout-2col">
       <div>
@@ -127,7 +188,7 @@ function renderDashboard() {
         <div class="card" style="overflow:hidden;margin-bottom:16px">
           <div class="brushed" style="padding:14px 16px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:10px">
             <div class="avatar avatar-teal" style="width:30px;height:30px">${ICON.glass.replace("viewBox", 'width="15" height="15" viewBox')}</div>
-            <div><div style="font-size:13.5px;color:var(--charcoal)">Agentforce &middot; Vino Concierge</div><div class="dim" style="font-size:10px;letter-spacing:.12em">REAL-TIME FLOOR ASSIST</div></div>
+            <div><div style="font-size:13.5px;color:var(--charcoal)">Agentforce &middot; ${esc(conciergeName())}</div><div class="dim" style="font-size:10px;letter-spacing:.12em">REAL-TIME FLOOR ASSIST</div></div>
           </div>
           <div class="card-pad" id="coachBody">
             <p class="dim" style="font-size:13px;line-height:1.6;margin:0">Select a guest alert to receive tailored conversation starters and the next best action.</p>
@@ -136,7 +197,7 @@ function renderDashboard() {
         <div class="card card-pad">
           <div class="eyebrow" style="margin-bottom:10px">Today's Coaching Tip</div>
           <p style="font-size:13.5px;color:var(--charcoal);line-height:1.6;margin:0">Lead with the relationship, not the register. Recognize the guest, relay what their home store knows, and the sale follows.</p>
-          <button class="btn btn-ghost-teal btn-sm btn-block" style="margin-top:14px" onclick="openChat()">Open full Vino Concierge &rarr;</button>
+          <button class="btn btn-ghost-teal btn-sm btn-block" style="margin-top:14px" onclick="openChat()">Open full ${esc(conciergeName())} &rarr;</button>
         </div>
       </div>
     </div>
@@ -148,17 +209,17 @@ function selectCoach(key) {
   const body = document.getElementById("coachBody");
   if (!body || !d) return;
   setHTML(body, `
-    <span class="pill pill-teal">${d.badge}</span>
-    <h4 class="serif" style="margin:8px 0 0;font-size:17px;color:var(--charcoal)">${d.title}</h4>
+    <span class="pill pill-teal">${esc(d.badge || "")}</span>
+    <h4 class="serif" style="margin:8px 0 0;font-size:17px;color:var(--charcoal)">${esc(d.title || "")}</h4>
     <div class="eyebrow" style="color:var(--warm-gray);font-size:9.5px;margin-top:12px">Conversation Starters</div>
     <ul style="margin:6px 0 0;padding-left:4px;list-style:none">
-      ${d.starters.map((s) => `<li style="display:flex;gap:8px;font-size:13px;color:var(--charcoal);margin-top:7px"><span class="teal">&bull;</span><span>${s}</span></li>`).join("")}
+      ${(d.starters || []).map((s) => `<li style="display:flex;gap:8px;font-size:13px;color:var(--charcoal);margin-top:7px"><span class="teal">&bull;</span><span>${esc(s)}</span></li>`).join("")}
     </ul>
     <div class="alert-box" style="border-color:rgba(1,102,92,.3);background:rgba(1,102,92,.06);margin-top:12px">
       <div class="eyebrow" style="font-size:9.5px">Next Best Action</div>
-      <div style="font-size:13px;color:var(--charcoal);margin-top:4px">${d.nba}</div>
+      <div style="font-size:13px;color:var(--charcoal);margin-top:4px">${esc(d.nba || "")}</div>
     </div>
-    <button class="btn btn-ghost-teal btn-sm btn-block" style="margin-top:12px" onclick="openChat()">Ask Vino Concierge more &rarr;</button>`);
+    <button class="btn btn-ghost-teal btn-sm btn-block" style="margin-top:12px" onclick="openChat()">Ask ${esc(conciergeName())} more &rarr;</button>`);
 }
 
 /* ============================================================
@@ -186,51 +247,56 @@ function renderSignin() {
     <div class="kiosk-wrap">
       <div class="kiosk" id="kioskCard">
         <div class="tw-mark" style="width:60px;height:60px;margin:0 auto 14px">${ICON.glass.replace("viewBox", 'width="32" height="32" viewBox')}</div>
-        <div class="eyebrow">Guest Check-In &middot; ${APP_CONFIG.store.name}</div>
-        <h2 class="serif silver-text" style="margin:6px 0 0;font-size:26px">Wine &amp; Cheese Pairing Class</h2>
-        <p class="dim" style="font-size:13px;margin:8px 0 18px">Check a guest in for tonight's class. Their unified profile surfaces instantly for the associate.</p>
+        <div class="eyebrow">Guest Check-In &middot; ${esc(APP_CONFIG.store.name)}</div>
+        <h2 class="serif silver-text" style="margin:6px 0 0;font-size:26px">${esc(APP_CONFIG.event.name)}</h2>
+        <p class="dim" style="font-size:13px;margin:8px 0 18px">Check a guest in for tonight's ${esc((APP_CONFIG.event.type || "event").toLowerCase())}. Their unified profile surfaces instantly for the associate.</p>
         <input class="field" id="suFirst" placeholder="First name" />
         <input class="field" id="suLast" placeholder="Last name" />
         <input class="field" id="suEmail" placeholder="Email" />
         <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="submitSignin()">Check In</button>
         <button class="btn btn-block" style="margin-top:8px;background:none;border:none;color:var(--warm-gray)" onclick="skipSignin()">Skip &rarr;</button>
-        <div class="kiosk-hint">Demo: try <b onclick="prefillSignin()">Alan Reyes</b></div>
+        <div class="kiosk-hint">Demo: try <b onclick="prefillSignin()">${esc(tokens().customer)}</b></div>
       </div>
     </div>`);
 }
 function skipSignin() { switchView("dashboard"); scheduleArrivalDrop(); }
 function prefillSignin() {
-  document.getElementById("suFirst").value = "Alan";
-  document.getElementById("suLast").value = "Reyes";
-  document.getElementById("suEmail").value = "alan.r@example.com";
+  const c = APP_CONFIG.customer || {};
+  const parts = String(c.name || "").trim().split(/\s+/);
+  document.getElementById("suFirst").value = parts[0] || "";
+  document.getElementById("suLast").value = parts.slice(1).join(" ") || "";
+  document.getElementById("suEmail").value = (c.channels && c.channels.email) || "";
 }
 function submitSignin() {
   const first = (document.getElementById("suFirst").value || "").trim().toLowerCase();
   const email = (document.getElementById("suEmail").value || "").trim().toLowerCase();
-  const isAlan = first.indexOf("alan") > -1 || email.indexOf("alan") > -1;
+  const c = APP_CONFIG.customer || {};
+  const custFirst = String(c.name || "").trim().split(/\s+/)[0].toLowerCase();
+  // Match the primary customer by first name or email → surface the VIP flow.
+  const isPrimary = (!!custFirst && first.indexOf(custFirst) > -1) ||
+    ((c.channels && c.channels.email) ? email && email === String(c.channels.email).toLowerCase() : false);
 
-  if (isAlan) {
+  if (isPrimary) {
     bumpSignup();
-    const c = APP_CONFIG.customer;
     setHTML(document.getElementById("kioskCard"), `
       <div class="tw-mark" style="width:56px;height:56px;margin:0 auto 12px">${ICON.glass.replace("viewBox", 'width="30" height="30" viewBox')}</div>
-      <span class="pill pill-teal">&#9733; GRAND RESERVE &middot; CHECKED IN</span>
-      <h2 class="serif silver-text" style="margin:12px 0 0;font-size:26px">Greet Alan by name.</h2>
-      <p class="dim" style="font-size:13px;margin:8px 0 0">Grand Reserve member since ${c.memberSince} &middot; traveling from ${c.homeStoreManager.store}.</p>
+      <span class="pill pill-teal">&#9733; ${esc((c.rank || "MEMBER").toUpperCase())} &middot; CHECKED IN</span>
+      <h2 class="serif silver-text" style="margin:12px 0 0;font-size:26px">${esc(tpl("checkinGreeting", "Greet {firstName} by name."))}</h2>
+      <p class="dim" style="font-size:13px;margin:8px 0 0">${esc(tpl("checkinSub", "{rank} member since {memberSince} · traveling from {managerStore}."))}</p>
 
       <div class="marie-note" style="margin-top:16px;text-align:left">
-        <div class="eyebrow" style="font-size:9px;color:var(--golddim)">MESSAGE FROM MARIE &middot; HIS HOME STORE</div>
-        <div class="quote">&ldquo;${APP_CONFIG.managerMessage.text}&rdquo;</div>
+        <div class="eyebrow" style="font-size:9px;color:var(--golddim)">${esc(tpl("managerNoteLabel", "MESSAGE FROM {manager} · THEIR HOME STORE"))}</div>
+        <div class="quote">&ldquo;${esc(APP_CONFIG.managerMessage.text)}&rdquo;</div>
       </div>
 
       <div class="alert-box" style="margin-top:14px;text-align:left;border-color:rgba(1,102,92,.3);background:rgba(1,102,92,.05)">
         <div class="eyebrow" style="font-size:9px">Say this</div>
-        <div style="font-size:13px;color:var(--charcoal);margin-top:4px">"Welcome, Alan &mdash; great to have a Grand Reserve member with us tonight. Marie back in Modesto says hi, and she'll let you know when the Ch&acirc;teau Les Carmes bottles arrive."</div>
+        <div style="font-size:13px;color:var(--charcoal);margin-top:4px">${esc(tpl("sayThis", ""))}</div>
       </div>
 
       <div style="display:flex;gap:8px;margin-top:16px">
         <button class="btn btn-primary btn-block" onclick="switchView('profile')">Open Full Profile</button>
-        <button class="btn btn-block btn-ghost-teal" onclick="switchView('event')">Go to Class</button>
+        <button class="btn btn-block btn-ghost-teal" onclick="switchView('event')">Go to ${esc(APP_CONFIG.event.type || "Event")}</button>
       </div>
       <button class="btn btn-block" style="margin-top:8px;background:none;border:none;color:var(--warm-gray)" onclick="renderSignin()">Check in another guest</button>`);
     scheduleArrivalDrop();
@@ -240,7 +306,7 @@ function submitSignin() {
     setHTML(document.getElementById("kioskCard"), `
       <div class="tw-mark" style="width:56px;height:56px;margin:0 auto 12px">${ICON.glass.replace("viewBox", 'width="30" height="30" viewBox')}</div>
       <h2 class="serif silver-text" style="margin:0;font-size:24px">Welcome, ${esc(name)}!</h2>
-      <p class="dim" style="font-size:13px;margin:10px 0 18px">You're checked in for tonight's class. Enjoy the tasting.</p>
+      <p class="dim" style="font-size:13px;margin:10px 0 18px">${esc(tpl("genericCheckedIn", "You're checked in for tonight's {event}. Enjoy."))}</p>
       <button class="btn btn-block" onclick="renderSignin()">Check in another guest</button>`);
   }
 }
@@ -250,11 +316,12 @@ function submitSignin() {
    ============================================================ */
 function renderProfile() {
   const c = APP_CONFIG.customer;
-  const feat = productById(APP_CONFIG.event.featuredWineId);
+  const feat = featuredProduct();
+  const mgrStore = (c.homeStoreManager && c.homeStoreManager.store) || c.location || "home store";
 
   const historyRows = c.history.map((h) => `
     <div class="list-row">
-      <div class="avatar avatar-brushed" style="width:34px;height:34px;font-size:11px">&#127863;</div>
+      <div class="avatar avatar-brushed" style="width:34px;height:34px;font-size:11px">&#128722;</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13.5px;color:var(--charcoal)">${h.product}</div>
         <div class="dim" style="font-size:12px;margin-top:2px">${h.date} &middot; ${money(h.price)} &middot; qty ${h.qty}</div>
@@ -298,11 +365,11 @@ function renderProfile() {
         <div class="card card-pad" style="margin-top:14px">
           <div class="dim" style="font-size:10.5px;letter-spacing:.12em">LIFETIME VALUE</div>
           <div class="gold-text" style="font-size:26px;font-weight:400;margin-top:2px">${money(c.ltv)}</div>
-          <div class="dim" style="font-size:11.5px;margin-top:2px">${money(c.ytdSpend)} YTD &middot; ${c.bottles} bottles owned</div>
+          <div class="dim" style="font-size:11.5px;margin-top:2px">${money(c.ytdSpend)} YTD &middot; ${c.bottles} ${esc(unitNoun())} owned</div>
         </div>
 
         <div class="card card-pad" style="margin-top:14px">
-          <div class="eyebrow" style="margin-bottom:8px">Wine Affinities &middot; Data Cloud</div>
+          <div class="eyebrow" style="margin-bottom:8px">Affinities &middot; Data Cloud</div>
           ${affinityRows}
         </div>
 
@@ -319,7 +386,7 @@ function renderProfile() {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <button class="btn btn-sm" onclick="openModal('draftMessage')">Message</button>
             <button class="btn btn-sm" onclick="openModal('call')">Call</button>
-            <button class="btn btn-sm" onclick="openModal('fulfillment')">Hold wine</button>
+            <button class="btn btn-sm" onclick="openModal('fulfillment')">Hold ${esc(unitNoun())}</button>
             <button class="btn btn-sm" onclick="openModal('logNote')">Log note</button>
           </div>
           <button class="btn btn-ghost-teal btn-sm btn-block" style="margin-top:8px" onclick="switchView('dashboard')">&larr; Back to Floor</button>
@@ -330,13 +397,13 @@ function renderProfile() {
         <div class="card card-pad" style="margin-bottom:18px">
           <div class="section-title">
             <svg width="20" height="20" fill="none" stroke="var(--teal)" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.019z"/></svg>
-            <h3 class="serif silver-text" style="margin:0;font-size:19px">Message from Marie &middot; Alan's Home Store</h3>
+            <h3 class="serif silver-text" style="margin:0;font-size:19px">Message from ${esc((APP_CONFIG.managerMessage.from && APP_CONFIG.managerMessage.from.name) || tokens().manager)} &middot; ${esc(tokens().customer)}'s Home Store</h3>
           </div>
           <div class="marie-note">
-            <div class="eyebrow" style="font-size:9px;color:var(--golddim)">FROM MARIE L. &middot; MODESTO &middot; ${APP_CONFIG.managerMessage.when}</div>
-            <div class="quote" style="margin-top:6px">&ldquo;${APP_CONFIG.managerMessage.text}&rdquo;</div>
+            <div class="eyebrow" style="font-size:9px;color:var(--golddim)">FROM ${esc(((APP_CONFIG.managerMessage.from && APP_CONFIG.managerMessage.from.name) || tokens().manager).toUpperCase())} &middot; ${esc(String(mgrStore).toUpperCase())} &middot; ${esc(APP_CONFIG.managerMessage.when)}</div>
+            <div class="quote" style="margin-top:6px">&ldquo;${esc(APP_CONFIG.managerMessage.text)}&rdquo;</div>
           </div>
-          <p class="dim" style="font-size:12.5px;margin:10px 0 0">Deliver this in person at check-in. It ties directly to tonight's feature &mdash; the Ch&acirc;teau Les Carmes.</p>
+          <p class="dim" style="font-size:12.5px;margin:10px 0 0">Deliver this in person at check-in. It ties directly to tonight's feature &mdash; ${esc(feat.name || "the featured item")}.</p>
         </div>
 
         <div class="eyebrow" style="margin-bottom:10px">Einstein AI &middot; Next Best Action</div>
@@ -344,13 +411,13 @@ function renderProfile() {
           <div class="brushed" style="display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:22px">
             <div class="bottle-frame" style="width:110px;height:180px">${productImage(feat, 80, 170)}</div>
             <div style="flex:1;min-width:200px">
-              <div class="eyebrow">${feat.badge}</div>
-              <h3 class="serif silver-text" style="margin:4px 0 0;font-size:23px">${feat.name}</h3>
-              <div class="wine-region" style="margin-top:4px">${feat.region} &middot; ${feat.vintage}</div>
-              <div class="wine-notes">${feat.tastingNotes}</div>
-              <div style="display:flex;align-items:center;gap:12px;margin-top:6px"><span class="wine-price">${money(feat.price)}</span><span class="score-badge"><span class="num">${feat.score}</span> ${feat.scoreSource}</span></div>
-              <div class="dim" style="font-size:12px;margin-top:8px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:9999px;background:var(--teal);display:inline-block"></span> ${feat.stock.modesto} bottles at his home store (Modesto)</div>
-              <button class="btn btn-ghost-teal btn-sm" style="margin-top:12px" onclick="event.stopPropagation();openModal('fulfillment')">Hold bottles for Alan &rarr;</button>
+              <div class="eyebrow">${esc(feat.badge || "")}</div>
+              <h3 class="serif silver-text" style="margin:4px 0 0;font-size:23px">${esc(feat.name)}</h3>
+              <div class="wine-region" style="margin-top:4px">${esc([feat.region, feat.vintage].filter(Boolean).join(" · "))}</div>
+              <div class="wine-notes">${esc(feat.tastingNotes || "")}</div>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:6px"><span class="wine-price">${money(feat.price)}</span><span class="score-badge"><span class="num">${feat.score}</span> ${esc(feat.scoreSource || "")}</span></div>
+              <div class="dim" style="font-size:12px;margin-top:8px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:9999px;background:var(--teal);display:inline-block"></span> ${(feat.stock && feat.stock.modesto) || 0} ${esc(unitNoun())} at their home store (${esc(mgrStore)})</div>
+              <button class="btn btn-ghost-teal btn-sm" style="margin-top:12px" onclick="event.stopPropagation();openModal('fulfillment')">Hold ${esc(unitNoun())} for ${esc(tokens().firstName)} &rarr;</button>
             </div>
           </div>
         </div>
@@ -377,7 +444,8 @@ function renderProfile() {
    EVENT / CLASS VIEW (Scenes 1 & 5)
    ============================================================ */
 function renderEvent() {
-  const feat = productById(APP_CONFIG.event.featuredWineId);
+  const feat = featuredProduct();
+  const mgrStore = (APP_CONFIG.customer && APP_CONFIG.customer.homeStoreManager && APP_CONFIG.customer.homeStoreManager.store) || (APP_CONFIG.customer && APP_CONFIG.customer.location) || "home store";
   const roster = APP_CONFIG.event.attendees.map((a) => `
     <div class="list-row">
       <div class="avatar ${a.vip ? "avatar-teal" : "avatar-brushed"}" style="width:34px;height:34px;font-size:11px">${a.initials}</div>
@@ -393,9 +461,9 @@ function renderEvent() {
   setHTML(document.getElementById("view-event"), `
     <div class="page-head">
       <div>
-        <div class="eyebrow">Event Management</div>
-        <h1 class="serif silver-text" style="margin:4px 0 0;font-size:30px">${APP_CONFIG.event.name}</h1>
-        <p class="dim" style="font-size:13.5px;margin:6px 0 0">${APP_CONFIG.event.date} &middot; ${APP_CONFIG.event.store} &middot; Hosted by ${APP_CONFIG.event.host}</p>
+        <div class="eyebrow">${esc((APP_CONFIG.event.type || "Event"))} Management</div>
+        <h1 class="serif silver-text" style="margin:4px 0 0;font-size:30px">${esc(APP_CONFIG.event.name)}</h1>
+        <p class="dim" style="font-size:13.5px;margin:6px 0 0">${esc(APP_CONFIG.event.date)} &middot; ${esc(APP_CONFIG.event.store)} &middot; Hosted by ${esc(APP_CONFIG.event.host)}</p>
       </div>
       <span class="demo-note">${APP_CONFIG.event.attendees.length} / ${APP_CONFIG.event.seatsTotal} seats</span>
     </div>
@@ -404,23 +472,23 @@ function renderEvent() {
       <div class="kpi"><div class="top-line" style="background:var(--teal)"></div><div class="v teal-text">${APP_CONFIG.event.attendees.length}</div><div class="l">Registered</div></div>
       <div class="kpi"><div class="top-line" style="background:var(--gold)"></div><div class="v gold-text">${APP_CONFIG.event.attendees.filter((a) => a.vip).length}</div><div class="l">VIP guests</div></div>
       <div class="kpi"><div class="top-line" style="background:var(--green)"></div><div class="v">${APP_CONFIG.event.seatsTotal - APP_CONFIG.event.attendees.length}</div><div class="l">Seats open</div></div>
-      <div class="kpi"><div class="top-line" style="background:var(--teal)"></div><div class="v teal-text">5</div><div class="l">Wines poured</div></div>
+      <div class="kpi"><div class="top-line" style="background:var(--teal)"></div><div class="v teal-text">${APP_CONFIG.catalog.length}</div><div class="l">${esc(unitNoun().charAt(0).toUpperCase() + unitNoun().slice(1))} featured</div></div>
     </div>
 
     <div class="layout-2col">
       <div>
         <div class="card card-pad" style="margin-bottom:18px">
-          <div class="eyebrow" style="margin-bottom:12px">Tonight's Feature Pour</div>
+          <div class="eyebrow" style="margin-bottom:12px">${esc(tpl("featurePourLabel", "Tonight's Featured Item"))}</div>
           <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
             <div class="bottle-frame" style="width:100px;height:180px">${productImage(feat, 76, 170)}</div>
             <div style="flex:1;min-width:200px">
-              <div class="wine-region">${feat.region} &middot; ${feat.vintage}</div>
-              <h3 class="serif silver-text" style="margin:2px 0 0;font-size:22px">${feat.name}</h3>
-              <div style="display:flex;align-items:center;gap:12px;margin-top:8px"><span class="wine-price">${money(feat.price)}</span><span class="score-badge"><span class="num">${feat.score}</span> ${feat.scoreSource}</span></div>
-              <div class="wine-notes">${feat.tastingNotes}</div>
-              <div class="pairing-row">${feat.foodPairings.map((f) => `<span class="pairing-chip">${f}</span>`).join("")}</div>
+              <div class="wine-region">${esc([feat.region, feat.vintage].filter(Boolean).join(" · "))}</div>
+              <h3 class="serif silver-text" style="margin:2px 0 0;font-size:22px">${esc(feat.name)}</h3>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:8px"><span class="wine-price">${money(feat.price)}</span><span class="score-badge"><span class="num">${feat.score}</span> ${esc(feat.scoreSource || "")}</span></div>
+              <div class="wine-notes">${esc(feat.tastingNotes || "")}</div>
+              <div class="pairing-row">${(feat.foodPairings || []).map((f) => `<span class="pairing-chip">${esc(f)}</span>`).join("")}</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
-                <button class="btn btn-primary btn-sm" onclick="openModal('fulfillment')">Hold bottles for a guest</button>
+                <button class="btn btn-primary btn-sm" onclick="openModal('fulfillment')">Hold ${esc(unitNoun())} for a guest</button>
                 <button class="btn btn-sm btn-ghost-teal" onclick="openProduct('${feat.id}')">Full details</button>
               </div>
             </div>
@@ -440,17 +508,17 @@ function renderEvent() {
         <div class="insight" style="margin-bottom:16px">
           <div class="avatar avatar-teal" style="width:34px;height:34px;font-size:11px">AI</div>
           <div>
-            <div style="font-size:13.5px;color:var(--charcoal);font-weight:600">Vino Concierge tip</div>
-            <p class="dim" style="font-size:12.5px;line-height:1.6;margin:6px 0 0">Alan R. is your <strong class="teal">Grand Reserve</strong> guest tonight. When he asks about the feature, offer to hold bottles at his home store in Modesto &mdash; he's traveling and can't carry them.</p>
+            <div style="font-size:13.5px;color:var(--charcoal);font-weight:600">${esc(tpl("coachTipTitle", "{concierge} tip"))}</div>
+            <p class="dim" style="font-size:12.5px;line-height:1.6;margin:6px 0 0">${esc(tpl("coachTip", ""))}</p>
           </div>
         </div>
         <div class="card card-pad">
           <div class="eyebrow" style="margin-bottom:10px">Run of Show</div>
           <div class="list-row" style="gap:10px"><span class="pill pill-dim">7:00</span><span style="font-size:13px;color:var(--charcoal)">Welcome &amp; check-in</span></div>
-          <div class="list-row" style="gap:10px"><span class="pill pill-teal">7:20</span><span style="font-size:13px;color:var(--charcoal)">Feature pour &mdash; Ch&acirc;teau Les Carmes</span></div>
-          <div class="list-row" style="gap:10px"><span class="pill pill-dim">8:00</span><span style="font-size:13px;color:var(--charcoal)">Cheese pairings</span></div>
+          <div class="list-row" style="gap:10px"><span class="pill pill-teal">7:20</span><span style="font-size:13px;color:var(--charcoal)">Feature &mdash; ${esc(feat.name || "featured item")}</span></div>
+          <div class="list-row" style="gap:10px"><span class="pill pill-dim">8:00</span><span style="font-size:13px;color:var(--charcoal)">Guest experience</span></div>
           <div class="list-row" style="gap:10px"><span class="pill pill-dim">8:40</span><span style="font-size:13px;color:var(--charcoal)">Holds &amp; checkout</span></div>
-          <button class="btn btn-ghost-teal btn-sm btn-block" style="margin-top:12px" onclick="openChat()">Ask Vino Concierge &rarr;</button>
+          <button class="btn btn-ghost-teal btn-sm btn-block" style="margin-top:12px" onclick="openChat()">Ask ${esc(conciergeName())} &rarr;</button>
         </div>
       </div>
     </div>
@@ -461,6 +529,8 @@ function renderEvent() {
    INVENTORY & FULFILLMENT (Scene 5)
    ============================================================ */
 function renderInventory() {
+  const homeStore = (APP_CONFIG.customer && APP_CONFIG.customer.homeStoreManager && APP_CONFIG.customer.homeStoreManager.store) || (APP_CONFIG.customer && APP_CONFIG.customer.location) || "home store";
+  const hereStore = APP_CONFIG.store.name;
   const cards = APP_CONFIG.catalog.map((p) => {
     const s = p.stock.sanDiego;
     const level = s <= 2 ? "var(--red)" : s <= 6 ? "var(--gold)" : "var(--green)";
@@ -469,8 +539,8 @@ function renderInventory() {
       <div class="rec-card ${p.featured ? "teal-border" : ""}" style="cursor:pointer" onclick="openProduct('${p.id}')">
         <div class="ph">${productImage(p, 66, 130)}</div>
         <div class="body">
-          <div class="wine-region" style="font-size:9px">${p.region}</div>
-          <div style="color:var(--charcoal);font-weight:500;font-size:13.5px;margin-top:4px">${p.name} <span class="dim">${p.vintage}</span></div>
+          <div class="wine-region" style="font-size:9px">${esc(p.region || "")}</div>
+          <div style="color:var(--charcoal);font-weight:500;font-size:13.5px;margin-top:4px">${esc(p.name)} <span class="dim">${esc(p.vintage || "")}</span></div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
             <span class="wine-price" style="font-size:18px">${money(p.price)}</span>
             <span class="score-badge" style="padding:3px 7px"><span class="num" style="font-size:13px">${p.score}</span></span>
@@ -478,7 +548,7 @@ function renderInventory() {
           <div style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:12px">
             <span class="stock-dot" style="background:${level}"></span>
             <span style="color:var(--charcoal)">${levelLabel}</span>
-            <span class="dim" style="margin-left:auto">SD ${p.stock.sanDiego} &middot; Modesto ${p.stock.modesto}</span>
+            <span class="dim" style="margin-left:auto">Here ${p.stock.sanDiego} &middot; Home ${p.stock.modesto}</span>
           </div>
           <div style="display:flex;gap:6px;margin-top:12px">
             <button class="btn btn-sm btn-block" onclick="event.stopPropagation();openModal('fulfillment')">Hold / Ship</button>
@@ -488,14 +558,15 @@ function renderInventory() {
       </div>`;
   }).join("");
 
-  const feat = productById(APP_CONFIG.event.featuredWineId);
+  const feat = featuredProduct();
+  const Unit = unitNoun().charAt(0).toUpperCase() + unitNoun().slice(1);
 
   setHTML(document.getElementById("view-inventory"), `
     <div class="page-head">
       <div>
         <div class="eyebrow">Fulfillment</div>
         <h1 class="serif silver-text" style="margin:4px 0 0;font-size:30px">Cross-Store Inventory</h1>
-        <p class="dim" style="font-size:13.5px;margin:6px 0 0">Real-time stock across ${APP_CONFIG.store.name} &amp; Alan's home store in Modesto.</p>
+        <p class="dim" style="font-size:13.5px;margin:6px 0 0">${esc(tpl("inventorySub", "Real-time stock across {store} & {customer}'s home store ({managerStore})."))}</p>
       </div>
       <span class="demo-note">Live &middot; sample data</span>
     </div>
@@ -505,15 +576,15 @@ function renderInventory() {
       <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
         <div class="bottle-frame" style="width:90px;height:160px">${productImage(feat, 70, 150)}</div>
         <div style="flex:1;min-width:240px">
-          <div class="wine-region">${feat.region} &middot; ${feat.vintage}</div>
-          <h3 class="serif silver-text" style="margin:2px 0 8px;font-size:21px">${feat.name}</h3>
+          <div class="wine-region">${esc([feat.region, feat.vintage].filter(Boolean).join(" · "))}</div>
+          <h3 class="serif silver-text" style="margin:2px 0 8px;font-size:21px">${esc(feat.name)}</h3>
           <div class="store-row">
-            <span style="font-size:13px;color:var(--charcoal)"><span class="stock-dot" style="background:var(--gold);margin-right:8px"></span>${APP_CONFIG.store.name} (here)</span>
-            <strong style="color:var(--charcoal)">${feat.stock.sanDiego} bottles</strong>
+            <span style="font-size:13px;color:var(--charcoal)"><span class="stock-dot" style="background:var(--gold);margin-right:8px"></span>${esc(hereStore)} (here)</span>
+            <strong style="color:var(--charcoal)">${feat.stock.sanDiego} ${esc(unitNoun())}</strong>
           </div>
           <div class="store-row">
-            <span style="font-size:13px;color:var(--charcoal)"><span class="stock-dot" style="background:var(--green);margin-right:8px"></span>Modesto <span class="home-tag">ALAN'S HOME STORE</span></span>
-            <strong class="teal">${feat.stock.modesto} bottles</strong>
+            <span style="font-size:13px;color:var(--charcoal)"><span class="stock-dot" style="background:var(--green);margin-right:8px"></span>${esc(homeStore)} <span class="home-tag">${esc((tokens().firstName + "'s home store").toUpperCase())}</span></span>
+            <strong class="teal">${feat.stock.modesto} ${esc(unitNoun())}</strong>
           </div>
           <button class="btn btn-primary btn-sm" style="margin-top:14px" onclick="openModal('fulfillment')">Offer fulfillment options &rarr;</button>
         </div>
@@ -522,15 +593,15 @@ function renderInventory() {
 
     <div class="kpi-grid" style="margin-bottom:18px">
       <div class="kpi"><div class="top-line" style="background:var(--teal)"></div><div class="v teal-text">${APP_CONFIG.catalog.length}</div><div class="l">Products tracked</div></div>
-      <div class="kpi"><div class="top-line" style="background:var(--green)"></div><div class="v">${APP_CONFIG.catalog.reduce((a, p) => a + p.stock.sanDiego, 0)}</div><div class="l">Bottles at ${APP_CONFIG.store.name}</div></div>
-      <div class="kpi"><div class="top-line" style="background:var(--gold)"></div><div class="v">${APP_CONFIG.catalog.reduce((a, p) => a + p.stock.modesto, 0)}</div><div class="l">Bottles at Modesto</div></div>
+      <div class="kpi"><div class="top-line" style="background:var(--green)"></div><div class="v">${APP_CONFIG.catalog.reduce((a, p) => a + p.stock.sanDiego, 0)}</div><div class="l">${esc(Unit)} at ${esc(hereStore)}</div></div>
+      <div class="kpi"><div class="top-line" style="background:var(--gold)"></div><div class="v">${APP_CONFIG.catalog.reduce((a, p) => a + p.stock.modesto, 0)}</div><div class="l">${esc(Unit)} at ${esc(homeStore)}</div></div>
       <div class="kpi"><div class="top-line" style="background:var(--red)"></div><div class="v">${APP_CONFIG.catalog.filter((p) => p.stock.sanDiego <= 2).length}</div><div class="l">Low stock here</div></div>
     </div>
 
     <div class="toolbar">
-      <button class="chip">All</button><button class="chip">Bordeaux</button><button class="chip">Napa reds</button><button class="chip">Whites</button><button class="chip">Spirits</button>
+      ${((CFG.copy && CFG.copy.inventoryChips) || ["All", "Featured", "New arrivals", "Popular"]).map((ch) => `<button class="chip">${esc(ch)}</button>`).join("")}
       <div style="flex:1"></div>
-      <button class="btn btn-sm" onclick="openChat()">Ask Vino Concierge about stock</button>
+      <button class="btn btn-sm" onclick="openChat()">Ask ${esc(conciergeName())} about stock</button>
     </div>
 
     <div class="inv-grid">${cards}</div>
@@ -538,33 +609,31 @@ function renderInventory() {
 }
 
 /* ============================================================
-   VINO CONCIERGE CHAT
+   CONCIERGE CHAT
    ============================================================ */
-const QUICK_PROMPTS = [
-  "Brief me on Alan",
-  "What did Marie say?",
-  "Best wine for Alan?",
-  "Tell me about the feature wine",
-  "Cheese pairing",
-  "Check inventory",
-  "Fulfillment options",
-  "Draft a message to Alan",
-];
+function quickPrompts() {
+  const raw = (CFG.copy && CFG.copy.quickPrompts) || [
+    "Brief me on {customer}", "What did {manager} say?", "Best pick for {customer}?",
+    "Tell me about the featured item", "Check inventory", "Fulfillment options", "Draft a message to {customer}",
+  ];
+  const t = tokens();
+  return raw.map((q) => String(q).replace(/\{(\w+)\}/g, (m, k) => (t[k] != null ? t[k] : m)));
+}
 
 function quickButtons() {
-  return QUICK_PROMPTS.map((q) => `<button class="chip" onclick="AF.send(&quot;${q.replace(/"/g, "")}&quot;)">${q}</button>`).join("");
+  return quickPrompts().map((q) => `<button class="chip" onclick="AF.send(&quot;${esc(q).replace(/"/g, "")}&quot;)">${esc(q)}</button>`).join("");
 }
 
 function chatShellHTML(idPrefix) {
   return `
     <div class="brushed" style="padding:14px 16px;border-bottom:1px solid var(--hairline);display:flex;align-items:center;gap:10px">
       <div class="avatar avatar-teal" style="width:30px;height:30px">${ICON.glass.replace("viewBox", 'width="15" height="15" viewBox')}</div>
-      <div><div style="font-size:13.5px;color:var(--charcoal)">Vino Concierge &middot; Agentforce</div><div class="dim" style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:9999px;background:var(--green);display:inline-block"></span> Online &middot; Floor Assist</div></div>
+      <div><div style="font-size:13.5px;color:var(--charcoal)">${esc(conciergeName())} &middot; Agentforce</div><div class="dim" style="font-size:10px;display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:9999px;background:var(--green);display:inline-block"></span> Online &middot; Floor Assist</div></div>
     </div>
     <div class="chat-log" id="${idPrefix}Log"></div>
     <div class="quick-row" id="${idPrefix}Quick">${quickButtons()}</div>
     <div class="chat-input-row">
-      <input class="chat-input" id="${idPrefix}Input" placeholder="Ask about Alan, wines, inventory..." onkeydown="if(event.key==='Enter'){AF.send(this.value);this.value=''}" />
+      <input class="chat-input" id="${idPrefix}Input" placeholder="${esc(tpl("chatInputPlaceholder", "Ask about {customer}, {unit}, inventory…"))}" onkeydown="if(event.key==='Enter'){AF.send(this.value);this.value=''}" />
       <button class="btn btn-primary btn-sm" onclick="AF.sendFromInput('${idPrefix}Input')">Send</button>
     </div>`;
 }
@@ -595,7 +664,8 @@ AF.bubble = (who, html) => {
 };
 
 AF.greet = () => {
-  AF.bubble("ai", 'Hi &mdash; I\'m your <strong class="teal">Vino Concierge</strong> for Alan\'s visit tonight. Ask me to brief you on Alan, relay Marie\'s message, recommend wines, check inventory, or walk fulfillment options. Try a quick action below.');
+  const g = tpl("chatGreeting", "Hi — I'm your {concierge} for {customer}'s visit tonight. Ask me to brief you on {customer}, relay {manager}'s message, recommend {unit}, check inventory, or walk fulfillment options.");
+  AF.bubble("ai", esc(g).replace(esc(conciergeName()), '<strong class="teal">' + esc(conciergeName()) + '</strong>') + ' Try a quick action below.');
 };
 
 AF.typing = () => {
@@ -640,7 +710,7 @@ function openChat() {
   panel.classList.add("open");
   scrim.classList.add("open");
   if (!chatGreeted) {
-    AF.bubble("ai", 'Hi &mdash; I\'m your <strong class="teal">Vino Concierge</strong>. Ask me anything about Alan\'s visit tonight. Try a quick action below.');
+    AF.bubble("ai", 'Hi &mdash; I\'m your <strong class="teal">' + esc(conciergeName()) + '</strong>. Ask me anything about ' + esc(tokens().firstName) + '\'s visit tonight. Try a quick action below.');
     chatGreeted = true;
   }
   setTimeout(() => { const i = document.getElementById("panelInput"); if (i) i.focus(); }, 280);
@@ -655,61 +725,73 @@ function closeChat() {
    ============================================================ */
 const MODALS = {
   fulfillment: () => {
-    const p = productById(APP_CONFIG.event.featuredWineId);
+    const p = featuredProduct();
+    const tk = tokens();
+    const home = (APP_CONFIG.customer && APP_CONFIG.customer.homeStoreManager && APP_CONFIG.customer.homeStoreManager.store) || (APP_CONFIG.customer && APP_CONFIG.customer.location) || "home store";
     return {
       title: "Fulfillment Options — " + p.name,
       body: `
         <div class="alert-box" style="border-color:rgba(1,102,92,.3);background:rgba(1,102,92,.05)">
           <div class="eyebrow" style="font-size:9.5px">Real-time cross-store availability</div>
-          <div class="store-row"><span style="font-size:13px;color:var(--charcoal)">${APP_CONFIG.store.name} (here)</span><strong style="color:var(--charcoal)">${p.stock.sanDiego} bottles</strong></div>
-          <div class="store-row"><span style="font-size:13px;color:var(--charcoal)">Modesto <span class="home-tag">HOME STORE</span></span><strong class="teal">${p.stock.modesto} bottles</strong></div>
+          <div class="store-row"><span style="font-size:13px;color:var(--charcoal)">${esc(tk.store)} (here)</span><strong style="color:var(--charcoal)">${(p.stock && p.stock.sanDiego) || 0} ${esc(unitNoun())}</strong></div>
+          <div class="store-row"><span style="font-size:13px;color:var(--charcoal)">${esc(home)} <span class="home-tag">HOME STORE</span></span><strong class="teal">${(p.stock && p.stock.modesto) || 0} ${esc(unitNoun())}</strong></div>
         </div>
 
         <div class="eyebrow" style="margin:16px 0 8px">Choose fulfillment</div>
         <label style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid rgba(1,102,92,.4);border-radius:10px;background:rgba(1,102,92,.05);cursor:pointer">
           <input type="radio" name="ffmethod" value="hold" checked style="margin-top:3px"/>
-          <span><strong class="teal">Hold at home store (Modesto)</strong><br><span class="dim" style="font-size:12px">Reserve for in-person pickup &mdash; recommended, Alan is traveling.</span></span>
+          <span><strong class="teal">${esc(tpl("holdOptionHome", "Hold at home store ({managerStore})"))}</strong><br><span class="dim" style="font-size:12px">${esc(tpl("holdOptionHomeSub", "Reserve for in-person pickup — recommended, {customer} is traveling."))}</span></span>
         </label>
         <label style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--hairline);border-radius:10px;margin-top:8px;cursor:pointer">
           <input type="radio" name="ffmethod" value="ship" style="margin-top:3px"/>
-          <span><strong>Ship to home</strong><br><span class="dim" style="font-size:12px">Deliver to his Modesto address.</span></span>
+          <span><strong>${esc(tpl("holdOptionShip", "Ship to home"))}</strong><br><span class="dim" style="font-size:12px">${esc(tpl("holdOptionShipSub", "Deliver to their home address."))}</span></span>
         </label>
         <label style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--hairline);border-radius:10px;margin-top:8px;cursor:pointer">
           <input type="radio" name="ffmethod" value="buy" style="margin-top:3px"/>
-          <span><strong>Buy in-store today</strong><br><span class="dim" style="font-size:12px">Take bottles from ${APP_CONFIG.store.name} now.</span></span>
+          <span><strong>${esc(tpl("holdOptionBuy", "Buy in-store today"))}</strong><br><span class="dim" style="font-size:12px">${esc(tpl("holdOptionBuySub", "Take {unit} from {store} now."))}</span></span>
         </label>
 
         <div style="display:flex;gap:10px;margin-top:14px">
-          <div style="flex:1"><div class="eyebrow" style="margin-bottom:5px">Quantity</div><input class="field" id="ffQty" type="number" value="4" min="1" max="${p.stock.modesto}"/></div>
+          <div style="flex:1"><div class="eyebrow" style="margin-bottom:5px">Quantity</div><input class="field" id="ffQty" type="number" value="4" min="1" max="${(p.stock && p.stock.modesto) || 12}"/></div>
           <div style="flex:1"><div class="eyebrow" style="margin-bottom:5px">Pickup</div><select class="field" id="ffWhen"><option>Friday</option><option>Saturday</option><option>Next week</option></select></div>
         </div>
 
         <button class="btn btn-primary btn-block" style="margin-top:16px" onclick="confirmFulfillment()">Confirm hold</button>`,
     };
   },
-  draftMessage: () => ({
-    title: "Draft Message to Alan",
-    body: `<div class="alert-box" style="border-color:var(--hairline)">
-        <div class="eyebrow" style="font-size:9.5px;color:var(--warm-gray)">TO: ALAN R. &middot; ${APP_CONFIG.customer.channels.email}</div>
-        <p style="font-size:13.5px;color:var(--charcoal);line-height:1.6;margin:8px 0 0">Hi Alan &mdash; great meeting you at tonight's class. Per Marie in Modesto, I've held 4 bottles of the Ch&acirc;teau Les Carmes at your home store for Friday pickup. Enjoy the tasting!</p>
-      </div>
-      <div class="eyebrow" style="margin:14px 0 6px">Einstein-generated &middot; editable</div>
-      <textarea class="field" rows="4">Hi Alan — great meeting you at tonight's class. Per Marie in Modesto, I've held 4 bottles of the Château Les Carmes at your home store for Friday pickup. Enjoy the tasting!</textarea>
-      <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="confirmAction('Message sent to Alan R.')">Send Now</button>`,
-  }),
-  call: () => ({
-    title: "Log / Place Call",
-    body: `<p class="dim" style="font-size:13px;margin-top:0">Place a call to <strong style="color:var(--charcoal)">${APP_CONFIG.customer.name}</strong> at ${APP_CONFIG.customer.channels.phone}, or log an outcome.</p>
-      <select class="field" style="margin-bottom:10px"><option>Outcome: Connected — interested</option><option>Left voicemail</option><option>No answer</option></select>
-      <textarea class="field" rows="3">Discussed the Château Les Carmes feature. Holding 4 bottles in Modesto for Friday.</textarea>
-      <div style="display:flex;gap:8px;margin-top:14px"><button class="btn btn-block" onclick="confirmAction('Call outcome logged')">Log Outcome</button><button class="btn btn-primary btn-block" onclick="confirmAction('Calling Alan R....')">Call Now</button></div>`,
-  }),
-  logNote: () => ({
-    title: "Log Client Interaction Note",
-    body: `<p class="dim" style="font-size:13px;margin-top:0">Synced to Alan's Data Cloud profile and shared with Marie at his home store.</p>
-      <textarea class="field" rows="4">Alan attended the Wine & Cheese Pairing Class. Loved the Château Les Carmes feature. Held 4 bottles in Modesto for Friday pickup.</textarea>
-      <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="confirmAction('Interaction note logged & shared with Marie')">Save Note</button>`,
-  }),
+  draftMessage: () => {
+    const tk = tokens();
+    const body = tpl("draftMessageBody", "Hi {firstName} — great meeting you at tonight's {event}. Per {manager} at {managerStore}, I've held your {unit} at your home store for pickup. Enjoy!");
+    return {
+      title: "Draft Message to " + tk.customer,
+      body: `<div class="alert-box" style="border-color:var(--hairline)">
+          <div class="eyebrow" style="font-size:9.5px;color:var(--warm-gray)">TO: ${esc(String(tk.customer).toUpperCase())} &middot; ${esc((APP_CONFIG.customer.channels && APP_CONFIG.customer.channels.email) || "")}</div>
+          <p style="font-size:13.5px;color:var(--charcoal);line-height:1.6;margin:8px 0 0">${esc(body)}</p>
+        </div>
+        <div class="eyebrow" style="margin:14px 0 6px">Einstein-generated &middot; editable</div>
+        <textarea class="field" rows="4">${esc(body)}</textarea>
+        <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="confirmAction('Message sent to ${esc(tk.customer)}')">Send Now</button>`,
+    };
+  },
+  call: () => {
+    const tk = tokens();
+    return {
+      title: "Log / Place Call",
+      body: `<p class="dim" style="font-size:13px;margin-top:0">Place a call to <strong style="color:var(--charcoal)">${esc(APP_CONFIG.customer.name)}</strong> at ${esc((APP_CONFIG.customer.channels && APP_CONFIG.customer.channels.phone) || "")}, or log an outcome.</p>
+        <select class="field" style="margin-bottom:10px"><option>Outcome: Connected — interested</option><option>Left voicemail</option><option>No answer</option></select>
+        <textarea class="field" rows="3">Discussed the ${esc(featuredProduct().name || "featured item")}. Holding ${esc(unitNoun())} at ${esc(tk.managerStore)} for pickup.</textarea>
+        <div style="display:flex;gap:8px;margin-top:14px"><button class="btn btn-block" onclick="confirmAction('Call outcome logged')">Log Outcome</button><button class="btn btn-primary btn-block" onclick="confirmAction('Calling ${esc(tk.customer)}...')">Call Now</button></div>`,
+    };
+  },
+  logNote: () => {
+    const tk = tokens();
+    return {
+      title: "Log Client Interaction Note",
+      body: `<p class="dim" style="font-size:13px;margin-top:0">Synced to ${esc(tk.customer)}'s Data Cloud profile and shared with ${esc(tk.manager)} at their home store.</p>
+        <textarea class="field" rows="4">${esc(tk.customer)} attended the ${esc(APP_CONFIG.event.name)}. Loved the ${esc(featuredProduct().name || "featured item")}. Held ${esc(unitNoun())} at ${esc(tk.managerStore)} for pickup.</textarea>
+        <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="confirmAction('Interaction note logged & shared with ${esc(tk.manager)}')">Save Note</button>`,
+    };
+  },
 };
 
 function openModal(key) {
@@ -736,13 +818,15 @@ function confirmFulfillment() {
   const whenEl = document.getElementById("ffWhen");
   const qty = (qtyEl && qtyEl.value) || 4;
   const when = (whenEl && whenEl.value) || "Friday";
+  const tk = tokens();
+  const u = unitNoun();
   closeModal();
   if (method === "hold") {
-    toast("Hold confirmed — " + qty + " bottles at Modesto for " + when + " · Marie notified");
+    toast("Hold confirmed — " + qty + " " + u + " at " + tk.managerStore + " for " + when + " · " + tk.manager + " notified");
   } else if (method === "ship") {
-    toast("Shipping " + qty + " bottles to Alan's home in Modesto · Marie notified");
+    toast("Shipping " + qty + " " + u + " to " + tk.customer + "'s home · " + tk.manager + " notified");
   } else {
-    toast(qty + " bottles rung up at " + APP_CONFIG.store.name + " · receipt sent to Alan");
+    toast(qty + " " + u + " rung up at " + tk.store + " · receipt sent to " + tk.customer);
   }
 }
 
@@ -770,13 +854,15 @@ let arrivalDropTimer;
 
 function arrivalHighlights() {
   const c = APP_CONFIG.customer;
+  const tk = tokens();
+  const interest = (c.interests && c.interests[0]) || "their favorites";
   return `
-    <span class="hl teal">&#9733; ${c.rank} &middot; since ${c.memberSince}</span>
+    <span class="hl teal">&#9733; ${esc(c.rank)} &middot; since ${esc(String(c.memberSince))}</span>
     <span class="hl gold">LTV ${money(c.ltv)}</span>
-    <span class="hl">Propensity: ${c.propensity}</span>
-    <span class="hl teal">&#9992; Home store: Modesto</span>
-    <span class="hl gold">&#128172; Message from Marie</span>
-    <span class="hl">&#127863; Loves Bordeaux</span>`;
+    <span class="hl">Propensity: ${esc(c.propensity)}</span>
+    <span class="hl teal">&#9992; Home store: ${esc(tk.managerStore)}</span>
+    <span class="hl gold">&#128172; Message from ${esc(tk.manager)}</span>
+    <span class="hl">&#128722; Likes ${esc(interest)}</span>`;
 }
 
 function scheduleArrivalDrop() {
@@ -801,13 +887,13 @@ function showArrivalDrop() {
       <div class="avatar avatar-teal" style="width:44px;height:44px;font-size:16px">${c.initials}</div>
       <div style="flex:1;min-width:0">
         <div class="eyebrow" style="color:var(--teal)">&#9733; Live arrival &middot; greet at check-in</div>
-        <div class="serif silver-text" style="font-size:19px;line-height:1.1;margin-top:2px">${c.name} signed up &amp; is heading in</div>
+        <div class="serif silver-text" style="font-size:19px;line-height:1.1;margin-top:2px">${esc(c.name)} signed up &amp; is heading in</div>
       </div>
       <button class="modal-x" onclick="hideArrivalDrop()" title="Dismiss">&times;</button>
     </div>
     <div class="hl-grid">${arrivalHighlights()}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-      <button class="btn btn-primary btn-sm" onclick="hideArrivalDrop();switchView('signin')">Check Alan In</button>
+      <button class="btn btn-primary btn-sm" onclick="hideArrivalDrop();switchView('signin')">Check ${esc(tokens().firstName)} In</button>
       <button class="btn btn-sm btn-ghost-teal" onclick="hideArrivalDrop();briefMe()">Brief me with Agentforce</button>
       <button class="btn btn-sm" onclick="hideArrivalDrop()">Dismiss</button>
     </div>`);
@@ -831,13 +917,13 @@ function renderArrivalBanner() {
         <div class="avatar avatar-teal" style="width:48px;height:48px;font-size:17px">${c.initials}</div>
         <div style="flex:1;min-width:0">
           <div class="eyebrow" style="color:var(--teal)">&#9733; Greet at check-in &middot; Live arrival</div>
-          <div class="serif silver-text" style="font-size:21px;line-height:1.1;margin-top:2px">${c.name} signed up for tonight's class</div>
+          <div class="serif silver-text" style="font-size:21px;line-height:1.1;margin-top:2px">${esc(c.name)} signed up for tonight's ${esc((APP_CONFIG.event.type || "event").toLowerCase())}</div>
         </div>
         <button class="modal-x" style="align-self:flex-start" onclick="dismissArrival()" title="Dismiss">&times;</button>
       </div>
       <div class="hl-grid">${arrivalHighlights()}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;position:relative">
-        <button class="btn btn-primary btn-sm" onclick="switchView('signin')">Check Alan In</button>
+        <button class="btn btn-primary btn-sm" onclick="switchView('signin')">Check ${esc(tokens().firstName)} In</button>
         <button class="btn btn-sm btn-ghost-teal" onclick="switchView('profile')">Open Full Profile</button>
         <button class="btn btn-sm btn-ghost-teal" onclick="briefMe()">Brief me with Agentforce</button>
         <button class="btn btn-sm" onclick="dismissArrival()">Dismiss</button>
@@ -850,23 +936,25 @@ function dismissArrival() {
 }
 function briefMe() {
   openChat();
-  setTimeout(() => AF.send("Brief me on Alan before I greet him"), 300);
+  setTimeout(() => AF.send("Brief me on " + tokens().firstName + " before I greet them"), 300);
 }
 
 /* ============================================================
    LIVE COUNTERS
    ============================================================ */
 function bumpSignup() {
-  APP_CONFIG.store.kpis.classSignups += 1;
+  const su = kpiSignup();
+  su.value = (Number(su.value) || 0) + 1;
   const sc = document.getElementById("signupCount");
-  if (sc) sc.textContent = APP_CONFIG.store.kpis.classSignups;
+  if (sc) sc.textContent = su.value;
 }
 let trafficTicks = 0;
 setInterval(() => {
   if (trafficTicks++ > 600) return;
-  APP_CONFIG.store.kpis.guestsToday += 1 + (trafficTicks % 3);
-  const g = document.getElementById("guestCount");
-  if (g) g.textContent = APP_CONFIG.store.kpis.guestsToday;
+  const g = kpiGuest();
+  g.value = (Number(g.value) || 0) + 1 + (trafficTicks % 3);
+  const el = document.getElementById("guestCount");
+  if (el) el.textContent = g.value;
 }, 5000);
 
 /* ============================================================
@@ -875,27 +963,28 @@ setInterval(() => {
 function openProduct(id) {
   const p = productById(id);
   if (!p) return;
-  document.getElementById("modalTitle").textContent = p.variety;
+  const home = (APP_CONFIG.customer && APP_CONFIG.customer.homeStoreManager && APP_CONFIG.customer.homeStoreManager.store) || (APP_CONFIG.customer && APP_CONFIG.customer.location) || "home store";
+  document.getElementById("modalTitle").textContent = p.variety || p.name;
   document.querySelector("#modal .modal").classList.add("wide");
   const level = p.stock.sanDiego <= 2 ? "var(--red)" : p.stock.sanDiego <= 6 ? "var(--gold)" : "var(--green)";
   setHTML(document.getElementById("modalBody"), `
     <div class="pd-grid">
       <div>
         <div class="pd-img">${productImage(p, 120, 260)}</div>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:12px"><span class="wine-price" style="font-size:26px">${money(p.price)}</span><span class="score-badge"><span class="num">${p.score}</span> ${p.scoreSource}</span></div>
-        <div class="store-row" style="margin-top:10px"><span style="font-size:12.5px;color:var(--charcoal)"><span class="stock-dot" style="background:${level};margin-right:8px"></span>${APP_CONFIG.store.name}</span><strong style="color:var(--charcoal)">${p.stock.sanDiego}</strong></div>
-        <div class="store-row"><span style="font-size:12.5px;color:var(--charcoal)"><span class="stock-dot" style="background:var(--green);margin-right:8px"></span>Modesto <span class="home-tag">HOME</span></span><strong class="teal">${p.stock.modesto}</strong></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:12px"><span class="wine-price" style="font-size:26px">${money(p.price)}</span><span class="score-badge"><span class="num">${p.score}</span> ${esc(p.scoreSource || "")}</span></div>
+        <div class="store-row" style="margin-top:10px"><span style="font-size:12.5px;color:var(--charcoal)"><span class="stock-dot" style="background:${level};margin-right:8px"></span>${esc(APP_CONFIG.store.name)}</span><strong style="color:var(--charcoal)">${p.stock.sanDiego}</strong></div>
+        <div class="store-row"><span style="font-size:12.5px;color:var(--charcoal)"><span class="stock-dot" style="background:var(--green);margin-right:8px"></span>${esc(home)} <span class="home-tag">HOME</span></span><strong class="teal">${p.stock.modesto}</strong></div>
       </div>
       <div>
-        <div class="wine-region">${p.region} &middot; ${p.appellation}</div>
-        <h3 class="serif silver-text" style="margin:4px 0 0;font-size:24px">${p.name} <span class="wine-vintage">${p.vintage}</span></h3>
-        <div class="wine-notes" style="margin-top:12px">${p.tastingNotes}</div>
-        <p style="font-size:13px;color:var(--charcoal);line-height:1.65;margin:10px 0 0;font-style:italic">${p.story}</p>
-        <div class="eyebrow" style="margin:16px 0 6px">Pairs with</div>
-        <div class="pairing-row">${p.foodPairings.map((f) => `<span class="pairing-chip">${f}</span>`).join("")}</div>
+        <div class="wine-region">${esc([p.region, p.appellation].filter(Boolean).join(" · "))}</div>
+        <h3 class="serif silver-text" style="margin:4px 0 0;font-size:24px">${esc(p.name)} <span class="wine-vintage">${esc(p.vintage || "")}</span></h3>
+        <div class="wine-notes" style="margin-top:12px">${esc(p.tastingNotes || "")}</div>
+        ${p.story ? `<p style="font-size:13px;color:var(--charcoal);line-height:1.65;margin:10px 0 0;font-style:italic">${esc(p.story)}</p>` : ""}
+        ${(p.foodPairings && p.foodPairings.length) ? `<div class="eyebrow" style="margin:16px 0 6px">Pairs with</div>
+        <div class="pairing-row">${p.foodPairings.map((f) => `<span class="pairing-chip">${esc(f)}</span>`).join("")}</div>` : ""}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px">
           <button class="btn btn-primary btn-sm" onclick="openModal('fulfillment')">Hold / Ship</button>
-          <button class="btn btn-sm" onclick="openModal('draftMessage')">Message Alan</button>
+          <button class="btn btn-sm" onclick="openModal('draftMessage')">Message ${esc(tokens().firstName)}</button>
           <button class="btn btn-sm btn-ghost-teal" onclick="tellStory('${p.id}')">Ask the concierge &rarr;</button>
         </div>
       </div>
@@ -913,7 +1002,7 @@ function tellStory(id) {
     setTimeout(() => {
       const ti = document.getElementById("typingIndicator");
       if (ti) ti.remove();
-      AF.bubble("ai", '<strong class="teal">' + p.name + " " + p.vintage + '</strong><div class="wine-notes" style="margin-top:6px">' + p.tastingNotes + '</div><div style="margin-top:6px;font-style:italic;font-size:12.5px">' + p.story + "</div>" + AF.productCardHTML(p, "View details", "openProduct('" + p.id + "')"));
+      AF.bubble("ai", '<strong class="teal">' + esc(p.name + " " + (p.vintage || "")) + '</strong><div class="wine-notes" style="margin-top:6px">' + esc(p.tastingNotes || "") + '</div>' + (p.story ? '<div style="margin-top:6px;font-style:italic;font-size:12.5px">' + esc(p.story) + "</div>" : "") + AF.productCardHTML(p, "View details", "openProduct('" + p.id + "')"));
     }, 700);
   }, 320);
 }
@@ -924,6 +1013,7 @@ function tellStory(id) {
 function applyBrand() {
   const b = APP_CONFIG.brand || {};
   const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.textContent = val; };
+  const setPh = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.setAttribute("placeholder", val); };
   set("brandName", b.name);
   set("brandSub", b.sub);
   set("brandHub", b.hubLabel);
@@ -933,6 +1023,37 @@ function applyBrand() {
   const conciergeFull = conciergeLabel + (b.assistantName ? " · " + b.assistantName : "");
   document.querySelectorAll(".js-concierge-name").forEach((el) => { el.textContent = conciergeLabel; });
   document.querySelectorAll(".js-concierge-full").forEach((el) => { el.textContent = conciergeFull; });
+
+  // Intro scene narrative.
+  const intro = APP_CONFIG.introScene || {};
+  set("introHeadline", intro.headline);
+  const introDetail = document.getElementById("introDetail");
+  if (introDetail && intro.detail) introDetail.textContent = intro.detail;
+  const introBtn = document.querySelector(".intro-next span");
+  if (introBtn && intro.ctaLabel) introBtn.textContent = intro.ctaLabel;
+
+  // Sidebar nav labels (industry vocabulary).
+  document.querySelectorAll(".js-nav").forEach((el) => {
+    const k = el.getAttribute("data-nav");
+    const v = navLabel(k, "");
+    if (v) el.textContent = v;
+  });
+
+  // Search placeholder, topbar event label, store status + manager footer.
+  setPh("searchInput", (APP_CONFIG.search && APP_CONFIG.search.placeholder) || null);
+  set("topbarEventLabel", (APP_CONFIG.event && APP_CONFIG.event.displayLabel) || null);
+  set("navStatus", (APP_CONFIG.store && APP_CONFIG.store.statusLabel) || null);
+  const mgr = APP_CONFIG.managerMessage && APP_CONFIG.managerMessage.from;
+  if (mgr) {
+    set("navFootName", mgr.name);
+    set("navFootInitials", mgr.initials);
+    set("navFootTitle", (APP_CONFIG.store && APP_CONFIG.store.managerTitle) || mgr.title);
+  }
+
+  // Docked chat panel placeholder (rendered chat shells handle their own).
+  document.querySelectorAll("[data-chat-placeholder]").forEach((el) => {
+    el.setAttribute("placeholder", tpl("chatInputPlaceholder", "Ask about {customer}, {unit}, inventory…"));
+  });
 
   if (b.name) document.title = b.name + " · Clienteling";
 }

@@ -11,6 +11,8 @@ window.APP_CONFIG = {
     logoSub: "& More",
     conciergeName: "Somm",
     conciergeSub: "Your Total Wine concierge",
+    conciergeIntro: "Your wine & spirits concierge",
+    rewardsLabel: "& more Rewards",
     searchProduct: "Cimulate",
     // Brand tokens (defaults = Total Wine teal/gold). Map to CSS :root --app-* vars.
     colors: {
@@ -22,7 +24,64 @@ window.APP_CONFIG = {
       promoDk:   "#b8121f",
     },
   },
+  unitNoun: "bottle",
   storeLocation: "Modesto, CA",
+
+  // ── COPY — every customer/industry-variable string. The builder
+  // regenerates this per-customer; app.js/index.html read it via tpl()/
+  // applyBrandText(). Generic UI verbs (Add To Cart, Checkout, Send) stay
+  // hardcoded inline. {token} placeholders interpolate from tokens().
+  copy: {
+    utilityFulfill: "Free pickup in 1 hour & delivery available in",
+    utilityLinks: ["Track Order", "Store Locator", "Classes & Events", "Help"],
+    searchPlaceholder: "Search by taste, occasion, or intent — e.g. “smoky Japanese whisky under $80”",
+    searchHintLabel: "{searchProduct} understands intent — try one",
+    profileGreeting: "Welcome back, {firstName} — your experience is personalized from your unified profile.",
+    profileTierTag: "PREMIUM MEMBER",
+    heroEyebrow: "Personalized for you",
+    heroHeadline: "Find your next favorite {unit}",
+    heroSub: "Search by taste, occasion or intent — {searchProduct} reads what you mean and ranks against your unified profile.",
+    heroShopCta: "Shop recommended",
+    heroAskCta: "Ask the concierge",
+    curatedTitle: "Curated for you",
+    curatedSub: "{concierge} selected these based on your conversation and your {tier} profile.",
+    featuredHeading: "Recommended for you, {firstName}",
+    featuredSub: "Handpicked for you — ranked by your unified profile.",
+    footerBlurb: "Personalized shopping, powered by your unified profile.",
+    footerDisclaimer1: "© 2026 Demo experience. Not a live storefront.",
+    footerDisclaimer2: "",
+    cartWhy: "Data 360: every item you add updates {firstName}'s unified profile — informing future recommendations, journeys & in-store clienteling.",
+    cartEmpty: "Your cart is empty.<br/>Ask {concierge} for a recommendation!",
+    dataToastTitle: "Data 360 profile updated",
+    dataToastSub: "New purchase-intent signal captured for {firstName} — feeds future recommendations.",
+    sommIntro: "Hi {firstName}! 👋 I'm {concierge}, your personal concierge. I already know a bit about your taste from your {tier} profile.<br/>What can I help you find today?",
+    sommGreetShort: "Hi {firstName}! 👋 I'm {concierge}, your concierge. I can help you discover a {unit} or handle service needs. What can I do for you?",
+    sommFallback: "Great question! Tell me what you're after and I'll take care of it.",
+  },
+
+  // ── CATEGORY NAV (top bar). Generic set; builder overrides per industry.
+  navCategories: [
+    "Wine", "Spirits", "Ready to Drink", "Beer", "THC-Infused",
+    "Non-Alcoholic", "Mixers & Essentials", "New", "Gifts & Hosting", "Classes",
+  ],
+
+  // ── HOMEPAGE SECTIONS — each drives a rail. `heading` is shown; `ids`
+  // picks products by id (falls back to first-N of catalog if empty/missing).
+  sections: {
+    trending:  { heading: "New & Trending" },
+    specials:  { heading: "Limited Time Specials" },
+    matchDay:  { heading: "Match Day Essentials", circles: [] },
+    topCat:    { heading: "Top Categories For You", circles: [] },
+    cocktail:  { heading: "Explore Cocktail Central", band: "Explore Cocktail Central", circles: [] },
+    savings:   { heading: "Summer Savings" },
+  },
+
+  // Promo tiles (Summer Savings). Generic; builder overrides copy.
+  promoTiles: [
+    { tone: "teal", title: "Deals!<br/>Just For You", sub: "VIEW ALL DEALS ›" },
+    { tone: "red",  title: "Limited-Time<br/>Specials", sub: "SHOP SPECIALS ›" },
+    { tone: "gold", title: "Buy 2<br/>& Save", sub: "SHOP MULTI-BUY ›" },
+  ],
 
   products: [
     // ---- WINE ----
@@ -206,7 +265,69 @@ window.APP_CONFIG = {
   profile: {
     name:"Lauren", tier:"Premium", store:"Modesto, CA",
     affinities:["Bold red wines","Japanese & smoky whisky","Crisp whites","Entertaining & dinner parties"],
+    affinityIds:["caymus","silveroak","hakushu","nikka","macallan18"],
     recent:["Caymus Cabernet (Nov)","Hakushu Distiller's Reserve (Sep)","Veuve Clicquot (Aug)"],
+  },
+
+  /* ── SEARCH — the intent-hint chips shown under the search box. Each is an
+     industry-appropriate example query. Builder regenerates per-customer. */
+  searchChips: [
+    { icon:"fa-fire",           q:"smoky Japanese whisky under $80",          tag:"spirits" },
+    { icon:"fa-fish",           q:"crisp white wine for summer seafood",       tag:"wine" },
+    { icon:"fa-beer-mug-empty", q:"easy-drinking craft IPA for a party",       tag:"beer" },
+    { icon:"fa-wine-bottle",    q:"a bold red under $100 to impress guests",   tag:"wine" },
+    { icon:"fa-star",           q:"Dwayne Johnson",                            tag:"celebrity" },
+  ],
+
+  /* ── SOMM CONCIERGE — greeting/service chips + curated rails + service
+     scripts, all config-driven so a generated (non-wine) config reads in its
+     own voice. `sommIntents` are shopping intents (keys + reply parts);
+     `serviceIntents` are the support flows. app.js renders these generically.
+     Each reply may set a curated rail via `rail:{title,sub,ids}` and return
+     `text` (HTML, {token}-interpolated) + optional `recIds` (rec cards) +
+     `chips` (follow-up quick chips {label,q}). */
+  greetChips: [
+    { label:"🥩 Bold Red for a Steak Dinner", q:"I'm hosting a dinner party and need a bold red to pair with steak" },
+    { label:"🥃 Smoky Whisky",                 q:"show me a smoky Japanese whisky" },
+    { label:"🍺 Party Beer",                   q:"an easy-drinking craft IPA for a party" },
+    { label:"🎁 A Gift",                       q:"help me pick a gift" },
+    { label:"🛎️ Service & Account Help",       q:"help me with something" },
+  ],
+  serviceChips: [
+    { label:"📦 Track My Order",       q:"track my order" },
+    { label:"🚚 Delivery & Address",   q:"delivery status" },
+    { label:"🏬 Store Hours & Pickup", q:"my store hours and pickup" },
+    { label:"⭐ Rewards & Points",     q:"my loyalty rewards and points" },
+    { label:"↩️ Return or Refund",     q:"i want to return an item" },
+  ],
+  sommIntents: [
+    { keys:["steak","dinner party","bold red","cabernet","pair with steak","hosting"],
+      text:"A dinner party — my favorite! Since your profile leans toward standout picks, here are two that impress:",
+      recIds:["caymus","silveroak"], rail:{ title:"Curated for your dinner party", sub:"{concierge} selected these based on your conversation and your {tier} profile.", ids:["caymus","silveroak","veuve"] },
+      chips:[{label:"Add something to start",q:"suggest a champagne to open the party"},{label:"Keep it under $100",q:"keep the reds under $100"}] },
+    { keys:["champagne","bubbly","sparkling","open the party","celebrate"],
+      text:"Perfect way to greet guests — the Veuve Clicquot Yellow Label is a crowd-pleaser.", recIds:["veuve"] },
+    { keys:["under $100","under $50","keep the reds","budget","cheaper","affordable"],
+      text:"Absolutely — all three land under budget while keeping the impress factor:",
+      recIds:["silveroak","meiomi"], rail:{ title:"Under budget", sub:"Trimmed to your budget while keeping the impress factor.", ids:["caymus","silveroak","meiomi"] } },
+    { keys:["whisky","whiskey","scotch","smoky","japanese","bourbon","spirit"],
+      text:"You've explored these before, so you'll feel right at home. For something smoky, I'd start with:",
+      recIds:["hakushu","nikka"], rail:{ title:"Smoky picks you'll love", sub:"Grounded on your past purchases.", ids:["hakushu","nikka","macallan18"] } },
+    { keys:["beer","ipa","party beer","lager","craft"],
+      text:"For an easy-drinking party crowd-pleaser, you can't go wrong here:",
+      recIds:["sierraneva"], rail:{ title:"Party-ready picks", sub:"Easy-drinking crowd-pleasers for a gathering.", ids:["sierraneva","voodoo","stellabeer"] } },
+    { keys:["white","seafood","summer","crisp","sauvignon","chardonnay"],
+      text:"For lighter fare, a crisp white is ideal:",
+      recIds:["kimcrawford"], rail:{ title:"Crisp whites", sub:"Bright, zesty picks to match lighter fare.", ids:["kimcrawford","cakebread"] } },
+    { keys:["gift","present","birthday","give"],
+      text:"A great gift should feel special. Either of these wraps beautifully and always impresses:", recIds:["veuve"] },
+  ],
+  // Service flows — {order},{eta},{store},{tier},{points},{reward},{manager}
+  // interpolate from serviceData below.
+  serviceData: {
+    order:"#TW-48120", orderPlaced:"Nov 3 · 2 items", eta:"By 6:00 PM today",
+    hoursToday:"9:00 AM – 9:00 PM", pickupEta:"~15 min", associate:"Marie L.",
+    points:"4,820 pts", reward:"$25 off your next order", refundAmt:"$114.98",
   },
 
   /* Celebrity → owned brand mapping. Cimulate recognizes the person and surfaces
@@ -248,15 +369,52 @@ window.money = (n)=>"$"+Number(n).toFixed(2).replace(/\.00$/,".00");
 window.esc = (s)=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 window.byId = (id)=>APP_CONFIG.products.find(p=>p.id===id);
 
+/* ── CONFIG ACCESSORS — customer/story tokens + copy interpolation. Every
+   customer-variable string flows through here so app.js/index.html hold no
+   wine/customer literals. tpl(key) reads APP_CONFIG.copy[key] and swaps
+   {token} for the value from tokens(). */
+window.CFG = APP_CONFIG;
+window.conciergeName = ()=> (APP_CONFIG.brand&&APP_CONFIG.brand.conciergeName) || "Concierge";
+window.unitNoun      = ()=> APP_CONFIG.unitNoun || "item";
+window.firstNameOf   = (full)=> String(full||"").trim().split(/\s+/)[0] || "";
+window.tokens = function(){
+  const b=APP_CONFIG.brand||{}, pr=APP_CONFIG.profile||{};
+  return {
+    firstName: firstNameOf(pr.name) || "there",
+    fullName: pr.name || "",
+    tier: pr.tier || "Member",
+    concierge: b.conciergeName || "Concierge",
+    searchProduct: b.searchProduct || "Search",
+    unit: unitNoun(),
+    store: APP_CONFIG.storeLocation || "your store",
+    brand: b.logoTop || "",
+  };
+};
+window.tpl = function(key, fallback){
+  const c=APP_CONFIG.copy||{};
+  let s=(key in c) ? c[key] : (fallback!=null ? fallback : "");
+  const tk=tokens();
+  return String(s).replace(/\{(\w+)\}/g,(m,k)=> (k in tk) ? tk[k] : m);
+};
+
 /* =====================================================================
    PROCEDURAL PRODUCT SVG — shape varies by category, styled on-brand
    (extended from total-wine-clienteling/data.js)
    ===================================================================== */
 window.productSVG = function(p, w=80, h=232){
-  const cap=p.capsuleColor||"#083b36", shine=p.capsuleShine||"#0a5d54";
+  // On-brand accent swatch — prefer the product's own swatch, else the brand
+  // accent, so generated (non-wine) products aren't wine-bottle-colored.
+  const B=(APP_CONFIG.brand&&APP_CONFIG.brand.colors)||{};
+  const cap=p.capsuleColor||B.primary||"#083b36", shine=p.capsuleShine||B.accent||B.primaryDk||"#0a5d54";
   const uid="s"+String(p.id).replace(/\W/g,"");
   const INTER="Inter,system-ui,sans-serif", FRAU="Fraunces,Georgia,serif";
-  const shape = p.can ? "can" : (p.cat==="Spirits" ? (p.spiritShape||"whisky") : (p.cat==="Beer"?"beerbottle":"wine"));
+  // Beverage shapes only when the category is a known drink type; anything
+  // else (retail goods, apparel, gear…) gets a neutral product silhouette.
+  const bevCat = p.cat==="Wine"||p.cat==="Spirits"||p.cat==="Beer";
+  const shape = p.can ? "can"
+    : (p.cat==="Spirits" ? (p.spiritShape||"whisky")
+    : (p.cat==="Beer" ? "beerbottle"
+    : (bevCat ? "wine" : "generic")));
 
   // Glass tint by category — spirits read amber/clear (not port-red).
   const glass = p.glassColor || (
@@ -353,6 +511,15 @@ window.productSVG = function(p, w=80, h=232){
       <path d="M35 74 Q35 86 27 96 Q22 102 22 116 L22 208 Q22 218 32 218 L48 218 Q58 218 58 208 L58 116 Q58 102 53 96 Q45 86 45 74 Z" fill="url(#${uid}g)"/>
       ${gloss(27,104,104)}
       ${labelBlock(24,132,32,72)}`;
+  } else if(shape==="generic"){ // neutral retail product — rounded card/box, on-brand, no bottle
+    const initials=(p.name||"?").split(/\s+/).slice(0,2).map(s=>s[0]||"").join("").toUpperCase();
+    art=`${shadow}
+      <rect x="16" y="26" width="48" height="180" rx="8" fill="url(#${uid}g)"/>
+      <rect x="16" y="26" width="48" height="44" rx="8" fill="url(#${uid}c)"/>
+      <rect x="16" y="62" width="48" height="8" fill="${cap}" opacity=".35"/>
+      <text x="40" y="54" text-anchor="middle" font-family="${FRAU}" font-size="18" font-weight="700" fill="#fff" opacity=".92">${esc(initials)}</text>
+      ${gloss(21,30,172)}
+      ${labelBlock(22,104,36,86)}`;
   } else { // wine — tall, gently sloped shoulder
     art=`${shadow}
       <rect x="34" y="18" width="12" height="42" fill="url(#${uid}g)"/>
@@ -386,13 +553,95 @@ window.applyBrandColors = function(){
 
 /* Populate brand/store text into the static markup */
 window.applyBrandText = function(){
-  const B=APP_CONFIG.brand||{};
+  const B=APP_CONFIG.brand||{}, C=APP_CONFIG.copy||{};
+  const tk=tokens();
+  const setTxt=(sel,val)=>{ if(val==null)return; document.querySelectorAll(sel).forEach(el=>{ el.textContent=val; }); };
+  const setHtml=(id,val)=>{ const el=document.getElementById(id); if(el&&val!=null) el.innerHTML=val; };
+  const setId=(id,val)=>{ const el=document.getElementById(id); if(el&&val!=null) el.textContent=val; };
+  const setPh=(id,val)=>{ const el=document.getElementById(id); if(el&&val!=null) el.setAttribute("placeholder",val); };
+
   document.querySelectorAll(".logo .l-top").forEach(el=>{ el.textContent=B.logoTop||el.textContent; });
   document.querySelectorAll(".logo .l-sub").forEach(el=>{ el.textContent=B.logoSub||el.textContent; });
   document.querySelectorAll("[data-store-location]").forEach(el=>{ el.textContent=APP_CONFIG.storeLocation||el.textContent; });
   const badge=document.getElementById("search-ai-badge"); if(badge&&B.searchProduct) badge.textContent=B.searchProduct;
-  const fabName=document.getElementById("somm-fab-name"); if(fabName&&B.conciergeName) fabName.textContent=`Chat with ${B.conciergeName}`;
-  const shName=document.getElementById("somm-head-name"); if(shName&&B.conciergeName) shName.textContent=B.conciergeName;
+  const fabName=document.getElementById("somm-fab-name"); if(fabName) fabName.textContent=`Chat with ${tk.concierge}`;
+  const fabSub=document.querySelector("#sommFab .somm-fab-txt small"); if(fabSub) fabSub.textContent=B.conciergeIntro||tk.concierge;
+  const shName=document.getElementById("somm-head-name"); if(shName) shName.textContent=tk.concierge;
   const shSub=document.getElementById("somm-head-sub"); if(shSub&&B.conciergeSub) shSub.textContent=B.conciergeSub;
   if(B.logoTop) document.title=`${B.logoTop} · ${B.searchProduct||"Search"} Demo`;
+
+  // Chrome / copy hooks (data-copy, ids)
+  setPh("searchInput", tpl("searchPlaceholder", C.searchPlaceholder));
+  setPh("sommInput", `Ask ${tk.concierge} anything…`);
+  setId("utility-fulfill", tpl("utilityFulfill", C.utilityFulfill));
+  setId("profile-tier-tag", tpl("profileTierTag", C.profileTierTag));
+  setHtml("profile-greeting", tpl("profileGreeting", C.profileGreeting));
+  setId("hero-eyebrow-txt", tpl("heroEyebrow", C.heroEyebrow));
+  setHtml("hero-headline", tpl("heroHeadline", C.heroHeadline));
+  setId("hero-sub", tpl("heroSub", C.heroSub));
+  setId("hero-shop-cta", tpl("heroShopCta", C.heroShopCta));
+  setId("hero-ask-cta", tpl("heroAskCta", C.heroAskCta));
+  setId("search-hint-label", tpl("searchHintLabel", C.searchHintLabel));
+  setId("featured-heading", tpl("featuredHeading", C.featuredHeading));
+  setId("featured-sub", tpl("featuredSub", C.featuredSub));
+  setId("rewards-tag", B.rewardsLabel);
+  setId("user-name", tk.firstName);
+  setId("profile-avatar", (tk.firstName[0]||"?").toUpperCase());
+  setId("curatedTitle", tpl("curatedTitle", C.curatedTitle));
+  setId("curatedSub", tpl("curatedSub", C.curatedSub));
+  setId("footer-blurb", tpl("footerBlurb", C.footerBlurb));
+  setId("footer-disclaimer-1", tpl("footerDisclaimer1", C.footerDisclaimer1));
+  setId("footer-disclaimer-2", tpl("footerDisclaimer2", C.footerDisclaimer2));
+  setHtml("cart-why", tpl("cartWhy", C.cartWhy));
+
+  // Category nav
+  const nav=document.querySelector(".catnav .wrap");
+  if(nav && Array.isArray(APP_CONFIG.navCategories) && APP_CONFIG.navCategories.length){
+    nav.innerHTML = APP_CONFIG.navCategories.map(c=>`<a href="#featured">${esc(c)} <i class="fa-solid fa-chevron-down"></i></a>`).join("")
+      + `<a href="#" class="deal" onclick="return false">Deals</a>`;
+  }
+  // Utility bar links
+  const uRight=document.querySelector(".utility .u-right");
+  if(uRight && Array.isArray(C.utilityLinks) && C.utilityLinks.length){
+    uRight.innerHTML = C.utilityLinks.map(l=>`<a href="#">${esc(l)}</a>`).join("");
+  }
+  // Section headings
+  const S=APP_CONFIG.sections||{};
+  const setHeading=(gridId,heading)=>{ const g=document.getElementById(gridId); if(!g||!heading)return; const sec=g.closest("section"); const rule=sec&&sec.querySelector(".rule"); if(rule)rule.textContent=heading; };
+  setHeading("trendingGrid", S.trending&&S.trending.heading);
+  setHeading("specialsGrid", S.specials&&S.specials.heading);
+  setHeading("matchDayStrip", S.matchDay&&S.matchDay.heading);
+  setHeading("topCatStrip", S.topCat&&S.topCat.heading);
+  setHeading("cocktailStrip", S.cocktail&&S.cocktail.heading);
+  const cocktailBand=document.querySelector(".cocktail-band"); if(cocktailBand&&S.cocktail&&S.cocktail.band) cocktailBand.textContent=S.cocktail.band;
+  // Promo tiles
+  const promo=document.querySelector(".promo-tiles");
+  if(promo && Array.isArray(APP_CONFIG.promoTiles) && APP_CONFIG.promoTiles.length){
+    promo.innerHTML = APP_CONFIG.promoTiles.map(t=>`<div class="promo-tile ${esc(t.tone||"teal")}"><b>${t.title||""}</b><small>${esc(t.sub||"")}</small></div>`).join("");
+  }
+  // Profile affinity tags (from profile.affinities)
+  const aff=(APP_CONFIG.profile&&APP_CONFIG.profile.affinities)||[];
+  const affEl=document.getElementById("profile-affinity-tags");
+  if(affEl) affEl.innerHTML = aff.slice(0,2).map(a=>`<span class="pr-tag"><i class="fa-solid fa-heart"></i> ${esc(a)}</span>`).join("");
+  // Search-hint chips (from searchChips)
+  const chipsEl=document.getElementById("search-hint-chips");
+  if(chipsEl && Array.isArray(APP_CONFIG.searchChips)){
+    chipsEl.innerHTML = APP_CONFIG.searchChips.map(c=>{
+      const q=esc(String(c.q||"")).replace(/'/g,"\\'");
+      return `<div class="sh-chip" onclick="runSearch('${q}')"><i class="fa-solid ${esc(c.icon||"fa-magnifying-glass")}"></i> ${esc(c.q||"")}${c.tag?` <small>${esc(c.tag)}</small>`:""}</div>`;
+    }).join("");
+  }
+  // Optional feature band (config-driven; hidden unless configured)
+  const fb=APP_CONFIG.featureBand;
+  const fbSec=document.getElementById("featureBand");
+  if(fbSec && fb && fb.title && Array.isArray(fb.items) && fb.items.length){
+    document.getElementById("feature-band-title").textContent=fb.title;
+    document.getElementById("feature-band-items").innerHTML=fb.items.map(it=>
+      `<div class="flag"><div class="fc">${esc(it.icon||"★")}</div><span>${esc(it.label||"")}</span></div>`).join("");
+    fbSec.hidden=false;
+  }
+  // Footer "ask" link label
+  const askLink=document.getElementById("footer-ask-link"); if(askLink) askLink.textContent=`Ask ${tk.concierge}`;
+  // Somm disclaimer
+  const disc=document.getElementById("somm-disclaimer"); if(disc) disc.textContent=`${tk.concierge} is grounded on your Data 360 unified profile · Demo`;
 };

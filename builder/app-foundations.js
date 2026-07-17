@@ -45,45 +45,64 @@
   // then normalizes/defaults anything missing, so a partial answer is safe.
   function promptForClienteling(cx) {
     return [
-      "You are generating realistic demo data for a RETAIL CLIENTELING app (a store-associate tool) for the customer \"" + cx.customerName + "\" in the " + cx.industry + " industry.",
+      "You are generating realistic demo data for a RETAIL CLIENTELING app (a store-associate / sales-floor tool) for the customer \"" + cx.customerName + "\" in the " + cx.industry + " industry.",
       cx.website ? ("Their website: " + cx.website + ".") : "",
       cx.bigProblem ? ("Business problem in the demo story: " + cx.bigProblem) : "",
       cx.futureVision ? ("Future vision: " + cx.futureVision) : "",
       cx.persona ? ("Primary persona: " + JSON.stringify({ name: cx.persona.name, role: cx.persona.role, quote: cx.persona.quote })) : "",
       "",
+      "CRITICAL VOCABULARY RULE: Use " + cx.customerName + "'s REAL industry language everywhere. Do NOT use wine/bottle/tasting/sommelier/vintage/cellar terminology UNLESS " + cx.customerName + " actually sells wine. Every label, product, event, and unit noun must fit THIS customer's category (e.g. a golf retailer uses 'clubs'/'fitting'/'bay'; a beauty retailer uses 'products'/'consultation'; a bank uses 'accounts'/'appointment'). The app chrome (nav labels, KPI labels, search placeholder, concierge name, intro narrative, unit noun) is rendered VERBATIM from the fields you return.",
+      "",
       "Return STRICT JSON (no markdown) with this shape:",
       "{",
-      '  "conciergeName": string,  // e.g. a branded concierge name',
+      '  "conciergeName": string,  // branded in-store assistant name in the customer\'s voice (NOT "Vino")',
+      '  "unitNoun": string,       // what one catalog item is called, plural (e.g. "items","clubs","pairs","bottles"). Used in copy like "96 <unitNoun> owned".',
+      '  "introScene": { "headline": string, "detail": string, "ctaLabel": string },  // opening narrative: <persona> arrives / opens the app for <event>. ctaLabel e.g. "Enter the store".',
+      '  "navLabels": { "dashboard": string, "checkin": string, "customer360": string, "event": string, "inventory": string },  // sidebar nav in the customer\'s language',
+      '  "searchPlaceholder": string,  // e.g. "Search guests, <items>, orders…"',
+      '  "copy": { "checkinGreeting": string, "checkinSub": string, "coachTipTitle": string, "featurePourLabel": string, "chatGreeting": string, "chatInputPlaceholder": string, "quickPrompts":[string], "inventoryChips":[string] },  // associate-facing UI copy in the customer\'s voice. You MAY use these {token} placeholders (substituted at runtime): {firstName} {customer} {rank} {memberSince} {manager} {managerStore} {store} {event} {unit} {concierge}. featurePourLabel = the "Tonight\'s Featured Item" heading. Do NOT invent other tokens.',
       '  "customer": { "name","location","visitingStore","rank","memberSince"(number),"ltv"(number),"ytdSpend"(number),"itemCount"(number),"interests":[string],"affinities":[{"label","value"(0-100)}],"birthday","travelNote","channels":{"email","phone","preferred"},"history":[{"product","date","price"(number),"status","qty"(number)}],"timeline":[{"icon":"mobile|store|web|bag","text","when"}] },',
       '  "homeStoreManager": { "name","store","title" },',
       '  "managerMessage": { "from":{"name","store","title"},"to","forwardTo","text","when" },',
-      '  "event": { "name","store","date","host","seatsTotal"(number),"blurb","attendees":[{"name","tier","vip"(bool)}] },',
-      '  "store": { "name","kpis":{"guestsToday","classSignups","vipArrivals","holdsPending","pipeline"} },',
+      '  "event": { "name","type","displayLabel","store","date","host","seatsTotal"(number),"blurb","attendees":[{"name","tier","vip"(bool)}] },  // an on-brand in-store event/class/experience. displayLabel e.g. "<name> · Tonight 7PM".',
+      '  "store": { "name","statusLabel","managerTitle","kpis":[{"label":string,"value":(number|string)}] },  // 5 sales-floor KPIs with industry-appropriate LABELS (NOT "Wines poured")',
       '  "walkIns": [{ "id","name","tag","tier","headline","detail","cta" }],',
       '  "tasks": [{ "text","due","priority":"high|med|low" }],',
-      '  "coach": { "<walkInId>": { "badge","title","starters":[string],"nba" } },',
-      '  "catalog": [{ "id","name","variety","region","vintage","price"(number),"score"(number),"scoreSource","badge","tastingNotes","story","foodPairings":[string] }]  // 6 realistic on-brand products',
+      '  "coach": { "<walkInId>": { "badge","title","starters":[string],"nba" } },  // starters = quick-prompt chips the associate can tap',
+      '  "catalog": [{ "id","name","cat","variety","region","price"(number),"score"(number),"scoreSource","badge","tastingNotes","story","foodPairings":[string] }]  // 6 realistic on-brand products. "cat"=category; reuse variety/region/tastingNotes/foodPairings as generic attribute/origin/description/complements for non-wine categories.',
       "}",
-      "Make the catalog products genuinely appropriate for " + cx.customerName + " (real-sounding SKUs in their category — NOT necessarily wine unless they sell wine). 6 products. Keep copy concise and sales-floor realistic.",
+      "Make the catalog products genuinely appropriate for " + cx.customerName + " (real-sounding SKUs in their category). 6 products. Keep copy concise and sales-floor realistic.",
     ].filter(Boolean).join("\n");
   }
 
   function promptForCimulate(cx) {
     return [
-      "You are generating realistic demo data for an INTENT-AWARE PRODUCT SEARCH + concierge-agent shopping experience for \"" + cx.customerName + "\" in the " + cx.industry + " industry.",
+      "You are generating realistic demo data for an INTENT-AWARE PRODUCT SEARCH + concierge-agent shopping experience (an e-commerce storefront) for \"" + cx.customerName + "\" in the " + cx.industry + " industry.",
       cx.website ? ("Their website: " + cx.website + ".") : "",
       cx.persona ? ("Primary shopper persona: " + JSON.stringify({ name: cx.persona.name, role: cx.persona.role })) : "",
       "",
+      "CRITICAL VOCABULARY RULE: Use " + cx.customerName + "'s REAL industry language everywhere. Do NOT use wine/bottle/sommelier/'Somm'/tasting terminology UNLESS " + cx.customerName + " actually sells wine. The storefront chrome (brand logo text, concierge name/subtitle, hero headline, search suggestion chips, category nav, promo tiles, footer blurb, section headings) is rendered VERBATIM from the fields you return — make every string fit THIS customer's category.",
+      "",
       "Return STRICT JSON (no markdown) with this shape:",
       "{",
-      '  "conciergeName": string, "conciergeSub": string,',
+      '  "brand": { "logoTop": string, "logoSub": string, "conciergeName": string, "conciergeSub": string },  // logoTop=brand name; conciergeName=on-brand assistant (NOT "Somm"); conciergeSub e.g. "Your personal <category> concierge"',
       '  "storeLocation": string,',
+      '  "unitNoun": string,       // what one catalog item is called, singular (e.g. "item","club","pair","bottle"). Used in copy like "Find your next favorite <unitNoun>".',
+      '  "heroHeadline": string,   // e.g. "Find your next favorite <thing>" in the customer\'s category',
+      '  "searchChips": [string],  // 3-5 realistic example search queries a shopper would type for THIS customer (industry-appropriate, NOT wine)',
+      '  "navCategories": [string],// 2-4 top category labels for the storefront nav',
+      '  "promoTiles": [{ "title": string, "sub": string }],  // 1-3 merchandising promo tiles',
+      '  "footerBlurb": string,    // one-line brand descriptor for the footer (NOT "America\'s Wine Superstore")',
+      '  "sectionHeadings": { "featured": string, "curated": string, "trending": string, "specials": string, "topCat": string, "savings": string },  // homepage rail titles in the customer\'s voice',
+      '  "copy": { "heroEyebrow": string, "heroSub": string, "heroShopCta": string, "heroAskCta": string, "featuredHeading": string, "featuredSub": string, "profileGreeting": string, "profileTierTag": string, "searchHintLabel": string, "curatedSub": string, "sommIntro": string, "utilityFulfill": string },  // customer-voiced UI copy. You MAY use these {token} placeholders and they will be substituted: {firstName} {tier} {concierge} {searchProduct} {unit} {store} {brand}. Do NOT invent other tokens.',
       '  "profile": { "name","tier","interests":[string] },',
-      '  "catalog": [{ "id","cat","name","type","region","price"(number),"rating"(number),"ratingSource","badge","notes","pairings":[string],"flavors":[string] }],  // 12 realistic on-brand products across 2-3 categories',
-      '  "sommIntents": [{ "keywords":[string], "reply": string, "productIds":[string] }],  // 6 shopping/service intents referencing catalog ids',
+      '  "catalog": [{ "id","cat","name","type","region","price"(number),"rating"(number),"ratingSource","badge","notes","pairings":[string],"flavors":[string] }],  // 12 realistic on-brand products across 2-3 categories. Reuse type/region/pairings/flavors as generic attribute/origin/complements/traits for non-wine categories.',
+      '  "greetChips": [{ "label": string, "q": string }],  // 4-5 opening quick-reply chips for the concierge (label=button text w/ optional emoji, q=the query it sends). Industry-appropriate shopping starters + one service chip.',
+      '  "sommIntents": [{ "keys":[string], "text": string, "recIds":[string], "rail": { "title": string, "sub": string, "ids":[string] }, "chips":[{ "label": string, "q": string }] }],  // 6 shopping intents. keys=trigger phrases; text=concierge reply (HTML ok); recIds=catalog ids to show as rec cards; rail (optional)=a curated rail of ids; chips (optional)=follow-up quick chips. The concierge is generic — do NOT self-refer as a sommelier.',
+      '  "serviceData": { "order": string, "orderPlaced": string, "eta": string, "hoursToday": string, "pickupEta": string, "associate": string, "points": string, "reward": string, "refundAmt": string },  // sample values for the built-in service flows (order status, delivery, hours, rewards, returns) in the customer\'s voice',
       '  "celebs": { "<lowercasename>": { "match": string, "productIds":[string] } }  // 1-2 celebrity/affinity tie-ins if relevant, else {}',
       "}",
-      "Products must be genuinely appropriate for " + cx.customerName + " (their real category). 12 products. Intents should cover both shopping (find/recommend) and service (order status, delivery, returns).",
+      "Products must be genuinely appropriate for " + cx.customerName + " (their real category). 12 products. sommIntents should cover shopping (find/recommend by taste, occasion, budget, category). The service flows (order status, delivery, returns, rewards) are built in and driven by serviceData — do NOT duplicate them as intents.",
     ].filter(Boolean).join("\n");
   }
 
@@ -100,24 +119,47 @@
   }
 
   // Deterministic fallback foundation — used when Gemini is off/fails.
-  // Names swapped in from the project so it's still customer-flavored.
+  // INDUSTRY-NEUTRAL: names swapped in from the project, generic chrome, and
+  // NO wine vocabulary. Every chrome field the templates render verbatim has a
+  // neutral value here so a Gemini-off build never shows wine text.
   function fallbackFoundation(appId, cx) {
     const seedCat = seedCatalog(cx);
+    // When there's no customer yet (the generic first-preview), fall back to
+    // neutral retail wording instead of interpolating an empty name.
+    const name = cx.customerName || "";
+    const brandWord = name || "the store";
+    const conciergeName = name ? (name + " Concierge") : "Store Concierge";
+    const personaName = (cx.persona && cx.persona.name) || "Your customer";
+    const personaLoc = (cx.persona && cx.persona.location) || "Your City";
     const base = {
-      customerName: cx.customerName,
-      conciergeName: "Concierge",
-      conciergeSub: cx.customerName + " concierge",
-      storeLocation: (cx.persona && cx.persona.location) || "Your City",
+      customerName: name,
+      conciergeName: conciergeName,
+      conciergeSub: name ? ("Your personal " + name + " concierge") : "Your personal shopping concierge",
+      storeLocation: personaLoc,
+      unitNoun: "items",
+      introScene: {
+        headline: name ? (personaName + " opens the " + name + " app") : (personaName + " opens the app"),
+        detail: "A personalized in-store experience, waiting at the location near them.",
+        ctaLabel: "Enter the store",
+      },
+      navLabels: { dashboard: "Floor Dashboard", checkin: "Check-In", customer360: "Customer 360", event: "Event", inventory: "Inventory" },
+      searchPlaceholder: "Search guests, items, orders…",
+      heroHeadline: name ? ("Find your next favorite from " + name) : "Find your next favorite item",
+      searchChips: [],
+      navCategories: (cx.products || []).slice(0, 3),
+      promoTiles: [],
+      footerBlurb: (brandWord.charAt(0).toUpperCase() + brandWord.slice(1)) + " — personalized shopping, powered by your unified profile.",
+      sectionHeadings: { featured: "Featured", curated: "Curated for you" },
       catalog: seedCat,
       customer: {
-        name: (cx.persona && cx.persona.name) || "Jordan M.",
-        location: "Your City",
-        rank: "VIP Member",
+        name: personaName,
+        location: personaLoc,
+        rank: "Member",
         interests: (cx.products || []).slice(0, 3),
         affinities: [{ label: "Top category", value: 92 }, { label: "Secondary", value: 74 }],
       },
       profile: {
-        name: (cx.persona && cx.persona.name) || "Member",
+        name: personaName,
         tier: "Premium",
         interests: (cx.products || []).slice(0, 3),
       },
@@ -126,7 +168,7 @@
     return base;
   }
 
-  // A neutral 6-SKU seed catalog when nothing else is available.
+  // A neutral 6-SKU seed catalog when nothing else is available. No wine terms.
   function seedCatalog(cx) {
     const name = cx.customerName;
     const out = [];
@@ -136,6 +178,7 @@
         name: name + " Signature Item " + i,
         category: "Featured",
         cat: "Featured",
+        type: "Signature",
         variety: "Signature",
         region: "",
         price: 20 + i * 15,
@@ -151,7 +194,9 @@
   }
 
   // ── main: generate foundation + config for one app ───────────
-  // opts.onStatus(msg) — optional progress callback.
+  // opts.onStatus(msg, frac) — optional progress callback. `frac` is this
+  // stage's own 0→1 completion (data extraction + config assembly); the
+  // caller maps it into whatever slice of an overall bar it owns.
   // Resolves { found, config, usedGemini }.
   function generate(appId, state, opts) {
     opts = opts || {};
@@ -177,30 +222,31 @@
     }
 
     if (!gen) {
-      status("Gemini unavailable — using a customer-flavored template.");
+      status("Gemini unavailable — using a customer-flavored template.", 1);
       const r = assemble(fallbackFoundation(appId, cx));
       return Promise.resolve(Object.assign(r, { usedGemini: false }));
     }
 
-    status("Checking AI availability…");
+    status("Checking AI availability…", 0.1);
     return gen.isConfigured().then(function (ok) {
       if (!ok) {
-        status("Gemini not configured — using a customer-flavored template.");
+        status("Gemini not configured — using a customer-flavored template.", 1);
         return Object.assign(assemble(fallbackFoundation(appId, cx)), { usedGemini: false });
       }
-      status("Generating " + appId + " data for " + cx.customerName + "…");
+      status("Generating " + appId + " data for " + cx.customerName + "…", 0.25);
       return gen.generate({ prompt: prompt, jsonMode: true, useCache: true, temperature: 0.4 })
         .then(function (text) {
           const parsed = parseJson(text);
           if (!parsed) {
-            status("AI response wasn't usable — using a customer-flavored template.");
+            status("AI response wasn't usable — using a customer-flavored template.", 1);
             return Object.assign(assemble(fallbackFoundation(appId, cx)), { usedGemini: false });
           }
+          status("Assembling " + appId + " configuration…", 0.9);
           parsed.customerName = cx.customerName;
           return Object.assign(assemble(parsed), { usedGemini: true });
         })
         .catch(function () {
-          status("AI call failed — using a customer-flavored template.");
+          status("AI call failed — using a customer-flavored template.", 1);
           return Object.assign(assemble(fallbackFoundation(appId, cx)), { usedGemini: false });
         });
     });
@@ -218,14 +264,16 @@
     const products = (config && (config.products || config.catalog)) || [];
     if (!gen || !gen.generateImage || !products.length) return Promise.resolve({});
 
+    const total = products.length;
     return gen.isConfigured().then(function (ok) {
-      if (!ok) { status("Image generation unavailable — keeping illustrated fallbacks."); return {}; }
+      if (!ok) { status("Image generation unavailable — keeping illustrated fallbacks.", 1); return {}; }
       const images = {};
       let done = 0;
-      // Sequential to respect the server rate limit; progress per item.
+      // Sequential to respect the server rate limit; progress per item. `frac`
+      // is this stage's own 0→1 (photos completed / total).
       return products.reduce(function (chain, p) {
         return chain.then(function () {
-          status("Generating photo " + (done + 1) + " of " + products.length + "…");
+          status("Generating photo " + (done + 1) + " of " + total + "…", done / total);
           return gen.generateImage({ prompt: photoPrompt(p, config) })
             .then(function (res) {
               const url = (res && (res.url || res.signedUrl || res)) || null;
@@ -235,7 +283,7 @@
             .then(function () { done++; });
         });
       }, Promise.resolve()).then(function () {
-        status("Generated " + Object.keys(images).length + " of " + products.length + " photos.");
+        status("Generated " + Object.keys(images).length + " of " + total + " photos.", 1);
         return images;
       });
     });
@@ -253,9 +301,37 @@
     ].filter(Boolean).join(" ");
   }
 
+  // Synchronous, token-free config for the FIRST preview an app card shows —
+  // before the user clicks "Preview". Runs the deterministic fallback path with
+  // NO customer context (opts.generic) so it reads as plain, generic retail
+  // (never Total Wine, never the customer's data yet). Cheap enough to call on
+  // every render; the builder stashes the result so the iframe loads generic
+  // retail instead of the stock (Total Wine) app-config.js.
+  function buildFallbackConfig(appId, state, opts) {
+    opts = opts || {};
+    const cx = ctxFrom(state || {});
+    if (opts.generic) {
+      // Strip customer identity so the placeholder is industry-neutral retail.
+      cx.customerName = "";
+      cx.industry = "Retail";
+      cx.website = "";
+      cx.persona = null;
+      cx.products = [];
+      cx.storyActs = [];
+    }
+    const found = fallbackFoundation(appId, cx);
+    const shared = found.catalog || [];
+    const brand = { name: cx.customerName || "" };
+    const appgen = APPGEN();
+    return appId === "clienteling"
+      ? appgen.buildClientelingConfig(found, brand, shared)
+      : appgen.buildCimulateConfig(found, brand, shared);
+  }
+
   global.HOLO_APPFOUND = {
     generate: generate,
     generateProductPhotos: generateProductPhotos,
+    buildFallbackConfig: buildFallbackConfig,
     _parseJson: parseJson,
   };
 })(window);

@@ -19,6 +19,62 @@ window.APP_CONFIG = {
   },
 
   /* ============================================================
+     APP CHROME — rendered verbatim by the template. The builder
+     regenerates these per-customer in the customer's own industry
+     vocabulary. Defaults below = the Total Wine reference voice.
+     ============================================================ */
+  unitNoun: "bottles",
+  introScene: {
+    headline: "Alan opens the Total Wine app",
+    detail: "He's signing up for tonight's Wine & Cheese Pairing Class — a personalized in-store experience, ready when he arrives.",
+    ctaLabel: "Enter the store",
+  },
+  navLabels: { dashboard: "Floor Dashboard", checkin: "Check-In", customer360: "Customer 360", event: "Event", inventory: "Inventory" },
+  search: { placeholder: "Search guests, wines, orders…" },
+
+  /* ============================================================
+     COPY — every customer-variable narrative string the template
+     renders. app.js reads these; generic UI verbs (Done, Send,
+     Skip, Call Now) stay inline. The builder regenerates this block
+     per-customer so no wine/story literal is baked into app.js.
+     Tokens: {customer}, {firstName}, {manager}, {managerStore},
+     {event}, {feature}, {store}, {unit}. app.js interpolates them.
+     ============================================================ */
+  copy: {
+    checkinGreeting: "Greet {firstName} by name.",
+    checkinSub: "{rank} member since {memberSince} · traveling from {managerStore}.",
+    managerNoteLabel: "MESSAGE FROM {manager} · THEIR HOME STORE",
+    sayThis: "\"Welcome, {firstName} — great to have a {rank} member with us tonight. {manager} back at {managerStore} says hi, and will follow up on your order.\"",
+    genericCheckedIn: "You're checked in for tonight's {event}. Enjoy.",
+    coachTipTitle: "{concierge} tip",
+    coachTip: "{customer} is your {rank} guest tonight. When they ask about the feature, offer to hold {unit} at their home store ({managerStore}) — they're traveling.",
+    featurePourLabel: "Tonight's Featured Item",
+    inventorySub: "Real-time stock across {store} & {customer}'s home store ({managerStore}).",
+    holdOptionHome: "Hold at home store ({managerStore})",
+    holdOptionHomeSub: "Reserve for in-person pickup — recommended, {customer} is traveling.",
+    holdOptionShip: "Ship to home",
+    holdOptionShipSub: "Deliver to their home address.",
+    holdOptionBuy: "Buy in-store today",
+    holdOptionBuySub: "Take {unit} from {store} now.",
+    draftMessageBody: "Hi {firstName} — great meeting you at tonight's {event}. Per {manager} at {managerStore}, I've held your {unit} at your home store for pickup. Enjoy!",
+    chatGreeting: "Hi — I'm your {concierge} for {customer}'s visit tonight. Ask me to brief you on {customer}, relay {manager}'s message, recommend {unit}, check inventory, or walk fulfillment options.",
+    chatInputPlaceholder: "Ask about {customer}, {unit}, inventory…",
+    // Quick-prompt chips for the concierge chat (industry-neutral; the builder
+    // regenerates these from coach.starters / the customer's vocabulary).
+    quickPrompts: [
+      "Brief me on {customer}",
+      "What did {manager} say?",
+      "Best pick for {customer}?",
+      "Tell me about the featured item",
+      "Check inventory",
+      "Fulfillment options",
+      "Draft a message to {customer}",
+    ],
+    // Inventory filter chips (categories). Regenerated per-customer.
+    inventoryChips: ["All", "Featured", "New arrivals", "Popular"],
+  },
+
+  /* ============================================================
      PRODUCT CATALOG — wines & spirits
      Per-store stock uses the two stores in Alan's story:
      sanDiego = the store he's visiting; modesto = his home store.
@@ -214,6 +270,8 @@ window.APP_CONFIG = {
   event: {
     id: "wineCheeseClass",
     name: "Wine & Cheese Pairing Class",
+    type: "Class",
+    displayLabel: "Wine & Cheese Pairing Class · Tonight 7PM",
     store: "San Diego, CA",
     date: "Tonight · 7:00 PM",
     host: "James O. · Store Manager",
@@ -235,13 +293,18 @@ window.APP_CONFIG = {
      ============================================================ */
   store: {
     name: "San Diego",
-    kpis: {
-      guestsToday: 184,
-      classSignups: 14,
-      vipArrivals: 3,
-      holdsPending: 7,
-      pipeline: 12400,
-    },
+    statusLabel: "San Diego store · online",
+    managerTitle: "Store Manager",
+    // KPIs are an ARRAY of {label,value}. The first three render as the
+    // traffic cards; all render in the KPI grid. `guest`/`signup` flags mark
+    // the two counters the live-traffic ticker animates (optional).
+    kpis: [
+      { label: "Guests today", value: 184, guest: true },
+      { label: "Class sign-ups today", value: 14, signup: true },
+      { label: "VIP arrivals", value: 3 },
+      { label: "Pipeline value", value: 12400, money: true },
+      { label: "Holds pending", value: 7 },
+    ],
   },
 
   /* Live floor alerts */
@@ -336,57 +399,63 @@ window.money = (n) => "$" + Number(n).toLocaleString();
 window.productById = (id) => window.APP_CONFIG.catalog.find((p) => p.id === id);
 
 /* ============================================================
-   Procedural wine-bottle SVG (adapted from La Crema concierge)
-   Lets us render every product without photography.
+   Procedural NEUTRAL product SVG. Renders any product without
+   photography — a clean labeled "package" card driven by the
+   product name + the customer's brand colors. NOT a wine bottle,
+   and never prints a hardcoded brand name. Photos (productImages)
+   are always preferred; this is the fallback.
    ============================================================ */
-window.getBottleSVG = function (p, w = 80, h = 220) {
-  const cap = p.capsuleColor || "#083b36";
-  const shine = p.capsuleShine || "#0a5d54";
-  const glass = p.glassColor || "#3a0d12";
-  const label = p.labelSub || (p.region || "").split(",")[0] || "Total Wine";
-  const variety = p.variety || p.name || "";
-  const uid = "b" + (p.id || Math.round(w * h)).toString().replace(/\W/g, "");
+window.getProductSVG = function (p, w = 80, h = 220) {
+  const svgEsc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const colors = (window.APP_CONFIG.brand && window.APP_CONFIG.brand.colors) || {};
+  // Prefer per-product swatch (generator sets these to brand colors), then
+  // brand palette, then a neutral slate — never a wine-bottle default.
+  const primary = p.capsuleColor || colors.primary || "#334155";
+  const shine = p.capsuleShine || colors.primaryLt || colors.accent || "#64748b";
+  const accent = p.glassColor || colors.accent || "#94a3b8";
+  const attr = p.variety || p.type || p.cat || p.category || "";
+  const origin = p.labelSub || (p.region || "").split(",")[0] || "";
+  const meta = p.vintage || "";
+  const name = p.name || "";
+  // Rough visual balance: use a portrait "package" card that scales to the
+  // requested box. viewBox is fixed; width/height come from the call site.
+  const uid = "p" + String(p.id || Math.round(w * h)).replace(/\W/g, "");
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((x) => x[0] || "").join("").toUpperCase() || "•";
   return `
-  <svg viewBox="0 0 80 240" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg" aria-label="${p.name}">
+  <svg viewBox="0 0 80 240" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg" aria-label="${svgEsc(name)}">
     <defs>
-      <linearGradient id="${uid}g" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="${glass}" stop-opacity=".55"/>
-        <stop offset=".22" stop-color="#fff" stop-opacity=".22"/>
-        <stop offset=".5" stop-color="${glass}"/>
-        <stop offset="1" stop-color="${glass}" stop-opacity=".85"/>
-      </linearGradient>
-      <linearGradient id="${uid}c" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="${cap}"/>
-        <stop offset=".4" stop-color="${shine}"/>
-        <stop offset="1" stop-color="${cap}"/>
+      <linearGradient id="${uid}g" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${shine}"/>
+        <stop offset="1" stop-color="${primary}"/>
       </linearGradient>
     </defs>
-    <!-- neck + cap -->
-    <rect x="33" y="18" width="14" height="42" fill="url(#${uid}g)"/>
-    <rect x="32" y="10" width="16" height="20" rx="2" fill="url(#${uid}c)"/>
-    <!-- shoulder + body -->
-    <path d="M33 56 Q33 70 22 82 Q16 90 16 120 L16 214 Q16 224 26 224 L54 224 Q64 224 64 214 L64 120 Q64 90 58 82 Q47 70 47 56 Z" fill="url(#${uid}g)"/>
-    <!-- punt highlight -->
-    <ellipse cx="30" cy="120" rx="4" ry="60" fill="#fff" opacity=".10"/>
-    <!-- label -->
-    <rect x="20" y="126" width="40" height="72" rx="3" fill="#faf6f0"/>
-    <text x="40" y="146" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-size="9" font-weight="700" letter-spacing="1" fill="#01665c">TOTAL WINE</text>
-    <line x1="28" y1="152" x2="52" y2="152" stroke="#b8975a" stroke-width="1"/>
-    <text x="40" y="168" text-anchor="middle" font-family="Inter, sans-serif" font-size="5.4" letter-spacing="1.2" fill="#6b6560">${label.toUpperCase().slice(0, 16)}</text>
-    <text x="40" y="182" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-size="8" font-style="italic" fill="#2c2826">${variety.slice(0, 16)}</text>
-    <text x="40" y="194" text-anchor="middle" font-family="Inter, sans-serif" font-size="6" fill="#b8975a">${p.vintage || ""}</text>
+    <!-- product package card -->
+    <rect x="12" y="26" width="56" height="188" rx="10" fill="url(#${uid}g)"/>
+    <rect x="12" y="26" width="56" height="188" rx="10" fill="none" stroke="#fff" stroke-opacity=".18"/>
+    <!-- accent band -->
+    <rect x="12" y="150" width="56" height="30" fill="${accent}" opacity=".9"/>
+    <!-- monogram medallion -->
+    <circle cx="40" cy="86" r="22" fill="#fff" opacity=".14"/>
+    <text x="40" y="94" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-size="20" font-weight="700" fill="#fff">${svgEsc(initials)}</text>
+    <!-- label block -->
+    <text x="40" y="168" text-anchor="middle" font-family="Inter, sans-serif" font-size="5.4" letter-spacing="1.2" fill="#fff" opacity=".92">${svgEsc(origin.toUpperCase().slice(0, 18))}</text>
+    <text x="40" y="200" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-size="8" font-style="italic" fill="#fff" opacity=".9">${svgEsc(attr.slice(0, 18))}</text>
+    <text x="40" y="211" text-anchor="middle" font-family="Inter, sans-serif" font-size="6" fill="#fff" opacity=".8">${svgEsc(String(meta).slice(0, 12))}</text>
   </svg>`;
 };
 
+/* Back-compat alias — older call sites / exports may reference getBottleSVG. */
+window.getBottleSVG = window.getProductSVG;
+
 /* Product image resolver — uses a generated photo when present in
    APP_CONFIG.productImages, otherwise falls back to the procedural SVG.
-   Signature mirrors getBottleSVG so call sites keep width/height args. */
+   Signature mirrors getProductSVG so call sites keep width/height args. */
 window.productImage = function (p, w, h) {
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const src = (window.APP_CONFIG.productImages || {})[p.id];
   return src
     ? '<img class="prod-img" src="' + src + '" alt="' + esc(p.name) + '" style="max-width:100%;max-height:100%;object-fit:contain"/>'
-    : window.getBottleSVG(p, w, h);
+    : window.getProductSVG(p, w, h);
 };
 
 /* Apply per-customer brand colors to the CSS :root generic tokens. */
