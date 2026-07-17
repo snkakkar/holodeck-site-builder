@@ -2727,8 +2727,15 @@
   //
   // Guarded so a failure never leaves the card stuck — worst case it keeps the
   // previous config / sample data.
-  function generateApp(def, slice, mode) {
+  function generateApp(def, slice, mode, opts) {
     mode = mode || "preview";
+    opts = opts || {};
+    // forceText: rebuild the TEXT config (chips/copy/catalog) from Gemini even
+    // when a cached config exists. Set by an explicit "Regenerate with AI" so a
+    // regenerate actually refreshes the copy — not just re-photographs the old
+    // config. The first AI upgrade from a fresh preview leaves this false to
+    // avoid a redundant second text call (the preview already ran text).
+    const forceText = !!opts.forceText;
     if (slice._generating) return;
     if (!window.HOLO_APPFOUND) {
       slice._genStatus = "Generator unavailable.";
@@ -2760,7 +2767,9 @@
     // The AI tier's bar is dominated by the per-SKU photo stage; if it also has
     // to run text first (no cached config) we give text a small leading slice.
     const hasCachedConfig = !!(slice.config && (slice.config.products || slice.config.catalog));
-    const needsText = mode === "preview" || !hasCachedConfig;
+    // Re-run the text pass for a preview, when there's no cache yet, OR when the
+    // caller forces it (explicit Regenerate) so copy/chips actually refresh.
+    const needsText = mode === "preview" || !hasCachedConfig || forceText;
     const FOUND_WEIGHT = mode === "preview" ? 1 : (needsText ? 0.25 : 0);
     const PHOTO_WEIGHT = mode === "preview" ? 0 : (1 - FOUND_WEIGHT);
 
@@ -2832,8 +2841,9 @@
         .catch(function () { return config; });
     }
 
-    // AI tier with a cached preview config: skip the text call, just photograph.
-    if (mode === "ai" && hasCachedConfig) {
+    // AI tier with a cached preview config AND no forced text rebuild: skip the
+    // text call, just photograph the cached config (the cheap first upgrade).
+    if (mode === "ai" && hasCachedConfig && !forceText) {
       runPhotos(slice.config)
         .then(function (config) { finish(config, "ai"); })
         .catch(fail);
@@ -2856,10 +2866,13 @@
   function generateAppAI(def, slice) {
     const already = slice._aiGenerated;
     const msg = already
-      ? "Regenerate this app with AI? This re-runs the full AI image pass and spends image-generation tokens."
+      ? "Regenerate this app with AI? This rebuilds the copy, search suggestions and catalog AND re-runs the full image pass, spending Gemini text + image tokens."
       : "Generate with AI? This runs per-product image generation and spends image-generation tokens. (Your preview stays if you cancel.)";
     if (!window.confirm(msg)) return;
-    generateApp(def, slice, "ai");
+    // An explicit regenerate on an already-AI'd app must refresh the TEXT too
+    // (chips/copy/catalog), not just re-photograph the stale config. The first
+    // upgrade from a fresh preview keeps the cheap photograph-the-preview path.
+    generateApp(def, slice, "ai", { forceText: already });
   }
 
   // Cancel an in-flight generation (usually a premature AI run). Aborts any
