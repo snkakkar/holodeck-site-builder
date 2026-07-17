@@ -295,25 +295,29 @@ window.APP_CONFIG = {
      Each reply may set a curated rail via `rail:{title,sub,ids}` and return
      `text` (HTML, {token}-interpolated) + optional `recIds` (rec cards) +
      `chips` (follow-up quick chips {label,q}). */
+  // DETERMINISTIC concierge: each chip's `q` is a VERBATIM key of the intent it
+  // should open (see sommIntents / the service flows), so clicking it maps 1:1
+  // to exactly that reply — no matching. `label` is the button text; `say` (or
+  // the emoji-stripped label) is what shows in the user's chat bubble.
   greetChips: [
-    { label:"🥩 Bold Red for a Steak Dinner", q:"I'm hosting a dinner party and need a bold red to pair with steak" },
-    { label:"🥃 Smoky Whisky",                 q:"show me a smoky Japanese whisky" },
-    { label:"🍺 Party Beer",                   q:"an easy-drinking craft IPA for a party" },
-    { label:"🎁 A Gift",                       q:"help me pick a gift" },
-    { label:"🛎️ Service & Account Help",       q:"help me with something" },
+    { label:"🥩 Bold Red for a Steak Dinner", q:"dinner party",   say:"I'm hosting a dinner party and need a bold red to pair with steak" },
+    { label:"🥃 Smoky Whisky",                 q:"smoky",          say:"Show me a smoky Japanese whisky" },
+    { label:"🍺 Party Beer",                   q:"party beer",     say:"An easy-drinking craft IPA for a party" },
+    { label:"🎁 A Gift",                       q:"gift",           say:"Help me pick a gift" },
+    { label:"🛎️ Service & Account Help",       q:"help me with something", say:"I need help with my account" },
   ],
   serviceChips: [
-    { label:"📦 Track My Order",       q:"track my order" },
-    { label:"🚚 Delivery & Address",   q:"delivery status" },
-    { label:"🏬 Store Hours & Pickup", q:"my store hours and pickup" },
-    { label:"⭐ Rewards & Points",     q:"my loyalty rewards and points" },
-    { label:"↩️ Return or Refund",     q:"i want to return an item" },
+    { label:"📦 Track My Order",       q:"track my order", say:"Track my order" },
+    { label:"🚚 Delivery & Address",   q:"delivery",       say:"What's my delivery status?" },
+    { label:"🏬 Store Hours & Pickup", q:"store hours",    say:"My store hours and pickup" },
+    { label:"⭐ Rewards & Points",     q:"rewards",        say:"My loyalty rewards and points" },
+    { label:"↩️ Return or Refund",     q:"return",         say:"I want to return an item" },
   ],
   sommIntents: [
     { keys:["steak","dinner party","bold red","cabernet","pair with steak","hosting"],
       text:"A dinner party — my favorite! Since your profile leans toward standout picks, here are two that impress:",
       recIds:["caymus","silveroak"], rail:{ title:"Curated for your dinner party", sub:"{concierge} selected these based on your conversation and your {tier} profile.", ids:["caymus","silveroak","veuve"] },
-      chips:[{label:"Add something to start",q:"suggest a champagne to open the party"},{label:"Keep it under $100",q:"keep the reds under $100"}] },
+      chips:[{label:"Add something to start",q:"open the party",say:"Suggest a champagne to open the party"},{label:"Keep it under $100",q:"under $100",say:"Keep the reds under $100"}] },
     { keys:["champagne","bubbly","sparkling","open the party","celebrate"],
       text:"Perfect way to greet guests — the Veuve Clicquot Yellow Label is a crowd-pleaser.", recIds:["veuve"] },
     { keys:["under $100","under $50","keep the reds","budget","cheaper","affordable"],
@@ -621,7 +625,7 @@ window.applyBrandText = function(){
 
   // Chrome / copy hooks (data-copy, ids)
   setPh("searchInput", tpl("searchPlaceholder", C.searchPlaceholder));
-  setPh("sommInput", `Ask ${tk.concierge} anything…`);
+  // (sommInput removed — concierge is chip-driven only, no free-text field.)
   setId("utility-fulfill", tpl("utilityFulfill", C.utilityFulfill));
   setId("profile-tier-tag", tpl("profileTierTag", C.profileTierTag));
   setHtml("profile-greeting", tpl("profileGreeting", C.profileGreeting));

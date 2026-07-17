@@ -141,7 +141,12 @@ function recCardChat(id){
       </div>
     </div></div>`;
 }
-function quicks(arr){ return `<div class="quicks">${arr.map(q=>`<button class="chip" data-q="${esc(q.q)}" onclick="sommQuick(this)">${esc(q.label)}</button>`).join("")}</div>`; }
+// A chip carries BOTH: data-q (the exact intent key it maps 1:1 to — used for
+// the deterministic reply lookup) and data-say (the natural phrase shown in the
+// user's chat bubble, derived from the label). Splitting them lets q stay a bare
+// key while the bubble still reads like a real sentence.
+function chipSay(c){ return String(c.say || c.label || c.q || "").replace(/^[^\w]+\s*/,"").trim(); }
+function quicks(arr){ return `<div class="quicks">${arr.map(q=>`<button class="chip" data-q="${esc(q.q)}" data-say="${esc(chipSay(q))}" onclick="sommQuick(this)">${esc(q.label)}</button>`).join("")}</div>`; }
 
 /* Update the main page with a curated rail reflecting the conversation */
 function showCuratedRail(title,sub,ids){
@@ -153,18 +158,22 @@ function showCuratedRail(title,sub,ids){
   setTimeout(()=>rail.scrollIntoView({behavior:"smooth",block:"start"}),150);
 }
 
-/* Greeting / service chips come from config (fall back to a generic set). */
+/* Greeting / service chips come from config (fall back to a generic set).
+   Each fallback chip's `q` is a VERBATIM built-in service key (see
+   buildServiceIntents) so it maps 1:1 even when a config supplies no
+   sommIntents — a bare "recommend something" q would have nothing to resolve
+   against. `say` is the natural phrase shown in the user's chat bubble. */
 const GREET_CHIPS   = (APP_CONFIG.greetChips   && APP_CONFIG.greetChips.length)   ? APP_CONFIG.greetChips   : [
-  {label:"🛍️ Recommend something", q:"recommend something for me"},
-  {label:"🎁 A gift", q:"help me pick a gift"},
-  {label:"🛎️ Service & Account Help", q:"help me with something"},
+  {label:"🛎️ Service & Account Help", q:"help me with something", say:"I need help with my account"},
+  {label:"📦 Track My Order", q:"track my order", say:"Track my order"},
+  {label:"⭐ Rewards & Points", q:"rewards", say:"My loyalty rewards and points"},
 ];
 const SERVICE_CHIPS = (APP_CONFIG.serviceChips && APP_CONFIG.serviceChips.length) ? APP_CONFIG.serviceChips : [
-  {label:"📦 Track My Order", q:"track my order"},
-  {label:"🚚 Delivery & Address", q:"delivery status"},
-  {label:"🏬 Store Hours & Pickup", q:"my store hours and pickup"},
-  {label:"⭐ Rewards & Points", q:"my loyalty rewards and points"},
-  {label:"↩️ Return or Refund", q:"i want to return an item"},
+  {label:"📦 Track My Order", q:"track my order", say:"Track my order"},
+  {label:"🚚 Delivery & Address", q:"delivery", say:"What's my delivery status?"},
+  {label:"🏬 Store Hours & Pickup", q:"store hours", say:"My store hours and pickup"},
+  {label:"⭐ Rewards & Points", q:"rewards", say:"My loyalty rewards and points"},
+  {label:"↩️ Return or Refund", q:"return", say:"I want to return an item"},
 ];
 
 /* Build the shopping intents from APP_CONFIG.sommIntents. Each config intent:
@@ -243,54 +252,33 @@ function buildServiceIntents(){
   ];
 }
 
-const SOMM_INTENTS = buildShoppingIntents().concat(buildServiceIntents());
+// Two intent sources, registered SHOPPING-first into the 1:1 chip map below:
+//   • SHOPPING intents come from APP_CONFIG.sommIntents (Gemini, per-customer).
+//   • SERVICE intents are the generic hardcoded flows (order status, delivery,
+//     loyalty, returns, greeting).
+// Registering shopping first means a customer key wins any collision with a
+// generic service key. There is no scoring/matching — see SOMM_BY_Q below.
+const SOMM_SHOPPING = buildShoppingIntents();
+const SOMM_SERVICE  = buildServiceIntents();
+const SOMM_INTENTS  = SOMM_SHOPPING.concat(SOMM_SERVICE); // kept for any external readers
 
-// Generic words (articles + common CTA verbs/nouns like "book"/"session") that
-// carry NO category/intent signal. Excluded from overlap scoring so a shared
-// generic word ("book a fitting SESSION" vs "launch monitor SESSION") can never
-// count as a distinctive match and mis-route the chip.
-const SOMM_STOP = new Set(["a","an","the","my","me","for","to","of","and","or","is","it","in","on","at","with","your","you","i","do","does","can","help","please","get","show","find","some","something","thing","want","need","would","like","how","book","booking","reserve","reservation","schedule","appointment","session","set","up","today","now"]);
+// DETERMINISTIC 1:1 concierge (scripted demo — no free typing, no matching).
+// Every clickable chip carries a `q`; we build an exact map q → intent at load,
+// keyed by each intent's `keys`. A chip click is a direct lookup, so clicking a
+// chip ALWAYS shows exactly that chip's authored reply — never an off-topic one.
+// Shopping (Gemini, per-customer) is registered FIRST so that if a service key
+// ever collides with a customer key, the customer's own reply wins.
+function normKey(s){ return String(s||"").toLowerCase().replace(/[^a-z0-9$ ]/g," ").replace(/\s+/g," ").trim(); }
+const SOMM_BY_Q = {};
+[].concat(SOMM_SHOPPING, SOMM_SERVICE).forEach(it=>{
+  (it.keys||[]).forEach(k=>{ const nk=normKey(k); if(nk && !(nk in SOMM_BY_Q)) SOMM_BY_Q[nk]=it; });
+});
 function sommRespond(text){
-  const t=" "+text.toLowerCase().replace(/[^a-z0-9$ ]/g," ").replace(/\s+/g," ").trim()+" ";
-  // Pass 1 — score every intent by its LONGEST whole-word matching keyword, so
-  // specific phrases (e.g. "update my delivery") beat short generic ones.
-  let best=null, bestLen=0;
-  for(const it of SOMM_INTENTS){
-    for(const k of it.keys){
-      if(t.includes(" "+k+" ") && k.length>bestLen){ bestLen=k.length; best=it; }
-    }
-  }
-  if(best)return best.reply();
-  // Pass 2 — token-overlap fallback. Generated chips (e.g. "Book a Fitting
-  // session") aren't guaranteed to phrase-match any intent's keys. Route by
-  // shared MEANINGFUL words, but weight rarer words higher so a match on a
-  // distinctive term ("fitting") beats an incidental one ("book"/"session")
-  // that appears across many intents — this is what caused "book a fitting
-  // session" to mis-route to a launch-monitor intent. Require a clear signal
-  // (a distinctive word must match), not just any single generic overlap.
-  const words=t.trim().split(" ").filter(w=>w && !SOMM_STOP.has(w));
-  if(words.length){
-    // Document frequency: how many intents' keys contain each query word.
-    const df={};
-    for(const w of words){ let n=0; for(const it of SOMM_INTENTS){ if((it.keys||[]).join(" ").toLowerCase().indexOf(w)>=0)n++; } df[w]=n; }
-    let bestScore=0, bestHadDistinct=false;
-    for(const it of SOMM_INTENTS){
-      const hay=(it.keys||[]).join(" ").toLowerCase();
-      let score=0, hadDistinct=false;
-      for(const w of words){
-        if(hay.indexOf(w)>=0){
-          // rarer word ⇒ higher weight; a word matching ≤2 intents is "distinctive"
-          const weight = df[w]<=1 ? 4 : df[w]<=2 ? 2 : 1;
-          score+=weight;
-          if(df[w]<=2) hadDistinct=true;
-        }
-      }
-      if(score>bestScore){ bestScore=score; best=it; bestHadDistinct=hadDistinct; }
-    }
-    // Only accept the match if it hinged on a distinctive word — otherwise the
-    // chip is genuinely unrelated and should fall through to the generic reply.
-    if(best && bestHadDistinct) return best.reply();
-  }
+  const it = SOMM_BY_Q[normKey(text)];
+  if(it) return it.reply();
+  // A chip whose q wasn't registered (shouldn't happen — the map is built from
+  // the same intents the chips point at) degrades to the generic opener rather
+  // than guessing. This is the only non-chip path now that free typing is gone.
   return `<p>${tpl("sommFallback","Great question! Tell me what you're after and I'll take care of it.")}</p>${quicks(GREET_CHIPS)}`;
 }
 
@@ -308,17 +296,27 @@ function sommTyping(){
   el.innerHTML=`<span class="m-ava"><i class="fa-solid fa-wand-magic-sparkles"></i></span><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
   log.appendChild(el); log.scrollTop=log.scrollHeight;
 }
-function sommRun(text){
-  if(!text||!text.trim())return;
-  sommBubble("user",esc(text.trim()));
+// `say` is what the user "typed" (shown in their bubble); `key` is the exact
+// intent key used to look up the deterministic reply. When only one is passed
+// (e.g. the opener greeting), it serves as both.
+function sommRun(say, key){
+  if(key==null) key=say;
+  if(!say||!String(say).trim())return;
+  sommBubble("user",esc(String(say).trim()));
   sommTyping();
   setTimeout(()=>{
     const t=document.getElementById("sommTyping"); if(t)t.remove();
-    sommBubble("ai",sommRespond(text));
+    sommBubble("ai",sommRespond(key));
   }, 900+Math.random()*500);
 }
-function sommSend(){ const i=document.getElementById("sommInput"); sommRun(i.value); i.value=""; }
-function sommQuick(el){ sommRun(typeof el==="string" ? el : el.getAttribute("data-q")); }
+// Scripted demo: the ONLY way to talk to the concierge is by clicking a chip,
+// each of which carries the exact `q` (data-q) that maps 1:1 to its reply and a
+// natural data-say for the chat bubble. (Free-text send was removed with the
+// intent matcher.)
+function sommQuick(el){
+  if(typeof el==="string"){ sommRun(el); return; }
+  sommRun(el.getAttribute("data-say")||el.getAttribute("data-q"), el.getAttribute("data-q"));
+}
 
 let sommGreeted=false;
 function openSomm(){

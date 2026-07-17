@@ -99,12 +99,15 @@
     { tone: "red",  title: "Limited-Time<br/>Specials", sub: "SHOP SPECIALS ›" },
     { tone: "gold", title: "Buy 2<br/>& Save", sub: "SHOP MULTI-BUY ›" },
   ];
+  // q values are VERBATIM built-in service keys (see cimulate/app.js
+  // buildServiceIntents) so each chip maps 1:1 to its service reply. `say` is
+  // the natural phrase shown in the user's chat bubble.
   const DEFAULT_SERVICE_CHIPS = [
-    { label: "📦 Track My Order",       q: "track my order" },
-    { label: "🚚 Delivery & Address",   q: "delivery status" },
-    { label: "🏬 Store Hours & Pickup", q: "my store hours and pickup" },
-    { label: "⭐ Rewards & Points",     q: "my loyalty rewards and points" },
-    { label: "↩️ Return or Refund",     q: "i want to return an item" },
+    { label: "📦 Track My Order",       q: "track my order", say: "Track my order" },
+    { label: "🚚 Delivery & Address",   q: "delivery",       say: "What's my delivery status?" },
+    { label: "🏬 Store Hours & Pickup", q: "store hours",    say: "My store hours and pickup" },
+    { label: "⭐ Rewards & Points",     q: "rewards",        say: "My loyalty rewards and points" },
+    { label: "↩️ Return or Refund",     q: "return",         say: "I want to return an item" },
   ];
   const DEFAULT_SERVICE_DATA = {
     order: "#ORD-48120", orderPlaced: "2 items", eta: "By 6:00 PM today",
@@ -332,68 +335,59 @@
     const unitNoun = pick(found.unitNoun, "item");
     const cp = function (key, dflt) { return pick(gc[key], dflt); };
 
-    // Reconcile concierge chips ↔ intents so every clickable chip does
-    // something on-point. A chip's `q` is matched against each intent's
-    // `keys[]` at runtime; Gemini generates chips and intents separately, so a
-    // chip (e.g. "Book a Fitting session") can point at an intent that doesn't
-    // exist and dead-end into the generic fallback. Guarantee coverage: for any
-    // chip `q` not covered by an existing intent's keys, add a catch-all intent
-    // keyed to that chip's meaningful words so it always routes to a reply.
+    // DETERMINISTIC concierge reconciliation (1:1, no fuzzy matching).
+    // The runtime maps each chip's `q` to a reply by EXACT intent-key lookup
+    // (cimulate/app.js SOMM_BY_Q). Gemini generates chips and intents
+    // separately, so a chip's `q` may not be a verbatim key of any intent —
+    // which at runtime would fall to the generic opener. Guarantee 1:1: for any
+    // chip `q` that is NOT already an intent key (shopping) or a built-in
+    // service key, append a dedicated intent whose FIRST key IS that exact `q`.
+    // No word-scoring, no catch-all keyed on partial words — the click resolves
+    // to precisely one reply.
     const somm = normSommIntents(found.sommIntents);
     const greet = arr(found.greetChips);
-    // Mirror cimulate/app.js SOMM_STOP: articles + generic CTA verbs/nouns that
-    // carry no intent signal, so coverage/keys never hinge on them.
-    const CHIP_STOP = { a:1, an:1, the:1, my:1, me:1, for:1, to:1, of:1, and:1, or:1, is:1, it:1, in:1, on:1, at:1, with:1, your:1, you:1, i:1, do:1, does:1, can:1, help:1, please:1, get:1, show:1, find:1, some:1, something:1, want:1, need:1, like:1, how:1, book:1, booking:1, reserve:1, reservation:1, schedule:1, appointment:1, session:1, set:1, up:1, today:1, now:1 };
-    const chipWords = function (q) {
-      return String(q || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(function (w) { return w && !CHIP_STOP[w]; });
-    };
-    // Document frequency of a word across all intents' keys — used to decide if
-    // an overlap is DISTINCTIVE (rare) vs. incidental (a generic word like
-    // "book"/"session" shared by many intents). Mirrors the runtime matcher in
-    // cimulate/app.js so "covered" here means the same thing it does at click.
-    const wordDf = function (w) {
-      let n = 0;
-      for (const it of somm) { if ((it.keys || []).join(" ").toLowerCase().indexOf(w) >= 0) n++; }
-      return n;
-    };
-    const coveredBy = function (q) {
-      const t = " " + String(q || "").toLowerCase().replace(/[^a-z0-9$ ]/g, " ").replace(/\s+/g, " ").trim() + " ";
-      const words = chipWords(q);
-      for (const it of somm) {
-        // Phrase match: an intent key appears verbatim in the chip query.
-        for (const k of (it.keys || [])) {
-          const kk = String(k || "").toLowerCase();
-          if (kk && t.indexOf(" " + kk + " ") >= 0) return true;
-        }
-      }
-      // Distinctive-word match: the chip shares a RARE word (in ≤2 intents) with
-      // some intent. A match on only generic words is NOT coverage — that chip
-      // gets its own catch-all so it can't mis-route (the launch-monitor bug).
-      for (const w of words) {
-        if (wordDf(w) === 0 || wordDf(w) > 2) continue;
-        for (const it of somm) { if ((it.keys || []).join(" ").toLowerCase().indexOf(w) >= 0) return true; }
-      }
-      return false;
-    };
+    const norm = function (s) { return String(s || "").toLowerCase().replace(/[^a-z0-9$ ]/g, " ").replace(/\s+/g, " ").trim(); };
+    // Built-in service-flow keys the runtime always provides (mirror of
+    // cimulate/app.js buildServiceIntents). A chip pointing at one of these is
+    // already covered and must NOT get a duplicate intent.
+    const SERVICE_KEYS = {};
+    [
+      "help me with something","service","customer service","support","i need help","account help",
+      "order status","track my order","where is my order","track order","order","shipment",
+      "delivery","deliver","track","shipment status","when will it arrive",
+      "update my delivery","update address","change address","change delivery","reroute",
+      "report a missing","missing item","damaged","broken",
+      "pickup","store hours","my store","curbside","store location","hours",
+      "hold an item","hold a","reserve","set aside","in stock","availability","do you have",
+      "loyalty","points","rewards","membership","perks","my account","account",
+      "apply my reward","apply reward","use my points","redeem",
+      "earn more points","double points","how do i earn",
+      "reserve a seat","class seat","book a class","reserve a class",
+      "return","refund","send it back","exchange",
+      "return my most recent","return a different","return order",
+      "hi","hello","hey","help","what can you",
+    ].forEach(function (k) { SERVICE_KEYS[norm(k)] = true; });
+    // Set of every key currently resolvable (shopping intents + service flows).
+    const keySet = {};
+    somm.forEach(function (it) { (it.keys || []).forEach(function (k) { keySet[norm(k)] = true; }); });
+    Object.keys(SERVICE_KEYS).forEach(function (k) { keySet[k] = true; });
+    const isCovered = function (q) { const nq = norm(q); return !!nq && !!keySet[nq]; };
+    // Collect every clickable chip q (greet + in-reply follow-ups).
     const allChipQs = [];
     greet.forEach(function (c) { if (c && c.q) allChipQs.push(c.q); });
     somm.forEach(function (it) { arr(it.chips).forEach(function (c) { if (c && c.q) allChipQs.push(c.q); }); });
     allChipQs.forEach(function (q) {
-      if (coveredBy(q)) return;
-      const words = chipWords(q);
-      if (!words.length) return;
-      // Key the catch-all on the full phrase (guarantees a phrase match for this
-      // exact chip) plus its rarest word (so a natural variant still routes here
-      // via the distinctive-word path). Avoid keying on every generic word,
-      // which would pollute df and let unrelated chips mis-route here.
-      const rarest = words.slice().sort(function (a, b) { return wordDf(a) - wordDf(b); })[0];
-      const keys = [String(q).toLowerCase().trim()];
-      if (rarest && keys.indexOf(rarest) < 0) keys.push(rarest);
+      if (isCovered(q)) return;
+      const nq = norm(q);
+      if (!nq) return;
+      // Add a dedicated intent whose FIRST (only) key is this exact chip q, so
+      // the runtime's exact-map lookup routes the click here 1:1.
       somm.push({
-        keys: keys,
-        text: "I can help with that. Tell me a bit more and I'll take care of it, or ask me to recommend something for you.",
+        keys: [nq],
+        text: "I can help with that. Here are a couple of picks to get you started — tell me more to refine.",
         recIds: products.slice(0, 2).map(function (p) { return p.id; }).filter(Boolean),
       });
+      keySet[nq] = true; // so a second chip with the same q doesn't add a duplicate
     });
 
     return {
