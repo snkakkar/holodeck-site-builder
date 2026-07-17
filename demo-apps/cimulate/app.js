@@ -215,11 +215,11 @@ function buildServiceIntents(){
           <div class="svc-row"><span>Placed</span><b>${esc(svc("orderPlaced"))}</b></div>
           <div class="svc-row"><span>Status</span><b class="svc-ok"><i class="fa-solid fa-truck-fast"></i> Out for delivery</b></div>
           <div class="svc-row"><span>ETA</span><b>${esc(svc("eta"))} · ${esc(tk.store)}</b></div></div>
-        <p>Anything you'd like to change on it?</p>${quicks([{label:"Change Delivery Address",q:"update my delivery address"},{label:"Report a Missing Item",q:"report a missing item"},{label:"More Service Options",q:"help me with something"}])}` },
+        <p>Anything you'd like to change on it?</p>${quicks([{label:"Change Delivery Address",q:"update my delivery",say:"Change my delivery address"},{label:"Report a Missing Item",q:"missing item",say:"Report a missing item"},{label:"More Service Options",q:"help me with something",say:"More service options"}])}` },
     { keys:["delivery","deliver","track","shipment status","when will it arrive"],
-      reply:()=>`<p>Your order <em>${esc(svc("order"))}</em> is <em>out for delivery</em>, arriving <b>${esc(svc("eta"))}</b>. Want to reroute it or leave a delivery note?</p>${quicks([{label:"Change Delivery Address",q:"update my delivery address"},{label:"Report a Missing Item",q:"report a missing item"}])}` },
+      reply:()=>`<p>Your order <em>${esc(svc("order"))}</em> is <em>out for delivery</em>, arriving <b>${esc(svc("eta"))}</b>. Want to reroute it or leave a delivery note?</p>${quicks([{label:"Change Delivery Address",q:"update my delivery",say:"Change my delivery address"},{label:"Report a Missing Item",q:"missing item",say:"Report a missing item"}])}` },
     { keys:["update my delivery","update address","change address","change delivery","reroute"],
-      reply:()=>`<p>Got it — I can reroute order <em>${esc(svc("order"))}</em>. It's still with the local driver, so a change is easy. Where should it go?</p>${quicks([{label:"To my Store for Pickup",q:"send it to my store for pickup"},{label:"Keep Home Delivery",q:"keep home delivery, thanks"}])}` },
+      reply:()=>`<p>Got it — I can reroute order <em>${esc(svc("order"))}</em>. It's still with the local driver, so a change is easy. Where should it go?</p>${quicks([{label:"To my Store for Pickup",q:"pickup",say:"Send it to my store for pickup"},{label:"Keep Home Delivery",q:"delivery",say:"Keep home delivery, thanks"}])}` },
     { keys:["report a missing","missing item","damaged","broken"],
       reply:()=>`<p>I'm sorry about that — I've opened a case on order <em>${esc(svc("order"))}</em> and, since you're a <em>${esc(tk.tier)}</em> member, pre-approved a replacement or refund. A specialist will confirm within a minute. Anything else?</p>` },
     { keys:["pickup","store hours","my store","curbside","store location","hours"],
@@ -227,24 +227,24 @@ function buildServiceIntents(){
         <div class="svc-card"><div class="svc-row"><span>Hours today</span><b>${esc(svc("hoursToday"))}</b></div>
           <div class="svc-row"><span>Curbside pickup</span><b class="svc-ok"><i class="fa-solid fa-circle-check"></i> Available · ${esc(svc("pickupEta"))}</b></div>
           ${rowStore}</div>
-        <p>Want me to set up a pickup order or hold an item for you?</p>${quicks([{label:"Hold an Item for Pickup",q:"hold an item at my store"},{label:"Shop for Something",q:"help me shop"}])}` },
+        <p>Want me to set up a pickup order or hold an item for you?</p>${quicks([{label:"Hold an Item for Pickup",q:"hold an item",say:"Hold an item at my store"},{label:"Shop for Something",q:"what can you",say:"Help me shop for something"}])}` },
     { keys:["hold an item","hold a","reserve","set aside","in stock","availability","do you have"],
-      reply:()=>`<p>Done — I can place a <em>same-day hold</em> at ${esc(tk.store)}. Tell me which item (or ask me to recommend one) and I'll reserve it under your ${esc(tk.tier)} account for pickup today.</p>${quicks([{label:"Recommend Something",q:"recommend something to hold"}])}` },
+      reply:()=>`<p>Done — I can place a <em>same-day hold</em> at ${esc(tk.store)}. Tell me which item (or ask me to recommend one) and I'll reserve it under your ${esc(tk.tier)} account for pickup today.</p>${quicks([{label:"Recommend Something",q:"what can you",say:"Recommend something to hold"}])}` },
     { keys:["loyalty","points","rewards","membership","perks","my account","account"],
       reply:()=>`<p>Here's your <em>${esc(tk.brand||"")} Rewards</em> snapshot, ${esc(tk.firstName)}:</p>
         <div class="svc-card"><div class="svc-row"><span>Tier</span><b>${esc(tk.tier)}</b></div>
           <div class="svc-row"><span>Points balance</span><b>${esc(svc("points"))}</b></div>
           <div class="svc-row"><span>Available reward</span><b class="svc-ok">${esc(svc("reward"))}</b></div>
           <div class="svc-row"><span>Home store</span><b>${esc(tk.store)}</b></div></div>
-        <p>Want me to apply your reward to your cart, or explain how to earn more points this month?</p>${quicks([{label:"Apply my Reward",q:"apply my reward to my cart"},{label:"How Do I Earn More Points?",q:"how do i earn more points"}])}` },
+        <p>Want me to apply your reward to your cart, or explain how to earn more points this month?</p>${quicks([{label:"Apply my Reward",q:"apply my reward",say:"Apply my reward to my cart"},{label:"How Do I Earn More Points?",q:"how do i earn",say:"How do I earn more points?"}])}` },
     { keys:["apply my reward","apply reward","use my points","redeem"],
       reply:()=>`<p>✅ Applied — your reward is now attached to your cart and will show at checkout. Anything else I can help with?</p>` },
     { keys:["earn more points","double points","how do i earn"],
-      reply:()=>`<p>Easy wins this month: ${esc(tk.tier)} members earn <em>2× points</em> on featured items and any in-store event. Want me to reserve a seat at the next one?</p>${quicks([{label:"Reserve a Seat",q:"reserve a seat for me"},{label:"Maybe Later",q:"maybe later, help me shop"}])}` },
+      reply:()=>`<p>Easy wins this month: ${esc(tk.tier)} members earn <em>2× points</em> on featured items and any in-store event. Want me to reserve a seat at the next one?</p>${quicks([{label:"Reserve a Seat",q:"reserve a seat",say:"Reserve a seat for me"},{label:"Maybe Later",q:"what can you",say:"Maybe later — help me shop"}])}` },
     { keys:["reserve a seat","class seat","book a class","reserve a class"],
       reply:()=>`<p>🎉 Reserved! You're confirmed. A confirmation is in your app, and you'll earn double points. See you there, ${esc(tk.firstName)}!</p>` },
     { keys:["return","refund","send it back","exchange"],
-      reply:()=>`<p>No problem — we accept returns on unopened items within 30 days. Since I can see your purchase history, I don't need a receipt. Return the most recent order (<em>${esc(svc("order"))}</em>)?</p>${quicks([{label:"Return "+svc("order"),q:"return my most recent order"},{label:"A Different Order",q:"return a different order"}])}` },
+      reply:()=>`<p>No problem — we accept returns on unopened items within 30 days. Since I can see your purchase history, I don't need a receipt. Return the most recent order (<em>${esc(svc("order"))}</em>)?</p>${quicks([{label:"Return "+svc("order"),q:"return my most recent",say:"Return my most recent order"},{label:"A Different Order",q:"return a different",say:"Return a different order"}])}` },
     { keys:["return my most recent","return a different","return order"],
       reply:()=>`<p>Got it — I've started the return on <em>${esc(svc("order"))}</em> and emailed you a prepaid label. Your refund of <em>${esc(svc("refundAmt"))}</em> will post within 3–5 days. Anything else I can take care of?</p>` },
     { keys:["hi","hello","hey","help","what can you"],
@@ -331,6 +331,15 @@ function openSomm(){
   }
 }
 function closeSomm(){ document.getElementById("sommPanel").classList.remove("open"); document.getElementById("sommFab").classList.remove("hidden"); }
+// Start a new thread WITHOUT losing history: append a fresh AI bubble with the
+// greet chips at the bottom of the log, so a user who has dug several chips deep
+// can branch to a different topic in one click while keeping the transcript.
+function sommReset(){
+  sommTyping();
+  setTimeout(()=>{ const t=document.getElementById("sommTyping"); if(t)t.remove();
+    sommBubble("ai",`<p>${tpl("sommReset","Sure — what else can I help you with?")}</p>${quicks(GREET_CHIPS)}`);
+  },500);
+}
 
 /* =====================================================================
    CIMULATE CONTEXTUAL SEARCH — deterministic, chip-driven (scripted demo)

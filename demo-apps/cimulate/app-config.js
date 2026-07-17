@@ -58,6 +58,7 @@ window.APP_CONFIG = {
     sommIntro: "Hi {firstName}! 👋 I'm {concierge}, your personal concierge. I already know a bit about your taste from your {tier} profile.<br/>What can I help you find today?",
     sommGreetShort: "Hi {firstName}! 👋 I'm {concierge}, your concierge. I can help you discover a {unit} or handle service needs. What can I do for you?",
     sommFallback: "Great question! Tell me what you're after and I'll take care of it.",
+    sommReset: "Sure, {firstName} — what else can I help you with?",
   },
 
   // ── CATEGORY NAV (top bar). Generic set; builder overrides per industry.

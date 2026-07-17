@@ -319,6 +319,9 @@ footer{background:var(--charcoal);color:#b7bbbd;margin-top:36px;padding:44px 0 2
 .somm-input button{background:var(--tw-teal);color:#fff;width:38px;height:38px;border-radius:50%;font-size:15px;flex-shrink:0}
 .somm-input button:hover{background:var(--tw-teal-dark)}
 .somm-disclaimer{text-align:center;font-size:10px;color:var(--ink-soft);margin-top:7px}
+/* Floating "start new chat" reset — bottom-right of the chat window, above the footer */
+.somm-newchat{position:absolute;right:14px;bottom:56px;z-index:2;display:inline-flex;align-items:center;gap:6px;background:#fff;color:var(--tw-teal);border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:11.5px;font-weight:700;font-family:inherit;box-shadow:var(--shadow-md,0 4px 14px rgba(0,0,0,.12));cursor:pointer;transition:.15s}
+.somm-newchat:hover{background:var(--tw-teal);color:#fff;border-color:var(--tw-teal)}
 
 /* =====================================================================
    CIMULATE SEARCH RESULTS — FULL PAGE (nike.com-style)
