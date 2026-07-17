@@ -29,7 +29,7 @@
 <header class="header">
   <div class="wrap">
     <a href="#" class="logo" onclick="closeSearch();closeCart();return false" aria-label="Home">
-      <span class="l-top">Total Wine</span>
+      <span class="l-top">Store</span>
       <span class="l-sub">&amp; MORE</span>
     </a>
 
@@ -66,17 +66,13 @@
 <!-- ================= CATEGORY NAV ================= -->
 <nav class="catnav">
   <div class="wrap">
-    <a href="#featured">Wine <i class="fa-solid fa-chevron-down"></i></a>
-    <a href="#featured">Spirits <i class="fa-solid fa-chevron-down"></i></a>
-    <a href="#featured">Ready to Drink <i class="fa-solid fa-chevron-down"></i></a>
-    <a href="#featured">Beer <i class="fa-solid fa-chevron-down"></i></a>
-    <a href="#featured">THC-Infused <i class="fa-solid fa-chevron-down"></i></a>
-    <a href="#featured">Non-Alcoholic <i class="fa-solid fa-chevron-down"></i></a>
-    <a href="#featured">Mixers &amp; Essentials <i class="fa-solid fa-chevron-down"></i></a>
-    <a href="#featured">New</a>
+    <a href="#featured">Featured <i class="fa-solid fa-chevron-down"></i></a>
+    <a href="#featured">Best Sellers <i class="fa-solid fa-chevron-down"></i></a>
+    <a href="#featured">New Arrivals <i class="fa-solid fa-chevron-down"></i></a>
+    <a href="#featured">Categories <i class="fa-solid fa-chevron-down"></i></a>
+    <a href="#featured">Accessories <i class="fa-solid fa-chevron-down"></i></a>
     <a href="#featured">Gifts &amp; Hosting <i class="fa-solid fa-chevron-down"></i></a>
-    <a href="#featured">Classes <i class="fa-solid fa-chevron-down"></i></a>
-    <a href="#" onclick="return false">The Cup</a>
+    <a href="#featured">New</a>
     <a href="#" class="deal" onclick="return false">Deals</a>
   </div>
 </nav>
@@ -123,7 +119,7 @@
   <div class="wrap">
     <div class="hero-copy">
       <span class="hero-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i> <span id="hero-eyebrow-txt">Personalized for you</span></span>
-      <h1 id="hero-headline">Find your next favorite <em>bottle</em></h1>
+      <h1 id="hero-headline">Find your next favorite <em>item</em></h1>
       <p id="hero-sub">Search by taste, occasion or intent — Cimulate reads what you mean and ranks against your unified profile.</p>
       <div class="hero-cta">
         <a href="#featured" class="btn btn-gold"><i class="fa-solid fa-bag-shopping"></i> <span id="hero-shop-cta">Shop recommended</span></a>
@@ -166,7 +162,7 @@
     <div class="promo-tiles">
       <div class="promo-tile teal"><b>Deals!<br/>Just For You</b><small>VIEW ALL DEALS &rsaquo;</small></div>
       <div class="promo-tile red"><b>Limited-Time<br/>Specials</b><small>SHOP JULY SPECIALS &rsaquo;</small></div>
-      <div class="promo-tile gold"><b>Buy 2<br/>&amp; Save</b><small>SHOP MULTI-BOTTLE SPECIALS &rsaquo;</small></div>
+      <div class="promo-tile gold"><b>Buy 2<br/>&amp; Save</b><small>SHOP MULTI-BUY SPECIALS &rsaquo;</small></div>
     </div>
   </div>
 </section>
@@ -197,7 +193,7 @@
     <div class="section-head">
       <div>
         <h2><span class="rule" id="featured-heading">Recommended for you, Lauren</span></h2>
-        <p style="margin-top:10px" id="featured-sub">Handpicked across wine, spirits &amp; beer — ranked by your unified profile.</p>
+        <p style="margin-top:10px" id="featured-sub">Handpicked for you — ranked by your unified profile.</p>
       </div>
       <a href="#" class="see-all" onclick="return false">See all &rarr;</a>
     </div>
@@ -227,8 +223,8 @@
   <div class="wrap">
     <div class="foot-grid">
       <div class="foot-brand">
-        <div class="logo"><span class="l-top">Total Wine</span><span class="l-sub">&amp; MORE</span></div>
-        <p id="footer-blurb">America's Wine Superstore® — the country's largest independent retailer of fine wine, spirits &amp; beer.</p>
+        <div class="logo"><span class="l-top">Store</span><span class="l-sub">&amp; MORE</span></div>
+        <p id="footer-blurb">Personalized shopping, powered by your unified profile.</p>
         <div class="foot-social">
           <a href="#" onclick="return false"><i class="fa-brands fa-facebook-f"></i></a>
           <a href="#" onclick="return false"><i class="fa-brands fa-instagram"></i></a>
@@ -248,28 +244,28 @@
 </footer>
 
 <!-- ================= SOMM FAB ================= -->
-<button class="somm-fab" id="sommFab" onclick="openSomm()">
-  <span class="somm-ava"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
-  <span class="somm-fab-txt"><b id="somm-fab-name">Chat with Somm</b><small>Your wine &amp; spirits concierge</small></span>
+<button class="concierge-fab" id="sommFab" onclick="openSomm()">
+  <span class="concierge-ava"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+  <span class="concierge-fab-txt"><b id="concierge-fab-name">Chat with your concierge</b><small id="concierge-fab-sub">Your personal shopping concierge</small></span>
   <span class="fab-badge">1</span>
 </button>
 
 <!-- ================= SOMM PANEL ================= -->
-<div class="somm-panel" id="sommPanel">
-  <div class="somm-head">
-    <span class="somm-ava"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+<div class="concierge-panel" id="sommPanel">
+  <div class="concierge-head">
+    <span class="concierge-ava"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
     <div>
-      <div class="sh-name"><span class="live"></span> <span id="somm-head-name">Somm</span></div>
-      <div class="sh-sub" id="somm-head-sub">Total Wine Concierge · knows your taste</div>
+      <div class="sh-name"><span class="live"></span> <span id="concierge-head-name">Concierge</span></div>
+      <div class="sh-sub" id="concierge-head-sub">Personal Concierge · knows your taste</div>
     </div>
     <button class="sh-close" onclick="closeSomm()"><i class="fa-solid fa-xmark"></i></button>
   </div>
-  <div class="somm-log" id="sommLog"></div>
-  <button class="somm-newchat" id="sommNewChat" onclick="sommReset()" title="Start a new chat" aria-label="Start a new chat"><i class="fa-solid fa-rotate-right"></i> New chat</button>
-  <div class="somm-foot">
+  <div class="concierge-log" id="sommLog"></div>
+  <button class="concierge-newchat" id="sommNewChat" onclick="sommReset()" title="Start a new chat" aria-label="Start a new chat"><i class="fa-solid fa-rotate-right"></i> New chat</button>
+  <div class="concierge-foot">
     <!-- Scripted demo: the concierge is chip-driven only (no free typing). Each
          reply surfaces its own follow-up chips; every chip maps 1:1 to a reply. -->
-    <div class="somm-disclaimer" id="somm-disclaimer">Somm is grounded on your Data 360 unified profile · Demo</div>
+    <div class="concierge-disclaimer" id="concierge-disclaimer">Somm is grounded on your Data 360 unified profile · Demo</div>
   </div>
 </div>
 

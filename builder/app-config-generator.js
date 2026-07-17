@@ -85,11 +85,11 @@
   // Deterministic bottle/product cosmetic colors so procedural SVGs vary
   // without Gemini. Indexed round-robin over the catalog.
   const CAPSULES = [
-    { capsuleColor: "#3a0d12", capsuleShine: "#6b1f2a", glassColor: "#2a0a10" },
-    { capsuleColor: "#0a5d54", capsuleShine: "#12857a", glassColor: "#3f5f2a" },
-    { capsuleColor: "#b8975a", capsuleShine: "#e4cf95", glassColor: "#2f5f2a" },
-    { capsuleColor: "#3a2a10", capsuleShine: "#6b4f1f", glassColor: "#5a2f0a" },
-    { capsuleColor: "#4a1018", capsuleShine: "#8b2535", glassColor: "#2a0a10" },
+    { capColor: "#3a0d12", capShine: "#6b1f2a", bodyColor: "#2a0a10" },
+    { capColor: "#0a5d54", capShine: "#12857a", bodyColor: "#3f5f2a" },
+    { capColor: "#b8975a", capShine: "#e4cf95", bodyColor: "#2f5f2a" },
+    { capColor: "#3a2a10", capShine: "#6b4f1f", bodyColor: "#5a2f0a" },
+    { capColor: "#4a1018", capShine: "#8b2535", bodyColor: "#2a0a10" },
   ];
   function capsuleFor(i) { return CAPSULES[i % CAPSULES.length]; }
 
@@ -446,6 +446,7 @@
         sommIntro: cp("sommIntro", "Hi {firstName}! 👋 I'm {concierge}, your personal concierge. I already know a bit about your taste from your {tier} profile.<br/>What can I help you find today?"),
         sommGreetShort: cp("sommGreetShort", "Hi {firstName}! 👋 I'm {concierge}, your concierge. I can help you discover a {unit} or handle service needs. What can I do for you?"),
         sommFallback: cp("sommFallback", "Great question! Tell me what you're after and I'll take care of it."),
+        sommReset: cp("sommReset", "Sure, {firstName} — what else can I help you with?"),
       },
       // ── HOMEPAGE SECTIONS — headings drive each rail; circles/ids optional. ──
       sections: found.sections || {
@@ -493,9 +494,9 @@
     const c = (brand && brand.colors) || {};
     if (c.primary || c.accent) {
       return {
-        capsuleColor: c.primary || c.accent || capsuleFor(i).capsuleColor,
-        capsuleShine: c.primaryLt || c.accentLt || c.accent || capsuleFor(i).capsuleShine,
-        glassColor: c.accent || c.primaryDk || capsuleFor(i).glassColor,
+        capColor: c.primary || c.accent || capsuleFor(i).capColor,
+        capShine: c.primaryLt || c.accentLt || c.accent || capsuleFor(i).capShine,
+        bodyColor: c.accent || c.primaryDk || capsuleFor(i).bodyColor,
       };
     }
     return capsuleFor(i);
@@ -519,9 +520,9 @@
         tastingNotes: pick(p.tastingNotes, p.notes || p.description || ""),
         story: pick(p.story, ""),
         foodPairings: arr(p.foodPairings).length ? p.foodPairings : arr(p.pairings),
-        capsuleColor: pick(p.capsuleColor, cap.capsuleColor),
-        capsuleShine: pick(p.capsuleShine, cap.capsuleShine),
-        glassColor: pick(p.glassColor, cap.glassColor),
+        capColor: pick(p.capColor, cap.capColor),
+        capShine: pick(p.capShine, cap.capShine),
+        bodyColor: pick(p.bodyColor, cap.bodyColor),
         labelSub: pick(p.labelSub, p.region || ""),
         stock: p.stock || { sanDiego: 6, modesto: 6, total: 12 },
       };
@@ -540,15 +541,25 @@
     const prods = arr(products);
     const validId = {};
     prods.forEach(function (p) { if (p && p.id) validId[p.id] = true; });
-    // Pad a chip's resultIds up to 3 with catalog products not already used by
-    // that chip, preferring same-category items so the pinned set stays on-topic.
+    // Cross-chip dedup: track every id already pinned by an earlier chip so no
+    // two chips show the SAME product. Gemini's own resultIds are honored first
+    // (a chip keeps the valid ids it was given, even if shared — the demo may
+    // intentionally repeat a hero SKU); padding then fills only from not-yet-used
+    // products so each chip's trio is as distinct as the catalog allows.
+    const usedGlobal = {};
+    // Pad a chip's resultIds up to 3, preferring same-category items so the
+    // pinned set stays on-topic, and avoiding products already used by any chip.
     function padTo3(ids, preferCat) {
       const out = ids.filter(function (id) { return validId[id]; });
-      const used = {}; out.forEach(function (id) { used[id] = true; });
-      if (preferCat) {
-        prods.forEach(function (p) { if (out.length < 3 && p.id && !used[p.id] && p.cat === preferCat) { out.push(p.id); used[p.id] = true; } });
-      }
-      prods.forEach(function (p) { if (out.length < 3 && p.id && !used[p.id]) { out.push(p.id); used[p.id] = true; } });
+      const used = {}; out.forEach(function (id) { used[id] = true; usedGlobal[id] = true; });
+      const take = function (p) { out.push(p.id); used[p.id] = true; usedGlobal[p.id] = true; };
+      // Pass 1: same category, not used anywhere.
+      if (preferCat) prods.forEach(function (p) { if (out.length < 3 && p.id && !used[p.id] && !usedGlobal[p.id] && p.cat === preferCat) take(p); });
+      // Pass 2: any product not used anywhere.
+      prods.forEach(function (p) { if (out.length < 3 && p.id && !used[p.id] && !usedGlobal[p.id]) take(p); });
+      // Pass 3 (only if the catalog is too small): allow reuse to still hit 3.
+      if (preferCat) prods.forEach(function (p) { if (out.length < 3 && p.id && !used[p.id] && p.cat === preferCat) take(p); });
+      prods.forEach(function (p) { if (out.length < 3 && p.id && !used[p.id]) take(p); });
       return out.slice(0, 3);
     }
     let chips = arr(raw).map(function (c) {
@@ -645,9 +656,9 @@
         pairings: arr(p.pairings).length ? p.pairings : arr(p.foodPairings),
         flavors: arr(p.flavors),
         abv: pick(p.abv, ""),
-        capsuleColor: pick(p.capsuleColor, cap.capsuleColor),
-        capsuleShine: pick(p.capsuleShine, cap.capsuleShine),
-        glassColor: pick(p.glassColor, cap.glassColor),
+        capColor: pick(p.capColor, cap.capColor),
+        capShine: pick(p.capShine, cap.capShine),
+        bodyColor: pick(p.bodyColor, cap.bodyColor),
       };
     });
   }

@@ -27,10 +27,10 @@ const AF = (() => {
       <div class="rec-card" style="margin-top:8px;max-width:280px">
         <div class="ph" style="height:150px">${productImage(p, 70, 150)}</div>
         <div class="body">
-          <div class="wine-region" style="font-size:9px">${esc(p.region || "")}</div>
-          <div class="wine-name" style="font-size:16px;margin-top:3px">${esc(p.name)} <span class="wine-vintage">${esc(p.vintage || "")}</span></div>
+          <div class="product-region" style="font-size:9px">${esc(p.region || "")}</div>
+          <div class="product-name" style="font-size:16px;margin-top:3px">${esc(p.name)} <span class="product-vintage">${esc(p.vintage || "")}</span></div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
-            <span class="wine-price" style="font-size:18px">${money(p.price)}</span>
+            <span class="product-price" style="font-size:18px">${money(p.price)}</span>
             <span class="score-badge"><span class="num">${p.score}</span> ${esc(p.scoreSource || "")}</span>
           </div>
           ${ctaLabel ? `<button class="btn btn-primary btn-sm btn-block" style="margin-top:10px" onclick="${ctaAction}">${esc(ctaLabel)}</button>` : ""}
@@ -104,7 +104,7 @@ const AF = (() => {
       reply: () => {
         const p = feat();
         return `Tonight's feature — the <strong class="teal">${esc(p.name)} ${esc(p.vintage || "")}</strong>:
-        <div class="wine-notes" style="margin-top:8px">${esc(p.tastingNotes || "")}</div>
+        <div class="product-notes" style="margin-top:8px">${esc(p.tastingNotes || "")}</div>
         ${p.story ? `<div style="font-style:italic;font-size:12.5px;color:var(--warm-gray);margin-top:6px">${esc(p.story)}</div>` : ""}
         ${pairChips(p)}
         ${productCardHTML(p, "Open full product page", "openProduct('" + p.id + "')")}`;

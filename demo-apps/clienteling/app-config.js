@@ -97,7 +97,7 @@ window.APP_CONFIG = {
       story:
         "From a walled vineyard in the heart of Pessac-Léognan, Château Les Carmes Haut-Brion blends Cabernet Franc, Merlot, and Cabernet Sauvignon into a wine of rare finesse. The 2019 is a standout vintage — perfumed, layered, and built to age for two decades. It's the wine Marie has been waiting on for Alan.",
       foodPairings: ["Aged gouda", "Roast lamb", "Mushroom risotto", "Dark chocolate"],
-      capsuleColor: "#4a1018", capsuleShine: "#8b2535", glassColor: "#2a0a10", labelSub: "Pessac-Léognan",
+      capColor: "#4a1018", capShine: "#8b2535", bodyColor: "#2a0a10", labelSub: "Pessac-Léognan",
       stock: { sanDiego: 3, modesto: 6, total: 9 },
     },
     {
@@ -116,7 +116,7 @@ window.APP_CONFIG = {
       story:
         "Caymus is Napa royalty — the Wagner family's flagship Cabernet, rich and opulent vintage after vintage. A reliable favorite for Grand Reserve members who love a bold, generous red.",
       foodPairings: ["Ribeye steak", "Braised short rib", "Aged cheddar"],
-      capsuleColor: "#3a0d12", capsuleShine: "#6b1f2a", glassColor: "#2a0a10", labelSub: "Napa Valley",
+      capColor: "#3a0d12", capShine: "#6b1f2a", bodyColor: "#2a0a10", labelSub: "Napa Valley",
       stock: { sanDiego: 12, modesto: 9, total: 21 },
     },
     {
@@ -135,7 +135,7 @@ window.APP_CONFIG = {
       story:
         "Sourced from three cool-climate coastal counties, Meiomi is a benchmark California Pinot — soft, fruit-forward, and endlessly versatile at the table.",
       foodPairings: ["Grilled salmon", "Roast chicken", "Charcuterie"],
-      capsuleColor: "#4a1018", capsuleShine: "#8b2535", glassColor: "#3a0d12", labelSub: "California",
+      capColor: "#4a1018", capShine: "#8b2535", bodyColor: "#3a0d12", labelSub: "California",
       stock: { sanDiego: 22, modesto: 18, total: 40 },
     },
     {
@@ -154,7 +154,7 @@ window.APP_CONFIG = {
       story:
         "A California classic — Cakebread's Chardonnay balances rich fruit with bright acidity, exactly the kind of aged-style white Alan gravitates toward.",
       foodPairings: ["Lobster", "Roast chicken", "Brie", "Creamy pasta"],
-      capsuleColor: "#0a5d54", capsuleShine: "#12857a", glassColor: "#3f5f2a", labelSub: "Napa Valley",
+      capColor: "#0a5d54", capShine: "#12857a", bodyColor: "#3f5f2a", labelSub: "Napa Valley",
       stock: { sanDiego: 8, modesto: 5, total: 13 },
     },
     {
@@ -173,7 +173,7 @@ window.APP_CONFIG = {
       story:
         "The iconic yellow label — a benchmark non-vintage Champagne with the depth and consistency that made the house famous. A go-to gift for a Grand Reserve member.",
       foodPairings: ["Oysters", "Fried chicken", "Aged comté", "Sushi"],
-      capsuleColor: "#b8975a", capsuleShine: "#e4cf95", glassColor: "#2f5f2a", labelSub: "Champagne",
+      capColor: "#b8975a", capShine: "#e4cf95", bodyColor: "#2f5f2a", labelSub: "Champagne",
       stock: { sanDiego: 15, modesto: 11, total: 26 },
     },
     {
@@ -192,7 +192,7 @@ window.APP_CONFIG = {
       story:
         "The Macallan 18 is a benchmark sherried single malt — deep, spiced, and luxurious. A natural cross-sell for a high-tier member who appreciates aged spirits.",
       foodPairings: ["Dark chocolate", "Aged cheese", "Dried figs"],
-      capsuleColor: "#3a2a10", capsuleShine: "#6b4f1f", glassColor: "#5a2f0a", labelSub: "Speyside",
+      capColor: "#3a2a10", capShine: "#6b4f1f", bodyColor: "#5a2f0a", labelSub: "Speyside",
       stock: { sanDiego: 2, modesto: 4, total: 6 },
     },
   ],
@@ -414,9 +414,9 @@ window.getProductSVG = function (p, w = 80, h = 220) {
   const colors = (window.APP_CONFIG.brand && window.APP_CONFIG.brand.colors) || {};
   // Prefer per-product swatch (generator sets these to brand colors), then
   // brand palette, then a neutral slate — never a wine-bottle default.
-  const primary = p.capsuleColor || colors.primary || "#334155";
-  const shine = p.capsuleShine || colors.primaryLt || colors.accent || "#64748b";
-  const accent = p.glassColor || colors.accent || "#94a3b8";
+  const primary = p.capColor || colors.primary || "#334155";
+  const shine = p.capShine || colors.primaryLt || colors.accent || "#64748b";
+  const accent = p.bodyColor || colors.accent || "#94a3b8";
   const attr = p.variety || p.type || p.cat || p.category || "";
   const origin = p.labelSub || (p.region || "").split(",")[0] || "";
   const meta = p.vintage || "";

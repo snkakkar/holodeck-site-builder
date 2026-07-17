@@ -155,7 +155,7 @@ function renderDashboard() {
     </div>
 
     <div class="card card-pad brushed" style="margin-bottom:18px;display:flex;gap:20px;align-items:center;flex-wrap:wrap">
-      <div class="bottle-frame" style="width:80px;height:150px">${productImage(feat, 62, 140)}</div>
+      <div class="product-frame" style="width:80px;height:150px">${productImage(feat, 62, 140)}</div>
       <div style="flex:1;min-width:220px">
         <div class="eyebrow">Tonight at ${esc(APP_CONFIG.store.name)}</div>
         <h3 class="serif silver-text" style="margin:4px 0 0;font-size:23px">${esc(APP_CONFIG.event.name)}</h3>
@@ -441,13 +441,13 @@ function renderProfile() {
         <div class="eyebrow" style="margin-bottom:10px">Einstein AI &middot; Next Best Action</div>
         <div class="card teal-border" style="overflow:hidden;margin-bottom:18px;cursor:pointer" onclick="openProduct('${feat.id}')">
           <div class="brushed" style="display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:22px">
-            <div class="bottle-frame" style="width:110px;height:180px">${productImage(feat, 80, 170)}</div>
+            <div class="product-frame" style="width:110px;height:180px">${productImage(feat, 80, 170)}</div>
             <div style="flex:1;min-width:200px">
               <div class="eyebrow">${esc(feat.badge || "")}</div>
               <h3 class="serif silver-text" style="margin:4px 0 0;font-size:23px">${esc(feat.name)}</h3>
-              <div class="wine-region" style="margin-top:4px">${esc([feat.region, feat.vintage].filter(Boolean).join(" · "))}</div>
-              <div class="wine-notes">${esc(feat.tastingNotes || "")}</div>
-              <div style="display:flex;align-items:center;gap:12px;margin-top:6px"><span class="wine-price">${money(feat.price)}</span><span class="score-badge"><span class="num">${feat.score}</span> ${esc(feat.scoreSource || "")}</span></div>
+              <div class="product-region" style="margin-top:4px">${esc([feat.region, feat.vintage].filter(Boolean).join(" · "))}</div>
+              <div class="product-notes">${esc(feat.tastingNotes || "")}</div>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:6px"><span class="product-price">${money(feat.price)}</span><span class="score-badge"><span class="num">${feat.score}</span> ${esc(feat.scoreSource || "")}</span></div>
               <div class="dim" style="font-size:12px;margin-top:8px;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:9999px;background:var(--teal);display:inline-block"></span> ${(feat.stock && feat.stock.modesto) || 0} ${esc(unitNoun())} at their home store (${esc(mgrStore)})</div>
               <button class="btn btn-ghost-teal btn-sm" style="margin-top:12px" onclick="event.stopPropagation();openModal('fulfillment')">Hold ${esc(unitNoun())} for ${esc(tokens().firstName)} &rarr;</button>
             </div>
@@ -512,12 +512,12 @@ function renderEvent() {
         <div class="card card-pad" style="margin-bottom:18px">
           <div class="eyebrow" style="margin-bottom:12px">${esc(tpl("featurePourLabel", "Tonight's Featured Item"))}</div>
           <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
-            <div class="bottle-frame" style="width:100px;height:180px">${productImage(feat, 76, 170)}</div>
+            <div class="product-frame" style="width:100px;height:180px">${productImage(feat, 76, 170)}</div>
             <div style="flex:1;min-width:200px">
-              <div class="wine-region">${esc([feat.region, feat.vintage].filter(Boolean).join(" · "))}</div>
+              <div class="product-region">${esc([feat.region, feat.vintage].filter(Boolean).join(" · "))}</div>
               <h3 class="serif silver-text" style="margin:2px 0 0;font-size:22px">${esc(feat.name)}</h3>
-              <div style="display:flex;align-items:center;gap:12px;margin-top:8px"><span class="wine-price">${money(feat.price)}</span><span class="score-badge"><span class="num">${feat.score}</span> ${esc(feat.scoreSource || "")}</span></div>
-              <div class="wine-notes">${esc(feat.tastingNotes || "")}</div>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:8px"><span class="product-price">${money(feat.price)}</span><span class="score-badge"><span class="num">${feat.score}</span> ${esc(feat.scoreSource || "")}</span></div>
+              <div class="product-notes">${esc(feat.tastingNotes || "")}</div>
               <div class="pairing-row">${(feat.foodPairings || []).map((f) => `<span class="pairing-chip">${esc(f)}</span>`).join("")}</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
                 <button class="btn btn-primary btn-sm" onclick="openModal('fulfillment')">Hold ${esc(unitNoun())} for a guest</button>
@@ -571,10 +571,10 @@ function renderInventory() {
       <div class="rec-card ${p.featured ? "teal-border" : ""}" style="cursor:pointer" onclick="openProduct('${p.id}')">
         <div class="ph">${productImage(p, 66, 130)}</div>
         <div class="body">
-          <div class="wine-region" style="font-size:9px">${esc(p.region || "")}</div>
+          <div class="product-region" style="font-size:9px">${esc(p.region || "")}</div>
           <div style="color:var(--charcoal);font-weight:500;font-size:13.5px;margin-top:4px">${esc(p.name)} <span class="dim">${esc(p.vintage || "")}</span></div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
-            <span class="wine-price" style="font-size:18px">${money(p.price)}</span>
+            <span class="product-price" style="font-size:18px">${money(p.price)}</span>
             <span class="score-badge" style="padding:3px 7px"><span class="num" style="font-size:13px">${p.score}</span></span>
           </div>
           <div style="display:flex;align-items:center;gap:7px;margin-top:10px;font-size:12px">
@@ -606,9 +606,9 @@ function renderInventory() {
     <div class="card card-pad teal-border" style="margin-bottom:18px">
       <div class="eyebrow" style="margin-bottom:12px">Guest asked about tonight's feature &mdash; real-time lookup</div>
       <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
-        <div class="bottle-frame" style="width:90px;height:160px">${productImage(feat, 70, 150)}</div>
+        <div class="product-frame" style="width:90px;height:160px">${productImage(feat, 70, 150)}</div>
         <div style="flex:1;min-width:240px">
-          <div class="wine-region">${esc([feat.region, feat.vintage].filter(Boolean).join(" · "))}</div>
+          <div class="product-region">${esc([feat.region, feat.vintage].filter(Boolean).join(" · "))}</div>
           <h3 class="serif silver-text" style="margin:2px 0 8px;font-size:21px">${esc(feat.name)}</h3>
           <div class="store-row">
             <span style="font-size:13px;color:var(--charcoal)"><span class="stock-dot" style="background:var(--gold);margin-right:8px"></span>${esc(hereStore)} (here)</span>
@@ -1003,14 +1003,14 @@ function openProduct(id) {
     <div class="pd-grid">
       <div>
         <div class="pd-img">${productImage(p, 120, 260)}</div>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:12px"><span class="wine-price" style="font-size:26px">${money(p.price)}</span><span class="score-badge"><span class="num">${p.score}</span> ${esc(p.scoreSource || "")}</span></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:12px"><span class="product-price" style="font-size:26px">${money(p.price)}</span><span class="score-badge"><span class="num">${p.score}</span> ${esc(p.scoreSource || "")}</span></div>
         <div class="store-row" style="margin-top:10px"><span style="font-size:12.5px;color:var(--charcoal)"><span class="stock-dot" style="background:${level};margin-right:8px"></span>${esc(APP_CONFIG.store.name)}</span><strong style="color:var(--charcoal)">${p.stock.sanDiego}</strong></div>
         <div class="store-row"><span style="font-size:12.5px;color:var(--charcoal)"><span class="stock-dot" style="background:var(--green);margin-right:8px"></span>${esc(home)} <span class="home-tag">HOME</span></span><strong class="teal">${p.stock.modesto}</strong></div>
       </div>
       <div>
-        <div class="wine-region">${esc([p.region, p.appellation].filter(Boolean).join(" · "))}</div>
-        <h3 class="serif silver-text" style="margin:4px 0 0;font-size:24px">${esc(p.name)} <span class="wine-vintage">${esc(p.vintage || "")}</span></h3>
-        <div class="wine-notes" style="margin-top:12px">${esc(p.tastingNotes || "")}</div>
+        <div class="product-region">${esc([p.region, p.appellation].filter(Boolean).join(" · "))}</div>
+        <h3 class="serif silver-text" style="margin:4px 0 0;font-size:24px">${esc(p.name)} <span class="product-vintage">${esc(p.vintage || "")}</span></h3>
+        <div class="product-notes" style="margin-top:12px">${esc(p.tastingNotes || "")}</div>
         ${p.story ? `<p style="font-size:13px;color:var(--charcoal);line-height:1.65;margin:10px 0 0;font-style:italic">${esc(p.story)}</p>` : ""}
         ${(p.foodPairings && p.foodPairings.length) ? `<div class="eyebrow" style="margin:16px 0 6px">Pairs with</div>
         <div class="pairing-row">${p.foodPairings.map((f) => `<span class="pairing-chip">${esc(f)}</span>`).join("")}</div>` : ""}
@@ -1034,7 +1034,7 @@ function tellStory(id) {
     setTimeout(() => {
       const ti = document.getElementById("typingIndicator");
       if (ti) ti.remove();
-      AF.bubble("ai", '<strong class="teal">' + esc(p.name + " " + (p.vintage || "")) + '</strong><div class="wine-notes" style="margin-top:6px">' + esc(p.tastingNotes || "") + '</div>' + (p.story ? '<div style="margin-top:6px;font-style:italic;font-size:12.5px">' + esc(p.story) + "</div>" : "") + AF.productCardHTML(p, "View details", "openProduct('" + p.id + "')"));
+      AF.bubble("ai", '<strong class="teal">' + esc(p.name + " " + (p.vintage || "")) + '</strong><div class="product-notes" style="margin-top:6px">' + esc(p.tastingNotes || "") + '</div>' + (p.story ? '<div style="margin-top:6px;font-style:italic;font-size:12.5px">' + esc(p.story) + "</div>" : "") + AF.productCardHTML(p, "View details", "openProduct('" + p.id + "')"));
     }, 700);
   }, 320);
 }

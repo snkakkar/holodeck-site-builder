@@ -79,9 +79,9 @@
       '  "walkIns": [{ "id","name","tag","tier","headline","detail","cta" }],',
       '  "tasks": [{ "text","due","priority":"high|med|low" }],',
       '  "coach": { "<walkInId>": { "badge","title","starters":[string],"nba" } },  // starters = quick-prompt chips the associate can tap',
-      '  "catalog": [{ "id","name","cat","variety","region","price"(number),"score"(number),"scoreSource","badge","tastingNotes","story","foodPairings":[string] }]  // 6 realistic on-brand products. "cat"=category; reuse variety/region/tastingNotes/foodPairings as generic attribute/origin/description/complements for non-wine categories.',
+      '  "catalog": [{ "id","name","cat","variety","region","price"(number),"score"(number),"scoreSource","badge","tastingNotes","story","foodPairings":[string] }]  // EXACTLY 12 realistic on-brand products. Use STABLE ids "sku1".."sku12" IN ORDER (sku1 is the flagship/featured item). "cat"=category across 2-3 categories; reuse variety/region/tastingNotes/foodPairings as generic attribute/origin/description/complements for non-wine categories.',
       "}",
-      "Make the catalog products genuinely appropriate for " + cx.customerName + " (real-sounding SKUs in their category). 6 products. Keep copy concise and sales-floor realistic.",
+      "SHARED CATALOG CONTRACT: this customer\'s other app (an e-commerce storefront) uses the SAME 12-SKU catalog with the SAME ids sku1..sku12 — so \"sku3\" is the SAME physical product in both apps. Make the catalog genuinely appropriate for " + cx.customerName + " (real-sounding SKUs in their category), EXACTLY 12 products with ids sku1..sku12, sku1 = the flagship. Keep copy concise and sales-floor realistic.",
     ].filter(Boolean).join("\n");
   }
 
@@ -109,13 +109,13 @@
       '  "sectionHeadings": { "featured": string, "curated": string, "trending": string, "specials": string, "topCat": string, "savings": string },  // homepage rail titles in the customer\'s voice',
       '  "copy": { "heroEyebrow": string, "heroSub": string, "heroShopCta": string, "heroAskCta": string, "featuredHeading": string, "featuredSub": string, "profileGreeting": string, "profileTierTag": string, "searchHintLabel": string, "curatedSub": string, "sommIntro": string, "utilityFulfill": string },  // customer-voiced UI copy. You MAY use these {token} placeholders and they will be substituted: {firstName} {tier} {concierge} {searchProduct} {unit} {store} {brand}. Do NOT invent other tokens.',
       '  "profile": { "name","tier","interests":[string] },',
-      '  "catalog": [{ "id","cat","name","type","region","price"(number),"rating"(number),"ratingSource","badge","notes","pairings":[string],"flavors":[string] }],  // EXACTLY 12 realistic on-brand products = the union of the 4 searchChips\' resultIds (4 chips × 3 = 12). Every resultId above MUST be one of these ids. Across 2-3 categories. Reuse type/region/pairings/flavors as generic attribute/origin/complements/traits for non-wine categories.',
+      '  "catalog": [{ "id","cat","name","type","region","price"(number),"rating"(number),"ratingSource","badge","notes","pairings":[string],"flavors":[string] }],  // EXACTLY 12 realistic on-brand products = the union of the 4 searchChips\' resultIds (4 chips × 3 = 12). Use STABLE ids "sku1".."sku12" IN ORDER; every searchChips resultId MUST be one of these ids. Across 2-3 categories. Reuse type/region/pairings/flavors as generic attribute/origin/complements/traits for non-wine categories.',
       '  "greetChips": [{ "label": string, "q": string, "say": string }],  // 4-5 opening quick-reply chips for the concierge. DETERMINISTIC (scripted demo, no free typing): "q" MUST be COPIED VERBATIM from the "keys" of exactly one sommIntent below — clicking the chip shows that intent\'s reply 1:1. "label"=button text w/ optional emoji; "say"=the natural sentence shown in the user\'s chat bubble. Include industry-appropriate shopping starters + one service chip (its q = a built-in service key: one of "help me with something","track my order","delivery","store hours","rewards","return").',
       '  "sommIntents": [{ "keys":[string], "text": string, "recIds":[string], "rail": { "title": string, "sub": string, "ids":[string] }, "chips":[{ "label": string, "q": string, "say": string }] }],  // 6 shopping intents. keys=SHORT trigger phrases that chips will reference by EXACT string (make the FIRST key a clean, chip-friendly phrase like "fix my slice","launch monitor","gift"); text=concierge reply (HTML ok); recIds=catalog ids to show as rec cards; rail (optional)=a curated rail of ids; chips (optional)=follow-up quick chips whose "q" is ALSO a verbatim key of one sommIntent (so every follow-up also routes 1:1). The concierge is generic — do NOT self-refer as a sommelier.',
       '  "serviceData": { "order": string, "orderPlaced": string, "eta": string, "hoursToday": string, "pickupEta": string, "associate": string, "points": string, "reward": string, "refundAmt": string },  // sample values for the built-in service flows (order status, delivery, hours, rewards, returns) in the customer\'s voice',
       '  "celebs": { "<lowercasename>": { "match": string, "productIds":[string] } }  // 1-2 celebrity/affinity tie-ins if relevant, else {}',
       "}",
-      "Products must be genuinely appropriate for " + cx.customerName + " (their real category). CRITICAL: return EXACTLY 4 searchChips, each with EXACTLY 3 resultIds, and EXACTLY 12 catalog products whose ids are precisely the union of those resultIds — every resultId maps to a catalog product and every catalog product is the result of some chip. The 3 products under a chip must genuinely satisfy that chip's query. sommIntents should cover shopping (find/recommend by taste, occasion, budget, category) and reuse the SAME catalog ids in recIds/rail. The service flows (order status, delivery, returns, rewards) are built in and driven by serviceData — do NOT duplicate them as intents. DETERMINISTIC CONCIERGE CONTRACT: there is NO free-text search — every greetChip and every follow-up chip's \"q\" MUST be copied verbatim from some sommIntent's \"keys\" (or one of the built-in service keys listed above) so each click maps 1:1 to exactly one reply. Do NOT invent a chip q that isn't an intent key.",
+      "Products must be genuinely appropriate for " + cx.customerName + " (their real category). SHARED CATALOG CONTRACT: this customer's other app (an in-store clienteling tool) uses the SAME 12-SKU catalog with the SAME ids sku1..sku12 — so \"sku3\" is the SAME physical product in both apps. CRITICAL: use STABLE ids sku1..sku12; return EXACTLY 4 searchChips, each with EXACTLY 3 resultIds, and EXACTLY 12 catalog products whose ids (sku1..sku12) are precisely the union of those resultIds — every resultId maps to a catalog product and every catalog product is the result of some chip. The 12 resultIds MUST be DISTINCT: no SKU may appear in more than one chip (4 chips × 3 unique ids each = all 12 SKUs, each used exactly once). The 3 products under a chip must genuinely satisfy that chip's query. sommIntents should cover shopping (find/recommend by taste, occasion, budget, category) and reuse the SAME catalog ids in recIds/rail. The service flows (order status, delivery, returns, rewards) are built in and driven by serviceData — do NOT duplicate them as intents. DETERMINISTIC CONCIERGE CONTRACT: there is NO free-text search — every greetChip and every follow-up chip's \"q\" MUST be copied verbatim from some sommIntent's \"keys\" (or one of the built-in service keys listed above) so each click maps 1:1 to exactly one reply. Do NOT invent a chip q that isn't an intent key.",
     ].filter(Boolean).join("\n");
   }
 
@@ -164,6 +164,31 @@
       footerBlurb: (brandWord.charAt(0).toUpperCase() + brandWord.slice(1)) + " — personalized shopping, powered by your unified profile.",
       sectionHeadings: { featured: "Featured", curated: "Curated for you" },
       catalog: seedCat,
+      // ── DETERMINISTIC CONCIERGE (Gemini-off) ──────────────────────
+      // cimulate's concierge is chip-driven and 1:1: every chip `q` must be a
+      // verbatim key of some sommIntent, or the click dead-ends on the generic
+      // opener. When Gemini is off we still need a working concierge, so seed a
+      // few neutral intents keyed off the seed SKUs (sku1..sku12). greetChips'
+      // `q` values match the intent keys exactly. Clienteling ignores these.
+      greetChips: [
+        { label: "✨ Recommend something", q: "recommend", say: "Recommend something popular" },
+        { label: "🔥 What's trending", q: "trending", say: "What's trending right now?" },
+        { label: "🎁 Help me pick a gift", q: "gift", say: "Help me pick a gift" },
+        { label: "🛎️ Service & account help", q: "help me with something", say: "I need help with my account" },
+      ],
+      sommIntents: [
+        { keys: ["recommend", "popular", "best seller", "what should i get"],
+          text: "Happy to help! Based on your profile, here are two of our most-loved picks:",
+          recIds: ["sku1", "sku2"],
+          rail: { title: "Recommended for you", sub: "{concierge} picked these from your unified profile.", ids: ["sku1", "sku2", "sku3"] } },
+        { keys: ["trending", "new", "whats new", "new arrivals"],
+          text: "These are getting a lot of love from customers like you right now:",
+          recIds: ["sku4", "sku5"],
+          rail: { title: "New & trending", sub: "Fresh picks moving fast.", ids: ["sku4", "sku5", "sku6"] } },
+        { keys: ["gift", "present", "birthday", "give"],
+          text: "A great gift should feel special. Either of these makes a memorable pick:",
+          recIds: ["sku1", "sku7"] },
+      ],
       customer: {
         name: personaName,
         location: personaLoc,
@@ -181,9 +206,41 @@
     return base;
   }
 
-  // A neutral 6-SKU seed catalog when nothing else is available. GENERIC RETAIL
+  // Merge two catalogs into one superset keyed by stable id. Preserves id order
+  // (prev first, then any new ids from `next`), and for a shared id merges the
+  // two product objects field-by-field so BOTH apps' vocabularies coexist on the
+  // SKU (a value from `next` fills a field only when prev's is missing/empty —
+  // so neither app clobbers the other's already-set fields; identity fields like
+  // name/price stay stable from whichever app defined them first). Returns a new
+  // array; if either side is empty, returns the non-empty one.
+  function mergeCatalogById(prev, next) {
+    const P = Array.isArray(prev) ? prev : [];
+    const N = Array.isArray(next) ? next : [];
+    if (!P.length) return N.slice();
+    if (!N.length) return P.slice();
+    const isEmpty = function (v) {
+      return v == null || v === "" || (Array.isArray(v) && v.length === 0);
+    };
+    const byId = {};
+    const order = [];
+    const add = function (p) {
+      if (!p || !p.id) return;
+      if (!byId[p.id]) { byId[p.id] = Object.assign({}, p); order.push(p.id); return; }
+      // Shared id: fill only fields the existing record is missing.
+      const cur = byId[p.id];
+      Object.keys(p).forEach(function (k) { if (isEmpty(cur[k]) && !isEmpty(p[k])) cur[k] = p[k]; });
+    };
+    P.forEach(add);
+    N.forEach(add);
+    return order.map(function (id) { return byId[id]; });
+  }
+
+  // A neutral 12-SKU seed catalog when nothing else is available. GENERIC RETAIL
   // (no wine terms) so the pre-context preview reads like a real store — the
   // distinct `cat` values also drive the storefront category nav + search chips.
+  // 12 (not 6) because cimulate's scripted search pins 4 chips × 3 results = 12
+  // distinct SKUs; a 6-SKU seed would force chips to share results. Clienteling
+  // simply uses the first 6-ish it needs, so a larger seed is harmless there.
   function seedCatalog(cx) {
     // When there's no customer yet (generic first preview) use neutral wording
     // so SKU names don't render with a leading space / empty brand.
@@ -194,7 +251,7 @@
     // chips show a believable multi-category store before any real context.
     const CATS = ["Featured", "Best Sellers", "New Arrivals", "Accessories"];
     const out = [];
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= 12; i++) {
       const c = CATS[(i - 1) % CATS.length];
       out.push({
         id: "sku" + i,
@@ -229,13 +286,27 @@
 
     const prompt = appId === "clienteling" ? promptForClienteling(cx) : promptForCimulate(cx);
 
+    // Build the runtime config from an extracted/fallback foundation. Merges the
+    // catalog into the shared superset (see comment below), then hands the merged
+    // store to the per-app config builder.
     function assemble(found) {
-      // Share the retail catalog across apps: first app to generate seeds it;
-      // later apps reuse it unless empty.
-      const shared = (state.retailCatalog && state.retailCatalog.length) ? state.retailCatalog : (found.catalog || []);
-      if (!(state.retailCatalog && state.retailCatalog.length) && shared.length) {
-        state.retailCatalog = shared;
-      }
+      // ── ONE SUPERSET CATALOG, TWO VIEWS ────────────────────────
+      // Both apps share a single 12-SKU brand catalog keyed by STABLE ids
+      // (sku1..sku12), so "sku3" is the SAME physical product in the storefront
+      // (cimulate) and the in-store tool (clienteling) — a coherent brand, not
+      // two unrelated product lists. Each app's Gemini prompt returns its own
+      // per-product fields (clienteling: tastingNotes/story/score; cimulate:
+      // notes/flavors/rating), so we MERGE BY ID rather than let one app clobber
+      // the other: the shared store accumulates every app's fields on each SKU,
+      // and the union of ids is preserved (the richer 12-SKU set wins over any
+      // smaller seed). Downstream mappers already read both field vocabularies.
+      const own = Array.isArray(found.catalog) ? found.catalog : [];
+      const shared = mergeCatalogById(state.retailCatalog, own);
+      if (shared.length) state.retailCatalog = shared;
+      // Re-point this app's found.catalog at the merged superset so the config
+      // is built against the shared SKU universe (its own fields still win for
+      // this app because they were merged in last / preserved per id).
+      if (shared.length) found.catalog = shared;
       const brand = { name: cx.customerName, flatColors: cx.flatColors };
       if (state.brand && state.brand.colors) brand.colors = state.brand.colors;
       const appgen = APPGEN();

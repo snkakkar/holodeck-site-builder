@@ -436,10 +436,10 @@ textarea { resize: vertical; min-height: 92px; }
 /* ============================================================
    WINE-SPECIFIC COMPONENTS (from la-crema concierge)
    ============================================================ */
-.wine-region { font-size: 10.5px; letter-spacing: 0.24em; color: var(--golddim); text-transform: uppercase; font-weight: 600; }
-.wine-name { font-family: "Fraunces", Georgia, serif; font-size: 20px; line-height: 1.15; color: var(--charcoal); }
-.wine-vintage { color: var(--warm-gray); font-weight: 400; }
-.wine-notes {
+.product-region { font-size: 10.5px; letter-spacing: 0.24em; color: var(--golddim); text-transform: uppercase; font-weight: 600; }
+.product-name { font-family: "Fraunces", Georgia, serif; font-size: 20px; line-height: 1.15; color: var(--charcoal); }
+.product-vintage { color: var(--warm-gray); font-weight: 400; }
+.product-notes {
   font-size: 12.5px; line-height: 1.55; color: var(--warm-gray);
   border-left: 2px solid rgba(184, 151, 90, 0.5); padding-left: 12px; margin: 10px 0;
 }
@@ -454,10 +454,10 @@ textarea { resize: vertical; min-height: 92px; }
   font-size: 11px; color: var(--golddim); background: rgba(184, 151, 90, 0.1);
   border: 1px solid rgba(184, 151, 90, 0.35); border-radius: 9999px; padding: 4px 11px;
 }
-.wine-price { font-family: "Fraunces", Georgia, serif; font-size: 22px; color: var(--teal); }
+.product-price { font-family: "Fraunces", Georgia, serif; font-size: 22px; color: var(--teal); }
 
 /* bottle SVG framing */
-.bottle-frame { display: grid; place-items: center; background: linear-gradient(160deg, #f7f1e8, #ece3d6); border-radius: 12px; }
+.product-frame { display: grid; place-items: center; background: linear-gradient(160deg, #f7f1e8, #ece3d6); border-radius: 12px; }
 
 /* wide product-detail modal */
 .modal.wide { max-width: 760px; }
@@ -507,7 +507,9 @@ textarea { resize: vertical; min-height: 92px; }
    ============================================================ */
 .intro-scene {
   position: fixed; inset: 0; z-index: 200; overflow: hidden;
-  background: #14100d url("https://dallas.culturemap.com/media-library/total-wine-more.jpg?id=31509432&width=2000&height=1500&coordinates=0%2C0%2C0%2C0") center/cover no-repeat;
+  /* Neutral store backdrop — a dark brand-agnostic gradient (no external
+     wine storefront photo) so the intro reads correctly for any customer. */
+  background: linear-gradient(135deg, #14100d 0%, #1e2a28 55%, #14100d 100%);
   transition: opacity 0.6s ease;
 }
 .intro-scene.leaving { opacity: 0; pointer-events: none; }
