@@ -2535,10 +2535,11 @@
     const tierLabel = slice._aiGenerated ? "On · AI images" : (slice.extracted ? "On · preview" : "On");
     pills.appendChild(el("span", { class: "bx-pill", text: slice.enabled ? tierLabel : "Opt-in" }));
 
-    // Chevron collapses/expands the view while keeping the app on. Only shown
-    // when enabled — a disabled app has nothing to drop down. Hidden while
-    // generating so the progress bar stays visible until the build finishes.
-    if (slice.enabled && !slice._generating) {
+    // Chevron collapses/expands the view. Shown on every row so each reads as
+    // an expandable dropdown — expanding an off app previews it (token-free)
+    // without building it; the toggle controls whether it's actually built.
+    // Hidden only while generating so the progress bar stays visible.
+    if (!slice._generating) {
       const chevron = el("button", {
         class: "bx-app-chevron",
         type: "button",
@@ -2563,9 +2564,10 @@
       pills,
     ]));
 
-    // Preview + generate panel — only when enabled AND expanded. An enabled app
-    // that's collapsed still builds; it just hides its full view.
-    if (slice.enabled && slice.expanded) {
+    // Preview + generate panel — shown whenever expanded, on or off. Expanding
+    // an off app previews it (token-free generic preview) without building it;
+    // an enabled app that's collapsed still builds but hides its full view.
+    if (slice.expanded) {
       // Evidence chips — the actual keywords in the script that triggered the
       // recommendation. Live inside the expanded panel so a collapsed row stays
       // minimal.
