@@ -510,7 +510,16 @@
 
   // CX component still lookup (embeddedCxComponent). Returns
   // { stillUrl|null, targetUrl, name } for the "still else placeholder" path.
-  function cxFallbackFor(slide, state) {
+  //
+  // In EXPORTS the still wins over the live link (an iframe can't render in a
+  // PDF/PPTX). The assigned still lives in assetLibrary under a slot NAME
+  // (cxInstagramAd/cxShopperAgent/…), referenced by the component's per-slide
+  // (imageSlotsBySlide[slideId]) or component-wide (imageSlot) assignment — so
+  // resolve those slot names through cfg.demoAssets exactly as imageSlotFor
+  // does. EXPLICIT assignments only: no type/name heuristic, so we never borrow
+  // an unrelated still. A direct URL already on the component still works first.
+  function cxFallbackFor(slide, cfg, state) {
+    const da = (cfg && cfg.demoAssets) || {};
     const ids = (slide && slide.linkedCxComponentIds) || [];
     const comps = (state && state.cxComponents) || [];
     let comp = null;
@@ -519,9 +528,19 @@
       comp = comps.find(function (c) { return c && c.id === slide.cxComponentId; }) || null;
     }
     comp = comp || {};
-    const still = comp.stillImage || comp.still || comp.screenshot || comp.image || "";
+
+    const urlOf = function (v) { return (v && String(v).trim()) ? String(v) : ""; };
+    // Resolve a slot name (e.g. "cxShopperAgent") to its signed asset URL.
+    const slotUrl = function (slot) { return slot ? urlOf(da[slot]) : ""; };
+
+    const perSlideSlot = (comp.imageSlotsBySlide && slide && comp.imageSlotsBySlide[slide.id]) || "";
+    const still =
+      urlOf(comp.stillImage || comp.still || comp.screenshot || comp.image) || // 1. direct URL
+      slotUrl(perSlideSlot) ||                                                 // 2. per-slide slot
+      slotUrl(comp.imageSlot);                                                 // 3. component slot
+
     return {
-      stillUrl:  (still && String(still).trim()) ? String(still) : null,
+      stillUrl:  still || null,
       targetUrl: comp.url || comp.targetUrl || comp.href || "",
       name:      comp.name || comp.label || slide.title || "CX Component",
     };
@@ -974,7 +993,7 @@
     };
 
     if (template === "cx") {
-      ns.cxFallback = cxFallbackFor(slide, state);
+      ns.cxFallback = cxFallbackFor(slide, cfg, state);
       // A still image is treated exactly like a device scene image.
       ns.template = ns.cxFallback.stillUrl ? "deviceSceneImage" : "placeholderCx";
       if (ns.cxFallback.stillUrl) ns._imageSlot = { url: ns.cxFallback.stillUrl, kind: "cx" };
@@ -1080,5 +1099,6 @@
     meterFrac:         meterFrac,
     sectionLabel:      sectionLabel,
     profilePaneOps:    profilePaneOps,
+    cxFallbackFor:     cxFallbackFor,
   };
 })(window);

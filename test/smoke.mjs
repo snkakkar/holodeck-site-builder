@@ -358,6 +358,49 @@ test("flushDirty flushes only the current user's dirty rows, never a foreign one
   assert.ok(!stillDirty.includes("mine"), "flushed owned row cleared from dirty");
 });
 
+// ── cxFallbackFor: exports resolve an assigned CX still over the live link ──
+// In PDF/PPTX the still must win over the live iframe URL (a document can't
+// embed an iframe). The assigned still lives in assetLibrary under a slot NAME,
+// referenced by the component's per-slide (imageSlotsBySlide) or component-wide
+// (imageSlot) assignment; cxFallbackFor resolves that slot through cfg.demoAssets.
+// A url-only component (no assigned still) yields stillUrl:null → placeholderCx.
+test("cxFallbackFor resolves an assigned still (slot → demoAssets) over the live URL", () => {
+  const M = win.HOLO_EXPORT_MODEL;
+  assert.equal(typeof M.cxFallbackFor, "function", "cxFallbackFor exported");
+
+  const SHOPPER = "data:image/png;base64,SHOPPER";
+  // cfg.demoAssets is the adapter's signed asset map (slot name → URL).
+  const cfg = { demoAssets: { cxShopperAgent: SHOPPER, cxInstagramAd: "" } };
+
+  // A component with a LIVE url AND a per-slide slot assignment. Still must win.
+  const comp = {
+    id: "cx1",
+    url: "https://pocketsic.aubreydemo.com/scene/abc",
+    imageSlotsBySlide: { "slide-1": "cxShopperAgent" },
+  };
+  const state = { cxComponents: [comp] };
+  const slide = { id: "slide-1", linkedCxComponentIds: ["cx1"], title: "Live moment" };
+
+  const fb = M.cxFallbackFor(slide, cfg, state);
+  assert.equal(fb.stillUrl, SHOPPER, "assigned still resolved from slot → demoAssets");
+  assert.equal(fb.targetUrl, comp.url, "live url still captured as the placeholder fallback");
+  // Mirrors normalizeSlide's decision at export-model.js:979 — still ⇒ deviceSceneImage.
+  assert.ok(fb.stillUrl, "stillUrl truthy → export routes to deviceSceneImage (still wins)");
+
+  // Component-wide imageSlot works when there's no per-slide assignment.
+  const comp2 = { id: "cx1", url: comp.url, imageSlot: "cxShopperAgent" };
+  const fb2 = M.cxFallbackFor(
+    { id: "slide-x", linkedCxComponentIds: ["cx1"] }, cfg, { cxComponents: [comp2] });
+  assert.equal(fb2.stillUrl, SHOPPER, "component-wide imageSlot resolved too");
+
+  // url-only, NO assigned still → stillUrl null → placeholderCx (url shown as text).
+  const fb3 = M.cxFallbackFor(
+    { id: "slide-y", linkedCxComponentIds: ["cx1"] },
+    cfg, { cxComponents: [{ id: "cx1", url: comp.url }] });
+  assert.equal(fb3.stillUrl, null, "no still → null → placeholderCx");
+  assert.equal(fb3.targetUrl, comp.url, "placeholder still surfaces the url");
+});
+
 // ── generateProductPhotos: batched-parallel, bounded, covers every SKU ──
 // The product-photo pass was sequential (slow). It now runs in bounded
 // waves (BATCH=4). This loads the REAL app-foundations.js with a fake
