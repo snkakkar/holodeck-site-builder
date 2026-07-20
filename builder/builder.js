@@ -2433,9 +2433,11 @@
       // re-seeds it this session — otherwise the iframe would load an empty
       // token and fall back to the stock Total Wine sample.
       if (sl && !sl.extracted) sl._genericToken = false;
-      // Backfill the collapse flag for pre-collapsible-UI slices. UI-only state;
-      // a reopened project starts collapsed and the user expands what they want.
-      if (sl && sl.expanded == null) sl.expanded = false;
+      // Backfill the collapse flag for pre-collapsible-UI slices. An app that
+      // was already enabled reopens expanded — before this UI existed, an
+      // enabled app always showed its full view, so we preserve that. A
+      // disabled app stays collapsed.
+      if (sl && sl.expanded == null) sl.expanded = !!sl.enabled;
     });
     // Shared-catalog migration (pre-fix projects). The catalog used to grow via a
     // union-by-id, so old projects may have ballooned past 12 SKUs, and none have
