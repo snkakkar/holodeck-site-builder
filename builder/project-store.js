@@ -686,6 +686,11 @@
       if (!original) return null;
       const copy = JSON.parse(JSON.stringify(original));
       copy.id = uid();
+      // Drop the source's ownerId so cacheWrite restamps the copy with the
+      // current user. Duplicating a gallery/shared project would otherwise carry
+      // the ORIGINAL owner's id on the cached body (cacheWrite only stamps when
+      // ownerId is unset), leaving a mislabeled row that later poisons flushDirty.
+      delete copy.ownerId;
       copy.name = (original.name || (original.project && original.project.customerName) || "Untitled project") + " (Copy)";
       copy.createdAt = new Date().toISOString();
       copy.updatedAt = copy.createdAt;
@@ -707,6 +712,13 @@
     return Promise.all(ids.map(function (id) {
       const state = readJSON(KEY_PREFIX + id, null);
       if (!state) { clearDirty(id); return Promise.resolve(); }
+      // Never flush a row that isn't the current user's. A foreign/stale dirty
+      // row (e.g. a teammate's cached body, or a pre-owner-tagging leftover) would
+      // hit an existing server row owned by someone else and be rejected by the
+      // projects UPDATE RLS USING predicate (owner_id = app.user_id()) — a noisy
+      // 403/42501 on boot. Leave the body in place; reconcileOwnership (which runs
+      // right after flushDirty) hides it from "My Projects". Same guards it uses.
+      if (!dirtyOwnedByCurrent(id) || bodyIsForeign(id)) return Promise.resolve();
       return NeonBackend.saveProject(state).catch(function (err) { recordSyncError(err); /* still dirty */ });
     }));
   }

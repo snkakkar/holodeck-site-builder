@@ -1,336 +1,188 @@
-# Holodeck Website Guide (End User)
+# Holodeck Storytelling Coach Guide
 
-## What Holodeck Is
+This guide is for SEs who want to build a strong, customer-specific demo without getting buried in technical setup. It is written to be practical: enough detail to run the full app confidently, but structured so you can skim and execute quickly.
 
-Holodeck is a guided website for building polished customer demos quickly, even if you are not technical.
-
-You can:
-- Create and manage demo projects
-- Use AI to generate a first draft
-- Build story, slides, assets, and live moments
-- Collaborate with teammates
-- Export a complete interactive demo, plus PowerPoint and PDF
+The core mindset: Holodeck is not just a slide builder. It is a storytelling workflow. The best results come from being intentional about message, flow, and proof, not from adding more screens or more text.
 
 ---
 
-## Latest Features You Should Know
+## What Holodeck Does, In Plain Terms
 
-- Collaboration tabs: **Shared with me** and **Team Gallery**
-- Publish/unpublish projects to the team gallery
-- New portable export formats: **PowerPoint (.pptx)** and **PDF (.pdf)**
-- AI improvements:
-  - pre-filled AI inputs from your project
-  - direct **Generate with Gemini** option (when enabled)
-  - clear **Import AI response** handoff
-  - one-time tour + **Take the tour again**
-- Asset AI improvements:
-  - **Generate all empty slots with AI**
-  - auto-fills missing persona copy and placeholder visuals
-- Smarter logo handling:
-  - tries real logo first
-  - falls back to AI-generated lookalike if needed
+Holodeck takes raw input and turns it into a presentation-ready experience. Your input can be rough notes, a talk track, a script, or AI-generated JSON. Holodeck then helps you convert that into a coherent narrative with customer context, storyline, slides, live moments, and export-ready output.
+
+A strong Holodeck output has three traits:
+
+- The opening makes the customer problem obvious.
+- The middle demonstrates believable transformation.
+- The ending lands business value and a clear next step.
+
+If one of those is weak, the demo is not done yet, even if all fields are filled.
 
 ---
 
-## Quick Start (10 Minutes)
+## The Operating Model: Four Phases
 
-1. Sign in and create a project.
-2. Add script/notes in **Script & Story**.
-3. Click **Extract Story Foundations**.
-4. Fill customer + audience + products in **Setup**.
-5. Keep/edit recommendations in **Slide Selection**.
-6. Optional: add links in **CX Components**.
-7. Optional: add visuals in **Assets**.
-8. Final check in **Preview**.
-9. Download from **Export**.
+The easiest way to avoid overwhelm is to think in four phases instead of many individual steps.
 
-Fast default path:  
-Script & Story -> Setup -> Slide Selection -> Preview -> Export
+### Phase 1: Foundation
+Work in `Script & Story` and `Setup`.
 
----
+This phase is where you establish source material and context: who the customer is, who the audience is, what stage the sale is in, and which products matter. Most generic demos are caused by weak foundation input.
 
-## AI Fast Lane
+### Phase 2: Narrative Arc
+Work in `Story Foundations` and `Slide Selection`.
 
-Use this when you want a quick first draft.
+This is where you shape the “before -> change -> after” motion. Keep required structure, tune recommended slides, and remove optional content that does not advance the message.
 
-### Option A: Claude/ChatGPT
-1. Open **AI Prompt**.
-2. Review pre-filled inputs.
-3. Click **Copy AI Prompt**.
-4. Run in Claude/ChatGPT.
-5. Copy the JSON output.
-6. Return and click **Import AI response**.
-7. Paste and import.
+### Phase 3: Proof
+Work in `Assets`, `CX Components`, and optional apps.
 
-### Option B: Gemini
-If available, click **Generate with Gemini** for direct generation.
+This is where credibility is built. Choose visuals and live links that support specific claims, not just aesthetic polish.
 
-### What AI Can Fill
-- Setup details
-- Personas
-- Story acts
-- Story foundations
-- Slide recommendations
-- Slide draft content
-- Asset suggestions
+### Phase 4: Delivery
+Work in `Preview` and `Export`.
 
-### Helpful Notes
-- AI Prompt includes a one-time guided tour.
-- Use **Take the tour again** any time.
-- Prompt context is usually already included for you.
+This is your rehearsal and packaging phase. Tighten wording, verify transitions, remove unresolved placeholders, and choose the right output format.
+
+Quick diagnostic:
+
+- If the story feels generic, revisit Phase 1 and 2.
+- If the demo feels unconvincing, revisit Phase 3.
+- If the demo feels messy in presentation, revisit Phase 4.
 
 ---
 
-## Full Walkthrough
+## Collaboration: How Teams Move Faster
 
-### 1) Login and Account
-- Sign in with one-time code
-- Resume where you left off
-- Sign out safely
+Holodeck has three distinct collaboration surfaces. Use each one on purpose.
 
-If code does not arrive, check spelling and spam folder.
+`My Projects` is your working area for active drafts and iteration.  
+`Shared with me` is for handoff and co-authoring with teammates.  
+`Team Gallery` is for reusable, polished examples that others can duplicate.
 
-### 2) Home, Projects, and Collaboration
+To keep quality high at team scale, treat Team Gallery as a curated library, not a storage bin. Publish demos that are understandable, reusable, and mostly free of unresolved placeholder clutter.
 
-#### My Projects
-- Create, open, duplicate, rename, delete
-- Search and filter projects
+Permission strategy:
 
-#### Shared with me
-- View projects shared by teammates
-- Respect permissions (`view` or `edit`)
+- use `view` for review and alignment
+- use `edit` when someone is truly co-authoring
 
-#### Team Gallery
-- Browse published team projects
-- Duplicate gallery projects into your own workspace
-- Publish/unpublish your own projects
-
-### 3) Setup
-Fill business context:
-- customer
-- industry
-- audience
-- sales stage
-- products
-- branding mode/colors/logo
-- presenter details
-
-This improves recommendation quality.
-
-### 4) Script & Story
-- Paste text or upload files
-- Extract foundations, personas, and acts
-- Refine source story before slide planning
-
-### 5) Story Foundations
-Define narrative backbone:
-- business problem
-- current pain
-- future vision
-- thesis + executive takeaway
-- value drivers
-- assumptions/open questions
-
-Run **Story Quality Check** to catch gaps early.
-
-### 6) Slide Selection
-- Keep/remove recommended slides
-- Rename slide titles
-- Use section grouping + bulk actions
-- Switch views as needed
-- Use required/recommended/optional status signals
-
-### 7) Assets
-- Upload visuals by slot
-- See where each slot is used
-- Replace/clear uploads
-
-AI helpers:
-- **Generate all empty slots with AI**
-- Persona copy and visuals can be auto-generated
-- Upload GIF/MP4 when you need true animation
-
-### 8) CX Components
-- Add live URLs
-- Map each URL to the right slide/moment
-- Use auto-match suggestions when helpful
-
-### 9) Preview
-- Review full flow
-- Check missing inputs
-- Edit text inline
-- Use keyboard navigation in full preview mode
-
-### 10) Export
-
-Primary:
-- **Complete Demo ZIP** (recommended)
-
-Portable:
-- **Download PowerPoint (.pptx)**
-- **Download PDF (.pdf)**
-
-Before sharing:
-- replace placeholders (`[TODO: ...]`, `XX%`)
-- verify links
-- confirm branding/presenter details
-
-### 11) Feedback
-Submit:
-- bugs
-- confusing behavior
-- dislikes/likes
-- improvement ideas
-
-Best format:
-- what you did
-- what you expected
-- what happened
+This keeps ownership clear and prevents accidental drift.
 
 ---
 
-## Troubleshooting
+## Building The Core Story (Most Important Section)
 
-### Import AI response failed
-- paste complete JSON
-- re-run AI prompt
-- retry import
+The highest-value work in Holodeck happens in core story formation.
 
-### Slides are too generic
-- strengthen business problem and outcomes
-- set audience and stage clearly
-- improve value drivers
+In `Script & Story`, extraction creates the initial skeleton. In `Setup`, you anchor that skeleton to real customer and audience context. In `Story Foundations`, you tighten narrative logic so the transformation is explicit and commercially meaningful. In `Slide Selection`, you control pacing and keep only what strengthens the argument.
 
-### Live links do not load
-- test URL directly
-- replace invalid links
-- re-map to correct slide
+A simple quality check you can run after this phase:
 
-### Visuals are missing
-- verify upload completed
-- verify slot mapping
-- re-export
+- Can I describe the problem in one sentence?
+- Can I describe the change in one sentence?
+- Can I describe the business value in one sentence?
 
-### Latest edits not visible
-- refresh browser
-- open newest export
+If any answer is unclear, refine foundations before adding more polish.
 
 ---
 
-## Easy AI Prompts For Post-Export Edits
+## Proof Layer: Assets, Live Moments, Clienteling, and Cimulate
 
-### Ground Rules
-- ask for small focused changes
-- do not invent facts/metrics
-- use `[TODO: ...]` for unknown details
-- ask for a clear summary of what changed
+Once the core story works, proof is what makes the audience trust it.
 
-### 1) Rename customer everywhere
-```text
-Update the customer name everywhere in my demo to [NEW CUSTOMER NAME].
-Keep structure and slide flow unchanged.
-Show exactly what changed.
-```
+In `Assets`, select visuals that reinforce claims. AI generation (`Generate all empty slots with AI`) is great for speed, but final curation still matters. In `CX Components`, map links to exact story moments. Precision is better than volume: fewer live moments with strong relevance usually outperform many loosely related ones.
 
-### 2) Rewrite for executives
-```text
-Rewrite this demo for executive leaders:
-- shorter language
-- outcomes first
-- minimal jargon
+### Clienteling: When and Why
 
-Keep the same storyline.
-```
+Use Clienteling when your narrative emphasizes associate-led or advisor-style selling. It is especially strong for in-store relationship moments, guided recommendations, and “human + AI” service interactions.
 
-### 3) Adapt to a new industry
-```text
-Adapt this demo for [INDUSTRY].
-Keep story flow the same, but update examples and benefits for that industry.
-Do not invent customer facts.
-```
+Clienteling works best when it feels like a natural continuation of your main story, not a disconnected side experience.
 
-### 4) Shift product emphasis
-```text
-Rebalance this demo to emphasize [PRODUCT A] and [PRODUCT B].
-Keep deck length similar and avoid unnecessary structural changes.
-```
+### Cimulate: When and Why
 
-### 5) Simplify for first meeting
-```text
-Rewrite content so a first-time audience can understand it quickly.
-Use plain language and explain acronyms when needed.
-```
+Use Cimulate when your narrative emphasizes intent-aware discovery and concierge-style search. It is strongest when you need to show that the experience understands meaning and context rather than just matching keywords.
 
-### 6) Create a 5-minute version
-```text
-Trim this demo to a clear 5-minute flow.
-Keep only essential slides and smooth transitions.
-```
+Cimulate is effective when you explicitly connect discovery quality to downstream outcomes (relevance, conversion confidence, service quality).
 
-### 7) Add safe outcome placeholders
-```text
-Where impact is discussed, add placeholders like [TODO: metric].
-Do not invent numbers.
-```
+### Should You Use One or Both?
 
-### 8) Refresh persona
-```text
-Replace persona with:
-- Name: [NAME]
-- Role: [ROLE]
-- Goals: [GOALS]
-- Pain points: [PAINS]
-
-Update related slides so details stay consistent.
-```
-
-### 9) Localize by region
-```text
-Adjust wording for [REGION/COUNTRY] audience (tone, spelling, terminology).
-Keep structure and storyline unchanged.
-```
-
-### 10) Editorial cleanup pass
-```text
-Do a final polish pass:
-- improve clarity
-- remove repetition
-- fix grammar
-
-Keep facts and structure unchanged.
-```
-
-### 11) Update assets and links
-```text
-Apply these updates:
-- Assets: [LIST]
-- Live links: [LIST]
-
-Map each item to the correct demo moment.
-Keep everything else unchanged.
-```
-
-### 12) Final quality gate
-```text
-Run a final review and return PASS or FAIL.
-
-Check:
-- placeholders removed or intentional
-- coherent story start-to-finish
-- links mapped correctly
-- wording fits target audience
-
-If FAIL, return only minimal required fixes.
-```
+Use Clienteling if the hero moment is associate-led.
+Use Cimulate if the hero moment is search/discovery intelligence.
+Use both only when your story genuinely spans discovery and assisted conversion.
 
 ---
 
-## Glossary
+## Preview and Export: Rehearse, Then Ship
 
-- **Persona**: main customer character in your story
-- **Story acts**: key moments in the journey
-- **Slide recommendation**: suggested slide choices from your inputs
-- **CX component**: live URL-based demo moment
-- **Asset slot**: place where you upload image/media
-- **Readiness**: how close content is to presentation-ready
-- **Export package**: downloadable final demo files
+Use `Preview` as your final rehearsal environment. Validate transitions, simplify dense lines, and remove “almost good” language. Inline editing is useful here because it lets you correct copy where you see it in context.
+
+Use `Export` to package for actual use:
+
+- ZIP: best default for full interactive experience
+- PPTX: best when the presentation setting expects slide-native flow
+- PDF: best for static review and async stakeholder circulation
+
+Before final export, run a credibility pass: placeholders, links, branding consistency, and presenter framing.
+
+---
+
+## Troubleshooting (High-Signal Fixes)
+
+`Import AI response` failed: most commonly malformed or incomplete JSON. Re-run prompt with strict output and paste full result.
+
+Slides feel generic: improve audience specificity, sharpen business problem, and tighten value drivers. Do this before visual polish.
+
+Live links fail: check reachability first, then remap to the intended narrative moment.
+
+Visuals missing: verify asset slot mapping and re-export.
+
+Clienteling/Cimulate missing in output: verify app is enabled and configured before export.
+
+Latest changes not visible: refresh and confirm you are opening newest exported output.
+
+---
+
+## Post-Export Editing With AI (Keep Control)
+
+AI can accelerate iteration after export if prompts stay constrained.
+
+Best pattern: request one change type at a time (tone, industry adaptation, product emphasis, persona update, editorial cleanup). Require a change summary. Use `[TODO: ...]` for unknown metrics instead of fabrication.
+
+Useful prompt categories include:
+
+- rename customer globally
+- rewrite for executives
+- adapt for industry
+- shift product emphasis
+- simplify for first meeting
+- compress to 5-minute flow
+- refresh persona details
+- localize wording for region
+- final editorial cleanup
+- update assets and links
+- final quality gate (PASS/FAIL with minimal fixes)
+
+Rule of thumb: narrative consistency beats novelty.
+
+---
+
+## What’s New (Latest End-User Features)
+
+Recent upgrades include stronger collaboration (`Shared with me`, `Team Gallery`, publish/unpublish), smoother AI flow (pre-filled context, Gemini path, clearer import handoff, replayable tour), faster asset acceleration (`Generate all empty slots with AI` and improved logo behavior), optional app support (Clienteling and Cimulate), and expanded delivery formats (ZIP, PPTX, PDF).
+
+These features are most powerful when used in order: strong foundations first, selective proof second, disciplined delivery last.
+
+---
+
+## Glossary (Plain English)
+
+Persona: the customer character your audience follows.  
+Story acts: the major journey moments from current state to future state.  
+Slide recommendation: the system’s suggested narrative structure from your inputs.  
+CX component: a live URL-based moment in your demo flow.  
+Asset slot: a location where visual/media content is uploaded and mapped.  
+Clienteling: optional associate-led guided-selling experience.  
+Cimulate: optional intent-aware search and concierge experience.  
+Readiness: how close a section is to presentation-ready.  
+Export package: your final downloadable demo output.

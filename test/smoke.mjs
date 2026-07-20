@@ -301,6 +301,63 @@ test("GEMINI.generate caches identical useCache calls and busts on change", asyn
   assert.equal(calls, 4, "no-cache calls always hit the network");
 });
 
+// ── flushDirty: never re-pushes a foreign / stale dirty row ──────
+// The boot dirty-flush was rejecting foreign rows with a 403/RLS 42501
+// (it hit an existing server row owned by someone else, failing the projects
+// UPDATE USING predicate). flushDirty now skips any dirty id that isn't the
+// current user's, reusing the same owner guards reconcileOwnership trusts.
+// This loads the REAL project-store.js with a fake localStorage + a counting
+// fetch, so it exercises the shipped filter end-to-end.
+test("flushDirty flushes only the current user's dirty rows, never a foreign one", async () => {
+  const ME = "user-me";
+  // In-memory localStorage.
+  const mem = new Map();
+  const localStorage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => { mem.set(k, String(v)); },
+    removeItem: (k) => { mem.delete(k); },
+  };
+  const setJSON = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+  // Seed two dirty rows: one owned by me, one by a teammate. Give the foreign
+  // row a body ownerId AND a dirty-owner tag ≠ me so BOTH guards would catch it.
+  setJSON("holodeck.project.mine",    { id: "mine",    ownerId: ME,        name: "Mine" });
+  setJSON("holodeck.project.foreign", { id: "foreign", ownerId: "user-them", name: "Theirs" });
+  setJSON("holodeck.dirty", ["mine", "foreign"]);
+  setJSON("holodeck.dirty.owner", { mine: ME, foreign: "user-them" });
+
+  // Count POSTs to /projects (the upsert flushDirty issues via saveProject).
+  const posted = [];
+  const stubFetch = (url, opts) => {
+    if ((opts && opts.method) === "POST") {
+      const body = JSON.parse(opts.body)[0];
+      posted.push(body.id);
+    }
+    return Promise.resolve(new Response("", { status: 200 }));
+  };
+
+  const psWin = {
+    HOLO_AUTH: {
+      isAuthed: () => true,
+      getToken: () => Promise.resolve("stub-jwt"),
+      currentUser: () => ({ id: ME, email: "me@salesforce.com", name: "Me" }),
+    },
+  };
+  const src = readFileSync(join(ROOT, "builder/project-store.js"), "utf8");
+  // eslint-disable-next-line no-new-func
+  new Function("window", "localStorage", "fetch", "console", src)(psWin, localStorage, stubFetch, console);
+  const S = psWin.HOLO_STORE;
+  assert.ok(S && typeof S.flushDirty === "function", "HOLO_STORE.flushDirty exported");
+
+  await S.flushDirty();
+
+  assert.deepEqual(posted, ["mine"], "only the current user's row is flushed");
+  // The foreign row stays dirty (retained, never destroyed); the owned row is cleared.
+  const stillDirty = JSON.parse(localStorage.getItem("holodeck.dirty"));
+  assert.ok(stillDirty.includes("foreign"), "foreign row left in place");
+  assert.ok(!stillDirty.includes("mine"), "flushed owned row cleared from dirty");
+});
+
 test("GEMINI.generate never caches a grounded (search) call", async () => {
   const gwin = { HOLO_AUTH: { authHeaders: () => Promise.resolve({}) }, console };
   let calls = 0;
