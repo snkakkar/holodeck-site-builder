@@ -359,22 +359,31 @@
     return gen.isConfigured().then(function (ok) {
       if (!ok) { status("Image generation unavailable — keeping illustrated fallbacks.", 1); return images; }
       let done = 0;
-      // Sequential to respect the server rate limit; progress per item. `frac`
+      // Bounded-parallel waves (mirrors the Assets "Generate all" runBatch):
+      // BATCH images at a time so a run is ~BATCH× faster than one-at-a-time
+      // while staying well under the server's 30-req/60s rate limit. `frac`
       // is this stage's own 0→1 (photos completed / total). If the caller
-      // aborts, we stop issuing new image calls and return what we have.
-      return pending.reduce(function (chain, p) {
-        return chain.then(function () {
-          if (aborted()) return; // cancelled — issue no further image calls
-          status("Generating photo " + (done + 1) + " of " + total + "…", done / total);
-          return gen.generateImage({ prompt: photoPrompt(p, config, opts) })
-            .then(function (res) {
-              const url = (res && (res.url || res.signedUrl || res)) || null;
-              if (url && typeof url === "string") images[p.id] = url;
-            })
-            .catch(function () { /* leave this id to SVG fallback */ })
-            .then(function () { done++; });
-        });
-      }, Promise.resolve()).then(function () {
+      // aborts, we stop issuing new waves and return what we have.
+      const BATCH = 4;
+      const genOne = function (p) {
+        return gen.generateImage({ prompt: photoPrompt(p, config, opts) })
+          .then(function (res) {
+            const url = (res && (res.url || res.signedUrl || res)) || null;
+            if (url && typeof url === "string") images[p.id] = url;
+          })
+          .catch(function () { /* leave this id to SVG fallback */ })
+          .then(function () {
+            done++;
+            status("Generating photo " + done + " of " + total + "…", done / total);
+          });
+      };
+      const runWave = function (start) {
+        if (aborted()) return Promise.resolve(); // cancelled — issue no further waves
+        const slice = pending.slice(start, start + BATCH);
+        if (!slice.length) return Promise.resolve();
+        return Promise.all(slice.map(genOne)).then(function () { return runWave(start + BATCH); });
+      };
+      return runWave(0).then(function () {
         if (aborted()) { status("Cancelled.", done / total); return images; }
         status("Generated " + Object.keys(images).length + " of " + products.length + " photos.", 1);
         return images;

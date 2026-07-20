@@ -686,10 +686,15 @@
       // eyebrow/heading/rows/CTA chrome. The chrome is only an authoring cue,
       // so keep it ONLY for the empty/fallback state (no still, no iframe) so
       // an unconfigured slide still shows a meaningful skeleton.
+      // Priority: a LIVE CX link (Aubrey iframe) ALWAYS wins → then an
+      // explicitly assigned still → then the skeleton. The live, click-through
+      // component must never be overridden by its static screenshot.
       const hasAssigned = hasStill(assignedStill);
-      const hasLiveIframe = !hasAssigned && cxComp && cxComp.url && /^https?:\/\//.test(cxComp.url);
+      const hasLiveIframe = cxComp && cxComp.url && /^https?:\/\//.test(cxComp.url);
       let screenInner;
-      if (hasAssigned) {
+      if (hasLiveIframe) {
+        screenInner = renderCxIframe(cxComp);
+      } else if (hasAssigned) {
         // If the assigned still IS the Instagram ad, route it through the same
         // adFill path embeddedCxComponent uses (identity check, mirrors L888) so
         // both slide types size the ad identically: .is-ad-fill fills the 9:19
@@ -700,8 +705,6 @@
           src: assignedStill, kind: "image", fill: true, adFill: isAd,
           alt: act.demoMoment || act.title || "Demo moment",
         });
-      } else if (hasLiveIframe) {
-        screenInner = renderCxIframe(cxComp);
       } else {
         // Empty/fallback: full skeleton chrome + cue so the SE knows what to add.
         screenInner = el("div", { class: "dd-screen" }, [
@@ -920,11 +923,13 @@
       // The Instagram ad is authored full-bleed 9:19 (Step 7 prompt), so fill the
       // phone screen edge-to-edge (cover) instead of letterboxing (contain).
       const isInstagramAd = hasStill(still) && still === demoAssets.cxInstagramAd;
-      // A generated/uploaded still wins over the live iframe / skeleton.
-      const inner = hasStill(still)
-        ? mediaTile({ src: still, kind: "image", fill: isInstagramAd, adFill: isInstagramAd, alt: (c && c.name) || "CX component" })
-        : c && c.url && /^https?:\/\//.test(c.url)
+      // Priority: a LIVE CX link (Aubrey iframe) ALWAYS wins → then a
+      // generated/uploaded still → then the skeleton. A live, click-through
+      // component must never be replaced by its static screenshot.
+      const inner = (c && c.url && /^https?:\/\//.test(c.url))
         ? renderCxIframe(c)
+        : hasStill(still)
+        ? mediaTile({ src: still, kind: "image", fill: isInstagramAd, adFill: isInstagramAd, alt: (c && c.name) || "CX component" })
         : el("div", { class: "dd-skel dd-skel-screen" }, [
             skeletonShimmer(),
             el("div", { class: "dd-skel-screen-msg",

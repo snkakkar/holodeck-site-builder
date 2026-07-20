@@ -358,6 +358,44 @@ test("flushDirty flushes only the current user's dirty rows, never a foreign one
   assert.ok(!stillDirty.includes("mine"), "flushed owned row cleared from dirty");
 });
 
+// ── generateProductPhotos: batched-parallel, bounded, covers every SKU ──
+// The product-photo pass was sequential (slow). It now runs in bounded
+// waves (BATCH=4). This loads the REAL app-foundations.js with a fake
+// HOLO_GEMINI that (a) counts calls, (b) tracks peak concurrency. Proves:
+// every pending SKU is imaged (no item dropped by the wave logic) and no
+// more than BATCH image calls are ever in flight at once (rate-limit safe).
+test("generateProductPhotos images every SKU in bounded-concurrency waves", async () => {
+  let inFlight = 0, peak = 0, calls = 0;
+  const gwin = {
+    HOLO_GEMINI: {
+      isConfigured: () => Promise.resolve(true),
+      generateImage: (_opts) => {
+        calls++; inFlight++; peak = Math.max(peak, inFlight);
+        // Resolve on a microtask so overlapping calls actually coexist.
+        return Promise.resolve().then(() => {
+          inFlight--;
+          return { url: "https://cdn.example/img-" + calls + ".png" };
+        });
+      },
+    },
+    console,
+  };
+  const src = readFileSync(join(ROOT, "builder/app-foundations.js"), "utf8");
+  // eslint-disable-next-line no-new-func
+  new Function("window", src)(gwin);
+  const F = gwin.HOLO_APPFOUND;
+  assert.ok(F && typeof F.generateProductPhotos === "function", "generateProductPhotos exported");
+
+  // 10 SKUs → forces multiple waves at BATCH=4.
+  const products = Array.from({ length: 10 }, (_, i) => ({ id: "sku-" + i, name: "P" + i }));
+  const images = await F.generateProductPhotos("app-1", { products }, {});
+
+  assert.equal(calls, 10, "one image call per pending SKU");
+  assert.equal(Object.keys(images).length, 10, "every SKU got an image url");
+  assert.ok(peak <= 4, `never more than the batch size in flight (peak was ${peak})`);
+  assert.ok(peak > 1, `actually ran in parallel, not sequential (peak was ${peak})`);
+});
+
 test("GEMINI.generate never caches a grounded (search) call", async () => {
   const gwin = { HOLO_AUTH: { authHeaders: () => Promise.resolve({}) }, console };
   let calls = 0;

@@ -3299,6 +3299,16 @@ button { font-family: inherit; }
 .bx-apps-expander-summary::-webkit-details-marker { display: none; }
 .bx-apps-expander-hint { font-weight: 400; font-size: 12px; color: var(--bx-ink-3); }
 
+/* Collapse/expand chevron on an enabled app card. Toggles the view without
+   turning the app off. */
+.bx-app-chevron {
+  background: none; border: 0; cursor: pointer;
+  color: var(--bx-ink-3); font-size: 13px; line-height: 1;
+  padding: 4px 6px; border-radius: var(--bx-radius-s);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.bx-app-chevron:hover { color: var(--bx-ink); background: rgba(13, 27, 46, 0.05); }
+
 /* Generation status line while an app is being personalized */
 .bx-appgen-busy {
   color: var(--bx-blue); font-weight: 500;

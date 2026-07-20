@@ -2395,7 +2395,7 @@
   function appsState() {
     const s = app.state;
     const freshSlice = function () {
-      return { enabled: false, status: "opt-in", extracted: false, config: null, productImages: null, _previewOnly: false, _aiGenerated: false, _imageStorySig: null };
+      return { enabled: false, expanded: false, status: "opt-in", extracted: false, config: null, productImages: null, _previewOnly: false, _aiGenerated: false, _imageStorySig: null };
     };
     if (!s.apps) {
       s.apps = {
@@ -2433,6 +2433,9 @@
       // re-seeds it this session — otherwise the iframe would load an empty
       // token and fall back to the stock Total Wine sample.
       if (sl && !sl.extracted) sl._genericToken = false;
+      // Backfill the collapse flag for pre-collapsible-UI slices. UI-only state;
+      // a reopened project starts collapsed and the user expands what they want.
+      if (sl && sl.expanded == null) sl.expanded = false;
     });
     // Shared-catalog migration (pre-fix projects). The catalog used to grow via a
     // union-by-id, so old projects may have ballooned past 12 SKUs, and none have
@@ -2492,33 +2495,13 @@
     ]));
     wrap.appendChild(slidesCard);
 
-    // Split optional apps into "recommended (or already on)" vs. "opt-in".
-    // An app the user already enabled always shows in the main list even if
-    // signals later disappear — we never hide something they turned on.
-    const recommended = [];
-    const optIn = [];
+    // Every optional app renders as a collapsed toggle row. Toggling one on
+    // auto-expands its full view; a chevron collapses it back without turning
+    // it off. The ★Recommended badge still surfaces apps the script points to,
+    // but all apps get the same collapsed-row treatment.
     APP_CATALOG.forEach(function (def) {
-      const slice = apps[def.id];
-      const intent = intents[def.id] || { hasSignal: false, evidence: [] };
-      if (intent.hasSignal || slice.enabled) recommended.push({ def: def, slice: slice, intent: intent });
-      else optIn.push({ def: def, slice: slice, intent: intent });
+      wrap.appendChild(appCard(def, apps[def.id], intents[def.id]));
     });
-
-    recommended.forEach(function (r) { wrap.appendChild(appCard(r.def, r.slice, r.intent)); });
-
-    // Opt-in apps live behind an "Add more demos" expander so the step stays
-    // focused on what the script actually calls for (honors the no-auto-build
-    // rule: these require an explicit toggle).
-    if (optIn.length) {
-      const exp = el("details", { class: "bx-apps-expander bx-mt-18" });
-      const summary = el("summary", { class: "bx-apps-expander-summary" });
-      summary.appendChild(el("span", { text: "＋ Add more demos" }));
-      summary.appendChild(el("span", { class: "bx-apps-expander-hint",
-        text: "No signals for these in your script — enable manually if you want them." }));
-      exp.appendChild(summary);
-      optIn.forEach(function (r) { exp.appendChild(appCard(r.def, r.slice, r.intent)); });
-      wrap.appendChild(exp);
-    }
 
     wrap.appendChild(el("div", { class: "bx-help bx-mt-18",
       html: "<strong>Previewing the template:</strong> until you generate a branded version, the preview shows the default sample data. Generate to personalize it to your customer." }));
@@ -2536,6 +2519,10 @@
     if (slice.enabled) toggle.setAttribute("checked", "checked");
     toggle.addEventListener("change", function () {
       slice.enabled = toggle.checked;
+      // Turning an app on auto-drops-down its full view. Turning it off leaves
+      // `expanded` untouched — the panel is gated on `enabled` too, so a
+      // previously-open app reopens expanded if switched back on.
+      if (toggle.checked) slice.expanded = true;
       commit();
       renderMain(); // re-render to show/hide the preview panel
     });
@@ -2545,6 +2532,25 @@
     if (intent.hasSignal) pills.appendChild(el("span", { class: "bx-pill bx-pill-rec", text: "★ Recommended" }));
     const tierLabel = slice._aiGenerated ? "On · AI images" : (slice.extracted ? "On · preview" : "On");
     pills.appendChild(el("span", { class: "bx-pill", text: slice.enabled ? tierLabel : "Opt-in" }));
+
+    // Chevron collapses/expands the view while keeping the app on. Only shown
+    // when enabled — a disabled app has nothing to drop down. Hidden while
+    // generating so the progress bar stays visible until the build finishes.
+    if (slice.enabled && !slice._generating) {
+      const chevron = el("button", {
+        class: "bx-app-chevron",
+        type: "button",
+        title: slice.expanded ? "Collapse" : "Expand",
+        "aria-label": slice.expanded ? "Collapse" : "Expand",
+        text: slice.expanded ? "▾" : "▸",
+      });
+      chevron.addEventListener("click", function () {
+        slice.expanded = !slice.expanded;
+        commit();
+        renderMain();
+      });
+      pills.appendChild(chevron);
+    }
     pills.appendChild(toggleLabel);
 
     card.appendChild(el("div", { class: "bx-row bx-row-between" }, [
@@ -2555,24 +2561,26 @@
       pills,
     ]));
 
-    // Evidence chips — the actual keywords in the script that triggered the
-    // recommendation. Shown whenever there are signals, on or off.
-    if (intent.hasSignal && intent.evidence && intent.evidence.length) {
-      const chips = el("div", { class: "bx-chips bx-mt-12" });
-      chips.appendChild(el("span", { class: "bx-chips-label", text: "Signals in your script:" }));
-      // De-dupe by keyword; cap at 6 so a keyword-heavy script doesn't flood.
-      const seen = {};
-      intent.evidence.forEach(function (ev) {
-        if (seen[ev.keyword]) return;
-        seen[ev.keyword] = 1;
-        if (Object.keys(seen).length > 6) return;
-        chips.appendChild(el("span", { class: "bx-chip", text: ev.keyword }));
-      });
-      card.appendChild(chips);
-    }
+    // Preview + generate panel — only when enabled AND expanded. An enabled app
+    // that's collapsed still builds; it just hides its full view.
+    if (slice.enabled && slice.expanded) {
+      // Evidence chips — the actual keywords in the script that triggered the
+      // recommendation. Live inside the expanded panel so a collapsed row stays
+      // minimal.
+      if (intent.hasSignal && intent.evidence && intent.evidence.length) {
+        const chips = el("div", { class: "bx-chips bx-mt-12" });
+        chips.appendChild(el("span", { class: "bx-chips-label", text: "Signals in your script:" }));
+        // De-dupe by keyword; cap at 6 so a keyword-heavy script doesn't flood.
+        const seen = {};
+        intent.evidence.forEach(function (ev) {
+          if (seen[ev.keyword]) return;
+          seen[ev.keyword] = 1;
+          if (Object.keys(seen).length > 6) return;
+          chips.appendChild(el("span", { class: "bx-chip", text: ev.keyword }));
+        });
+        card.appendChild(chips);
+      }
 
-    // Preview + generate panel — only when enabled.
-    if (slice.enabled) {
       // Before anything is generated, seed a generic-retail preview so the
       // iframe never shows the stock Total Wine sample. Token-free.
       if (!slice.extracted) ensureGenericPreview(def, slice);
@@ -3969,9 +3977,12 @@
     if (!targets.length) return Promise.resolve(0);
 
     let updated = 0;
-    // Sequential — one persona at a time, same as the image chain.
-    return targets.reduce(function (chain, per) {
-      return chain.then(function () {
+    // Bounded-parallel waves (BATCH personas at a time, matching the image
+    // batch) so persona copy fills ~BATCH× faster than one-at-a-time while
+    // staying well under the server's 30-req/60s rate limit. Each persona
+    // mutates only itself, so concurrent calls don't collide.
+    const BATCH = 4;
+    const fillOne = function (per) {
         const prompt = AI_PROMPT.getPersonaCopyPrompt(per, context);
         return GEMINI.generate({ prompt: prompt, jsonMode: true })
           .then(function (text) {
@@ -4002,8 +4013,13 @@
             if (touched) updated++;
           })
           .catch(function () { /* skip this persona on error */ });
-      });
-    }, Promise.resolve()).then(function () { return updated; });
+    };
+    const runWave = function (start) {
+      const slice = targets.slice(start, start + BATCH);
+      if (!slice.length) return Promise.resolve();
+      return Promise.all(slice.map(fillOne)).then(function () { return runWave(start + BATCH); });
+    };
+    return runWave(0).then(function () { return updated; });
   }
 
   function viewAssets() {
@@ -4083,10 +4099,11 @@
           const pb = progressBar("Filling persona copy…");
           genAllBar.appendChild(pb.node);
 
-          // A few images at a time is ~3x faster than one-at-a-time while
+          // A few images at a time is ~4x faster than one-at-a-time while
           // staying well under Gemini's rate limits. Advance to the next
-          // batch only once the current one fully settles.
-          const IMG_BATCH = 3;
+          // batch only once the current one fully settles. Matches the batch
+          // size used by generateProductPhotos and runPersonaCopyFill.
+          const IMG_BATCH = 4;
           let done = 0;
           const total = imgTargets.length;
           const updateProgress = function () {
