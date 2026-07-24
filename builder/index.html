@@ -19,6 +19,11 @@
   </script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" />
   <link rel="stylesheet" href="builder.css" />
+  <!-- Config-driven Salesforce console screen atoms (screenFlow preview).
+       Canonical stylesheet shared with the exported /demo deck — the Step-8
+       preview renders the SAME .sf-* DOM the export ships, so it stays in sync.
+       The .sf-* classes are namespaced and won't collide with builder.css. -->
+  <link rel="stylesheet" href="../demo/styles/screens.css" />
 </head>
 <body>
 
@@ -52,6 +57,10 @@
        rely on (and builder.js consuming them last) is preserved. The
        doc-extract.js module is deferred by default. -->
   <script defer src="recommendation-rules.js"></script>
+  <!-- Config-driven Salesforce console/CRM screen catalog. Must load before
+       import-validator.js (reads HOLO_SCREEN_REGISTRY) and recommendation
+       consumers. -->
+  <script defer src="screen-registry.js"></script>
   <script defer src="holodeck-shared.js"></script>
   <script defer src="preview-renderer.js"></script>
   <script defer src="config-generator.js"></script>
@@ -75,6 +84,11 @@
        shared normalization layer, then the two format exporters. -->
   <script defer src="vendor/pptxgen.bundle.js"></script>
   <script defer src="vendor/jspdf.umd.min.js"></script>
+  <!-- Demo deck renderer — loaded here so export-model.js can reuse
+       HOLO_DEMO.renderScreenFlow to rasterize console screens to screenshots
+       at export time. It self-bails (no #demo-wrap on the builder page) but
+       still registers its HOLO_DEMO API. -->
+  <script defer src="../demo/js/demo-deck-renderer.js"></script>
   <script defer src="export-model.js"></script>
   <script defer src="pptx-exporter.js"></script>
   <script defer src="pdf-exporter.js"></script>
@@ -85,6 +99,10 @@
   <!-- Demo-app builders (R3/R4): generator must load before the extractor that uses it. -->
   <script defer src="app-config-generator.js"></script>
   <script defer src="app-foundations.js"></script>
+  <!-- Config-driven screen builders (R5): generator before the foundations
+       lane that uses it, mirroring app-config-generator → app-foundations. -->
+  <script defer src="screen-config-generator.js"></script>
+  <script defer src="screen-foundations.js"></script>
   <!-- module: uses dynamic import()/import.meta to lazy-load vendored pdf.js -->
   <script type="module" src="doc-extract.js"></script>
   <!-- Scale the authoring UI with the viewport. Sets --bx-scale on <html>;

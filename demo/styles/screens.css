@@ -1,0 +1,990 @@
+/* ============================================================================
+ * screens.css — config-driven Salesforce console/CRM screen slide types.
+ *
+ * Ported from the hand-authored koozie screens' shared "lightning.css" + the
+ * self-contained inline styles (sdr-agent-lead et al.). The 12 screens are a
+ * design system, not 12 artifacts, so their atoms share ONE stylesheet.
+ *
+ * RECOLOR MODEL
+ * ─────────────
+ * Structural Lightning chrome (surfaces, borders, text) stays neutral. Only the
+ * BRAND accents pull from the deck's brand vars (--blue / --navy / --red, set by
+ * js/holodeck-render.js). SEMANTIC STATUS colors are FIXED — a −0.72 sentiment
+ * badge or a "viewed" dot must never turn a customer's brand green/red. Every
+ * token below has a Salesforce-Lightning fallback so the screens render intact
+ * even if the brand pipeline is absent.
+ * ========================================================================== */
+
+:root {
+  /* Structural surfaces — neutral, not recolored. */
+  --sf-bg:            #F3F3F3;
+  --sf-surface:       #FFFFFF;
+  --sf-surface-alt:   #FAFAFA;
+  --sf-border:        #DDDBDA;
+  --sf-border-soft:   #EDEBE9;
+  --sf-hairline:      #F3F3F3;
+  --sf-text:          #181818;
+  --sf-text-muted:    #706E6B;
+
+  /* Brand accents — pull from the deck brand vars, Lightning fallback. */
+  --sf-brand:         var(--blue, #0176D3);
+  --sf-brand-dark:    var(--navy, #014486);
+  --sf-brand-tint:    #E3F0FE;   /* light wash behind active tab / insight */
+  --sf-brand-wash:    #F7FAFD;
+  --sf-logo:          var(--navy, #032D60);
+
+  /* SEMANTIC STATUS — FIXED. Never recolored to brand. */
+  --sf-success:       #2E844A;
+  --sf-success-bg:    #CDEFC4;
+  --sf-danger:        #BA0517;
+  --sf-danger-bg:     #FEDED8;
+  --sf-warning:       #FE9339;
+  --sf-info:          #0176D3;
+
+  /* Console content gutters — single source of truth so every region keeps
+     the same breathing room from the console frame. Bumped up from the
+     authored ~16/20px because at 1280×720 export scale the old values read
+     as cramped (content hugging the console edge). */
+  --sf-gutter-x:      28px;   /* horizontal edge padding for content regions */
+  --sf-gutter-y:      18px;   /* vertical padding for header/nav strips       */
+  --sf-body-gap:      16px;   /* gap between the main + side columns           */
+  --sf-pad:           20px;   /* internal horizontal padding for card regions  */
+
+  --sf-radius:        8px;
+  --sf-radius-sm:     4px;
+  --sf-shadow:        0 1px 4px rgba(0,0,0,0.06);
+  --sf-shadow-lg:     0 12px 36px rgba(0,0,0,0.18);
+}
+
+/* ── Slide framing (screenFlow / screenActOpener) ─────────────────────── */
+/* The slide element (.pslide.dd-slide) is an absolutely-positioned flex
+   column that centers its child. For screen layouts we override that so the
+   body FILLS the slide height (top-aligned) and can hand a concrete height
+   down to .sf-flow-grid / .sf-screen for internal scrolling. Without this the
+   body sizes to content and the screen overflows the fixed slide, clipped by
+   .dd-slide{overflow:hidden} with no scroll. */
+.dd-layout-screenFlow.pslide,
+.dd-layout-screenActOpener.pslide {
+  justify-content: flex-start; align-items: stretch;
+}
+.dd-layout-screenFlow .dd-slide-body,
+.dd-layout-screenActOpener .dd-slide-body {
+  display: flex; flex-direction: column; align-items: stretch;
+  justify-content: flex-start; width: 100%;
+  flex: 1 1 auto; height: 100%; min-height: 0;
+  padding: 24px 32px 28px; box-sizing: border-box;
+}
+/* Step-8 BUILDER PREVIEW scope. The preview root (.sf-flow-preview) stands in
+   for the .dd-slide-body wrapper the live deck has — it's the bounded flex
+   column that hands a concrete height down to .sf-flow-grid so the screen's
+   .sf-main scrolls internally instead of overflowing the preview card. The
+   builder card clips (overflow hidden) and gives it a fixed aspect box, so a
+   bounded height is present; height:100% fills it. See preview-renderer.js. */
+.sf-flow-preview {
+  display: flex; flex-direction: column; align-items: stretch;
+  justify-content: flex-start; width: 100%; height: 100%;
+  flex: 1 1 auto; min-height: 0; box-sizing: border-box;
+  padding: 20px 24px 24px;
+}
+
+/* ── Screen SCHEMATIC (Step-8 builder preview only) ───────────────────── */
+/* A clean, representative view of a console screen at small size. The real
+   screen (.sf-screen) is authored for ~1000px slides; this schematic conveys
+   the same anatomy — chrome, record header, score/criteria/timeline blocks —
+   from the SAME generated config, readably, in the narrow preview column. The
+   export/live deck never emit .sf-schem*, so these rules are preview-scoped. */
+.sf-schem-wrap { display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: hidden; }
+.sf-schem {
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  background: var(--sf-surface, #fff); border: 1px solid rgba(13,27,46,0.12);
+  border-radius: 12px; overflow: hidden; box-shadow: var(--sf-shadow-lg, 0 12px 36px rgba(0,0,0,0.18));
+  font-family: -apple-system, "Segoe UI", sans-serif; color: var(--sf-text, #181818);
+}
+.sf-schem-chrome {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: var(--sf-surface-alt, #FAFAFA); border-bottom: 1px solid var(--sf-border, #DDDBDA);
+}
+.sf-schem-tl-dots { display: inline-flex; gap: 4px; }
+.sf-schem-tl-dots i { width: 8px; height: 8px; border-radius: 50%; background: #D8D6D4; }
+.sf-schem-tl-dots i:nth-child(1) { background: #FF6159; }
+.sf-schem-tl-dots i:nth-child(2) { background: #FFBD2E; }
+.sf-schem-tl-dots i:nth-child(3) { background: #29C940; }
+.sf-schem-chrome-label {
+  font-size: 11px; font-weight: 600; color: var(--sf-text-muted, #706E6B);
+  letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sf-schem-header {
+  padding: 12px 16px 10px; border-bottom: 1px solid var(--sf-border-soft, #EDEBE9);
+  border-left: 4px solid var(--sf-brand, #0176D3);
+}
+.sf-schem-name { font-size: 17px; font-weight: 700; }
+/* Simplified body: one big metric + a few abstract bars — no dense field/crit rows. */
+.sf-schem-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px 16px;
+  display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+.sf-schem-metric { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.sf-schem-metric-val { font-size: 40px; font-weight: 800; line-height: 1; color: var(--sf-brand, #0176D3); }
+.sf-schem-metric-of { font-size: 16px; font-weight: 600; color: var(--sf-text-muted, #706E6B); }
+.sf-schem-metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--sf-text-muted, #706E6B); font-weight: 600; margin-left: 4px; }
+.sf-schem-bars { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 260px; }
+.sf-schem-bar { height: 6px; border-radius: 3px; background: var(--sf-border-soft, #EDEBE9); overflow: hidden; }
+.sf-schem-bar-fill { height: 100%; border-radius: 3px; background: var(--sf-brand, #0176D3); }
+
+/* Family-specific preview-schematic atoms — abstractions, not pixel-accurate.
+   Preview-scoped (export/live render the full .sf-screen instead). */
+.sf-schem-line { height: 8px; border-radius: 4px; background: var(--sf-border-soft, #EDEBE9); }
+.sf-schem-chat { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.sf-schem-bubble { height: 22px; border-radius: 10px; max-width: 78%; }
+.sf-schem-bubble.in { background: var(--sf-border-soft, #EDEBE9); align-self: flex-start; }
+.sf-schem-bubble.ai { background: color-mix(in srgb, var(--sf-brand, #0176D3) 22%, #fff); align-self: flex-end; }
+.sf-schem-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+.sf-schem-card { padding: 8px; border-radius: 8px; background: var(--sf-border-soft, #EDEBE9);
+  display: flex; flex-direction: column; gap: 6px; }
+.sf-schem-card-v { font-size: 15px; font-weight: 800; color: var(--sf-brand, #0176D3); line-height: 1; }
+.sf-schem-hero { width: 100%; height: 56px; border-radius: 8px;
+  background: color-mix(in srgb, var(--sf-brand, #0176D3) 30%, #fff); }
+.sf-schem-btn { width: 96px; height: 22px; border-radius: 11px; background: var(--sf-brand, #0176D3); }
+
+.sf-flow-eyebrow {
+  text-align: center; margin: 0 0 4px;
+  font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  font-weight: 600; color: var(--red, #b22234);
+}
+.sf-flow-headline {
+  text-align: center; margin: 0 0 14px;
+  font-family: var(--font-serif, "Playfair Display", serif);
+  font-size: 24px; line-height: 1.15; font-weight: 700;
+  color: var(--navy, #0d1b2e);
+}
+.sf-flow-headline em { font-style: italic; }
+.sf-flow-grid {
+  display: grid; gap: 20px; width: 100%; max-width: 1900px;
+  margin: 0 auto; align-items: stretch;
+  /* Fill the remaining slide height below eyebrow+headline so panels can scroll
+     internally instead of overflowing the fixed slide canvas. */
+  flex: 1 1 auto; min-height: 0;
+}
+/* Grid items must be allowed to shrink below content height (min-height:0)
+   and clip, so the bounded row height (not the tall content) wins the sizing
+   and the screen's internal scroll engages. Without this the wrap balloons to
+   full content height and .sf-screen{max-height:100%} resolves against THAT. */
+.sf-flow-grid > * { min-height: 0; min-width: 0; }
+.sf-screen-wrap {
+  display: flex; flex-direction: column;
+  min-height: 0; height: 100%; overflow: hidden;
+}
+.sf-screen-wrap > .sf-screen { flex: 1 1 auto; height: auto; }
+/* Steps rail: allow it to scroll too if the narrative runs long. */
+.sf-flow-grid > .sf-steps { overflow-y: auto; }
+
+/* Column shapes by panel composition. */
+.sf-flow-grid.sf-cols-steps-screen { grid-template-columns: 360px minmax(0, 1fr); }
+.sf-flow-grid.sf-cols-screen-screen { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.sf-flow-grid.sf-cols-screen-phone { grid-template-columns: minmax(0, 1fr) 400px; }
+/* Steps rail + a phone-framed screen (e.g. Sales Assistant, Thursday Spotlight).
+   The steps rail keeps its width; the phone column is sized to the .sf-phone shell. */
+.sf-flow-grid.sf-cols-steps-phone { grid-template-columns: 360px minmax(0, 1fr); justify-items: start; }
+/* Solo (component-only) layout: the single screen spans the full slide width.
+   A generous max-width keeps a lone wide console from stretching absurdly on
+   ultrawide canvases while still being clearly wider than the paired variant. */
+.sf-flow-grid.sf-cols-single { grid-template-columns: minmax(0, 1fr); max-width: 1500px; }
+.sf-flow-grid.sf-cols-single > .sf-screen-wrap { align-items: stretch; }
+/* Intro paragraph shown above the full-width screen in the solo layout. */
+.sf-flow-body {
+  text-align: center; margin: 0 auto 16px; max-width: 900px;
+  font-size: 15px; line-height: 1.5; color: var(--sf-text-muted, #54698d);
+}
+/* PREVIEW ONLY: a narrower steps rail so the numbered narrative is tighter and
+   the schematic on the right gets more room. The live/export deck keeps the
+   360px rail that matches the real reference deck. */
+.sf-flow-preview .sf-flow-grid.sf-cols-steps-screen { grid-template-columns: 260px minmax(0, 1fr); }
+
+/* ── Numbered steps rail (left panel of a steps+screen composition) ───── */
+.sf-steps { padding: 0; list-style: none; margin: 0; }
+.sf-step {
+  display: grid; grid-template-columns: 36px 1fr; gap: 12px;
+  padding: 12px 14px; background: var(--sf-surface);
+  border: 1px solid rgba(13,27,46,0.08); border-radius: 10px;
+  margin-bottom: 10px; box-shadow: var(--sf-shadow);
+}
+.sf-step:last-child { margin-bottom: 0; }
+.sf-step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; color: #fff; background: var(--sf-brand);
+}
+.sf-step-body { font-size: 13px; line-height: 1.5; color: var(--navy, #0d1b2e); }
+.sf-step-body strong { font-weight: 700; }
+/* Final "payoff" step gets a soft brand-tinted highlight. */
+.sf-step.sf-step-payoff {
+  background: linear-gradient(135deg, var(--sf-brand-tint) 0%, var(--sf-brand-wash) 100%);
+  border-color: #C9B8FF;
+}
+
+/* ── Screen shell ─────────────────────────────────────────────────────── */
+.sf-screen {
+  width: 100%; min-width: 0; background: var(--sf-bg);
+  border-radius: 12px; overflow: hidden;
+  box-shadow: var(--sf-shadow-lg); border: 1px solid rgba(13,27,46,0.10);
+  font-family: -apple-system, "Salesforce Sans", "SF Pro Text", "Segoe UI", sans-serif;
+  font-size: 13px; color: var(--sf-text);
+  /* Bound the screen to the panel height and stack chrome (fixed) over a
+     scrollable body, so the full record + timeline is reachable. */
+  display: flex; flex-direction: column;
+  max-height: 100%; min-height: 0;
+}
+/* Chrome strip: app-launcher + brand lockup + object tabs (the standalone
+   nav row was removed to reclaim vertical space for the console body). */
+.sf-tabs {
+  background: var(--sf-surface); border-bottom: 1px solid var(--sf-border);
+  padding: 8px var(--sf-gutter-x); display: flex; gap: 4px; align-items: center;
+}
+/* Brand lockup — Salesforce cloud mark + customer name, sits just right of the
+   app-launcher. Divider separates it from the object tabs. */
+.sf-brand-lockup {
+  display: flex; align-items: center; gap: 6px; margin-right: 12px;
+  padding-right: 12px; border-right: 1px solid var(--sf-border);
+}
+.sf-brand-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 16px; line-height: 1; color: var(--sf-brand);
+}
+.sf-brand-mark::before { content: "☁"; }
+.sf-brand-name {
+  font-weight: 700; color: var(--sf-logo); font-size: 13px; white-space: nowrap;
+}
+.sf-tab {
+  padding: 5px 12px; border-radius: 4px; font-size: 12px;
+  color: var(--sf-text-muted); background: var(--sf-bg);
+  border: 1px solid var(--sf-border); white-space: nowrap;
+  max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+}
+.sf-tab.active {
+  background: var(--sf-brand-tint); color: var(--sf-brand);
+  border-color: var(--sf-brand); font-weight: 600;
+}
+.sf-app-launcher {
+  display: grid; grid-template-columns: repeat(3, 5px); gap: 2px; margin-right: 8px;
+}
+.sf-app-launcher span { width: 5px; height: 5px; background: var(--sf-text-muted); border-radius: 1px; }
+
+/* Record header */
+.sf-header {
+  background: var(--sf-surface); padding: var(--sf-gutter-y) var(--sf-gutter-x);
+  border-bottom: 1px solid var(--sf-border); display: flex; align-items: flex-start; gap: 16px;
+}
+.sf-header-main { flex: 1; min-width: 0; }
+.sf-header-label {
+  font-size: 11px; color: var(--sf-text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.sf-header-name { font-size: 22px; font-weight: 700; color: var(--sf-text); margin: 2px 0 8px; }
+/* Compact header (e.g. voice console, where the record header is anchored at
+   top over a live call bar): ~half the height, smaller name + tighter fields. */
+.sf-header-compact { padding: 10px var(--sf-gutter-x); }
+.sf-header-compact .sf-header-name { font-size: 16px; margin: 1px 0 4px; }
+.sf-header-compact .sf-header-label { font-size: 10px; }
+.sf-header-compact .sf-header-fields { gap: 16px; font-size: 11px; }
+.sf-header-fields { display: flex; flex-wrap: wrap; gap: 24px; font-size: 12px; }
+.sf-field { display: flex; flex-direction: column; gap: 2px; }
+.sf-field-label {
+  font-size: 10px; color: var(--sf-text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.sf-field-value { font-weight: 500; }
+.sf-field-value.link { color: var(--sf-brand); }
+.sf-follow-btn {
+  padding: 5px 14px; border: 1px solid var(--sf-border); border-radius: 4px;
+  font-size: 12px; color: var(--sf-brand); font-weight: 600; background: var(--sf-surface);
+}
+
+/* Progress bar */
+.sf-progress {
+  padding: 12px var(--sf-gutter-x); background: var(--sf-surface);
+  border-bottom: 1px solid var(--sf-border); display: flex; align-items: center; gap: 8px;
+}
+.sf-pb-step {
+  flex: 1; height: 24px; border-radius: 12px; background: var(--sf-success);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 14px; font-weight: 700;
+}
+.sf-pb-step.todo { background: var(--sf-border); color: var(--sf-text-muted); }
+.sf-pb-label { font-size: 12px; font-weight: 600; color: var(--sf-success); margin-left: 8px; }
+.sf-pb-btn {
+  background: var(--sf-danger); color: #fff; border: none; border-radius: 4px;
+  padding: 6px 14px; font-size: 11px; font-weight: 600; margin-left: auto; white-space: nowrap;
+}
+
+/* Body layout — scrolls within the bounded screen so the whole record
+   (all criteria rows + full activity timeline) stays reachable. */
+.sf-main {
+  display: grid; grid-template-columns: minmax(0,1fr) 380px;
+  gap: var(--sf-body-gap); padding: var(--sf-gutter-y) var(--sf-gutter-x);
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; align-items: start;
+}
+.sf-col { min-width: 0; }
+
+/* Card */
+.sf-card {
+  background: var(--sf-surface); border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius); overflow: hidden; margin-bottom: 12px;
+}
+.sf-card:last-child { margin-bottom: 0; }
+/* Quiet placeholder card for a side column the config didn't populate
+   (e.g. voice-console left/right). Dashed + dimmed so it reads as an
+   intentional empty slot, not a broken/blank cell. */
+.sf-card-empty {
+  border-style: dashed; background: transparent;
+  min-height: 88px; display: flex; align-items: center; justify-content: center;
+}
+.sf-card-empty-label {
+  font-size: 12px; font-weight: 600; letter-spacing: .02em;
+  color: var(--sf-text-soft, #6b7280); opacity: .7; text-align: center; padding: 12px;
+}
+.sf-card-head {
+  padding: 12px var(--sf-pad); border-bottom: 1px solid var(--sf-border-soft);
+  display: flex; align-items: center; gap: 10px;
+}
+.sf-card-head-icon {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--sf-brand), var(--sf-brand-dark));
+  color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px;
+}
+.sf-card-head-title { font-size: 14px; font-weight: 700; }
+.sf-card-head-sub { font-size: 11px; color: var(--sf-text-muted); }
+.sf-card-head-badge {
+  margin-left: auto; background: var(--sf-success-bg); color: var(--sf-success);
+  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 10px; letter-spacing: 0.04em;
+}
+
+/* Score */
+.sf-score-row { display: grid; grid-template-columns: 80px 1fr; gap: 16px; padding: 16px var(--sf-pad); align-items: start; }
+.sf-score-circle {
+  width: 72px; height: 72px; border-radius: 50%; border: 4px solid var(--sf-success);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.sf-score-num { font-size: 28px; font-weight: 700; color: var(--sf-success); line-height: 1; }
+.sf-score-denom { font-size: 10px; color: var(--sf-text-muted); }
+.sf-score-label { font-size: 15px; font-weight: 700; }
+.sf-score-meta { font-size: 11px; color: var(--sf-text-muted); margin-bottom: 8px; }
+.sf-score-insight {
+  background: var(--sf-brand-wash); border: 1px solid var(--sf-brand-tint);
+  border-radius: 6px; padding: 12px 14px; font-size: 12px; line-height: 1.5; color: var(--sf-text);
+  /* When the insight is a direct card-body child (sfAiPanel), inset it from
+     the card edge; inside .sf-score-row the row padding already spaces it, so
+     the margin is zeroed there. */
+  margin: 12px var(--sf-pad) 14px;
+}
+.sf-score-row .sf-score-insight { margin: 0; }
+.sf-score-insight::before { content: "✦ "; color: var(--sf-brand); }
+
+/* Criteria rows */
+.sf-criteria { padding: 0 var(--sf-pad) 16px; }
+.sf-criteria-row {
+  display: grid; grid-template-columns: 24px 1fr 56px; gap: 10px; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--sf-hairline);
+}
+.sf-criteria-row:last-child { border-bottom: none; }
+.sf-criteria-icon {
+  width: 24px; height: 24px; border-radius: 50%; background: var(--sf-bg);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--sf-text-muted);
+}
+.sf-criteria-name { font-size: 12px; font-weight: 600; }
+.sf-criteria-sub { font-size: 10px; color: var(--sf-text-muted); }
+.sf-criteria-score { font-size: 12px; font-weight: 600; color: var(--sf-success); text-align: right; }
+.sf-criteria-bar { height: 4px; background: var(--sf-border-soft); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.sf-criteria-bar-fill { height: 100%; background: var(--sf-brand); border-radius: 2px; }
+
+/* Activity timeline */
+.sf-activity-head {
+  padding: 10px var(--sf-pad); border-bottom: 1px solid var(--sf-border-soft);
+  font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+}
+.sf-activity-head .sf-icons { margin-left: auto; display: flex; gap: 4px; }
+.sf-activity-head .sf-icons span {
+  width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--sf-border);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--sf-text-muted);
+}
+.sf-activity-month {
+  padding: 8px var(--sf-pad); font-size: 11px; color: var(--sf-text-muted);
+  font-weight: 600; border-bottom: 1px solid var(--sf-hairline);
+}
+.sf-activity-item { padding: 10px var(--sf-pad); border-bottom: 1px solid var(--sf-hairline); }
+.sf-activity-item:last-child { border-bottom: none; }
+.sf-activity-item-head { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 6px; }
+.sf-ai-dot {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--sf-brand);
+  color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; flex-shrink: 0;
+}
+.sf-ai-dot.agent { background: linear-gradient(135deg, var(--sf-brand), var(--sf-brand-dark)); }
+.sf-activity-item-title { font-weight: 600; color: var(--sf-brand); }
+.sf-activity-item-sub { font-size: 11px; color: var(--sf-text-muted); }
+.sf-msg {
+  padding: 8px 12px; background: var(--sf-surface-alt);
+  border-left: 3px solid var(--sf-brand); border-radius: 4px; margin-top: 6px;
+}
+.sf-msg-from { font-size: 11px; font-weight: 600; color: var(--sf-text); margin-bottom: 3px; display: flex; justify-content: space-between; gap: 8px; }
+.sf-msg-from .sf-time { color: var(--sf-text-muted); font-weight: 400; white-space: nowrap; }
+.sf-msg-status { font-size: 10px; color: var(--sf-text-muted); margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
+.sf-msg-status .sf-dot { width: 6px; height: 6px; border-radius: 50%; }
+.sf-msg-status .sf-dot.viewed { background: var(--sf-success); }
+.sf-msg-status .sf-dot.pending { background: var(--sf-warning); }
+.sf-msg-body { font-size: 12px; color: #4a5568; line-height: 1.5; }
+
+/* Identity / detail grid */
+.sf-detail { padding: 12px var(--sf-pad); }
+.sf-detail-title { font-size: 12px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.sf-detail-title::before { content: "▾"; color: var(--sf-text-muted); }
+.sf-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sf-detail-label { font-size: 10px; color: var(--sf-text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+.sf-detail-value { font-size: 12px; font-weight: 500; }
+
+/* ── Single-column main (chat / metrics / campaign / email families) ──── */
+.sf-main.sf-main-single { grid-template-columns: minmax(0, 1fr); }
+
+/* AI narrative panel sources */
+.sf-ai-sources { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px var(--sf-pad) 14px; }
+.sf-ai-source {
+  font-size: 10px; font-weight: 600; color: var(--sf-brand); background: var(--sf-brand-wash);
+  border: 1px solid var(--sf-brand-tint); border-radius: 10px; padding: 3px 8px;
+}
+
+/* KPI metric cards */
+.sf-metric-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; padding: 16px var(--sf-pad); }
+.sf-metric-card {
+  background: var(--sf-surface); border: 1px solid var(--sf-border); border-radius: var(--sf-radius);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;
+}
+.sf-metric-card-label { font-size: 11px; color: var(--sf-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.sf-metric-card-value { font-size: 24px; font-weight: 700; color: var(--sf-text); line-height: 1.1; }
+.sf-metric-card-delta { font-size: 11px; font-weight: 600; }
+.sf-metric-card-delta.up { color: var(--sf-success); }
+.sf-metric-card-delta.down { color: var(--sf-danger); }
+.sf-metric-card-delta.flat { color: var(--sf-text-muted); }
+
+/* Data table */
+.sf-table { padding: 0 var(--sf-pad) 16px; display: flex; flex-direction: column; }
+.sf-tr { display: grid; grid-template-columns: 2fr repeat(4, 1fr); gap: 10px; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid var(--sf-hairline); }
+.sf-tr:last-child { border-bottom: none; }
+.sf-tr-head { border-bottom: 1px solid var(--sf-border); }
+.sf-th { font-size: 10px; font-weight: 700; color: var(--sf-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.sf-td { font-size: 12px; color: var(--sf-text); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* List / funnel rows */
+.sf-list { padding: 4px var(--sf-pad) 16px; }
+.sf-list-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--sf-hairline); }
+.sf-list-row:last-child { border-bottom: none; }
+.sf-list-main { flex: 1; min-width: 0; }
+.sf-list-primary { font-size: 13px; font-weight: 600; color: var(--sf-text); }
+.sf-list-secondary { font-size: 11px; color: var(--sf-text-muted); margin-top: 2px; }
+.sf-list-value { font-size: 14px; font-weight: 700; color: var(--sf-brand); white-space: nowrap; }
+.sf-pill { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 10px; letter-spacing: 0.03em; white-space: nowrap; }
+.sf-pill-pos, .sf-pill-good { background: var(--sf-success-bg); color: var(--sf-success); }
+.sf-pill-neg, .sf-pill-bad { background: var(--sf-danger-bg); color: var(--sf-danger); }
+.sf-pill-neutral { background: var(--sf-border-soft); color: var(--sf-text-muted); }
+.sf-pill-brand { background: var(--sf-brand-tint); color: var(--sf-brand); }
+
+/* Chat / transcript thread */
+.sf-chat { padding: 18px var(--sf-pad); display: flex; flex-direction: column; gap: 16px; }
+.sf-chat-turn { display: flex; gap: 10px; align-items: flex-start; }
+.sf-chat-avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: var(--sf-text-muted); background: var(--sf-surface-alt);
+}
+.sf-chat-avatar.agent { color: #fff; background: linear-gradient(135deg, var(--sf-brand), var(--sf-brand-dark)); }
+/* Agent replies are full-width, no card; user turns get a grey pill bubble. */
+.sf-chat-bubble { flex: 1; min-width: 0; }
+.sf-chat-turn.user .sf-chat-bubble { flex: 0 1 auto; max-width: 90%; background: var(--sf-surface-alt);
+  border-radius: 12px; padding: 10px 14px; }
+.sf-chat-who { font-size: 11px; font-weight: 700; color: var(--sf-text-muted); margin-bottom: 3px; }
+.sf-chat-turn.user .sf-chat-who { display: none; }
+.sf-chat-greeting { font-size: 12px; color: var(--sf-text-muted); font-style: italic; line-height: 1.5; }
+.sf-chat-body { font-size: 13px; line-height: 1.6; color: var(--sf-text); }
+.sf-chat-body a, .sf-agent-item a, .sf-ah-body a { color: var(--sf-brand); font-weight: 500; text-decoration: none; }
+
+/* Structured multi-section agent reply (sales-assistant) */
+.sf-agent-section { margin-top: 12px; }
+.sf-agent-sec-title { font-size: 13px; font-weight: 700; color: var(--sf-brand-dark); margin-bottom: 6px; }
+.sf-agent-item { font-size: 12px; line-height: 1.5; color: var(--sf-text-muted); margin-bottom: 6px;
+  padding-left: 12px; position: relative; }
+.sf-agent-item::before { content: "–"; position: absolute; left: 0; color: var(--sf-brand); font-weight: 700; }
+.sf-agent-item strong { color: var(--sf-text); }
+/* Highlight callout box */
+.sf-agent-highlight { background: var(--sf-brand-wash); border-left: 3px solid var(--sf-brand);
+  border-radius: 4px; padding: 10px 12px; margin: 10px 0; }
+.sf-ah-title { font-size: 12px; font-weight: 700; color: var(--sf-brand-dark); margin-bottom: 4px; }
+.sf-ah-body { font-size: 12px; line-height: 1.5; color: var(--sf-text); margin-bottom: 6px; }
+.sf-ah-body strong { color: var(--sf-brand-dark); }
+.sf-ah-source { font-size: 11px; font-style: italic; color: var(--sf-text-muted); }
+
+/* Phone-framed assistant panel (sales-assistant) */
+.sf-screen-assist { padding: 0; background: var(--sf-surface); }
+.sf-assist { display: flex; flex-direction: column; height: 100%; background: var(--sf-surface); }
+.sf-assist-head { padding: 12px 16px; border-bottom: 1px solid var(--sf-border-soft);
+  display: flex; align-items: center; gap: 10px;
+  background: linear-gradient(180deg, var(--sf-surface) 0%, var(--sf-surface-alt) 100%); }
+.sf-assist-title { font-size: 16px; font-weight: 700; color: var(--sf-brand-dark); flex: 1; }
+.sf-assist-close { display: flex; gap: 6px; color: var(--sf-text-muted); font-size: 14px; }
+.sf-assist-msgs { flex: 1; overflow-y: auto; }
+.sf-assist-input { padding: 12px 16px; border-top: 1px solid var(--sf-border-soft); background: var(--sf-surface); }
+.sf-assist-field { width: 100%; padding: 10px 14px; border: 1px solid var(--sf-border); border-radius: 8px;
+  font-size: 12px; color: var(--sf-text-muted); background: var(--sf-surface-alt); }
+
+/* Grounded suggested reply */
+.sf-suggested { background: var(--sf-brand-wash); border: 1px solid var(--sf-brand-tint); border-radius: 10px; padding: 12px 14px; margin-top: 4px; }
+.sf-suggested-head { font-size: 12px; font-weight: 700; color: var(--sf-brand); margin-bottom: 6px; }
+.sf-suggested-body { font-size: 12px; line-height: 1.5; color: var(--sf-text); padding: 12px var(--sf-pad); }
+.sf-suggested-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.sf-suggested-btn { font-size: 11px; font-weight: 600; color: var(--sf-brand); background: var(--sf-surface);
+  border: 1px solid var(--sf-brand); border-radius: 4px; padding: 5px 12px; }
+
+/* Live-call bar (voiceConsole) */
+.sf-callbar { display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+  background: var(--sf-brand-dark); color: #fff; }
+.sf-callbar-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--sf-success);
+  box-shadow: 0 0 0 0 rgba(46,132,74,0.7); animation: sfLivePulse 1.6s infinite; }
+.sf-callbar-label { font-size: 13px; font-weight: 600; }
+.sf-callbar-timer { margin-left: auto; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+@keyframes sfLivePulse {
+  0% { box-shadow: 0 0 0 0 rgba(46,132,74,0.7); }
+  70% { box-shadow: 0 0 0 8px rgba(46,132,74,0); }
+  100% { box-shadow: 0 0 0 0 rgba(46,132,74,0); }
+}
+
+/* Voice console: 3-column layout (caller detail · transcript · assist).
+   The two rail columns are held to a sensible fixed width so that on a
+   full-width (solo) screen the extra space flows to the transcript in the
+   middle — the focal live stream — instead of stretching all three columns
+   into over-wide, sparse cards. */
+.sf-main-3col {
+  display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr) minmax(260px, 360px);
+  gap: 12px;
+}
+/* Keep the animated transcript readable — bubbles shouldn't run edge-to-edge
+   in the now-wider center column. */
+.sf-main-3col .sf-vt { max-width: 640px; margin: 0 auto; width: 100%; }
+
+/* Animated live transcript — turns fade+slide in on a stagger (animation-delay).
+   The animation is GATED on the slide being `.active`, so it plays when the SE
+   navigates to the slide (and re-plays every entry) rather than firing once at
+   deck-build time while the slide is still off-screen. Any non-active state
+   (unopened slide, static print/export snapshot) shows the final resting state
+   via the `:not(.active)` fallback below — export-safe with no JS. */
+.sf-vt { display: flex; flex-direction: column; gap: 10px; padding: 14px var(--sf-pad); }
+.sf-vt-turn { max-width: 88%; }
+.sf-vt-turn.customer { align-self: flex-start; }
+.sf-vt-turn.rep { align-self: flex-end; text-align: right; }
+.sf-vt-who { font-size: 11px; font-weight: 700; margin-bottom: 3px; }
+.sf-vt-turn.customer .sf-vt-who { color: var(--sf-brand-dark, #014486); }
+.sf-vt-turn.rep .sf-vt-who { color: var(--sf-brand, #0176D3); }
+.sf-vt-bubble {
+  font-size: 13px; line-height: 1.5; padding: 8px 12px; border-radius: 12px; display: inline-block; text-align: left;
+}
+.sf-vt-turn.customer .sf-vt-bubble { background: var(--sf-border-soft, #EDEBE9); color: var(--sf-text, #16325c); border-bottom-left-radius: 3px; }
+.sf-vt-turn.rep .sf-vt-bubble { background: var(--sf-brand-tint, #E3F0FE); color: var(--sf-brand-dark, #014486); border-bottom-right-radius: 3px; }
+/* Resting (default) state: fully visible. This is what an off-screen or
+   exported slide shows. The animation only overrides it while `.active`. */
+.sf-vt-in { opacity: 1; will-change: opacity, transform; }
+/* Play (and re-play) the stagger only when the slide is the active one. */
+.dd-slide.active .sf-vt-in { opacity: 0; animation: sfVtIn 0.45s ease-out forwards; }
+@keyframes sfVtIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Respect reduced-motion: show all turns immediately, no slide. */
+@media (prefers-reduced-motion: reduce) {
+  .dd-slide.active .sf-vt-in { opacity: 1; animation: none; }
+}
+
+/* ── campaignBuilder: prompt box + step strip + preview grid ───────────── */
+
+/* Prompt box — natural-language ask with highlighted phrases + a build button. */
+.sf-prompt-box {
+  border-radius: 10px; padding: 14px 16px; margin: 14px var(--sf-pad) 4px;
+  border: 1px solid color-mix(in srgb, var(--sf-brand, #0176D3) 35%, #fff);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sf-brand, #0176D3) 8%, #fff) 0%, color-mix(in srgb, var(--sf-brand, #0176D3) 4%, #fff) 100%);
+}
+.sf-prompt-input {
+  background: var(--sf-surface, #fff); border: 1px solid var(--sf-border, #DDDBDA);
+  border-radius: 6px; padding: 12px 14px; font-size: 13px; line-height: 1.5; color: var(--sf-text, #181818);
+}
+.sf-prompt-hl {
+  color: var(--sf-brand-dark, #5D2E8C); font-weight: 600;
+  background: color-mix(in srgb, var(--sf-brand, #0176D3) 12%, #fff); padding: 1px 4px; border-radius: 3px;
+}
+.sf-prompt-foot { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.sf-prompt-btn { background: var(--sf-brand, #0176D3); color: #fff; font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: 6px; }
+.sf-prompt-meta { font-size: 11px; color: var(--sf-text-muted, #706E6B); }
+
+/* Build-step strip — numbered stages, done stages border/number turn green. */
+.sf-step-strip { display: flex; gap: 10px; align-items: stretch; margin: 14px var(--sf-pad) 16px; }
+.sf-cstep {
+  flex: 1; position: relative; background: var(--sf-surface, #fff);
+  border: 1px solid var(--sf-border, #DDDBDA); border-radius: 8px; padding: 10px 12px;
+}
+.sf-cstep.done { border-color: var(--sf-success, #2E844A); }
+.sf-cstep-num {
+  position: absolute; top: -8px; left: -8px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--sf-border, #DDDBDA); color: var(--sf-text, #181818);
+  display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;
+}
+.sf-cstep.done .sf-cstep-num { background: var(--sf-success, #2E844A); color: #fff; }
+.sf-cstep-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--sf-text, #181818); }
+.sf-cstep-preview { font-size: 11px; color: var(--sf-text-muted, #706E6B); line-height: 1.4; }
+
+/* Campaign preview grid (2×2 result cards). */
+.sf-cp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0 4px; }
+.sf-cp-card { background: var(--sf-surface, #fff); border: 1px solid var(--sf-border, #DDDBDA); border-radius: 8px; overflow: hidden; }
+.sf-cp-head {
+  background: var(--sf-surface-alt, #FAFAFA); padding: 8px 12px; border-bottom: 1px solid var(--sf-border, #DDDBDA);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.sf-cp-head-title { font-size: 12px; font-weight: 600; color: var(--sf-text, #181818); }
+.sf-cp-body { padding: 12px; font-size: 12px; }
+.sf-cp-count { font-size: 32px; font-weight: 800; color: var(--sf-brand, #1F7BC7); line-height: 1; }
+.sf-cp-count-sub { font-size: 11px; color: var(--sf-text-muted, #706E6B); margin: 4px 0 10px; }
+.sf-cp-email { background: linear-gradient(180deg, var(--sf-surface-alt, #FAFAFA) 0%, #fff 100%); border-radius: 6px; padding: 12px; }
+.sf-cp-email-subj { font-size: 12px; font-weight: 600; color: var(--sf-text, #181818); margin-bottom: 6px; }
+.sf-cp-email-body { font-size: 11px; line-height: 1.5; color: var(--sf-text-muted, #706E6B); }
+.sf-cp-cta-note { font-size: 12px; color: var(--sf-text, #181818); margin-bottom: 12px; line-height: 1.5; }
+
+/* Key/value attribute rows (dashed dividers). */
+.sf-attrs { display: flex; flex-direction: column; }
+.sf-attr-row {
+  display: flex; justify-content: space-between; gap: 10px; padding: 5px 0;
+  border-bottom: 1px dashed var(--sf-border-soft, #EDEBE9); font-size: 11px;
+}
+.sf-attr-row:last-child { border-bottom: none; }
+.sf-attr-k { color: var(--sf-text-muted, #706E6B); }
+.sf-attr-v { color: var(--sf-text, #181818); font-weight: 500; text-align: right; }
+
+/* ── emailPreview: phone-framed marketing email ───────────────────────── */
+.sf-screen-email { background: #EDEDED; padding: 16px; }
+.sf-email-shell {
+  max-width: 380px; margin: 0 auto; background: var(--sf-surface, #fff);
+  border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); overflow: hidden;
+}
+.sf-email-head {
+  padding: 12px 14px; background: var(--sf-surface-alt, #FAFAFA);
+  border-bottom: 1px solid var(--sf-border, #DDDBDA); font-size: 11px; color: var(--sf-text-muted, #706E6B);
+}
+.sf-email-from { color: var(--sf-text, #181818); font-weight: 600; font-size: 12px; }
+.sf-email-subj { color: var(--sf-text, #181818); font-weight: 500; font-size: 13px; margin-top: 4px; }
+.sf-email-to {
+  display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600;
+  background: var(--sf-brand-wash, #E3F0FE); color: var(--sf-brand, #0176D3);
+}
+.sf-etoggle { display: flex; background: var(--sf-surface-alt, #F3F3F3); border-bottom: 1px solid var(--sf-border, #DDDBDA); }
+.sf-etab {
+  flex: 1; padding: 8px; font-size: 11px; text-align: center; font-weight: 500;
+  color: var(--sf-text-muted, #706E6B); border-right: 1px solid var(--sf-border, #DDDBDA);
+}
+.sf-etab:last-child { border-right: none; }
+.sf-etab.active { background: var(--sf-surface, #fff); color: var(--sf-brand, #1F7BC7); border-bottom: 2px solid var(--sf-brand, #1F7BC7); }
+.sf-ebanner {
+  height: 130px; display: flex; align-items: center; justify-content: center; text-align: center;
+  padding: 0 20px; color: #fff; font-weight: 700; font-size: 18px; position: relative;
+  background: linear-gradient(135deg, var(--sf-brand, #1F7BC7) 0%, var(--sf-brand-dark, #0176D3) 100%);
+}
+/* The "generic / same-for-all" banner keeps a fixed neutral-red tone (semantic contrast). */
+.sf-ebanner.alt { background: linear-gradient(135deg, #B22234 0%, #7B1220 100%); }
+.sf-ebanner-tag {
+  position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.25);
+  padding: 2px 8px; border-radius: 12px; font-size: 9px; font-weight: 600;
+}
+.sf-ebody { padding: 14px; }
+.sf-eintro { font-size: 12px; color: var(--sf-text, #181818); margin-bottom: 12px; line-height: 1.5; }
+.sf-eproduct-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sf-eproduct { background: var(--sf-surface-alt, #FAFAFA); border: 1px solid var(--sf-border-soft, #EDEBE9); border-radius: 8px; padding: 8px; }
+.sf-eproduct-img {
+  height: 66px; border-radius: 4px; margin-bottom: 6px; display: flex; align-items: center; justify-content: center;
+  font-size: 26px; background: linear-gradient(135deg, #ddd, #eee);
+}
+.sf-eproduct-name { font-size: 11px; font-weight: 600; color: var(--sf-text, #181818); }
+.sf-eproduct-meta { font-size: 10px; color: var(--sf-text-muted, #706E6B); margin-top: 2px; }
+.sf-ewhy {
+  border-radius: 8px; padding: 10px 12px; margin-top: 14px; font-size: 11px; line-height: 1.5;
+  border: 1px solid color-mix(in srgb, var(--sf-brand, #0176D3) 35%, #fff);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sf-brand, #0176D3) 10%, #fff) 0%, color-mix(in srgb, var(--sf-brand, #0176D3) 5%, #fff) 100%);
+  color: var(--sf-brand-dark, #5D2E8C);
+}
+.sf-ewhy.muted { background: var(--sf-surface-alt, #F3F3F3); color: var(--sf-text-muted, #706E6B); border-color: var(--sf-border, #DDDBDA); }
+.sf-ewhy-dot {
+  width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: middle;
+  background: linear-gradient(135deg, #9B4FD9, var(--sf-brand, #0176D3));
+}
+.sf-ecta {
+  margin-top: 14px; padding: 10px; border-radius: 6px; text-align: center; font-size: 12px; font-weight: 600;
+  background: var(--sf-brand, #1F7BC7); color: #fff;
+}
+.sf-ecta.muted { background: var(--sf-text-muted, #706E6B); }
+.sf-efoot {
+  background: var(--sf-surface-alt, #FAFAFA); padding: 8px 12px; font-size: 10px; text-align: center;
+  color: var(--sf-text-muted, #706E6B); border-top: 1px solid var(--sf-border-soft, #EDEBE9);
+}
+
+/* Legacy email block-list styles (older configs; kept for back-compat). */
+.sf-email { margin: 16px; background: var(--sf-surface); border: 1px solid var(--sf-border); border-radius: 8px; overflow: hidden; }
+.sf-email-meta { padding: 12px 16px; border-bottom: 1px solid var(--sf-border-soft); font-size: 12px; color: var(--sf-text-muted); display: flex; flex-direction: column; gap: 3px; }
+.sf-email-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.sf-email-h { font-size: 20px; font-weight: 700; color: var(--sf-text); line-height: 1.2; }
+.sf-email-p { font-size: 13px; line-height: 1.6; color: #4a5568; }
+.sf-email-img { height: 120px; border-radius: 6px; background: linear-gradient(135deg, var(--sf-brand-tint), var(--sf-brand-wash));
+  display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--sf-brand); font-weight: 600; }
+.sf-email-btn { align-self: flex-start; background: var(--sf-brand); color: #fff; font-size: 13px; font-weight: 600;
+  padding: 10px 22px; border-radius: 6px; }
+
+/* ── Screen Act Opener (animated scene opener) ────────────────────────── */
+/* The "call that runs itself" opener: eyebrow + serif headline + a pure-CSS
+   animated frustrated-caller illustration + a red-accent SCENE card. Ported
+   from the coworker deck (Slide 1). No assets — SVG + @keyframes only. */
+.sf-opener { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; text-align: center; gap: 8px; padding: 20px; box-sizing: border-box; }
+.sf-opener .sf-flow-headline { font-size: 40px; max-width: 900px; }
+.sf-opener-caller { position: relative; width: 160px; height: 160px; margin: 10px 0 4px; }
+.sf-opener-caller .sf-caller-svg { position: relative; z-index: 2; width: 96px; height: 96px;
+  position: absolute; top: 32px; left: 32px; color: var(--sf-brand-dark, #014486); }
+.sf-opener-caller .sf-ring {
+  position: absolute; top: 50%; left: 50%; width: 80px; height: 80px; margin: -40px 0 0 -40px;
+  border-radius: 50%; border: 2px solid var(--red, #b22234); opacity: 0; animation: sfFrustPulse 2.4s ease-out infinite;
+}
+.sf-opener-caller .sf-ring:nth-child(2) { animation-delay: 1.2s; }
+.sf-opener-caller .sf-frust-emoji { position: absolute; top: -6px; right: 6px; font-size: 26px; z-index: 3;
+  animation: sfFrustBounce 1.4s ease-in-out infinite; }
+@keyframes sfFrustPulse {
+  0% { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes sfFrustBounce {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(-8px) rotate(6deg); }
+}
+.sf-opener-body { font-size: 15px; line-height: 1.6; color: var(--sf-text, #181818); max-width: 640px; margin: 4px 0 6px; }
+.sf-opener-scene {
+  border-left: 4px solid var(--red, #b22234); background: var(--sf-surface, #fff);
+  border-radius: 8px; box-shadow: var(--sf-shadow, 0 1px 4px rgba(0,0,0,0.06));
+  padding: 14px 18px; text-align: left; max-width: 460px; display: flex; flex-direction: column; gap: 6px;
+}
+.sf-opener-scene-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--red, #b22234); margin-bottom: 2px; }
+.sf-opener-scene > div { font-size: 13px; line-height: 1.5; color: var(--sf-text, #181818); }
+.sf-opener-scene strong { font-weight: 700; }
+
+/* Phone frame (wraps a screen for a mobile composition, e.g. Sales Assistant) */
+.sf-phone {
+  position: relative; width: 380px; height: 760px; background: #1a1a1a;
+  border-radius: 48px; padding: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.3), inset 0 0 0 2px #333;
+  margin: 0 auto;
+}
+.sf-phone-notch {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  width: 120px; height: 28px; background: #1a1a1a; border-radius: 14px; z-index: 2;
+}
+.sf-phone-screen { width: 100%; height: 100%; border-radius: 36px; overflow: hidden; background: #fff; position: relative; }
+.sf-phone-screen .sf-screen { border-radius: 0; box-shadow: none; border: none; height: 100%; overflow-y: auto; }
+/* Tighter gutters inside the narrow phone frame so content isn't over-inset. */
+.sf-phone-screen .sf-screen { --sf-gutter-x: 16px; --sf-gutter-y: 14px; --sf-pad: 14px; }
+.sf-phone-bar {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  width: 140px; height: 5px; background: #666; border-radius: 3px;
+}
+/* Step-8 preview only: the full 380×760 phone frame dwarfs the narrow preview
+   column, so shrink it to fit and let the schematic fill the phone screen. */
+.sf-phone-schem {
+  width: 190px; height: 380px; border-radius: 28px; padding: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.22), inset 0 0 0 1px #333;
+}
+.sf-phone-schem .sf-phone-notch { width: 62px; height: 15px; top: 7px; border-radius: 8px; }
+.sf-phone-schem .sf-phone-screen { border-radius: 22px; }
+.sf-phone-schem .sf-phone-screen .sf-schem { height: 100%; overflow-y: auto; }
+.sf-phone-schem .sf-phone-bar { width: 70px; height: 3px; bottom: 5px; }
+
+/* ── kpiTable family (prospecting work queue) ─────────────────────── */
+/* One-line intro under the chrome, above the KPI strip. */
+.sf-screen-subtitle {
+  padding: 14px var(--sf-gutter-x) 0; font-size: 13px; line-height: 1.5;
+  color: var(--sf-text-muted, #706E6B); font-weight: 500;
+}
+/* Big-number summary counters. */
+.sf-kpi-strip { display: flex; gap: 10px; padding: 12px 0 4px; flex-wrap: wrap; }
+.sf-kpi {
+  flex: 1 1 0; min-width: 96px; padding: 12px 14px; border-radius: 10px;
+  background: var(--sf-surface-alt, #FAFAFA); border: 1px solid var(--sf-border-soft, #EDEBE9);
+}
+.sf-kpi.active { background: var(--sf-brand-tint, #E3F0FE); border-color: var(--sf-brand, #0176D3); }
+.sf-kpi-value { font-size: 26px; font-weight: 800; line-height: 1; color: var(--sf-brand-dark, #014486); }
+.sf-kpi.active .sf-kpi-value { color: var(--sf-brand, #0176D3); }
+.sf-kpi-label { margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--sf-text-muted, #706E6B); }
+
+/* Scored multi-account table: first column is a name/sub/signal/tags stack. */
+.sf-atbl { display: flex; flex-direction: column; padding: 0 var(--sf-pad) 12px; }
+.sf-atbl-foot { padding: 0 var(--sf-pad); }
+.sf-atbl-tr {
+  display: grid; grid-template-columns: 2.4fr repeat(6, 1fr); gap: 8px;
+  padding: 10px 6px; border-bottom: 1px solid var(--sf-border-soft, #EDEBE9); align-items: center;
+}
+.sf-atbl-head { border-bottom: 1px solid var(--sf-border, #DDDBDA); }
+.sf-atbl-th { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sf-text-muted, #706E6B); }
+.sf-atbl-td { font-size: 12px; color: var(--sf-text, #16325c); }
+.sf-atbl-tr.selected { background: var(--sf-brand-wash, #F7FAFD); }
+.sf-atbl-name-row { display: flex; align-items: center; gap: 8px; }
+.sf-atbl-name { font-size: 13px; font-weight: 700; color: var(--sf-brand-dark, #014486); }
+.sf-atbl-sub { margin-top: 2px; font-size: 11px; color: var(--sf-text-muted, #706E6B); line-height: 1.4; }
+.sf-atbl-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px; }
+.sf-atbl-foot { margin-top: 8px; font-size: 11px; color: var(--sf-text-muted, #706E6B); font-style: italic; }
+
+/* Tag chips (row metadata) — softer than status pills, semantic tones fixed. */
+.sf-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.sf-tag-neutral { background: var(--sf-border-soft, #EDEBE9); color: var(--sf-text-muted, #706E6B); }
+.sf-tag-brand { background: var(--sf-brand-tint, #E3F0FE); color: var(--sf-brand, #0176D3); }
+.sf-tag-good { background: var(--sf-success-bg, #CDEFC4); color: var(--sf-success, #2E844A); }
+.sf-tag-bad { background: var(--sf-danger-bg, #FDE7E9); color: var(--sf-danger, #BA0517); }
+
+/* Warning-tone status pill (intent signals) — semantic amber, never brand. */
+.sf-pill-warn { background: color-mix(in srgb, var(--sf-warning, #FE9339) 22%, #fff); color: #8a5200; }
+
+/* ── recordWithAiPanel atoms (donut / stage bar / transcript / sections) ── */
+/* Donut header: conic ring + center value + legend. */
+.sf-donut-row { display: flex; gap: 16px; align-items: center; padding: 12px var(--sf-pad); }
+.sf-donut {
+  width: 96px; height: 96px; border-radius: 50%; flex: 0 0 auto; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.sf-donut-hole {
+  width: 64px; height: 64px; border-radius: 50%; background: var(--sf-surface, #fff);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.sf-donut-value { font-size: 22px; font-weight: 800; line-height: 1; color: var(--sf-brand-dark, #014486); }
+.sf-donut-caption { font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sf-text-muted, #706E6B); }
+.sf-donut-legend { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; }
+.sf-donut-leg { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.sf-donut-swatch { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+.sf-donut-leg-label { flex: 1 1 auto; color: var(--sf-text, #16325c); }
+.sf-donut-leg-pct { font-weight: 700; color: var(--sf-text-muted, #706E6B); }
+
+/* Stage progress bar: segments colored by state. */
+.sf-stagebar { display: flex; gap: 6px; padding: 10px var(--sf-pad); }
+.sf-stage-seg { flex: 1 1 0; text-align: center; }
+.sf-stage-bar { height: 6px; border-radius: 3px; background: var(--sf-border-soft, #EDEBE9); }
+.sf-stage-seg.done .sf-stage-bar { background: var(--sf-success, #2E844A); }
+.sf-stage-seg.current .sf-stage-bar { background: var(--sf-brand, #0176D3); }
+.sf-stage-label { margin-top: 5px; font-size: 10px; font-weight: 600; color: var(--sf-text-muted, #706E6B); }
+.sf-stage-seg.current .sf-stage-label { color: var(--sf-brand, #0176D3); font-weight: 700; }
+
+/* Transcript turns with role tint + inline highlight spans. */
+.sf-tr-turn { padding: 8px var(--sf-pad); border-bottom: 1px solid var(--sf-border-soft, #EDEBE9); }
+.sf-tr-turn:last-child { border-bottom: none; }
+.sf-tr-meta { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+.sf-tr-who { font-size: 12px; font-weight: 700; }
+.sf-tr-turn.rep .sf-tr-who { color: var(--sf-brand, #0176D3); }
+.sf-tr-turn.customer .sf-tr-who { color: var(--sf-brand-dark, #014486); }
+.sf-tr-body { font-size: 13px; line-height: 1.5; color: var(--sf-text, #16325c); }
+/* Highlight tones are semantic — objection = danger, action = success. Fixed. */
+.sf-hl { border-radius: 3px; padding: 0 3px; font-weight: 600; }
+.sf-hl-objection { background: var(--sf-danger-bg, #FDE7E9); color: var(--sf-danger, #BA0517); }
+.sf-hl-action { background: var(--sf-success-bg, #CDEFC4); color: var(--sf-success, #2E844A); }
+
+/* Named narrative sections (research summary, insights). */
+.sf-sections { display: flex; flex-direction: column; gap: 10px; }
+.sf-section { border-left: 3px solid var(--sf-brand, #0176D3); padding-left: 10px; }
+.sf-section-head { font-size: 12px; font-weight: 700; color: var(--sf-brand-dark, #014486); margin-bottom: 2px; }
+.sf-section-body { font-size: 12px; line-height: 1.5; color: var(--sf-text-muted, #54698d); }
+
+/* ── serviceCase atoms (sentiment bar / badges / CTAs / coverage) ── */
+/* Signed sentiment bar — track gradient is semantic (red→amber→green), fixed. */
+.sf-sent { padding: 12px var(--sf-pad); }
+.sf-sent-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.sf-sent-value { font-size: 22px; font-weight: 800; color: var(--sf-danger, #BA0517); }
+.sf-sent-label { font-size: 13px; font-weight: 700; color: var(--sf-text, #16325c); }
+.sf-sent-meta { font-size: 11px; color: var(--sf-text-muted, #706E6B); margin-left: auto; }
+.sf-sent-track {
+  position: relative; height: 8px; border-radius: 4px;
+  background: linear-gradient(90deg, var(--sf-danger, #BA0517) 0%, var(--sf-warning, #FE9339) 50%, var(--sf-success, #2E844A) 100%);
+}
+.sf-sent-marker {
+  position: absolute; top: -3px; width: 4px; height: 14px; border-radius: 2px;
+  background: var(--sf-text, #16325c); transform: translateX(-50%);
+  box-shadow: 0 0 0 2px var(--sf-surface, #fff);
+}
+.sf-sent .sf-score-insight { margin-top: 10px; }
+
+/* Multi-badge status row (case header chips). */
+.sf-badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+
+/* CTA button row — primary uses brand, rest are ghost. */
+.sf-cta-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px var(--sf-pad) 4px; }
+.sf-cta {
+  font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: 6px; cursor: default;
+  border: 1px solid var(--sf-border, #DDDBDA); background: var(--sf-surface, #fff); color: var(--sf-brand, #0176D3);
+}
+.sf-cta.primary { background: var(--sf-brand, #0176D3); border-color: var(--sf-brand, #0176D3); color: #fff; }
+
+/* Coverage / handle-time math rows. */
+.sf-cov { display: flex; flex-direction: column; gap: 8px; padding: 12px var(--sf-pad); }
+.sf-cov-row { display: flex; align-items: center; gap: 10px; }
+.sf-cov-label { flex: 1 1 auto; font-size: 12px; color: var(--sf-text, #16325c); }
+.sf-cov-value { font-size: 15px; font-weight: 800; color: var(--sf-brand-dark, #014486); }
+.sf-cov-foot { font-size: 11px; color: var(--sf-text-muted, #706E6B); font-style: italic; margin-top: 2px; }
+
+/* ── metricsAndTable: territory map + funnel + pre-call brief hero ───────── */
+
+/* Territory map panel — a soft brand-tinted field of illustrative growth pins. */
+.sf-map {
+  position: relative; min-height: 300px; border-radius: 8px; padding: 14px;
+  border: 1px solid var(--sf-border, #C9DEEC);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sf-brand, #0176D3) 14%, #fff) 0%, color-mix(in srgb, var(--sf-brand, #0176D3) 4%, #fff) 100%);
+}
+.sf-map-label {
+  position: absolute; top: 10px; left: 14px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--sf-brand-dark, #014486);
+}
+/* Pins — semantic growth tones (fixed, never brand-recolored). */
+.sf-pin {
+  position: absolute; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.2); transform: translate(-50%, -50%);
+}
+.sf-pin-hot { background: var(--sf-danger, #BA0517); width: 18px; height: 18px; }
+.sf-pin-warm { background: var(--sf-warning, #FE9339); }
+.sf-pin-cool { background: #706E6B; opacity: 0.55; }
+.sf-pin-selected { outline: 3px solid rgba(1, 118, 211, 0.35); outline-offset: 2px; }
+.sf-pin-label {
+  position: absolute; background: var(--sf-brand-dark, #014486); color: #fff;
+  padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;
+  transform: translate(-50%, -160%); white-space: nowrap; pointer-events: none;
+}
+.sf-map-legend {
+  position: absolute; bottom: 10px; left: 14px; display: flex; gap: 12px;
+  font-size: 10px; color: var(--sf-brand-dark, #014486);
+}
+.sf-map-leg { display: inline-flex; align-items: center; gap: 4px; }
+.sf-map-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+
+/* Attribution funnel — stages left→right with arrows between. */
+.sf-funnel { display: flex; align-items: stretch; gap: 8px; padding: 12px var(--sf-pad); }
+.sf-funnel-stage {
+  flex: 1; text-align: center; border-radius: 8px; padding: 12px 8px;
+  border: 1px solid color-mix(in srgb, var(--sf-brand, #0176D3) 40%, #fff);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sf-brand, #0176D3) 12%, #fff) 0%, color-mix(in srgb, var(--sf-brand, #0176D3) 5%, #fff) 100%);
+}
+.sf-funnel-stage-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--sf-brand-dark, #014486); margin-bottom: 4px;
+}
+.sf-funnel-stage-value { font-size: 20px; font-weight: 800; color: var(--sf-text, #16325c); }
+.sf-funnel-stage-sub { font-size: 10px; color: var(--sf-text-muted, #706E6B); margin-top: 4px; }
+.sf-funnel-arrow { display: flex; align-items: center; font-size: 20px; color: color-mix(in srgb, var(--sf-brand, #0176D3) 45%, #fff); }
+
+/* Pre-call brief hero — brand gradient card with a signal grid. */
+.sf-brief-hero {
+  border-radius: 8px; padding: 14px 16px; color: #fff;
+  background: linear-gradient(135deg, var(--sf-brand-dark, #014486) 0%, var(--sf-brand, #1F7BC7) 100%);
+}
+.sf-brief-eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.72); }
+.sf-brief-name { font-size: 18px; font-weight: 800; margin-top: 2px; }
+.sf-brief-sub { font-size: 11px; color: rgba(255,255,255,0.72); margin-top: 2px; }
+.sf-brief-signals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.sf-brief-signal { background: rgba(255,255,255,0.10); border-radius: 6px; padding: 6px 8px; }
+.sf-brief-signal-k { font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255,255,255,0.65); }
+.sf-brief-signal-v { font-size: 14px; font-weight: 800; margin-top: 2px; }

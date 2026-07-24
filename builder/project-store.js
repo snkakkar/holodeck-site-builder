@@ -796,6 +796,11 @@
       // builder via Gemini and read by the demo's agentConversation slide. Null
       // until generated → the deterministic SHARED.agentChat() fallback is used.
       agentChatScript: seed.agentChatScript || null,
+      // Config-driven Salesforce console/CRM screens offered as generated slide
+      // types. Keyed by screenId (see screen-registry.js HOLO_SCREENS); each
+      // value is { enabled, config } where config is the generated screenConfig.
+      // Purely additive — decks with no screens selected are unaffected.
+      screens:         seed.screens         || {},
       assetLibrary:    seed.assetLibrary    || {},
       scriptText:      seed.scriptText      || "",
       storyMode:       seed.storyMode       || "script",

@@ -51,6 +51,11 @@
     { src: "../demo/styles/components.css",              dest: "demo/styles/components.css",              kind: "text" },
     { src: "../demo/styles/animations.css",              dest: "demo/styles/animations.css",              kind: "text" },
     { src: "../demo/styles/demo-theme.css",              dest: "demo/styles/demo-theme.css",              kind: "text" },
+    // Config-driven Salesforce console/CRM screen slide types (screenFlow /
+    // screenActOpener). Non-optional: it's a shipped part of the template now,
+    // and a deck with a console screen but no screens.css exports unstyled —
+    // failing the export loudly beats shipping a broken deck silently.
+    { src: "../demo/styles/screens.css",                 dest: "demo/styles/screens.css",                 kind: "text" },
 
     // Runtime JS
     // Shared copy generators — the builder's single source (HOLO_SHARED).

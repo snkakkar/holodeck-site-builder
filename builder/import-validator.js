@@ -307,6 +307,27 @@
         fallbackLinks:         arrOr(s && s.fallbackLinks, []),
         subtitle:              strOr(s && s.subtitle, ""),
         cxDescription:         strOr(s && s.cxDescription, ""),
+        // Config-driven console screen identity (screenFlow/screenActOpener).
+        // Preserved so a re-imported deck rehydrates the screen selection; the
+        // adapter re-derives steps/panels/config from screenId + state.screens.
+        screenId:              (s && s.screenId) ? String(s.screenId) : undefined,
+        family:                (s && s.family) ? String(s.family) : undefined,
+        // Per-slide screenFlow overrides edited in the Step-8 preview popover:
+        // eyebrow, numbered-steps rail, the component-only layout toggle, and
+        // its intro paragraph. Preserved so a re-imported deck keeps SE edits.
+        eyebrow:               (s && s.eyebrow != null) ? String(s.eyebrow) : undefined,
+        steps:                 (s && Array.isArray(s.steps)) ? s.steps : undefined,
+        soloScreen:            !!(s && s.soloScreen),
+        flowBody:              strOr(s && s.flowBody, ""),
+        // Act-opener (screenActOpener) overrides edited in Step 8. The adapter
+        // reads the nested openerConfig object AND the flat per-slide fields
+        // (holodeck-adapter.js ~L1060-1071); preserve both channels so a
+        // re-imported deck keeps the SE's opener edits.
+        openerConfig:          (s && s.openerConfig && typeof s.openerConfig === "object") ? s.openerConfig : undefined,
+        openerEyebrow:         (s && s.openerEyebrow != null) ? String(s.openerEyebrow) : undefined,
+        openerHeadline:        (s && s.openerHeadline != null) ? String(s.openerHeadline) : undefined,
+        openerBody:            (s && s.openerBody != null) ? String(s.openerBody) : undefined,
+        openerSceneLabel:      (s && s.openerSceneLabel != null) ? String(s.openerSceneLabel) : undefined,
       };
     }).sort(function (a, b) { return (a.order || 0) - (b.order || 0); })
       .map(function (s, i) { s.order = i; return s; });
@@ -351,6 +372,30 @@
         status:              strOr(c && c.status, "ready"),
       };
     });
+
+    // ── screens (config-driven console/CRM slide types) ────────
+    // Keyed by screenId (see screen-registry.js HOLO_SCREENS); each value is
+    // { enabled:bool, config:object|null }. Purely additive — an absent or
+    // malformed map round-trips as {}. Unknown ids are dropped when the
+    // registry is loaded; otherwise kept so validation stays standalone.
+    const screensSrc = parsed.screens
+      || (parsed.builderPlan && parsed.builderPlan.screens)
+      || {};
+    state.screens = {};
+    if (screensSrc && typeof screensSrc === "object" && !Array.isArray(screensSrc)) {
+      const known = (typeof window !== "undefined" && window.HOLO_SCREEN_REGISTRY)
+        ? window.HOLO_SCREEN_REGISTRY.SCREENS_BY_ID
+        : null;
+      Object.keys(screensSrc).forEach(function (id) {
+        if (known && !known[id]) return;                 // drop ids not in the registry
+        const v = screensSrc[id];
+        if (!v || typeof v !== "object") return;
+        state.screens[id] = {
+          enabled: v.enabled === true,
+          config: (v.config && typeof v.config === "object") ? v.config : null,
+        };
+      });
+    }
 
     // ── storyFoundations ───────────────────────────────────────
     const fSrc = parsed.storyFoundations
@@ -502,6 +547,7 @@
       personas: [], storyActs: [], scriptText: "", storyMode: "manual",
       scenes: [], assets: [], assetLibrary: {}, recommendations: [],
       selectedRecIds: {}, customRecTitles: {}, slides: [], buildNotes: [],
+      screens: {},
     };
   }
 

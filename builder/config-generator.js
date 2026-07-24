@@ -11,6 +11,29 @@
 (function (global) {
   "use strict";
 
+  // ─── Screen-slide identity + Step-8 overrides that must survive a
+  //     round-trip (screenFlow/screenActOpener). Only emitted when the
+  //     slide actually carries them, so non-screen slides stay lean and
+  //     byte-for-byte unchanged. Mirrors the fields the importer
+  //     rehydrates (import-validator.js ~L310-321, H4 opener fields). ──
+  function screenSlideFields(s) {
+    const out = {};
+    if (s.screenId)  out.screenId = String(s.screenId);
+    if (s.family)    out.family = String(s.family);
+    if (s.eyebrow != null) out.eyebrow = String(s.eyebrow);
+    if (Array.isArray(s.steps)) out.steps = s.steps;
+    if (s.soloScreen) out.soloScreen = true;
+    if (s.flowBody)  out.flowBody = String(s.flowBody);
+    // Act-opener overrides: the nested config object plus the flat
+    // per-slide fields the Step-8 editor writes (adapter reads both).
+    if (s.openerConfig && typeof s.openerConfig === "object") out.openerConfig = s.openerConfig;
+    if (s.openerEyebrow    != null) out.openerEyebrow = String(s.openerEyebrow);
+    if (s.openerHeadline   != null) out.openerHeadline = String(s.openerHeadline);
+    if (s.openerBody       != null) out.openerBody = String(s.openerBody);
+    if (s.openerSceneLabel != null) out.openerSceneLabel = String(s.openerSceneLabel);
+    return out;
+  }
+
   // ─── Build the portable snapshot (the rich object the builder
   //     uses internally and that round-trips on import) ───────────
   function buildSnapshot(state) {
@@ -38,7 +61,7 @@
         };
       }),
       slides: (state.slides || []).map(function (s, i) {
-        return {
+        return Object.assign({
           id: s.id, title: s.title, layout: s.layout, order: i,
           sectionId: s.sectionId || "",
           selectionStatus: s.selectionStatus || "",
@@ -49,8 +72,12 @@
           persona: s.persona || null,
           linkedCxComponentIds: s.linkedCxComponentIds || [],
           deviceFrame: s.deviceFrame || "",
-        };
+        }, screenSlideFields(s));
       }),
+      // Config-driven console screen selections (screenId → {enabled, config}).
+      // Emitted so a re-imported snapshot rehydrates the screen authoring; the
+      // importer reads parsed.screens (import-validator.js ~L372).
+      screens: state.screens || {},
       assets: state.assets || [],
       buildNotes: buildOpenItems(state),
     };
@@ -196,7 +223,7 @@
               const promotedLayout = (explicitCx.length || s.layout === "embeddedCxComponent")
                 ? "embeddedCxComponent"
                 : s.layout;
-              return {
+              return Object.assign({
                 order: i + 1, id: s.id, title: s.title, layout: promotedLayout,
                 sectionId: s.sectionId || layoutSection(promotedLayout),
                 selectionStatus: s.selectionStatus || "",
@@ -209,9 +236,13 @@
                 // Per-slide App Moment description override (Step 8 editor).
                 cxDescription: s.cxDescription || "",
                 missingInputs: s.missingInputs || [],
-              };
+              }, screenSlideFields(s));
             });
           })(),
+          // Console screen selections — mirrored into builderPlan so a
+          // re-imported holodeck.config.js (no top-level snapshot) still
+          // rehydrates screen authoring (importer reads builderPlan.screens).
+          screens: state.screens || {},
         };
       })(),
     };

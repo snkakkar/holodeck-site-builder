@@ -145,16 +145,18 @@
   }
 
   // ─── Image placement (contain) ─────────────────────────────────
+  // Returns true if the image was drawn, false if it could not be (so callers
+  // can fall back to a text placeholder instead of leaving the slide blank).
   function placeImage(doc, img, box) {
-    if (!img || !img.dataUrl) return;
+    if (!img || !img.dataUrl) return false;
     const iw = img.w || 16, ih = img.h || 9;
     const ar = iw / ih, boxAr = box.w / box.h;
     let w = box.w, h = box.h, x = box.x, y = box.y;
     if (ar > boxAr) { h = box.w / ar; y = box.y + (box.h - h) / 2; }
     else { w = box.h * ar; x = box.x + (box.w - w) / 2; }
     const fmt = /^data:image\/png/i.test(img.dataUrl) ? "PNG" : (/^data:image\/webp/i.test(img.dataUrl) ? "WEBP" : "JPEG");
-    try { doc.addImage(img.dataUrl, fmt, x, y, w, h); }
-    catch (e) { try { console.warn("[pdf] addImage failed:", e); } catch (_) {} }
+    try { doc.addImage(img.dataUrl, fmt, x, y, w, h); return true; }
+    catch (e) { try { console.warn("[pdf] addImage failed:", e); } catch (_) {} return false; }
   }
 
   // ─── Data Cloud console: per-facet "LWC" pane body (PDF) ───────
@@ -318,6 +320,29 @@
         doc.text(chips.join("   •   "), M, top + 16, { maxWidth: textW });
       }
       if (hasImg) placeImage(doc, ns.image, { x: PW * 0.5 + 10, y: px(0.9), w: PW * 0.5 - M - 10, h: PH - px(1.9) });
+    },
+
+    // Config-driven Salesforce console screen, captured to a screenshot in the
+    // browser (export-model captureScreenImage). Eyebrow + headline sit at the
+    // top; the screenshot fills the remaining width, centered. If capture was
+    // unavailable (headless), degrade to a text card (header + sub).
+    screenImage: function (doc, ns, ctx) {
+      const hasImg = ns.image && ns.image.dataUrl;
+      // Always draw a title so the slide is never wholly blank, even if the
+      // screen has no authored eyebrow/headline and the capture fails.
+      if (!ns.eyebrow && !ns.title) {
+        ns = Object.assign({}, ns, { title: plainText(ns.title) || "Salesforce console" });
+      }
+      let top = header(doc, ns, ctx);
+      if (ns.sub) top = wrapText(doc, ns.sub, M, top, PW - 2 * M, { size: 13, color: T.muted, maxLines: 3 });
+      // Draw the screenshot; placeImage returns false if the data URL was
+      // missing or malformed (a blank/broken capture) — in that case fall
+      // through to the labeled placeholder so the slide isn't left blank.
+      const drew = hasImg && placeImage(doc, ns.image, { x: M, y: top + 6, w: PW - 2 * M, h: PH - top - 6 - px(0.35) });
+      if (!drew) {
+        wrapText(doc, "[ Salesforce console — " + (plainText(ns.title) || ns.layout || "screen") + " ]",
+          M, top + 20, PW - 2 * M, { size: 12, style: "italic", color: T.muted, maxLines: 2 });
+      }
     },
 
     splitTextImage: function (doc, ns, ctx) {

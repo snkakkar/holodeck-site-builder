@@ -47,6 +47,18 @@ loadBrowserModule("builder/holodeck-shared.js");
 loadBrowserModule("builder/holodeck-adapter.js");
 loadBrowserModule("builder/import-validator.js");
 loadBrowserModule("builder/export-model.js");
+// Config-driven Salesforce UI screens (Phase 1/2). Load order: registry +
+// config-generator before foundations (foundations calls both). Foundations'
+// Gemini path is async and untouched here — fallbackScreenConfig is offline.
+loadBrowserModule("builder/screen-registry.js");
+loadBrowserModule("builder/screen-config-generator.js");
+loadBrowserModule("builder/screen-foundations.js");
+// Config generator (buildSnapshot) — emits the portable snapshot the
+// validator round-trips. Loaded after the validator/adapter it composes.
+loadBrowserModule("builder/config-generator.js");
+// AI prompts — one STRICT-JSON template per screen family. Loaded so the
+// family-coverage test below can assert none is missing (H6 regression).
+loadBrowserModule("builder/ai-config-prompt.js");
 
 // ── import-validator: round-trips a minimal config ───────────────
 test("HOLO_VALIDATOR loads and importConfig handles empty input cleanly", () => {
@@ -457,4 +469,194 @@ test("GEMINI.generate never caches a grounded (search) call", async () => {
   await G.generate({ ...g });
   await G.generate({ ...g });
   assert.equal(calls, 2, "grounded calls are never cached");
+});
+
+// ── Salesforce UI screens: every registry screen produces a renderable
+//    screenFlow config offline (fallbackScreenConfig), and buildScreenFields
+//    resolves a non-empty steps rail + a screen panel for each. ────────
+test("HOLO_SCREENFOUND.fallbackScreenConfig renders every screen offline", () => {
+  const REG = win.HOLO_SCREEN_REGISTRY;
+  const FOUND = win.HOLO_SCREENFOUND;
+  assert.ok(REG && Array.isArray(win.HOLO_SCREENS), "screen registry loaded");
+  assert.ok(FOUND && typeof FOUND.fallbackScreenConfig === "function", "fallbackScreenConfig exported");
+
+  const state = { project: { customerName: "Acme Corp" }, personas: [{ name: "Dana Rep", role: "SDR" }] };
+  win.HOLO_SCREENS.forEach((entry) => {
+    const cfg = FOUND.fallbackScreenConfig(entry.id, state);
+    assert.ok(cfg && typeof cfg === "object", `${entry.id}: config is an object`);
+    assert.equal(cfg.family, entry.family, `${entry.id}: family matches registry`);
+    // Every family must carry at least one renderable content block so the
+    // console is never a blank shell.
+    const hasContent = cfg.score || cfg.aiPanel || cfg.chat || (cfg.metrics && cfg.metrics.length) ||
+      cfg.table || cfg.sentiment || cfg.transcript || cfg.email || cfg.prompt || (cfg.list && cfg.list.length);
+    assert.ok(hasContent, `${entry.id}: config has renderable content`);
+  });
+});
+
+test("HOLO_ADAPTER.buildScreenFields pairs steps + screen for every screen", () => {
+  const ADAPTER = win.HOLO_ADAPTER;
+  assert.ok(ADAPTER && typeof ADAPTER.buildScreenFields === "function", "buildScreenFields exported");
+  const state = {
+    project: { customerName: "Acme Corp" },
+    personas: [{ name: "Dana Rep", role: "SDR" }],
+    storyActs: [{ title: "The call", summary: "A prospect calls in cold." }],
+    screens: {},
+  };
+  win.HOLO_SCREENS.forEach((entry) => {
+    const fields = ADAPTER.buildScreenFields(state, { layout: "screenFlow", screenId: entry.id, family: entry.family });
+    assert.equal(fields.family, entry.family, `${entry.id}: family carried onto fields`);
+    assert.ok(Array.isArray(fields.panels) && fields.panels.length === 2, `${entry.id}: two panels`);
+    assert.equal(fields.panels[0].kind, "steps", `${entry.id}: first panel is steps rail`);
+    assert.equal(fields.panels[1].kind, "screen", `${entry.id}: second panel is the screen`);
+    assert.ok(fields.panels[0].steps.length >= 1, `${entry.id}: steps rail is non-empty`);
+  });
+  // Null screenId is a clean no-op (not a throw).
+  assert.deepEqual(ADAPTER.buildScreenFields(state, { layout: "screenFlow" }), {}, "no screenId → {}");
+
+  // Mobile-native screens pair as a phone-framed screen; wide-console screens don't.
+  const chat = ADAPTER.buildScreenFields(state, { layout: "screenFlow", screenId: "sales-assistant" });
+  assert.equal(chat.panels[1].frame, "phone", "sales-assistant screen panel is phone-framed");
+  const email = ADAPTER.buildScreenFields(state, { layout: "screenFlow", screenId: "thursday-spotlight" });
+  assert.equal(email.panels[1].frame, "phone", "thursday-spotlight screen panel is phone-framed");
+  const sdr = ADAPTER.buildScreenFields(state, { layout: "screenFlow", screenId: "sdr-agent-lead" });
+  assert.ok(!sdr.panels[1].frame, "wide console screen has no phone frame");
+  // An explicit per-slide frame override wins over the registry default.
+  const forced = ADAPTER.buildScreenFields(state, { layout: "screenFlow", screenId: "sdr-agent-lead", frame: "phone" });
+  assert.equal(forced.panels[1].frame, "phone", "explicit s.frame override wins");
+});
+
+test("HOLO_ADAPTER.buildOpenerConfig derives a scene from story + persona", () => {
+  const ADAPTER = win.HOLO_ADAPTER;
+  assert.ok(ADAPTER && typeof ADAPTER.buildOpenerConfig === "function", "buildOpenerConfig exported");
+  const state = {
+    project: { customerName: "Acme Corp" },
+    personas: [{ name: "Dana Rep", role: "SDR" }],
+    storyActs: [{ title: "The cold call", summary: "A prospect calls in with no context on hand." }],
+  };
+  const cfg = ADAPTER.buildOpenerConfig(state, { layout: "screenActOpener", title: "The call that runs itself." });
+  assert.ok(cfg.headline && cfg.eyebrow && cfg.body, "headline/eyebrow/body present");
+  assert.ok(cfg.scene && Array.isArray(cfg.scene.rows) && cfg.scene.rows.length >= 1, "scene rows derived");
+  const distributor = cfg.scene.rows.find((r) => r.k === "Distributor");
+  assert.equal(distributor && distributor.v, "Acme Corp", "scene grounds in the customer name");
+  // Explicit SE openerConfig wins outright.
+  const edited = ADAPTER.buildOpenerConfig(state, { openerConfig: { headline: "Custom headline" } });
+  assert.equal(edited.headline, "Custom headline", "explicit openerConfig headline wins");
+  // Flat per-slide editor fields (the Step-8 popover binds these) also win,
+  // over both the derived defaults and the nested openerConfig.
+  const flat = ADAPTER.buildOpenerConfig(state, {
+    openerEyebrow: "Flat eyebrow", openerBody: "Flat body copy.", openerSceneLabel: "SCENE · 09:47",
+  });
+  assert.equal(flat.eyebrow, "Flat eyebrow", "flat openerEyebrow wins");
+  assert.equal(flat.body, "Flat body copy.", "flat openerBody wins");
+  assert.equal(flat.scene.label, "SCENE · 09:47", "flat openerSceneLabel wins");
+});
+
+test("HOLO_EXPORT_MODEL maps console screens to the screenImage template", () => {
+  const M = win.HOLO_EXPORT_MODEL;
+  assert.ok(M && typeof M.templateFor === "function", "templateFor exported");
+  // H1 regression: screen layouts must NOT fall through to titleSlide (which
+  // dropped all screen content and overwrote the title with the customer hero).
+  assert.equal(M.templateFor({ layout: "screenFlow" }), "screenImage", "screenFlow → screenImage");
+  assert.equal(M.templateFor({ layout: "screenActOpener" }), "screenImage", "screenActOpener → screenImage");
+  assert.equal(M.LAYOUT_TO_TEMPLATE.screenFlow, "screenImage", "mapping present in table");
+});
+
+test("HOLO_ADAPTER.buildScreenFields goes full-width (solo) with no authored narrative", () => {
+  const ADAPTER = win.HOLO_ADAPTER;
+  // No storyActs and no SE step override → the left rail has no AUTHORED
+  // content, so the screen fills the slide (content-driven rule). Registry
+  // default steps are placeholder filler and must NOT force the paired layout.
+  const bare = { project: { customerName: "Acme Corp" }, personas: [], storyActs: [], screens: {} };
+  const solo = ADAPTER.buildScreenFields(bare, { layout: "screenFlow", screenId: "mc-next-attribution" });
+  assert.equal(solo.soloScreen, true, "no narrative → soloScreen");
+  assert.equal(solo.panels.length, 1, "solo layout drops the steps rail");
+  assert.equal(solo.panels[0].kind, "screen", "the single panel is the screen");
+
+  // Ingested story narrative → keep the paired steps + screen composition.
+  const withActs = { ...bare, storyActs: [{ title: "The call", summary: "A cold call." }] };
+  const paired = ADAPTER.buildScreenFields(withActs, { layout: "screenFlow", screenId: "mc-next-attribution" });
+  assert.equal(paired.soloScreen, false, "authored acts → paired");
+  assert.equal(paired.panels.length, 2, "paired keeps the steps rail");
+
+  // Explicit per-slide soloScreen override still forces solo even with acts.
+  const forced = ADAPTER.buildScreenFields(withActs, { layout: "screenFlow", screenId: "mc-next-attribution", soloScreen: true });
+  assert.equal(forced.soloScreen, true, "explicit soloScreen override wins");
+});
+
+// ── AI prompts: every screen family has a STRICT-JSON prompt (H6) ──
+test("HOLO_AI_PROMPT.getScreenPrompt covers every registered screen family", () => {
+  const P = win.HOLO_AI_PROMPT;
+  const REG = win.HOLO_SCREEN_REGISTRY;
+  assert.ok(P && typeof P.getScreenPrompt === "function", "getScreenPrompt exported");
+  assert.ok(REG && Array.isArray(REG.SCREEN_FAMILIES) && REG.SCREEN_FAMILIES.length, "registry exposes families");
+  REG.SCREEN_FAMILIES.forEach(function (fam) {
+    const prompt = P.getScreenPrompt(fam);
+    assert.ok(typeof prompt === "string" && prompt.length > 0, "family '" + fam + "' has a prompt");
+    // Must carry the substitution placeholder the foundations lane fills.
+    assert.ok(prompt.indexOf("<<CONTEXT>>") !== -1, "family '" + fam + "' prompt keeps the <<CONTEXT>> placeholder");
+    // STRICT-JSON contract: the prompt tells the model to return JSON.
+    assert.ok(/STRICT JSON/.test(prompt), "family '" + fam + "' prompt demands STRICT JSON");
+  });
+  // Regression guard for H6 specifically: the prospecting-agent family.
+  assert.ok(P.getScreenPrompt("kpiTable"), "H6: kpiTable family has a prompt");
+});
+
+// ── Round-trip: screen authoring survives export → import (B: M1/H3/H4) ──
+test("buildSnapshot → importConfig round-trips console screen + opener state", () => {
+  const CFG = win.HOLO_CONFIG;
+  const V = win.HOLO_VALIDATOR;
+  assert.ok(CFG && typeof CFG.buildSnapshot === "function", "buildSnapshot exported");
+
+  const state = {
+    project: { customerName: "Acme Corp" },
+    brand: {}, personas: [], storyActs: [],
+    // A console-screen slide with Step-8 overrides…
+    slides: [
+      {
+        id: "s1", title: "SDR Agent", layout: "screenFlow", order: 0, sectionId: "demo",
+        screenId: "sdr-agent-lead", family: "recordWithScoreAndTimeline",
+        eyebrow: "Live console", steps: [{ n: 1, text: "Qualify" }],
+        soloScreen: true, flowBody: "Watch the agent work.",
+      },
+      // …and an act-opener slide with both nested + flat opener overrides.
+      {
+        id: "s2", title: "The call", layout: "screenActOpener", order: 1, sectionId: "demo",
+        openerConfig: { headline: "The call that runs itself.", scene: { label: "SCENE" } },
+        openerEyebrow: "Tuesday · 09:47",
+        openerBody: "A cold prospect picks up.",
+        openerSceneLabel: "SCENE · TUE",
+      },
+    ],
+    // …and the screen selection map (M1).
+    screens: { "sdr-agent-lead": { enabled: true, config: { screenId: "sdr-agent-lead", header: { name: "Jane" } } } },
+  };
+
+  const snap = CFG.buildSnapshot(state);
+  // M1: the selection map is emitted.
+  assert.ok(snap.screens && snap.screens["sdr-agent-lead"], "snapshot emits state.screens");
+  assert.equal(snap.screens["sdr-agent-lead"].enabled, true, "screen enabled flag emitted");
+  // Screen slide carries its identity + Step-8 overrides.
+  const snapScreen = snap.slides.find((s) => s.id === "s1");
+  assert.equal(snapScreen.screenId, "sdr-agent-lead", "snapshot slide keeps screenId");
+  assert.equal(snapScreen.soloScreen, true, "snapshot slide keeps soloScreen");
+  assert.equal(snapScreen.flowBody, "Watch the agent work.", "snapshot slide keeps flowBody");
+  // H4: opener overrides emitted.
+  const snapOpener = snap.slides.find((s) => s.id === "s2");
+  assert.equal(snapOpener.openerEyebrow, "Tuesday · 09:47", "snapshot slide keeps openerEyebrow");
+  assert.ok(snapOpener.openerConfig && snapOpener.openerConfig.headline, "snapshot slide keeps openerConfig");
+
+  // Re-import the snapshot and confirm the state rehydrates.
+  const res = V.importConfig(JSON.stringify(snap));
+  assert.ok(res.state, "import produced state");
+  assert.ok(res.state.screens && res.state.screens["sdr-agent-lead"], "M1: screens rehydrate on import");
+  assert.equal(res.state.screens["sdr-agent-lead"].enabled, true, "screen enabled rehydrated");
+  const inScreen = res.state.slides.find((s) => s.id === "s1");
+  assert.equal(inScreen.screenId, "sdr-agent-lead", "screenId rehydrated");
+  assert.equal(inScreen.soloScreen, true, "soloScreen rehydrated");
+  const inOpener = res.state.slides.find((s) => s.id === "s2");
+  // H4: opener overrides rehydrate (both channels).
+  assert.equal(inOpener.openerEyebrow, "Tuesday · 09:47", "H4: openerEyebrow rehydrated");
+  assert.equal(inOpener.openerBody, "A cold prospect picks up.", "H4: openerBody rehydrated");
+  assert.equal(inOpener.openerSceneLabel, "SCENE · TUE", "H4: openerSceneLabel rehydrated");
+  assert.ok(inOpener.openerConfig && inOpener.openerConfig.headline, "H4: nested openerConfig rehydrated");
 });

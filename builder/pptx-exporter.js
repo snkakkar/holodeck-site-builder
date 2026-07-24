@@ -306,6 +306,30 @@
       }
     },
 
+    // Config-driven Salesforce console screen, captured to a screenshot in the
+    // browser (export-model captureScreenImage). Eyebrow + headline at top; the
+    // screenshot fills the remaining width below. If capture was unavailable
+    // (headless), degrade to a labeled text placeholder.
+    screenImage: function (slide, ns, ctx) {
+      const hasImg = ns.image && ns.image.dataUrl;
+      let top = header(slide, ns, ctx, { titleW: T.W - 2 * T.MARGIN, titleSize: 26 });
+      if (ns.sub) {
+        slide.addText(ns.sub, {
+          x: T.MARGIN, y: top, w: T.W - 2 * T.MARGIN, h: 0.7, fontSize: 13, color: T.muted,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.left, valign: ctx.AlignV.top, shrinkText: true,
+        });
+        top += 0.78;
+      }
+      if (hasImg) {
+        placeImage(slide, ns.image, { x: T.MARGIN, y: top + 0.05, w: T.W - 2 * T.MARGIN, h: T.H - top - 0.4 }, ctx);
+      } else {
+        slide.addText("[ Salesforce console — " + (plainText(ns.title) || ns.layout || "screen") + " ]", {
+          x: T.MARGIN, y: top + 0.3, w: T.W - 2 * T.MARGIN, h: 0.6, fontSize: 13, italic: true, color: T.muted,
+          fontFace: ctx.brand.fontBody, align: ctx.AlignH.center,
+        });
+      }
+    },
+
     // Split text / image — personaIntro / personaWishlist.
     splitTextImage: function (slide, ns, ctx) {
       const hasImg = ns.image && ns.image.dataUrl;

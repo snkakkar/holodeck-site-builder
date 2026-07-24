@@ -281,6 +281,13 @@
     currentFutureState: "quotePlusColumns",
     architecture:       "bulletJourney",
     scenePhoto:         "iconList",
+    // Config-driven Salesforce console screens. These render a live in-DOM
+    // console in /demo that no static template can reproduce, so on export
+    // they are CAPTURED to a screenshot PNG in the browser (see the
+    // "screen" _imageSlot in normalizeSlide) and embedded full-bleed via the
+    // screenImage template — the SE's own eyebrow/headline sit above it.
+    screenFlow:         "screenImage",
+    screenActOpener:    "screenImage",
     // embeddedCxComponent handled specially: still image → deviceSceneImage,
     // else placeholderCx (see templateFor()).
   };
@@ -407,6 +414,180 @@
       .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  // ─── Console screen → screenshot PNG (in-browser rasterizer) ───
+  // Config-driven Salesforce console screens render as live in-DOM markup
+  // that no static export template can reproduce. So at export time we render
+  // the SAME screen the /demo deck draws (via HOLO_DEMO.renderScreenFlow),
+  // then rasterize that DOM subtree to a PNG using the native
+  // SVG-<foreignObject> → <canvas> path — zero dependencies, no server.
+  //
+  // Returns { dataUrl, w, h } | null. Null (no DOM / capture failed / no
+  // renderer) makes the exporter fall back to the eyebrow+headline text card.
+  const SCREEN_CAPTURE_CACHE = {};
+  function captureScreenImage(slide, cfg, state) {
+    // Only possible in a real browser with the demo renderer present.
+    if (typeof document === "undefined" || typeof window === "undefined") {
+      return Promise.resolve(null);
+    }
+    const DEMO = window.HOLO_DEMO;
+    if (!DEMO || typeof DEMO.renderScreenFlow !== "function") {
+      try { console.warn("[export-model] HOLO_DEMO.renderScreenFlow unavailable — screen slide falls back to text card"); }
+      catch (e) {}
+      return Promise.resolve(null);
+    }
+    // Cache per slide id (a deck can repeat a screen family; capture once).
+    const cacheKey = (slide && slide.id) || (slide && slide.screenId) || JSON.stringify(slide && slide.panels || {});
+    if (SCREEN_CAPTURE_CACHE[cacheKey] !== undefined) return Promise.resolve(SCREEN_CAPTURE_CACHE[cacheKey]);
+    const done = function (r) { SCREEN_CAPTURE_CACHE[cacheKey] = r; return r; };
+
+    // Fixed capture canvas — 16:9 at 2× for crisp embedding. The live deck
+    // slide canvas is 1280×720; we match its aspect so layout mirrors /demo.
+    const W = 1280, H = 720, SCALE = 2;
+
+    let node, host;
+    try {
+      node = DEMO.renderScreenFlow(slide, state, cfg);
+      if (!node) return Promise.resolve(done(null));
+    } catch (e) {
+      try { console.warn("[export-model] renderScreenFlow threw:", e && e.message); } catch (e2) {}
+      return Promise.resolve(done(null));
+    }
+
+    // Attach offscreen so the browser lays it out (foreignObject needs a laid-
+    // out subtree). Fixed pixel size = the capture frame. Brand variables ride
+    // in via the wrapper's inline style so recolor mirrors the live deck.
+    host = document.createElement("div");
+    host.setAttribute("aria-hidden", "true");
+    host.style.cssText =
+      "position:fixed;left:-99999px;top:0;z-index:-1;pointer-events:none;" +
+      "width:" + W + "px;height:" + H + "px;overflow:hidden;background:#fff;";
+    // Carry the demo layout class so .dd-layout-screenFlow rules apply, and
+    // mark it active so entry-gated animations resolve to their final state.
+    host.className = "pslide dd-slide active dd-layout-" + ((slide && slide.layout) || "screenFlow");
+    applyBrandVars(host, cfg);
+    const body = document.createElement("div");
+    body.className = "dd-slide-body";
+    body.appendChild(node);
+    host.appendChild(body);
+    document.body.appendChild(host);
+
+    return rasterizeNode(host, W, H, SCALE)
+      .then(function (dataUrl) {
+        if (host && host.parentNode) host.parentNode.removeChild(host);
+        if (!dataUrl) return done(null);
+        return done({ dataUrl: dataUrl, w: W * SCALE, h: H * SCALE });
+      })
+      .catch(function () {
+        if (host && host.parentNode) host.parentNode.removeChild(host);
+        return done(null);
+      });
+  }
+
+  // Set the --hd-*/brand CSS variables the screen shell reads onto a host
+  // element, so a captured screen recolors exactly like the live deck.
+  function applyBrandVars(host, cfg) {
+    const b = (cfg && cfg.brand) || {};
+    const setVar = function (name, val) { if (val) host.style.setProperty(name, String(val)); };
+    // Mirror the tokens demo-deck-renderer applies to its root (best-effort;
+    // absent values fall back to the screens.css defaults).
+    setVar("--sf-brand", b.primary || b.accent);
+    setVar("--sf-brand-dark", b.primaryDark || b.accentDark);
+    setVar("--red", b.accent || b.primary);
+    setVar("--navy", b.ink || b.text);
+    // Console content gutters. These are declared on :root in screens.css, but
+    // inside the export's SVG <foreignObject> the inlined ":root" selector
+    // matches the SVG document root — NOT this host div — so the console never
+    // inherits them and every "padding: … var(--sf-gutter-x)" collapses to no
+    // padding. Set them on the host (a real ancestor of the console subtree) so
+    // they resolve at capture exactly as they do in the live/preview DOM. Keep
+    // these values in sync with the :root defaults in demo/styles/screens.css.
+    host.style.setProperty("--sf-gutter-x", "28px");
+    host.style.setProperty("--sf-gutter-y", "18px");
+    host.style.setProperty("--sf-body-gap", "16px");
+    host.style.setProperty("--sf-pad", "20px");
+  }
+
+  // Rasterize a laid-out DOM subtree to a PNG data URL via SVG foreignObject.
+  // Inlines the console stylesheet (screens.css) into the SVG so the sandboxed
+  // foreignObject document is styled identically to the page.
+  function rasterizeNode(hostEl, W, H, scale) {
+    return collectScreenCss().then(function (cssText) {
+      // Serialize a CLONE of the host with its offscreen-staging styles
+      // stripped. The live host is positioned "position:fixed; left:-99999px"
+      // so it lays out on the page without flashing — but that style is baked
+      // into the serialized string, and when the SAME node is re-inserted into
+      // the SVG <foreignObject> it shifts the entire console 99999px out of the
+      // foreignObject viewport → a pure-white capture. Inside the SVG the host
+      // must sit at the origin and fill the frame, so re-home it to static.
+      const clone = hostEl.cloneNode(true);
+      clone.style.cssText =
+        "position:static;left:0;top:0;margin:0;width:" + W + "px;height:" + H + "px;overflow:hidden;background:#fff;";
+      // Preserve the brand/gutter custom properties the console reads (cssText
+      // above cleared them along with the staging styles).
+      var carry = ["--sf-brand", "--sf-brand-dark", "--red", "--navy",
+                   "--sf-gutter-x", "--sf-gutter-y", "--sf-body-gap", "--sf-pad"];
+      carry.forEach(function (name) {
+        var v = hostEl.style.getPropertyValue(name);
+        if (v) clone.style.setProperty(name, v);
+      });
+      // Serialize the subtree. XHTML-namespaced so the SVG parser accepts it.
+      const inner = new XMLSerializer().serializeToString(clone);
+      const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="' + (W * scale) + '" height="' + (H * scale) + '" viewBox="0 0 ' + W + ' ' + H + '">' +
+          '<foreignObject x="0" y="0" width="' + W + '" height="' + H + '">' +
+            '<div xmlns="http://www.w3.org/1999/xhtml">' +
+              '<style>' + cssText + '</style>' +
+              inner +
+            '</div>' +
+          '</foreignObject>' +
+        '</svg>';
+      const svgUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+      return new Promise(function (resolve) {
+        const img = new Image();
+        img.onload = function () {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = W * scale; canvas.height = H * scale;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL("image/png"));
+          } catch (e) { resolve(null); }
+        };
+        img.onerror = function () { resolve(null); };
+        img.src = svgUrl;
+      });
+    });
+  }
+
+  // Concatenate the rules of the console stylesheet (screens.css) so they can
+  // be inlined into the foreignObject. Cached after first read. Cross-origin
+  // sheets throw on .cssRules access — caught and skipped.
+  let SCREEN_CSS_CACHE = null;
+  function collectScreenCss() {
+    if (SCREEN_CSS_CACHE != null) return Promise.resolve(SCREEN_CSS_CACHE);
+    let text = "";
+    try {
+      const sheets = document.styleSheets || [];
+      for (let i = 0; i < sheets.length; i++) {
+        const sheet = sheets[i];
+        const href = sheet.href || "";
+        // Inline every same-origin sheet's rules (screens.css carries the
+        // console styling; slides.css carries .dd-slide/.dd-layout shells).
+        try {
+          const rules = sheet.cssRules;
+          if (!rules) continue;
+          for (let j = 0; j < rules.length; j++) text += rules[j].cssText + "\n";
+        } catch (e) {
+          // Cross-origin sheet — skip (can't read cssRules).
+        }
+      }
+    } catch (e) {}
+    SCREEN_CSS_CACHE = text;
+    return Promise.resolve(text);
   }
 
   // ─── Image → data URL (via the same-origin proxy) ──────────────
@@ -852,7 +1033,7 @@
     const demoLayouts = {
       hero: 1, futureState: 1, storyInterstitial: 1, storyFoundation: 1,
       currentFutureState: 1, executiveSummary: 1, architecture: 1,
-      scenePhoto: 1, deviceMoment: 1,
+      scenePhoto: 1, deviceMoment: 1, screenFlow: 1, screenActOpener: 1,
     };
     if (demoLayouts[layout]) {
       const cleanT = function (s, fb) { return (SHARED.cleanHeadline ? plain(SHARED.cleanHeadline(s, 90)) : plain(s)) || fb; };
@@ -898,6 +1079,25 @@
             eyebrow: plain(act.salesforceCapabilities || (slide.capabilities && slide.capabilities[0]) || "Live moment"),
             sub:     fit(act.summary || act.demoMoment || f.businessProblem, 220),
           };
+        case "screenFlow":
+          // The console screenshot IS the slide; the eyebrow + headline sit
+          // above it, mirroring the /demo screenFlow header (sf-flow-eyebrow /
+          // sf-flow-headline). Solo screens carry a flowBody intro paragraph.
+          return {
+            title:   cleanT(slide.title, plain(cust.demoTitle || "Inside the console")),
+            eyebrow: plain(slide.eyebrow || slide.section || cust.demoTitle || "Demo"),
+            sub:     slide.soloScreen ? fit(slide.flowBody || slide.sub, 220) : "",
+          };
+        case "screenActOpener": {
+          // The animated opener captures as an image too; its display copy
+          // lives in openerConfig (mirrors demo-deck-renderer.js screenActOpener).
+          const oc = (slide && slide.openerConfig) || {};
+          return {
+            title:   cleanT(oc.headline || slide.title, "The call that runs itself."),
+            eyebrow: plain(oc.eyebrow || slide.eyebrow || cust.demoTitle || "Demo"),
+            sub:     fit(oc.body || slide.sub, 220),
+          };
+        }
       }
     }
     // Only treat a resolved editor "Headline"/"Title" as the display title.
@@ -1002,6 +1202,13 @@
       // centered titleSlide — mirrors /demo's .dd-interstitial-split vs solo.
       ns._imageSlot = imageSlotFor(slide, cfg, state);
       ns.template = ns._imageSlot ? "deviceSceneImage" : "titleSlide";
+    } else if (template === "screenImage") {
+      // Console screens have no static asset — mark the slide for in-browser
+      // screenshot capture. buildExportModel's imgJobs renders the live screen
+      // via HOLO_DEMO.renderScreenFlow + rasterizes it to a PNG data URL. If
+      // capture is unavailable (headless/no DOM), the slot resolves to null and
+      // the exporter falls back to the eyebrow+headline text card.
+      ns._imageSlot = { kind: "screen", captureSlide: slide };
     } else {
       ns._imageSlot = imageSlotFor(slide, cfg, state);
     }
@@ -1030,12 +1237,19 @@
       // Resolve every image slot → data URL (parallel; failures → null).
       const imgJobs = slides.map(function (ns) {
         if (!ns._imageSlot) return Promise.resolve();
+        const slot = ns._imageSlot;
+        const slotKind = slot.kind;
+        // Console screens: capture the live in-DOM screen to a PNG here in the
+        // browser (no static URL exists). Failure → null → text-card fallback.
+        if (slotKind === "screen") {
+          return captureScreenImage(slot.captureSlide, cfg, st).then(function (img) {
+            if (img && img.dataUrl) ns.image = { dataUrl: img.dataUrl, w: img.w, h: img.h, kind: "screen" };
+            delete ns._imageSlot;
+          }).catch(function () { delete ns._imageSlot; });
+        }
         // Keep the original (signed) URL alongside the data URL. The
-        // PPTX/PDF exporters embed dataUrl; the Google Slides exporter
-        // POSTs `url` instead (the Slides API's createImage needs a
-        // publicly-reachable URL, not base64 — and it keeps the POST small).
-        const srcUrl = ns._imageSlot.url;
-        const slotKind = ns._imageSlot.kind;
+        // PPTX/PDF exporters embed dataUrl.
+        const srcUrl = slot.url;
         return imageToDataUrl(srcUrl).then(function (img) {
           if (img) ns.image = { dataUrl: img.dataUrl, url: srcUrl, w: img.w, h: img.h, kind: slotKind };
           delete ns._imageSlot;

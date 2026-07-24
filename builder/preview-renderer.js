@@ -220,6 +220,8 @@
         demoMap:           "Demo map",
         personaCard:       "Meet the persona",
         hero:              "Holodeck",
+        screenFlow:        "Guided demo",
+        screenActOpener:   "Scene",
       };
       if (map[slide.layout]) parts.unshift(map[slide.layout]);
     }
@@ -459,18 +461,56 @@
       // (a true override field: blank keeps the live-derived default while the
       // placeholder shows what will render).
       const raw = extras[label];
-      const path = (raw && typeof raw === "object") ? raw.path : raw;
-      const placeholder = (raw && typeof raw === "object") ? raw.placeholder : undefined;
+      const isObj = raw && typeof raw === "object";
+      const path = isObj ? raw.path : raw;
+      const placeholder = isObj ? raw.placeholder : undefined;
       // A "__slide.<field>" path binds the editor directly to a per-slide
       // field (like the base title/notes), instead of the global state tree.
       // Lets layouts such as storyInterstitial carry their own copy without
       // a dedicated state array.
       const m = /^__slide\.(.+)$/.exec(String(path || ""));
-      const field = { label: label, path: path, placeholder: placeholder, kind: kindForPath(path, label) };
+      // An explicit `kind` on the raw def wins over the path-inferred one
+      // (needed for select/toggle fields like the screenFlow Layout picker);
+      // carry select metadata (options/coerce/defaultValue) and prefill too.
+      const field = {
+        label: label, path: path, placeholder: placeholder,
+        kind: (isObj && raw.kind) ? raw.kind : kindForPath(path, label),
+      };
+      if (isObj && raw.options)      field.options = raw.options;
+      if (isObj && raw.coerce)       field.coerce = raw.coerce;
+      if (isObj && raw.defaultValue !== undefined) field.defaultValue = raw.defaultValue;
+      if (isObj && typeof raw.prefill === "function") field.prefill = raw.prefill;
       if (m) field.slideField = m[1];
       base.push(field);
     });
     return base;
+  }
+
+  // The numbered steps a screenFlow slide's LEFT rail actually renders,
+  // resolved the SAME way renderScreenFlowPreview resolves them: the SE's
+  // per-slide override wins; else the adapter's steps (Step-2 story acts →
+  // the screen's registry defaults). Returned as {body, payoff} rows so the
+  // step editor's placeholders show the real rendered text — keeping the
+  // editable fields in sync with the preview instead of a blank "auto" hint.
+  function screenFlowRenderedSteps(slide, state) {
+    slide = slide || {};
+    state = state || {};
+    if (Array.isArray(slide.steps) && slide.steps.length) {
+      return slide.steps.map(function (s) {
+        return { body: (s && (s.body || s.text)) || "", payoff: (s && s.payoff) ? "yes" : "" };
+      });
+    }
+    var ADAPTER = global.HOLO_ADAPTER || null;
+    var fields = (ADAPTER && ADAPTER.buildScreenFields) ? ADAPTER.buildScreenFields(state, slide) : {};
+    var steps = [];
+    if (fields.steps && fields.steps.length) steps = fields.steps;
+    else if (fields.panels && fields.panels.length) {
+      var sp = fields.panels.filter(function (p) { return p && p.kind === "steps"; })[0];
+      if (sp && sp.steps) steps = sp.steps;
+    }
+    return (steps || []).map(function (s) {
+      return { body: (s && (s.body || s.text)) || "", payoff: (s && s.payoff) ? "yes" : "" };
+    });
   }
 
   // What state fields each SE-authored layout pulls into its preview.
@@ -585,6 +625,73 @@
             },
           },
         };
+      case "screenFlow":
+        // A paired console composition. What the SE edits here is the LEFT
+        // panel — the eyebrow, the headline (via base title), and the numbered
+        // steps rail. The RIGHT screen is generated and read-only in this
+        // popover (see the note appended in buildEditorPopover). The steps are
+        // a per-slide override array of {body, payoff}; its `prefill` seeds the
+        // editor with the SAME steps the rail actually renders (Step-2 story
+        // acts → the screen's registry defaults) so the fields are never out of
+        // sync with the preview. Bound via "__slide.*" so each slide keeps its
+        // own copy. See renderScreenFlowPreview / stepsRailP.
+        return {
+          "Eyebrow": {
+            path: "__slide.eyebrow",
+            placeholder: function (sl, st) { return deriveEyebrow(sl, (st && st.project) || {}) || "Guided demo"; },
+          },
+          // Layout toggle: paired steps+screen (default) vs a full-width,
+          // component-only screen with an intro paragraph above it. When solo,
+          // the numbered-steps rail is dropped (see buildScreenFields.soloScreen)
+          // and the "Intro paragraph" field below is shown above the screen.
+          "Layout": {
+            path: "__slide.soloScreen",
+            kind: "select",
+            coerce: "boolean",
+            defaultValue: false,
+            options: [
+              { value: false, label: "Steps rail + screen (paired)" },
+              { value: true,  label: "Screen only (full width)" },
+            ],
+          },
+          // Intro paragraph shown above the screen in the component-only layout.
+          // Ignored by the paired layout. Bound per-slide; blank falls back to
+          // the slide sub-line.
+          "Intro paragraph (screen-only layout)": {
+            path: "__slide.flowBody",
+            kind: "textarea",
+            placeholder: function (sl) { return (sl && sl.sub) || "Shown above the screen when Layout is “Screen only”."; },
+          },
+          "Numbered steps (left panel)": {
+            path: "__slide.steps",
+            prefill: function (sl, st) { return screenFlowRenderedSteps(sl, st); },
+          },
+        };
+      case "screenActOpener": {
+        // The animated scene opener. The SE edits the eyebrow, headline (via
+        // base title), body paragraph, and the SCENE card label. All bind as
+        // FLAT per-slide fields (openerEyebrow / openerBody / openerSceneLabel)
+        // because __slide.* paths are flat; buildOpenerConfig reads them and
+        // falls back to storyActs[0] + persona when blank (shown as placeholder).
+        var openerCfg = function (sl, st) {
+          var A = global.HOLO_ADAPTER;
+          return (A && A.buildOpenerConfig) ? A.buildOpenerConfig(st || {}, sl || {}) : {};
+        };
+        return {
+          "Eyebrow": {
+            path: "__slide.openerEyebrow",
+            placeholder: function (sl, st) { return openerCfg(sl, st).eyebrow || "The moment"; },
+          },
+          "Body paragraph": {
+            path: "__slide.openerBody",
+            placeholder: function (sl, st) { return openerCfg(sl, st).body || ""; },
+          },
+          "Scene card label": {
+            path: "__slide.openerSceneLabel",
+            placeholder: function (sl, st) { return (openerCfg(sl, st).scene || {}).label || "SCENE · LIVE"; },
+          },
+        };
+      }
       case "deviceMoment":
       case "demoMap":
       case "nextSteps":
@@ -617,11 +724,12 @@
     // Lists of objects (one row per entry, multiple inputs).
     if (/wishlist$/.test(p) || /\.stats$/.test(p) || /bvsMetrics$/.test(p)
         || /orbitNodes$/.test(p) || /capabilities$/.test(p)
-        || /timelineEvents$/.test(p)) return "list-objects";
+        || /timelineEvents$/.test(p)
+        || /^__slide\.steps$/.test(p)) return "list-objects";
     if (/Notes$/.test(p) || /narrative$/i.test(p) || /takeaway$/i.test(p) || /vision$/i.test(p)
         || /problem$/i.test(p) || /pain$/i.test(p) || /painPoints$/i.test(p) || /goals$/i.test(p)
         || /demoRelevance$/i.test(p) || /relevance$/i.test(p) || /thesis$/i.test(p)
-        || /cxDescription$/i.test(p)
+        || /cxDescription$/i.test(p) || /openerBody$/i.test(p)
         || label === "Speaker notes") return "textarea";
     return "text";
   }
@@ -663,6 +771,19 @@
     if (slide && STORYACTS_LAYOUTS.indexOf(slide.layout) >= 0) {
       body.appendChild(el("div", { class: "bx-pop-edit-empty",
         text: "The journey steps shown on this slide are edited in Step 2 (story planner)." }));
+    }
+    // screenFlow: the popover edits the LEFT panel (eyebrow, headline, steps).
+    // The RIGHT console screen is generated from the customer's story — say so,
+    // so the SE isn't looking for the record name / score fields here.
+    if (slide && slide.layout === "screenFlow") {
+      body.appendChild(el("div", { class: "bx-pop-edit-empty",
+        text: "The console screen on the right is generated from your story and isn't edited here." }));
+    }
+    // screenActOpener: the SCENE card rows (Distributor / Contact / Situation)
+    // derive from the customer + persona + Step-2 story, not field-by-field here.
+    if (slide && slide.layout === "screenActOpener") {
+      body.appendChild(el("div", { class: "bx-pop-edit-empty",
+        text: "The scene card rows are generated from your customer, persona, and Step-2 story." }));
     }
     pop.appendChild(body);
 
@@ -858,6 +979,28 @@
       return row;
     }
 
+    // select (fixed option list) — e.g. the screenFlow layout toggle.
+    if (f.kind === "select") {
+      const cur = get();
+      const sel = el("select", { class: "bx-input" });
+      (f.options || []).forEach(function (o) {
+        const opt = el("option", { value: String(o.value), text: o.label });
+        if (String(o.value) === String(cur == null ? (f.defaultValue != null ? f.defaultValue : "") : cur)) {
+          opt.setAttribute("selected", "selected");
+        }
+        sel.appendChild(opt);
+      });
+      sel.addEventListener("change", function () {
+        // Coerce "true"/"false" strings back to booleans for boolean fields.
+        let val = sel.value;
+        if (f.coerce === "boolean") val = (sel.value === "true");
+        set(val);
+        onChange();
+      });
+      row.appendChild(sel);
+      return row;
+    }
+
     // text / textarea
     const v = get();
     // Optional placeholder — string, or a (slide, state) => string fn.
@@ -908,6 +1051,16 @@
     return 3;
   }
   function layoutForListPath(path) {
+    if (/^__slide\.steps$/.test(path)) {
+      // The screenFlow left rail: numbered narrative steps. Dynamic so the SE
+      // can add / remove / reorder. `body` is the step text; `payoff` marks the
+      // final "so-what" step (any non-empty value = true). The number is
+      // positional (rendered from index), so we don't expose an `n` field.
+      return { dynamic: true, fields: [
+        { key: "body",   placeholder: "Step text (what happens on screen)" },
+        { key: "payoff", placeholder: "Payoff step? (yes / leave blank)" },
+      ] };
+    }
     if (/timelineEvents$/.test(path)) {
       // Dynamic = SE can add / remove / reorder rows (not fixed-slot like
       // wishlist/stats). The "icon" field renders the channel-icon picker.
@@ -1000,8 +1153,27 @@
   // same Challenge / Future State / Capabilities triplet.
   function renderSlidePreview(slide, state, mode) {
     const layout = (slide && slide.layout) || "unknown";
-    const fn = LAYOUT_RENDERERS[layout] || LAYOUT_RENDERERS.unknown;
     const data = getPreviewDataForSlide(slide, state);
+    // screenFlow is a composition, not a copy layout: it builds the SAME
+    // steps+screen panels the export bakes in (via HOLO_ADAPTER.buildScreenFields)
+    // and renders the shared .sf-* atoms. It needs full `state`, not just `data`.
+    if (layout === "screenFlow") {
+      const root = renderScreenFlowPreview(slide, state, mode || "compact");
+      root.style.setProperty("--hp-primary",   data.brand.primary);
+      root.style.setProperty("--hp-secondary", data.brand.secondary);
+      root.style.setProperty("--hp-accent",    data.brand.accent);
+      root.setAttribute("data-layout", layout);
+      return root;
+    }
+    if (layout === "screenActOpener") {
+      const root = renderScreenActOpenerPreview(slide, state, mode || "compact");
+      root.style.setProperty("--hp-primary",   data.brand.primary);
+      root.style.setProperty("--hp-secondary", data.brand.secondary);
+      root.style.setProperty("--hp-accent",    data.brand.accent);
+      root.setAttribute("data-layout", layout);
+      return root;
+    }
+    const fn = LAYOUT_RENDERERS[layout] || LAYOUT_RENDERERS.unknown;
     const root = fn(data, mode || "compact");
     // Inject brand colors on the preview root so per-slide CSS can use them.
     root.style.setProperty("--hp-primary",   data.brand.primary);
@@ -2082,6 +2254,466 @@
       return root;
     },
   };
+
+  // ═══════════════════════════════════════════════════════════════
+  //  screenFlow preview — paired console composition (Step-8 preview)
+  //  ---------------------------------------------------------------
+  //  Renders the SAME DOM the exported /demo deck builds: a centered
+  //  eyebrow + serif headline, then a numbered steps rail beside one
+  //  in-DOM Salesforce console screen. Panels come from
+  //  HOLO_ADAPTER.buildScreenFields(state, slide) so the preview is
+  //  byte-identical to the export (no duplicated resolution logic),
+  //  and the .sf-* atoms below mirror demo-deck-renderer.js so they
+  //  style against the shared demo/styles/screens.css (linked in
+  //  builder/index.html). See [[sf-screen-wrap-scroll-fix]].
+  //
+  //  Copy-fit: reuse the same char-budget helpers the demo uses so
+  //  dense fixed-width fields don't overflow. Local minimal versions
+  //  (preview-renderer has no ebrow/ttl/fitS) matched to the demo's.
+  // ═══════════════════════════════════════════════════════════════
+  function sfEsc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function sfNoEllipsis(s) { return String(s == null ? "" : s).replace(/\s*[…]+\s*$/, "").replace(/\.{3,}\s*$/, ""); }
+  // Whole-word trim to a char budget (matches demo _cw/sfClip behavior).
+  function sfFit(v, max) {
+    var s = String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+    if (s.length <= max) return sfNoEllipsis(s);
+    var out = s.slice(0, max).replace(/\s+\S*$/, "").replace(/[\s,;:–—-]+$/, "");
+    return sfNoEllipsis(out);
+  }
+  function sfClipP(v, max) { return sfFit(v, max || 60); }
+  function sfArrP(v, cap) { return (Array.isArray(v) ? v : []).slice(0, cap || 6); }
+  function sfPctP(n) { var x = Number(n); if (!isFinite(x)) x = 0; return Math.max(0, Math.min(100, Math.round(x))); }
+
+  // ── Shared atoms (mirror demo-deck-renderer.js sf* builders) ──
+  function sfChromeP(chrome, customerName) {
+    chrome = chrome || {};
+    var tabs = sfArrP(chrome.tabs, 4);
+    return el("div", {}, [
+      el("div", { class: "sf-nav" }, [
+        el("div", { class: "sf-nav-logo", text: sfClipP(chrome.logo || customerName || "Salesforce", 24) }),
+        el("div", { class: "sf-nav-search", text: "Search…" }),
+        el("div", { class: "sf-nav-icons", text: "⭐ ➕ ❓ 🔔 ⚙️" }),
+      ]),
+      el("div", { class: "sf-tabs" }, [
+        el("div", { class: "sf-app-launcher" }, [0,0,0,0,0,0,0,0,0].map(function () { return el("span"); })),
+      ].concat(tabs.length ? tabs.map(function (t, i) {
+        return el("div", { class: "sf-tab" + (i === 0 ? " active" : ""), text: sfClipP(t, 22) });
+      }) : [el("div", { class: "sf-tab active", text: "Home" })])),
+    ]);
+  }
+  function sfHeaderP(h, customerName) {
+    h = h || {};
+    var fields = sfArrP(h.fields, 4).map(function (fld) {
+      return el("div", { class: "sf-field" }, [
+        el("div", { class: "sf-field-label", text: sfClipP(fld.label, 18) }),
+        el("div", { class: "sf-field-value" + (fld.link ? " link" : ""), text: sfClipP(fld.value, 40) }),
+      ]);
+    });
+    return el("div", { class: "sf-header" }, [
+      el("div", { class: "sf-header-main" }, [
+        el("div", { class: "sf-header-label", text: sfClipP(h.recordType || "Record", 40) }),
+        el("div", { class: "sf-header-name", text: sfClipP(h.name || customerName || "Record", 44) }),
+        el("div", { class: "sf-header-fields" }, fields),
+      ]),
+      el("div", { class: "sf-follow-btn", text: h.followLabel || "+ Follow" }),
+    ]);
+  }
+  function sfProgressP(p) {
+    if (!p) return null;
+    var done = Math.max(0, Math.min(6, Number(p.steps) || 0));
+    var cells = [];
+    for (var i = 0; i < (p.total || Math.max(done, 4)); i++) {
+      cells.push(el("div", { class: "sf-pb-step" + (i < done ? "" : " todo"), text: i < done ? "✓" : "" }));
+    }
+    if (p.label) cells.push(el("div", { class: "sf-pb-label", text: sfClipP(p.label, 24) }));
+    if (p.action) cells.push(el("button", { class: "sf-pb-btn", text: sfClipP(p.action, 30) }));
+    return el("div", { class: "sf-progress" }, cells);
+  }
+  function sfCardP(head, bodyNodes) {
+    var kids = [];
+    if (head) {
+      kids.push(el("div", { class: "sf-card-head" }, [
+        el("div", { class: "sf-card-head-icon", text: head.icon || "✦" }),
+        el("div", {}, [
+          el("div", { class: "sf-card-head-title", text: sfClipP(head.title, 40) }),
+          head.sub ? el("div", { class: "sf-card-head-sub", text: sfClipP(head.sub, 46) }) : null,
+        ]),
+        head.badge ? el("div", { class: "sf-card-head-badge", text: sfClipP(head.badge, 18) }) : null,
+      ]));
+    }
+    (bodyNodes || []).forEach(function (n) { if (n) kids.push(n); });
+    return el("div", { class: "sf-card" }, kids);
+  }
+  function sfScoreP(sc) {
+    if (!sc) return null;
+    return el("div", { class: "sf-score-row" }, [
+      el("div", { class: "sf-score-circle" }, [
+        el("div", { class: "sf-score-num", text: String(sc.value != null ? sc.value : "—") }),
+        el("div", { class: "sf-score-denom", text: "/ " + (sc.of != null ? sc.of : 100) }),
+      ]),
+      el("div", {}, [
+        el("div", { class: "sf-score-label", text: sfClipP(sc.label || "Score", 28) }),
+        el("div", { class: "sf-score-meta", text: sfClipP(sc.meta || "", 48) }),
+        sc.insight ? el("div", { class: "sf-score-insight", text: sfFit(sc.insight, 220) }) : null,
+      ]),
+    ]);
+  }
+  function sfCriteriaP(rows) {
+    rows = sfArrP(rows, 5);
+    if (!rows.length) return null;
+    return el("div", { class: "sf-criteria" }, rows.map(function (r) {
+      return el("div", { class: "sf-criteria-row" }, [
+        el("div", { class: "sf-criteria-icon", text: r.icon || "•" }),
+        el("div", {}, [
+          el("div", { class: "sf-criteria-name", text: sfClipP(r.name, 40) }),
+          r.sub ? el("div", { class: "sf-criteria-sub", text: sfClipP(r.sub, 48) }) : null,
+          el("div", { class: "sf-criteria-bar" }, [
+            el("div", { class: "sf-criteria-bar-fill", style: "width:" + sfPctP(r.pct) + "%" }),
+          ]),
+        ]),
+        el("div", { class: "sf-criteria-score", text: sfClipP(r.score || "", 12) }),
+      ]);
+    }));
+  }
+  function sfTimelineP(tl) {
+    tl = tl || {};
+    var items = sfArrP(tl.items, 5).map(function (it) {
+      var kids = [];
+      if (it.title) {
+        kids.push(el("div", { class: "sf-activity-item-head" }, [
+          el("div", { class: "sf-ai-dot agent", text: "✦" }),
+          el("div", {}, [
+            el("div", { class: "sf-activity-item-title", text: sfClipP(it.title, 56) }),
+            it.sub ? el("div", { class: "sf-activity-item-sub", text: sfClipP(it.sub, 56) }) : null,
+          ]),
+        ]));
+      }
+      if (it.body || it.from) {
+        var tone = it.statusTone === "pending" ? "pending" : "viewed";
+        kids.push(el("div", { class: "sf-msg" }, [
+          it.from ? el("div", { class: "sf-msg-from" }, [
+            el("span", { text: sfClipP(it.from, 52) }),
+            it.time ? el("span", { class: "sf-time", text: sfClipP(it.time, 20) }) : null,
+          ]) : null,
+          it.status ? el("div", { class: "sf-msg-status" }, [
+            el("span", { class: "sf-dot " + tone }), document.createTextNode(" " + sfClipP(it.status, 20)),
+          ]) : null,
+          it.body ? el("div", { class: "sf-msg-body", text: sfFit(it.body, 260) }) : null,
+        ]));
+      }
+      return el("div", { class: "sf-activity-item" }, kids);
+    });
+    return el("div", { class: "sf-card" }, [
+      el("div", { class: "sf-activity-head" }, [
+        document.createTextNode(sfClipP(tl.title || "Activity", 20)),
+        el("div", { class: "sf-icons" }, ["✉️","💬","📞","📅"].map(function (c) { return el("span", { text: c }); })),
+      ]),
+      tl.month ? el("div", { class: "sf-activity-month", text: "▾ " + sfClipP(tl.month, 24) }) : null,
+    ].concat(items));
+  }
+  function sfDetailP(d) {
+    if (!d || !d.fields) return null;
+    var fields = sfArrP(d.fields, 6).map(function (fld) {
+      return el("div", {}, [
+        el("div", { class: "sf-detail-label", text: sfClipP(fld.label, 18) }),
+        el("div", { class: "sf-detail-value", text: sfClipP(fld.value, 40) }),
+      ]);
+    });
+    return el("div", { class: "sf-card" }, [
+      el("div", { class: "sf-detail" }, [
+        el("div", { class: "sf-detail-title", text: sfClipP(d.title || "Identity", 24) }),
+        el("div", { class: "sf-detail-grid" }, fields),
+      ]),
+    ]);
+  }
+  // recordWithScoreAndTimeline panel (Phase 1 family).
+  function sfPanelScoreTimelineP(cfg, customerName) {
+    cfg = cfg || {};
+    var scoreCard = sfCardP(
+      cfg.aiHead || { icon: "✦", title: "AI Opportunity Score", sub: "Einstein scoring model", badge: (cfg.score && cfg.score.badge) },
+      [sfScoreP(cfg.score), sfCriteriaP(cfg.criteria)]
+    );
+    return el("div", { class: "sf-screen" }, [
+      sfChromeP(cfg.chrome, customerName),
+      sfHeaderP(cfg.header, customerName),
+      sfProgressP(cfg.progress),
+      el("div", { class: "sf-main" }, [
+        el("div", { class: "sf-col" }, [scoreCard, sfDetailP(cfg.identity)]),
+        el("div", { class: "sf-col" }, [sfTimelineP(cfg.timeline)]),
+      ]),
+    ]);
+  }
+  function sfBuildFamilyP(family, cfg, customerName) {
+    switch (family) {
+      case "recordWithScoreAndTimeline": return sfPanelScoreTimelineP(cfg, customerName);
+      default:
+        return el("div", { class: "sf-screen" }, [
+          sfChromeP(cfg && cfg.chrome, customerName),
+          sfHeaderP(cfg && cfg.header, customerName),
+          el("div", { class: "sf-main" }, [
+            el("div", { class: "sf-col" }, [sfCardP({ icon: "✦", title: sfClipP((cfg && cfg.title) || family || "Screen", 40) }, [])]),
+          ]),
+        ]);
+    }
+  }
+
+  // ── Screen SCHEMATIC (Step-8 preview only) ────────────────────
+  // The real console screen is authored to render ~1000px wide inside a
+  // full slide; squeezed into the narrow preview column it wraps and looks
+  // broken. So in the PREVIEW we draw a clean, representative schematic of
+  // the screen's anatomy — a Lightning-style window chrome, record header,
+  // and labeled blocks (score chip + criteria bars + activity list) built
+  // from the SAME generated config, so it reflects THIS screen's real
+  // values without pretending to be a pixel-accurate render. The export /
+  // live deck still render the full screen (renderScreenFlowPreview is a
+  // preview-only path). Family-agnostic: unknown families fall back to a
+  // generic titled card list from whatever cfg blocks exist.
+  function schemBar(pct, tone) {
+    return el("div", { class: "sf-schem-bar" }, [
+      el("div", { class: "sf-schem-bar-fill" + (tone ? " " + tone : ""), style: "width:" + sfPctP(pct) + "%" }),
+    ]);
+  }
+  // A short line of "text" (a filled pill) — abstracts a paragraph/insight.
+  function schemLine(w) {
+    return el("div", { class: "sf-schem-line", style: "width:" + (w || 100) + "%" });
+  }
+  // A pair of chat bubbles (one incoming, one AI) — abstracts a thread.
+  function schemChat() {
+    return el("div", { class: "sf-schem-chat" }, [
+      el("div", { class: "sf-schem-bubble in" }),
+      el("div", { class: "sf-schem-bubble ai" }),
+      el("div", { class: "sf-schem-bubble in" }),
+    ]);
+  }
+  // A tiny 2×N KV grid — abstracts a metric-card row.
+  function schemCards(n) {
+    var cells = [];
+    for (var i = 0; i < (n || 3); i++) {
+      cells.push(el("div", { class: "sf-schem-card" }, [
+        el("div", { class: "sf-schem-card-v", text: ["4.2x", "92%", "$1.2M", "+14%"][i % 4] }),
+        el("div", { class: "sf-schem-line", style: "width:70%" }),
+      ]));
+    }
+    return el("div", { class: "sf-schem-cards" }, cells);
+  }
+
+  function sfScreenSchematic(family, cfg, customerName) {
+    cfg = cfg || {};
+    // SIMPLE per-family body: a representative, readable-at-small-size abstraction
+    // of the screen's anatomy from the SAME generated config. Not pixel-accurate —
+    // the export / live deck render the full screen. Family-aware so each preview
+    // READS as its product (a scored record, a chat, a dashboard, a case, an email…).
+    var body = [];
+    var sc = cfg.score || (cfg.sentiment && cfg.sentiment.score) || {};
+
+    if (family === "assistantChat" || family === "voiceConsole") {
+      body.push(schemChat());
+      body.push(schemLine(90)); body.push(schemLine(70));
+    } else if (family === "kpiTable") {
+      // Prospecting Agent: a KPI strip over a prioritized-accounts table. Read
+      // the real generated kpis + table rows so the preview reflects THIS run.
+      var kpis = sfArrP(cfg.kpis, 4);
+      if (kpis.length) {
+        body.push(el("div", { class: "sf-schem-cards" }, kpis.map(function (k) {
+          return el("div", { class: "sf-schem-card" }, [
+            el("div", { class: "sf-schem-card-v", text: sfClipP(String(k.value != null ? k.value : "—"), 8) }),
+            el("div", { class: "sf-schem-line", style: "width:70%" }),
+          ]);
+        })));
+      } else {
+        body.push(schemCards(4));
+      }
+      // A few table rows as lines — a filled cell + the tapering row body.
+      var kRows = sfArrP(cfg.table && cfg.table.rows, 3);
+      (kRows.length ? kRows : [1, 2, 3]).forEach(function (_, i) { body.push(schemLine([100, 85, 70][i % 3])); });
+    } else if (family === "metricsAndTable" || family === "campaignBuilder") {
+      body.push(schemCards(3));
+      body.push(schemLine(100)); body.push(schemLine(80)); body.push(schemLine(60));
+    } else if (family === "emailPreview") {
+      body.push(el("div", { class: "sf-schem-hero" }));
+      body.push(schemLine(80)); body.push(schemLine(100)); body.push(schemLine(90));
+      body.push(el("div", { class: "sf-schem-btn" }));
+    } else if (family === "serviceCase") {
+      // Case screen: an Einstein sentiment metric (signed −1..1, or a 0-100
+      // bar) + AI summary lines. sentiment.score OR sentiment.bar may be set;
+      // show whichever the generated config carries so the case still reads.
+      var sent = cfg.sentiment || {};
+      var sVal = (sent.score && sent.score.value != null) ? sent.score.value
+        : (sent.bar && sent.bar.value != null) ? sent.bar.value : null;
+      if (sVal != null) {
+        body.push(el("div", { class: "sf-schem-metric" }, [
+          el("span", { class: "sf-schem-metric-val", text: String(sVal) }),
+          el("span", { class: "sf-schem-metric-of", text: "/ " + ((sent.score && sent.score.of != null) ? sent.score.of : 1) }),
+          el("span", { class: "sf-schem-metric-label", text: sfClipP(sent.title || "Sentiment", 22) }),
+        ]));
+      }
+      // The AI case summary body → a few tapering lines.
+      body.push(schemLine(100)); body.push(schemLine(85)); body.push(schemLine(65));
+    } else if (sc.value != null) {
+      // recordWithScoreAndTimeline — a headline metric + criteria bars.
+      body.push(el("div", { class: "sf-schem-metric" }, [
+        el("span", { class: "sf-schem-metric-val", text: String(sc.value) }),
+        el("span", { class: "sf-schem-metric-of", text: "/ " + (sc.of != null ? sc.of : 100) }),
+        el("span", { class: "sf-schem-metric-label", text: sfClipP((cfg.aiHead && cfg.aiHead.title) || (cfg.sentiment && cfg.sentiment.title) || "AI score", 22) }),
+      ]));
+      var crit = sfArrP(cfg.criteria, 3);
+      if (crit.length) body.push(el("div", { class: "sf-schem-bars" }, crit.map(function (r) { return schemBar(r.pct != null ? r.pct : 70); })));
+      else { body.push(schemLine(90)); body.push(schemLine(70)); }
+    } else if (family === "recordWithAiPanel") {
+      body.push(schemLine(100)); body.push(schemLine(85)); body.push(schemLine(65));
+      body.push(el("div", { class: "sf-schem-bars" }, [schemBar(70), schemBar(55)]));
+    }
+    // Fallback → three neutral bars so it still reads as a screen.
+    if (!body.length) {
+      body.push(el("div", { class: "sf-schem-bars" }, [schemBar(60), schemBar(80), schemBar(45)]));
+    }
+
+    var rec = (cfg.header && cfg.header.recordType) || "Record";
+    // recordType is a Lightning breadcrumb ("Qualified Opportunity · Contact");
+    // the compact chrome label uses only the FIRST segment so it never shows a
+    // dangling " · " when clipped.
+    var recLead = String(rec).split("·")[0].trim() || rec;
+    var name = (cfg.header && cfg.header.name) ||
+      (family === "emailPreview" && cfg.email && cfg.email.subject) || customerName || "Record";
+    return el("div", { class: "sf-schem" }, [
+      el("div", { class: "sf-schem-chrome" }, [
+        el("span", { class: "sf-schem-tl-dots" }, [el("i"), el("i"), el("i")]),
+        el("span", { class: "sf-schem-chrome-label", text: "Salesforce · " + sfClipP(recLead, 22) }),
+      ]),
+      el("div", { class: "sf-schem-header" }, [
+        el("div", { class: "sf-schem-name", text: sfClipP(name, 30) }),
+      ]),
+      el("div", { class: "sf-schem-body" }, body),
+    ]);
+  }
+  function stepsRailP(steps) {
+    var STEP_COLORS = ["#0176D3", "#5D2E8C", "#2E7A50", "#FF7043", "#0176D3"];
+    steps = sfArrP(steps, 5);
+    var items = steps.map(function (st, i) {
+      var isPayoff = !!st.payoff || (i === (Math.min(steps.length, 5) - 1) && steps.length >= 4);
+      return el("li", { class: "sf-step" + (isPayoff ? " sf-step-payoff" : "") }, [
+        el("div", { class: "sf-step-num", style: "background:" + (STEP_COLORS[i] || "#0176D3"), text: String(st.n || (i + 1)) }),
+        el("div", { class: "sf-step-body", html: sfEsc(sfFit(st.body || st.text || "", 240)) }),
+      ]);
+    });
+    return el("ol", { class: "sf-steps" }, items);
+  }
+
+  // Build the paired composition. Uses HOLO_ADAPTER.buildScreenFields so the
+  // preview's steps/panels/config match the export exactly; degrades to the
+  // slide's own steps/panels if the adapter isn't loaded yet.
+  function renderScreenFlowPreview(slide, state, mode) {
+    slide = slide || {};
+    state = state || {};
+    var customerName = (state.project && state.project.customerName) || "";
+    var ADAPTER = global.HOLO_ADAPTER || null;
+    var fields = (ADAPTER && ADAPTER.buildScreenFields) ? ADAPTER.buildScreenFields(state, slide) : {};
+    var panels = (fields.panels && fields.panels.length)
+      ? fields.panels
+      : (Array.isArray(slide.panels) && slide.panels.length
+          ? slide.panels
+          : [{ kind: "steps", steps: slide.steps || [] },
+             { kind: "screen", family: slide.family, config: slide.config || {} }]);
+    panels = panels.slice(0, 2);
+
+    var kinds = panels.map(function (p) { return p.kind === "steps" ? "steps" : (p.frame === "phone" ? "phone" : "screen"); });
+    var colClass = "sf-cols-single";
+    if (panels.length === 2) {
+      if (kinds[0] === "steps") colClass = "sf-cols-steps-screen";
+      else if (kinds[1] === "phone" || kinds[0] === "phone") colClass = "sf-cols-screen-phone";
+      else colClass = "sf-cols-screen-screen";
+    }
+    var cols = panels.map(function (p) {
+      if (p.kind === "steps") return stepsRailP(p.steps || fields.steps || slide.steps || []);
+      // PREVIEW: draw the representative schematic (not the full ~1000px screen,
+      // which wraps/breaks when crushed into the narrow preview column). The
+      // export and live deck still render the full screen. See sfScreenSchematic.
+      var node = sfScreenSchematic(p.family || fields.family, p.config || fields.config || {}, customerName);
+      // Phone-framed screens (assistant chat, email) render inside a mobile
+      // frame in the export/live deck; mirror that treatment in the preview so
+      // the SE sees the intended composition. See phoneFrame in the demo renderer.
+      if (p.frame === "phone") {
+        return el("div", { class: "sf-schem-wrap" }, [
+          el("div", { class: "sf-phone sf-phone-schem" }, [
+            el("div", { class: "sf-phone-notch" }),
+            el("div", { class: "sf-phone-screen" }, [node]),
+            el("div", { class: "sf-phone-bar" }),
+          ]),
+        ]);
+      }
+      return el("div", { class: "sf-schem-wrap" }, [node]);
+    });
+
+    var eyebrow = sfFit(slide.eyebrow || deriveEyebrow(slide, state.project || {}) || "Guided demo", 60);
+    var headline = sfNoEllipsis(slide.title || "Autonomous outreach.");
+    // Solo (component-only) layout: no steps rail → full-width screen with an
+    // optional intro paragraph above it. Mirrors the demo renderer's screenFlow.
+    var isSolo = !!fields.soloScreen || (panels.length === 1 && kinds[0] !== "steps");
+    var soloBody = "";
+    if (isSolo) {
+      colClass = "sf-cols-single";
+      soloBody = (typeof slide.flowBody === "string" && slide.flowBody.trim())
+        ? slide.flowBody
+        : (slide.sub || "");
+    }
+    // Root carries the demo brand vars (--blue/--navy/--red) that screens.css
+    // recolors against, and a preview-scope class so the framing rules apply
+    // without the .dd-slide/.pslide chrome the live deck has.
+    // `hp` is the hook class the builder's in-place re-render looks for
+    // (builder.js openSlideTextPopover → card.querySelector(".hp")); without
+    // it, edits wouldn't refresh the preview. screens.css doesn't style `.hp`.
+    var root = el("div", { class: "hp sf-flow-preview dd-layout-screenFlow" }, [
+      eyebrow ? el("p", { class: "sf-flow-eyebrow", text: eyebrow }) : null,
+      el("h2", { class: "sf-flow-headline", text: headline }),
+      (isSolo && soloBody) ? el("p", { class: "sf-flow-body", text: sfFit(soloBody, 320) }) : null,
+      el("div", { class: "sf-flow-grid " + colClass }, cols),
+    ]);
+    return root;
+  }
+
+  // Step-8 preview of the animated act/scene opener. Mirrors the demo
+  // renderer's screenActOpener DOM (same .sf-opener / .sf-flow-* classes so
+  // screens.css styles it identically) and resolves openerConfig the SAME way
+  // the export does — via HOLO_ADAPTER.buildOpenerConfig — so preview == export.
+  function renderScreenActOpenerPreview(slide, state, mode) {
+    slide = slide || {};
+    state = state || {};
+    var ADAPTER = global.HOLO_ADAPTER || null;
+    var cfg = (ADAPTER && ADAPTER.buildOpenerConfig)
+      ? ADAPTER.buildOpenerConfig(state, slide)
+      : (slide.openerConfig || {});
+    var scene = cfg.scene || {};
+    var rows = sfArrP(scene.rows, 4).map(function (r) {
+      return el("div", { html: "<strong>" + sfEsc(sfClipP(r.k, 18)) + ":</strong> " + sfEsc(sfFit(r.v, 160)) });
+    });
+    var callerSvg = el("div", { class: "sf-caller-svg", html:
+      '<svg viewBox="0 0 64 64" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="72" height="72">' +
+      '<circle cx="32" cy="20" r="12"/>' +
+      '<path d="M8 60c0-13 11-22 24-22s24 9 24 22z"/>' +
+      '</svg>' });
+    var caller = el("div", { class: "sf-opener-caller" }, [
+      el("span", { class: "sf-ring" }),
+      el("span", { class: "sf-ring" }),
+      callerSvg,
+      el("span", { class: "sf-frust-emoji", text: cfg.emoji || "😤" }),
+    ]);
+    // `hp` hook so the builder's in-place re-render refreshes this preview.
+    var root = el("div", { class: "hp sf-flow-preview dd-layout-screenActOpener" }, [
+      el("div", { class: "sf-opener" }, [
+        el("p", { class: "sf-flow-eyebrow", text: sfFit(cfg.eyebrow || "The moment", 60) }),
+        el("h2", { class: "sf-flow-headline", text: sfNoEllipsis(cfg.headline || slide.title || "The call that runs itself.") }),
+        caller,
+        cfg.body ? el("p", { class: "sf-opener-body", text: sfFit(cfg.body, 220) }) : null,
+        rows.length ? el("div", { class: "sf-opener-scene" }, [
+          el("div", { class: "sf-opener-scene-label", text: sfClipP(scene.label || "SCENE", 40) }),
+        ].concat(rows)) : null,
+      ]),
+    ]);
+    return root;
+  }
 
   function isSafeHttpUrl(s) {
     if (!s || typeof s !== "string") return false;

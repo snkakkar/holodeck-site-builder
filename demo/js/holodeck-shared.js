@@ -1229,8 +1229,16 @@
           } });
 
     // DEMO ─ chapter opener (auto-prepend) + state.slides[demo only]
+    // Salesforce UI Moments (sectionId "sf-ui") are authored screenFlow/
+    // screenActOpener compositions that live INSIDE the Demo section of the
+    // /demo deck (per product decision — they render in the demo scroll flow,
+    // not a separate nav tab). So fold them into the demo block here: they
+    // pass through the preview, export, and demo renderer exactly like demo
+    // slides. Step 5 still groups them under "Salesforce UI Moments" via the
+    // recommendation's intentGroup — that's a selector concern, not a runtime
+    // section. Without this they were silently dropped from preview + export.
     const demoSlides = (state.slides || []).filter(function (sl) {
-      return !sl.sectionId || sl.sectionId === "demo";
+      return !sl.sectionId || sl.sectionId === "demo" || sl.sectionId === "sf-ui";
     });
     const hasOpener = demoSlides.length && demoSlides[0] && demoSlides[0].layout === "chapterOpener";
     if (!hasOpener) {
@@ -1299,8 +1307,39 @@
                                       });
                                     } },
           } });
+    // Emit demo + folded-in sf-ui slides, all retagged sectionId "demo" so the
+    // export builderPlan and the /demo renderer (which filter to "demo") pick
+    // them up. NO editorPaths attached → preview's editorFieldsForSlide() falls
+    // through to the layout-specific screenFlow/screenActOpener editor fields.
+    //
+    // screenFlow/screenActOpener slides persist only their SELECTION (screenId,
+    // family) in state.slides — the paired composition (steps rail + the rendered
+    // console `panels[]`/`config`) is DERIVED, not stored. The /demo deck derives
+    // it via buildBuilderPlan → buildScreenFields, but the PREVIEW + EXPORT capture
+    // path consumes this manifest directly and never touched buildBuilderPlan, so
+    // a manifest screenFlow slide reached the renderer with no panels → the
+    // renderer synthesized `config:{}` → every console body column collapsed to an
+    // empty "Caller details / Agent assist" placeholder in the PDF. Enrich the
+    // slide with buildScreenFields HERE so the manifest carries the same panels/
+    // config the live deck derives, and the capture renders the full console.
+    var ADAPTER = (typeof global !== "undefined" && global.HOLO_ADAPTER) ||
+                  (typeof window !== "undefined" && window.HOLO_ADAPTER) || null;
     demoSlides.forEach(function (sl) {
-      out.push(Object.assign({ assets: [], capabilities: [] }, sl, { sectionId: "demo" }));
+      var out1 = Object.assign({ assets: [], capabilities: [] }, sl, { sectionId: "demo" });
+      if (ADAPTER) {
+        // Mirror buildBuilderPlan: screenFlow gets steps/panels/config;
+        // screenActOpener gets its openerConfig. Only derive when the slide
+        // hasn't already carried the data (idempotent, and never overwrites an
+        // SE-edited panel/opener).
+        if (sl.layout === "screenFlow" && !out1.panels &&
+            typeof ADAPTER.buildScreenFields === "function") {
+          try { Object.assign(out1, ADAPTER.buildScreenFields(state, sl)); } catch (e) {}
+        } else if (sl.layout === "screenActOpener" && !out1.openerConfig &&
+                   typeof ADAPTER.buildOpenerConfig === "function") {
+          try { out1.openerConfig = ADAPTER.buildOpenerConfig(state, sl); } catch (e) {}
+        }
+      }
+      out.push(out1);
     });
 
     // BUSINESS VALUE ─ bv-1..5

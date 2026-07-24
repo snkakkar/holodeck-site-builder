@@ -4756,11 +4756,13 @@
         if (!sec.slides.length) {
           c.appendChild(el("div", { class: "bx-empty",
             html: "No suggestions for this section yet. Add inputs in earlier steps." }));
-        } else if (sec.id === "demo") {
-          // The demo section carries the bulk of the cards (many near-
-          // duplicate device/agent/data moments). Group them by intent and
-          // tuck the lower-priority options behind a disclosure so the
-          // selector reads as a short curated list, not a wall of cards.
+        } else if (sec.id === "demo" || sec.id === "sf-ui") {
+          // The demo and Salesforce-UI sections carry many near-duplicate
+          // cards. Group them by intent and tuck the lower-priority options
+          // behind a disclosure so the selector reads as a short curated list
+          // (required + recommended inline), not a wall of cards. The sf-ui
+          // section always offers all 12 screens; only the ones whose signals
+          // fired are recommended-inline, the rest collapse behind "More options".
           renderDemoSectionCards(c, sec, mode);
         } else if (mode === "grid") {
           const grid = el("div", { class: "bx-rec-grid" });
@@ -5422,7 +5424,7 @@
   }
 
   // Section ordering used by the slide planner.
-  const SECTION_ORDER = ["intro", "journey-map", "meet-persona", "demo", "business-value"];
+  const SECTION_ORDER = ["intro", "journey-map", "meet-persona", "demo", "sf-ui", "business-value"];
 
   // Single source of truth for the CX→slide auto-match fallback.
   // Returns a map of cxComponentId -> slideId for every component the
@@ -5559,6 +5561,10 @@
       if (existing) {
         existing.linkedCxComponentIds = linkedCx;
         existing.deviceFrame = deviceFrame || existing.deviceFrame || "";
+        // Config-driven console screens carry their identity from the rule so
+        // the adapter can feed the right panel builder. Refresh in case the
+        // recommendation changed (additive — undefined for non-screen slides).
+        if (r.screenId) { existing.screenId = r.screenId; existing.family = r.family || existing.family; }
         if (wasExplicitlyLinked) {
           // Record the original layout once so we can revert if the SE
           // later clears the link.
@@ -5590,6 +5596,9 @@
         deviceFrame: deviceFrame,
         missingInputs: r.missingInputs || [],
         _originalLayout: (wasExplicitlyLinked && r.layout !== "embeddedCxComponent") ? r.layout : undefined,
+        // Config-driven console screen identity (undefined for normal slides).
+        screenId: r.screenId,
+        family: r.family,
       };
     });
 

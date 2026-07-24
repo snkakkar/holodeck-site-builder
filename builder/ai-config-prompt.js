@@ -785,6 +785,152 @@ CX components (AubreyDemo):
     "the fields directly.",
   ].join(" ");
 
+  // ─── Screen-family prompts (config-driven console/CRM screens) ─
+  // One STRICT-JSON prompt per SCREEN FAMILY (see screen-registry.js). Each
+  // uses the same <<CONTEXT>> placeholder as getAgentChatPrompt; the screen-
+  // foundations lane substitutes a context block assembled from the project.
+  // The CRITICAL-VOCABULARY guard keeps generated copy in the customer's real
+  // industry language, and the prompt reuses foundations metrics so invented
+  // numbers don't contradict the BVS. Families not listed here fall back to
+  // screen-foundations.js's built-in prompt.
+  const SCREEN_FAMILY_PROMPTS = {
+    recordWithScoreAndTimeline: [
+      "You are generating realistic Salesforce demo data for an AI SDR / prospecting console screen — a Lead or Prospect record with an AI opportunity score, weighted criteria, and an activity timeline — for this customer:",
+      "",
+      "── DEMO CONTEXT ──",
+      "<<CONTEXT>>",
+      "",
+      "CRITICAL VOCABULARY RULE: Use the customer's REAL industry language for company names, products, and criteria. Do NOT invent numbers that contradict the business story or the BVS metrics in the context. Keep every string SHORT and console-realistic.",
+      "",
+      "Return STRICT JSON (no markdown) with this shape:",
+      "{",
+      '  "header": { "recordType": string, "name": string, "fields": [{"label","value","link"(bool)}] },  // 4 fields e.g. Title, Company, Phone, Email',
+      '  "progress": { "steps"(int), "total"(int), "label": string, "action": string },  // sales-path progress; label e.g. "Qualified"',
+      '  "score": { "value"(0-100 int), "of"(int, default 100), "label": string, "badge": string, "meta": string, "insight": string, "criteria": [{"icon","name","sub","pct"(0-100),"score"}] },  // 5 weighted criteria; icon=one emoji; score e.g. "+20 / 25"; insight=1-2 sentences on why this lead scores high',
+      '  "identity": { "title": "Identity", "fields": [{"label","value"}] },  // 4 key/value pairs',
+      '  "timeline": { "title": "Activity", "month": string, "items": [{"title","sub","from","time","status","statusTone":"viewed|pending","body"}] }  // 4 activity items, newest first; body=short email/SMS text',
+      "}",
+      "Ground the score and timeline in an autonomous outbound-SDR narrative (an AI agent reaches out, the contact replies, the agent qualifies and creates an opportunity with a clean handoff to the AE).",
+    ].join("\n"),
+
+    recordWithAiPanel: [
+      "You are generating realistic Salesforce demo data for an AI account-research / opportunity screen — a record with an Einstein AI narrative panel and a conversation-insights timeline — for this customer:",
+      "", "── DEMO CONTEXT ──", "<<CONTEXT>>", "",
+      "CRITICAL VOCABULARY RULE: Use the customer's REAL industry language. Do NOT invent numbers that contradict the business story or BVS metrics in the context. Keep every string SHORT and console-realistic.",
+      "",
+      "Return STRICT JSON (no markdown):",
+      "{",
+      '  "header": { "recordType": string, "name": string, "fields": [{"label","value","link"(bool)}] },  // 4 fields e.g. Owner, Stage, Amount, Close',
+      '  "aiPanel": { "title": string, "badge": string, "body": string, "sources": [string] },  // body = 2-3 sentence AI research summary; 3-4 grounding sources',
+      '  "identity": { "title": "Account Details", "fields": [{"label","value"}] },  // 4 pairs',
+      '  "timeline": { "title": "Conversation Insights", "month": string, "items": [{"title","sub","from","time","status","statusTone":"viewed|pending","body"}] }  // 3 items',
+      "}",
+    ].join("\n"),
+
+    assistantChat: [
+      "You are generating a realistic Agentforce Sales Assistant conversation for this customer:",
+      "", "── DEMO CONTEXT ──", "<<CONTEXT>>", "",
+      "CRITICAL VOCABULARY RULE: Use the customer's REAL industry language. Keep every string SHORT and console-realistic. The assistant is grounded in this account's CRM data.",
+      "",
+      "Return STRICT JSON (no markdown):",
+      "{",
+      '  "aiPanel": { "title": "Sales Assistant", "badge": string, "body": string },',
+      '  "chat": [{"role":"user|agent","who":string,"body":string}],  // 4 turns, alternating; grounded in the account',
+      '  "suggestedReply": { "groundedOn": string, "body": string, "actions": [string] }  // a drafted follow-up + 2-3 action buttons',
+      "}",
+    ].join("\n"),
+
+    metricsAndTable: [
+      "You are generating a realistic Salesforce analytics screen (KPI metric cards + a data table with a bar column). It is either a Territory Plan or a Marketing Cloud attribution dashboard for this customer:",
+      "", "── DEMO CONTEXT ──", "<<CONTEXT>>", "",
+      "CRITICAL VOCABULARY RULE: Reuse the BVS/foundations metrics where present so numbers don't contradict the story. Keep every string SHORT and console-realistic.",
+      "",
+      "Return STRICT JSON (no markdown):",
+      "{",
+      '  "header": { "recordType": string, "name": string, "fields": [{"label","value"}] },',
+      '  "metrics": [{"label","value","delta","tone":"up|down|flat"}],  // 4 KPI cards',
+      '  "aiPanel": { "title": string, "badge": string, "body": string },  // 1-2 sentence Einstein recommendation',
+      '  "table": { "title": string, "columns": [string], "rows": [[cell,...]], "barColumn": int }  // 4-5 cols, 4 rows; barColumn = index of a 0-100 percent column',
+      "}",
+    ].join("\n"),
+
+    serviceCase: [
+      "You are generating a realistic Service Cloud case screen with Einstein sentiment, an AI case summary, and a customer/agent timeline for this customer:",
+      "", "── DEMO CONTEXT ──", "<<CONTEXT>>", "",
+      "CRITICAL VOCABULARY RULE: Use the customer's REAL industry language. sentiment.score.value is a SIGNED value from -1 to 1 (negative = frustrated) — this is a FIXED semantic status, not a brand color. Keep strings SHORT.",
+      "",
+      "Return STRICT JSON (no markdown):",
+      "{",
+      '  "header": { "recordType": string, "name": string, "fields": [{"label","value"}] },  // Contact, Priority, Status, Channel',
+      '  "sentiment": { "title": "Case Sentiment", "badge": string, "score": {"value"(-1..1),"of":1,"label","meta","insight"}, "body": string },',
+      '  "aiPanel": { "title": "Case Summary", "badge": string, "body": string, "sources": [string] },',
+      '  "timeline": { "title": "Case Timeline", "month": string, "items": [{"title","sub","from","time","status","statusTone":"viewed|pending","body"}] }  // 3 items',
+      "}",
+    ].join("\n"),
+
+    voiceConsole: [
+      "You are generating a realistic Service Cloud Voice live-call console (a live transcript + AI agent-assist + next-best-action list) for this customer:",
+      "", "── DEMO CONTEXT ──", "<<CONTEXT>>", "",
+      "CRITICAL VOCABULARY RULE: Use the customer's REAL industry language. Keep every string SHORT and console-realistic.",
+      "",
+      "Return STRICT JSON (no markdown):",
+      "{",
+      '  "header": { "recordType": "Voice · Live Call", "name": string, "fields": [{"label","value"}] },',
+      '  "call": { "status": string, "timer": string },',
+      '  "transcript": { "title": "Live Transcript", "turns": [{"role":"user|agent","who":string,"body":string}] },  // 4 turns',
+      '  "aiPanel": { "title": "Agent Assist", "badge": string, "body": string },',
+      '  "list": [{"primary","secondary","badge":{"tone":"brand|good|neutral|bad","text"}}]  // 3 next-best actions',
+      "}",
+    ].join("\n"),
+
+    campaignBuilder: [
+      "You are generating a realistic Marketing Cloud 'Prompt Campaign Builder' screen (a natural-language prompt + an AI-generated journey summary + estimated metrics + generated segments) for this customer:",
+      "", "── DEMO CONTEXT ──", "<<CONTEXT>>", "",
+      "CRITICAL VOCABULARY RULE: Use the customer's REAL industry language and reuse foundations metrics where present. Keep every string SHORT.",
+      "",
+      "Return STRICT JSON (no markdown):",
+      "{",
+      '  "header": { "recordType": string, "name": string, "fields": [{"label","value"}] },',
+      '  "prompt": string,  // the marketer\'s natural-language campaign prompt',
+      '  "aiPanel": { "title": "Prompt Campaign Builder", "badge": string, "body": string },',
+      '  "metrics": [{"label","value","delta","tone":"up|down|flat"}],  // 3 cards: reach, lift, window',
+      '  "list": [{"primary","secondary","badge":{"tone","text"}}]  // 3 generated segments',
+      "}",
+    ].join("\n"),
+
+    kpiTable: [
+      "You are generating a realistic autonomous Prospecting Agent console for this customer — a KPI strip summarizing an overnight territory sweep, a prioritized-accounts table with buying signals, and an AI agent recommendation:",
+      "", "── DEMO CONTEXT ──", "<<CONTEXT>>", "",
+      "CRITICAL VOCABULARY RULE: Use the customer's REAL industry language for account names and buying signals. Reuse foundations/BVS metrics where present so numbers don't contradict the story. Signal tones (good/warn/bad) are FIXED semantic status — never brand-recolor them. Keep every string SHORT and console-realistic.",
+      "",
+      "Return STRICT JSON (no markdown) with this shape:",
+      "{",
+      '  "subtitle": string,  // one line: what the agent did overnight (scored accounts, surfaced signals, drafted outreach)',
+      '  "kpis": [{"value": string, "label": string, "active"(bool, optional)}],  // 4 KPI cards e.g. Accounts scanned, New signals, High-intent (active:true), Outreach drafted',
+      '  "table": { "title": "Prioritized accounts", "columns": [string], "rows": [{"cells":[string], "sub": string, "signal": {"tone":"good|warn|bad|neutral","text": string}, "tags": [{"tone":"brand|good|neutral|bad","text": string}], "selected"(bool)}], "footnote": string },  // 7 columns (Account, Score, Segment, Signal, Owner, Last touch, Status); 4 rows, cells align 1:1 with columns; first row selected:true; sub = 1 short line of context; ≤2 tags per row',
+      '  "aiPanel": { "title": "Prospecting Agent", "badge": "AGENTFORCE", "body": string, "sources": [string] }  // body = 2-3 sentences addressing the rep by first name, summarizing what crossed the high-intent threshold and offering a next action; 3 grounding sources',
+      "}",
+      "Ground everything in an autonomous overnight prospecting narrative (the agent scans the territory, scores accounts on fit + engagement + third-party intent, and drafts grounded outreach for the AE to approve).",
+    ].join("\n"),
+
+    emailPreview: [
+      "You are generating a realistic marketing email preview (Marketing Cloud 'Thursday Spotlight' style) for this customer:",
+      "", "── DEMO CONTEXT ──", "<<CONTEXT>>", "",
+      "CRITICAL VOCABULARY RULE: Use the customer's REAL brand voice and industry language. Keep every string SHORT.",
+      "",
+      "Return STRICT JSON (no markdown):",
+      "{",
+      '  "email": { "from": string, "subject": string, "blocks": [{"type":"image|heading|paragraph|button","text","alt"}] }  // 5 blocks: hero image, heading, body paragraph, CTA button, footer line',
+      "}",
+    ].join("\n"),
+  };
+
+  // getScreenPrompt(family) → the family template WITH the <<CONTEXT>>
+  // placeholder still present (screen-foundations substitutes it), or null.
+  function getScreenPrompt(family) {
+    return SCREEN_FAMILY_PROMPTS[family] || null;
+  }
+
   global.HOLO_AI_PROMPT = {
     PROMPT: PROMPT,
     CONFIG_TEMPLATE: CONFIG_TEMPLATE,
@@ -804,5 +950,7 @@ CX components (AubreyDemo):
     getScriptGenPrompt: getScriptGenPrompt,
     SLIDE_COPY_PROMPT: SLIDE_COPY_PROMPT,
     getSlideCopyPrompt: getSlideCopyPrompt,
+    SCREEN_FAMILY_PROMPTS: SCREEN_FAMILY_PROMPTS,
+    getScreenPrompt: getScreenPrompt,
   };
 })(window);

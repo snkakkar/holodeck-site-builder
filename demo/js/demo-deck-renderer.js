@@ -77,8 +77,49 @@
   // tagged, treat all of them as demo (legacy configs).
   const demoSlides = allSlides.filter(function (s) { return !s.sectionId || s.sectionId === "demo"; });
 
+  // ─── Public API (registered BEFORE the #demo-wrap guard) ────────
+  // The builder page loads this renderer solely to reuse renderScreenFlow for
+  // export screenshot capture — it has no #demo-wrap, so the auto-render below
+  // bails. Register the HOLO_DEMO API up here so it's available in that context
+  // too. These closures only READ RENDERERS/el/buildTimelineTrack when CALLED
+  // (long after load), so referencing the later const/function decls is safe.
+  window.HOLO_DEMO = window.HOLO_DEMO || {};
+  window.HOLO_DEMO.hasAuthoredTimeline = hasAuthoredTimeline;
+  window.HOLO_DEMO.renderJourneyTimeline = function (container) {
+    if (!container) return false;
+    container.textContent = "";
+    container.appendChild(buildTimelineTrack());
+    return true;
+  };
+  // Render ONE screenFlow / screenActOpener slide as a detached DOM node so
+  // the export pipeline (export-model.js captureScreenImage) can rasterize the
+  // exact same console the live deck draws. Returns a wrapper .dd-slide-content
+  // element, or null if the slide isn't a screen layout. The renderer reads
+  // only the slide object (panels/config/openerConfig already resolved by the
+  // adapter), so it's independent of the live deck's HOLODECK_CONFIG.
+  window.HOLO_DEMO.renderScreenFlow = function (slide, state, cfg) {
+    if (!slide) return null;
+    var layout = slide.layout ||
+      (slide.openerConfig ? "screenActOpener" : (slide.panels || slide.screenId ? "screenFlow" : ""));
+    // Only the two console-screen layouts capture as images; anything else
+    // returns null so this can't be misused to rasterize arbitrary slides.
+    if (layout !== "screenFlow" && layout !== "screenActOpener") return null;
+    var fn = RENDERERS[layout];
+    if (typeof fn !== "function") return null;
+    var nodes = fn(slide) || [];
+    var wrap = el("div", { class: "dd-slide-content dd-layout-" + layout },
+      (Array.isArray(nodes) ? nodes : [nodes]).filter(Boolean));
+    return wrap;
+  };
+
+  // #demo-wrap only exists on the /demo deck page. The builder page loads this
+  // file solely to reuse window.HOLO_DEMO.renderScreenFlow (registered above)
+  // for PDF/PPTX screen capture — it has NO #demo-wrap. We must NOT early-return
+  // here, or the RENDERERS map (defined ~line 1260) and every sf* atom builder
+  // renderScreenFlow depends on never get defined, and every console capture
+  // throws → blank consoles in the export. Instead, define everything, and gate
+  // only the deck auto-mount below on the presence of #demo-wrap.
   const wrap = document.getElementById("demo-wrap");
-  if (!wrap) return;
 
   // Brand colors — flow through to JS-rendered accents (affinity dots,
   // opener particles, fallback color arrays) so a teal-and-orange
@@ -153,6 +194,1069 @@
     });
   }
 
+  // ════════════════════════════════════════════════════════════
+  //  CONFIG-DRIVEN SALESFORCE CONSOLE/CRM SCREENS
+  //  ──────────────────────────────────────────
+  //  The `screenFlow` composition renders a generated Salesforce
+  //  console screen (from slide.panels[].config, a screenConfig)
+  //  IN-DOM — no iframe, no asset dependency — inside a paired
+  //  layout: numbered story steps beside the screen, two screens
+  //  side by side, or a phone-framed screen. `screenActOpener`
+  //  renders the animated act/scene opener.
+  //
+  //  The 12 screens collapse to ~8 families; each family has one
+  //  sfPanel* builder. Shared atoms (sfCard/sfScore/sfTimeline/…)
+  //  are reused across families. EVERY generated string routes
+  //  through the copy-fit helpers (ebrow/ttl/fitS/_cw) and arrays
+  //  are length-capped so dense fixed-width fields never overflow.
+  // ════════════════════════════════════════════════════════════
+
+  // Small local clamp: whole-word trim to a char budget, no ellipsis noise.
+  function sfClip(v, max) { return noEllipsis(_cw(v, 40, max || 60)); }
+  function sfArr(v, cap) { return (Array.isArray(v) ? v : []).slice(0, cap || 6); }
+  function sfPct(n) { var x = Number(n); if (!isFinite(x)) x = 0; return Math.max(0, Math.min(100, Math.round(x))); }
+
+  // ── Shared atoms ──────────────────────────────────────────────
+  // Chrome: nav + tabs. `chrome` = { logo, tabs[], activeTab }.
+  function sfChrome(chrome) {
+    chrome = chrome || {};
+    var tabs = sfArr(chrome.tabs, 4);
+    var activeIdx = 0;
+    // Single compact chrome strip: app-launcher (9 dots) + a brand lockup
+    // (Salesforce cloud mark + customer name) on the left, then the object
+    // tabs. The old full-width nav row (logo/search/icons) was dropped — it
+    // stole vertical space from the console body without adding demo value.
+    return el("div", {}, [
+      el("div", { class: "sf-tabs" }, [
+        el("div", { class: "sf-app-launcher" }, [0,0,0,0,0,0,0,0,0].map(function () { return el("span"); })),
+        el("div", { class: "sf-brand-lockup" }, [
+          el("span", { class: "sf-brand-mark" }),
+          el("span", { class: "sf-brand-name", text: sfClip(chrome.logo || customer.name || "Salesforce", 24) }),
+        ]),
+      ].concat(tabs.length ? tabs.map(function (t, i) {
+        return el("div", { class: "sf-tab" + (i === activeIdx ? " active" : ""), text: sfClip(t, 22) });
+      }) : [el("div", { class: "sf-tab active", text: "Home" })])),
+    ]);
+  }
+
+  // Record header: { recordType, name, fields:[{label,value,link}], followLabel }
+  function sfHeader(h, opts) {
+    h = h || {};
+    opts = opts || {};
+    var fields = sfArr(h.fields, 4).map(function (fld) {
+      return el("div", { class: "sf-field" }, [
+        el("div", { class: "sf-field-label", text: sfClip(fld.label, 18) }),
+        el("div", { class: "sf-field-value" + (fld.link ? " link" : ""), text: sfClip(fld.value, 40) }),
+      ]);
+    });
+    return el("div", { class: "sf-header" + (opts.compact ? " sf-header-compact" : "") }, [
+      el("div", { class: "sf-header-main" }, [
+        el("div", { class: "sf-header-label", text: sfClip(h.recordType || "Record", 40) }),
+        el("div", { class: "sf-header-name", text: sfClip(h.name || customer.name || "Record", 44) }),
+        el("div", { class: "sf-header-fields" }, fields),
+      ]),
+      el("div", { class: "sf-follow-btn", text: h.followLabel || "+ Follow" }),
+    ]);
+  }
+
+  // Progress bar: { steps:N (completed), label, action }
+  function sfProgress(p) {
+    if (!p) return null;
+    var done = Math.max(0, Math.min(6, Number(p.steps) || 0));
+    var cells = [];
+    for (var i = 0; i < (p.total || Math.max(done, 4)); i++) {
+      cells.push(el("div", { class: "sf-pb-step" + (i < done ? "" : " todo"), text: i < done ? "✓" : "" }));
+    }
+    if (p.label) cells.push(el("div", { class: "sf-pb-label", text: sfClip(p.label, 24) }));
+    if (p.action) cells.push(el("button", { class: "sf-pb-btn", text: sfClip(p.action, 30) }));
+    return el("div", { class: "sf-progress" }, cells);
+  }
+
+  // Card wrapper with an optional AI head. head = { icon, title, sub, badge }.
+  function sfCard(head, bodyNodes) {
+    var kids = [];
+    if (head) {
+      kids.push(el("div", { class: "sf-card-head" }, [
+        el("div", { class: "sf-card-head-icon", text: head.icon || "✦" }),
+        el("div", {}, [
+          el("div", { class: "sf-card-head-title", text: sfClip(head.title, 40) }),
+          head.sub ? el("div", { class: "sf-card-head-sub", text: sfClip(head.sub, 46) }) : null,
+        ]),
+        head.badge ? el("div", { class: "sf-card-head-badge", text: sfClip(head.badge, 18) }) : null,
+      ]));
+    }
+    (bodyNodes || []).forEach(function (n) { if (n) kids.push(n); });
+    return el("div", { class: "sf-card" }, kids);
+  }
+
+  // Score block: { value, of, label, meta, insight }
+  function sfScore(sc) {
+    if (!sc) return null;
+    return el("div", { class: "sf-score-row" }, [
+      el("div", { class: "sf-score-circle" }, [
+        el("div", { class: "sf-score-num", text: String(sc.value != null ? sc.value : "—") }),
+        el("div", { class: "sf-score-denom", text: "/ " + (sc.of != null ? sc.of : 100) }),
+      ]),
+      el("div", {}, [
+        el("div", { class: "sf-score-label", text: sfClip(sc.label || "Score", 28) }),
+        el("div", { class: "sf-score-meta", text: sfClip(sc.meta || "", 48) }),
+        sc.insight ? el("div", { class: "sf-score-insight", text: fitS(sc.insight, 220) }) : null,
+      ]),
+    ]);
+  }
+
+  // Criteria list: [{icon,name,sub,pct,score}] (≤5)
+  function sfCriteria(rows) {
+    rows = sfArr(rows, 5);
+    if (!rows.length) return null;
+    return el("div", { class: "sf-criteria" }, rows.map(function (r) {
+      return el("div", { class: "sf-criteria-row" }, [
+        el("div", { class: "sf-criteria-icon", text: r.icon || "•" }),
+        el("div", {}, [
+          el("div", { class: "sf-criteria-name", text: sfClip(r.name, 40) }),
+          r.sub ? el("div", { class: "sf-criteria-sub", text: sfClip(r.sub, 48) }) : null,
+          el("div", { class: "sf-criteria-bar" }, [
+            el("div", { class: "sf-criteria-bar-fill", style: "width:" + sfPct(r.pct) + "%" }),
+          ]),
+        ]),
+        el("div", { class: "sf-criteria-score", text: sfClip(r.score || "", 12) }),
+      ]);
+    }));
+  }
+
+  // Activity timeline: header + month + items. items = [{title,sub,from,time,status,statusTone,body}]
+  function sfTimeline(tl) {
+    tl = tl || {};
+    var items = sfArr(tl.items, 5).map(function (it) {
+      var kids = [];
+      if (it.title) {
+        kids.push(el("div", { class: "sf-activity-item-head" }, [
+          el("div", { class: "sf-ai-dot agent", text: "✦" }),
+          el("div", {}, [
+            el("div", { class: "sf-activity-item-title", text: sfClip(it.title, 56) }),
+            it.sub ? el("div", { class: "sf-activity-item-sub", text: sfClip(it.sub, 56) }) : null,
+          ]),
+        ]));
+      }
+      if (it.body || it.from) {
+        var tone = it.statusTone === "pending" ? "pending" : "viewed";
+        kids.push(el("div", { class: "sf-msg" }, [
+          it.from ? el("div", { class: "sf-msg-from" }, [
+            el("span", { text: sfClip(it.from, 52) }),
+            it.time ? el("span", { class: "sf-time", text: sfClip(it.time, 20) }) : null,
+          ]) : null,
+          it.status ? el("div", { class: "sf-msg-status" }, [
+            el("span", { class: "sf-dot " + tone }), document.createTextNode(" " + sfClip(it.status, 20)),
+          ]) : null,
+          it.body ? el("div", { class: "sf-msg-body", text: fitS(it.body, 260) }) : null,
+        ]));
+      }
+      return el("div", { class: "sf-activity-item" }, kids);
+    });
+    return el("div", { class: "sf-card" }, [
+      el("div", { class: "sf-activity-head" }, [
+        document.createTextNode(sfClip(tl.title || "Activity", 20)),
+        el("div", { class: "sf-icons" }, ["✉️","💬","📞","📅"].map(function (c) { return el("span", { text: c }); })),
+      ]),
+      tl.month ? el("div", { class: "sf-activity-month", text: "▾ " + sfClip(tl.month, 24) }) : null,
+    ].concat(items));
+  }
+
+  // Two-column key/value detail card (Identity).
+  function sfDetail(d) {
+    if (!d || !d.fields) return null;
+    var fields = sfArr(d.fields, 6).map(function (fld) {
+      return el("div", {}, [
+        el("div", { class: "sf-detail-label", text: sfClip(fld.label, 18) }),
+        el("div", { class: "sf-detail-value", text: sfClip(fld.value, 40) }),
+      ]);
+    });
+    return el("div", { class: "sf-card" }, [
+      el("div", { class: "sf-detail" }, [
+        el("div", { class: "sf-detail-title", text: sfClip(d.title || "Identity", 24) }),
+        el("div", { class: "sf-detail-grid" }, fields),
+      ]),
+    ]);
+  }
+
+  // AI narrative panel: { title, badge, body, sources:[] }
+  function sfAiPanel(ai) {
+    if (!ai) return null;
+    var body = [];
+    if (ai.body) body.push(el("div", { class: "sf-score-insight", text: fitS(ai.body, 320) }));
+    var srcs = sfArr(ai.sources, 4);
+    if (srcs.length) {
+      body.push(el("div", { class: "sf-ai-sources" }, srcs.map(function (sname) {
+        return el("span", { class: "sf-ai-source", text: sfClip(sname, 26) });
+      })));
+    }
+    return sfCard({ icon: "✦", title: sfClip(ai.title || "Einstein Insight", 40), badge: ai.badge }, body);
+  }
+
+  // Metric cards row: [{label,value,sub,delta,tone}] (≤4)
+  function sfMetricCards(cards) {
+    cards = sfArr(cards, 4);
+    if (!cards.length) return null;
+    return el("div", { class: "sf-metric-cards" }, cards.map(function (m) {
+      var tone = (m.tone === "down") ? "down" : (m.tone === "flat" ? "flat" : "up");
+      return el("div", { class: "sf-metric-card" }, [
+        el("div", { class: "sf-metric-card-label", text: sfClip(m.label, 28) }),
+        el("div", { class: "sf-metric-card-value", text: sfClip(String(m.value != null ? m.value : "—"), 16) }),
+        (m.delta || m.sub) ? el("div", { class: "sf-metric-card-delta " + tone, text: sfClip(m.delta || m.sub, 24) }) : null,
+      ]);
+    }));
+  }
+
+  // Data table: { columns:[…], rows:[[…]], barColumn?(int) } — barColumn cell renders a bar.
+  function sfTable(t) {
+    t = t || {};
+    var cols = sfArr(t.columns, 5);
+    if (!cols.length) return null;
+    var barCol = (typeof t.barColumn === "number") ? t.barColumn : -1;
+    var head = el("div", { class: "sf-tr sf-tr-head" }, cols.map(function (c) {
+      return el("div", { class: "sf-th", text: sfClip(c, 22) });
+    }));
+    var rows = sfArr(t.rows, 6).map(function (r) {
+      return el("div", { class: "sf-tr" }, sfArr(r, 5).map(function (cell, ci) {
+        if (ci === barCol) {
+          var pct = sfPct(cell);
+          return el("div", { class: "sf-td" }, [
+            el("div", { class: "sf-criteria-bar" }, [el("div", { class: "sf-criteria-bar-fill", style: "width:" + pct + "%" })]),
+          ]);
+        }
+        return el("div", { class: "sf-td", text: sfClip(String(cell), 26) });
+      }));
+    });
+    return el("div", { class: "sf-table" }, [head].concat(rows));
+  }
+
+  // Funnel / list rows: [{primary, secondary, badge:{tone,text}, value}] (≤6)
+  function sfList(rows) {
+    rows = sfArr(rows, 6);
+    if (!rows.length) return null;
+    return el("div", { class: "sf-list" }, rows.map(function (r) {
+      var badge = r.badge || null;
+      return el("div", { class: "sf-list-row" }, [
+        el("div", { class: "sf-list-main" }, [
+          el("div", { class: "sf-list-primary", text: sfClip(r.primary, 40) }),
+          r.secondary ? el("div", { class: "sf-list-secondary", text: sfClip(r.secondary, 52) }) : null,
+        ]),
+        r.value != null ? el("div", { class: "sf-list-value", text: sfClip(String(r.value), 14) }) : null,
+        badge ? el("div", { class: "sf-pill sf-pill-" + (badge.tone || "neutral"), text: sfClip(badge.text, 18) }) : null,
+      ]);
+    }));
+  }
+
+  // Lightweight inline markup for agent-reply items/highlights: escapes first,
+  // then renders **bold**→<strong>, *em*→<em>, [link]→<a> (Lightning-blue).
+  // Faithful to sales-assistant.html where items carry strong/em/link spans.
+  function sfInline(s) {
+    var out = escapeHtml(s);
+    out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    out = out.replace(/\[([^\]]+)\]/g, '<a>$1</a>');
+    out = out.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+    return out;
+  }
+
+  // Chat turns: [{role:"user|agent", who, body, time, greeting?, intro?,
+  //   sections:[{title, items:[str]}], highlight:{title, body, sub, source}}]
+  // + optional suggestedReply. Agent replies render structured multi-section
+  // bodies with a highlight callout box (sales-assistant reference).
+  function sfChat(turns, suggested) {
+    var kids = sfArr(turns, 6).map(function (t) {
+      var isAgent = t.role === "agent" || t.role === "system";
+      var secs = sfArr(t.sections, 5);
+      var hl = t.highlight;
+      var bubbleKids = [];
+      if (t.who) bubbleKids.push(el("div", { class: "sf-chat-who", text: sfClip(t.who, 28) }));
+      // Agent greeting = italic muted line, no card body.
+      if (isAgent && t.greeting) {
+        bubbleKids.push(el("div", { class: "sf-chat-greeting", text: fitS(t.greeting, 220) }));
+      }
+      // Primary body paragraph (intro to a structured reply, or the plain turn).
+      if (t.body) bubbleKids.push(el("div", { class: "sf-chat-body", html: sfInline(fitS(t.body, 260)) }));
+      // Structured sections: title + dashed bullet items with inline markup.
+      secs.forEach(function (sec) {
+        var items = sfArr(sec.items, 6).filter(Boolean);
+        if (!sec.title && !items.length) return;
+        bubbleKids.push(el("div", { class: "sf-agent-section" }, [
+          sec.title ? el("div", { class: "sf-agent-sec-title", text: sfClip(sec.title, 40) }) : null,
+        ].concat(items.map(function (it) {
+          return el("div", { class: "sf-agent-item", html: sfInline(fitS(it, 200)) });
+        }))));
+      });
+      // Highlight callout box — title (strong), body, sub, source (em).
+      if (hl && (hl.title || hl.body)) {
+        bubbleKids.push(el("div", { class: "sf-agent-highlight" }, [
+          hl.title ? el("div", { class: "sf-ah-title", html: sfInline(sfClip(hl.title, 60)) }) : null,
+          hl.body ? el("div", { class: "sf-ah-body", html: sfInline(fitS(hl.body, 320)) }) : null,
+          hl.sub ? el("div", { class: "sf-ah-body", html: sfInline(fitS(hl.sub, 200)) }) : null,
+          hl.source ? el("div", { class: "sf-ah-source", text: fitS(hl.source, 140) }) : null,
+        ]));
+      }
+      return el("div", { class: "sf-chat-turn " + (isAgent ? "agent" : "user") }, [
+        el("div", { class: "sf-chat-avatar" + (isAgent ? " agent" : ""), text: isAgent ? "✦" : (initialsOf(t.who) || "U") }),
+        el("div", { class: "sf-chat-bubble" }, bubbleKids),
+      ]);
+    });
+    if (suggested && suggested.body) {
+      kids.push(el("div", { class: "sf-suggested" }, [
+        el("div", { class: "sf-suggested-head", text: "✦ " + sfClip(suggested.groundedOn || "Suggested reply", 40) }),
+        el("div", { class: "sf-suggested-body", text: fitS(suggested.body, 260) }),
+        (sfArr(suggested.actions, 3).length) ? el("div", { class: "sf-suggested-actions" },
+          sfArr(suggested.actions, 3).map(function (a) { return el("span", { class: "sf-suggested-btn", text: sfClip(a, 20) }); })) : null,
+      ]));
+    }
+    return el("div", { class: "sf-chat" }, kids);
+  }
+
+  // Small local: initials from a name.
+  function initialsOf(name) {
+    var parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "";
+    return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+  }
+
+  // KPI strip: [{value, label, active?}] (≤8) — big-number summary counters.
+  function sfKpiStrip(kpis) {
+    kpis = sfArr(kpis, 8);
+    if (!kpis.length) return null;
+    return el("div", { class: "sf-kpi-strip" }, kpis.map(function (k) {
+      return el("div", { class: "sf-kpi" + (k.active ? " active" : "") }, [
+        el("div", { class: "sf-kpi-value", text: sfClip(String(k.value != null ? k.value : "—"), 12) }),
+        el("div", { class: "sf-kpi-label", text: sfClip(k.label, 22) }),
+      ]);
+    }));
+  }
+
+  // Rich account table: { columns, rows:[{cells, sub, signal:{tone,text}, tags:[{tone,text}], selected}], footnote }.
+  // First cell of each row gets the primary/sub stack + signal badge; remaining cells plain;
+  // tag chips render under the row. Distinct from sfTable (bar-column numeric table).
+  function sfAccountTable(t) {
+    t = t || {};
+    var cols = sfArr(t.columns, 7);
+    if (!cols.length) return null;
+    var head = el("div", { class: "sf-atbl-tr sf-atbl-head" }, cols.map(function (c) {
+      return el("div", { class: "sf-atbl-th", text: sfClip(c, 18) });
+    }));
+    var rows = sfArr(t.rows, 6).map(function (r) {
+      var cells = sfArr(r.cells, 7).map(function (cell, ci) {
+        if (ci === 0) {
+          return el("div", { class: "sf-atbl-td sf-atbl-primary" }, [
+            el("div", { class: "sf-atbl-name-row" }, [
+              el("span", { class: "sf-atbl-name", text: sfClip(String(cell), 28) }),
+              r.signal ? el("span", { class: "sf-pill sf-pill-" + (r.signal.tone || "neutral"), text: sfClip(r.signal.text, 10) }) : null,
+            ]),
+            r.sub ? el("div", { class: "sf-atbl-sub", text: sfClip(r.sub, 60) }) : null,
+            (r.tags && r.tags.length) ? el("div", { class: "sf-atbl-tags" }, sfArr(r.tags, 4).map(function (tg) {
+              return el("span", { class: "sf-tag sf-tag-" + (tg.tone || "neutral"), text: sfClip(tg.text, 16) });
+            })) : null,
+          ]);
+        }
+        return el("div", { class: "sf-atbl-td", text: sfClip(String(cell), 22) });
+      });
+      return el("div", { class: "sf-atbl-tr" + (r.selected ? " selected" : "") }, cells);
+    });
+    var kids = [el("div", { class: "sf-atbl" }, [head].concat(rows))];
+    if (t.footnote) kids.push(el("div", { class: "sf-atbl-foot", text: fitS(t.footnote, 140) }));
+    return el("div", {}, kids);
+  }
+
+  // ── Panel builders (one per family) ───────────────────────────
+  // recordWithScoreAndTimeline: header + progress + [score card + identity | timeline]
+  function sfPanelScoreTimeline(cfg) {
+    cfg = cfg || {};
+    var scoreCard = sfCard(
+      cfg.aiHead || { icon: "✦", title: "AI Opportunity Score", sub: "Einstein scoring model", badge: (cfg.score && cfg.score.badge) },
+      [sfScore(cfg.score), sfCriteria(cfg.criteria)]
+    );
+    return el("div", { class: "sf-screen" }, [
+      sfChrome(cfg.chrome),
+      sfHeader(cfg.header),
+      sfProgress(cfg.progress),
+      el("div", { class: "sf-main" }, [
+        el("div", { class: "sf-col" }, [scoreCard, sfDetail(cfg.identity)]),
+        el("div", { class: "sf-col" }, [sfTimeline(cfg.timeline)]),
+      ]),
+    ]);
+  }
+
+  // recordWithAiPanel: header + a two-column record body. One enriched layout
+  // that both screens fill differently via config presence:
+  //   • account-research → donut header + AI panel + Account Plan detail (left),
+  //     research narrative sections (right).
+  //   • eci-opportunity  → transcript-with-highlights + stage bar (left),
+  //     AI panel + recognition/insight sections (right).
+  // Any absent block simply drops out, so the same panel serves both.
+  function sfPanelRecordAi(cfg) {
+    cfg = cfg || {};
+    var left = [];
+    if (cfg.donut) left.push(sfCard({ icon: "📊", title: sfClip((cfg.donutTitle) || "Account signals", 32) }, [sfDonut(cfg.donut)]));
+    if (cfg.transcript) left.push(sfTranscript(cfg.transcript));
+    if (cfg.stageBar) left.push(sfCard({ icon: "🧭", title: sfClip((cfg.stageTitle) || "Deal stage", 28) }, [sfStageBar(cfg.stageBar)]));
+    if (cfg.aiPanel && !cfg.transcript) left.push(sfAiPanel(cfg.aiPanel));  // AI panel leads on account-research, trails on eci
+    if (cfg.identity) left.push(sfDetail(cfg.identity));
+
+    var right = [];
+    if (cfg.transcript && cfg.aiPanel) right.push(sfAiPanel(cfg.aiPanel));
+    if (cfg.sections && cfg.sections.length) right.push(sfCard({ icon: "✦", title: sfClip((cfg.sectionsTitle) || "Research", 28) }, [sfSections(cfg.sections)]));
+    if (cfg.timeline && (cfg.timeline.items || []).length) right.push(sfTimeline(cfg.timeline));
+    else if ((cfg.list || []).length) right.push(sfCard({ icon: "📋", title: sfClip(cfg.listTitle || "Related", 28) }, [sfList(cfg.list)]));
+
+    // Guard against an empty column so the two-col grid never collapses.
+    if (!left.length) left.push(sfAiPanel(cfg.aiPanel));
+    if (!right.length && cfg.identity) right.push(sfDetail(cfg.identity));
+
+    return el("div", { class: "sf-screen" }, [
+      sfChrome(cfg.chrome),
+      sfHeader(cfg.header),
+      el("div", { class: "sf-main" }, [
+        el("div", { class: "sf-col" }, left),
+        el("div", { class: "sf-col" }, right),
+      ]),
+    ]);
+  }
+
+  // assistantChat: a phone-framed assistant panel — titled head, a scrolling
+  // conversational thread (greeting + structured replies + highlight box), and
+  // a bottom input bar. (sales-assistant reference)
+  function sfPanelAssistantChat(cfg) {
+    cfg = cfg || {};
+    var title = sfClip((cfg.aiPanel && cfg.aiPanel.title) || "Agentforce Sales Assistant", 40);
+    return el("div", { class: "sf-screen sf-screen-assist" }, [
+      el("div", { class: "sf-assist" }, [
+        el("div", { class: "sf-assist-head" }, [
+          el("div", { class: "sf-assist-title", text: title }),
+          el("div", { class: "sf-assist-close" }, [
+            el("span", { text: "◀" }), el("span", { text: "✕" }),
+          ]),
+        ]),
+        el("div", { class: "sf-assist-msgs" }, [
+          sfChat(cfg.chat || cfg.timelineTurns || [], cfg.suggestedReply),
+        ]),
+        el("div", { class: "sf-assist-input" }, [
+          el("div", { class: "sf-assist-field", text: "Describe your task or ask a question…" }),
+        ]),
+      ]),
+    ]);
+  }
+
+  // metricsAndTable: one enriched panel both screens fill by config presence.
+  //   • territory-planning → two-column split: map+pins + growth table (left);
+  //     brief hero + recent activity + recommended play + coverage math (right).
+  //   • mc-next-attribution → stacked: metric cards → funnel → campaign table → insight.
+  // The presence of `map`/`brief` switches to the two-column territory layout.
+  function sfPanelMetricsTable(cfg) {
+    cfg = cfg || {};
+    var isTerritory = !!(cfg.map || cfg.brief || cfg.recommendedPlay);
+
+    if (isTerritory) {
+      var left = [];
+      if (cfg.map) left.push(sfMap(cfg.map));
+      if (cfg.table && (cfg.table.rows || []).length)
+        left.push(sfCard({ icon: "📈", title: sfClip((cfg.table.title) || "Accounts", 40) }, [sfTable(cfg.table)]));
+
+      var right = [];
+      if (cfg.brief) right.push(sfBriefHero(cfg.brief));
+      if (cfg.activity && cfg.activity.length)
+        right.push(sfCard({ icon: "🎯", title: sfClip(cfg.activityTitle || "Recent Activity", 30) }, [sfList(cfg.activity)]));
+      if (cfg.recommendedPlay) {
+        var rp = cfg.recommendedPlay;
+        var rpBody = [];
+        if (rp.aiPanel && rp.aiPanel.body) rpBody.push(el("div", { class: "sf-score-insight", text: fitS(rp.aiPanel.body, 340) }));
+        if (rp.cta && rp.cta.length) rpBody.push(sfCtaRow(rp.cta));
+        right.push(sfCard({ icon: "✨", title: sfClip(rp.title || "Recommended Play", 40), badge: (rp.aiPanel && rp.aiPanel.badge) || "AI" }, rpBody));
+      }
+      if (cfg.coverage) right.push(sfCard({ icon: "🗺", title: sfClip(cfg.coverage.title || "Coverage Math", 32) }, [sfCoverage(cfg.coverage)]));
+
+      if (!left.length) left.push(sfCard({ icon: "📈", title: "Accounts" }, [sfTable(cfg.table)]));
+      if (!right.length && cfg.aiPanel) right.push(sfAiPanel(cfg.aiPanel));
+
+      return el("div", { class: "sf-screen" }, [
+        sfChrome(cfg.chrome),
+        cfg.header ? sfHeader(cfg.header) : null,
+        el("div", { class: "sf-main" }, [
+          el("div", { class: "sf-col" }, left),
+          el("div", { class: "sf-col" }, right),
+        ]),
+      ]);
+    }
+
+    // mc-next-attribution → stacked single column.
+    return el("div", { class: "sf-screen" }, [
+      sfChrome(cfg.chrome),
+      cfg.header ? sfHeader(cfg.header) : null,
+      cfg.subtitle ? el("div", { class: "sf-screen-subtitle", text: fitS(cfg.subtitle, 160) }) : null,
+      el("div", { class: "sf-main sf-main-single" }, [
+        el("div", { class: "sf-col" }, [
+          sfMetricCards(cfg.metrics),
+          (cfg.funnel && cfg.funnel.length)
+            ? sfCard({ icon: "🔗", title: sfClip(cfg.funnelTitle || "Attribution model", 44) }, [sfFunnel(cfg.funnel)])
+            : null,
+          (cfg.table && (cfg.table.rows || []).length)
+            ? sfCard({ icon: "📈", title: sfClip((cfg.table.title) || "Breakdown", 40) }, [sfTable(cfg.table)])
+            : null,
+          cfg.aiPanel ? sfAiPanel(cfg.aiPanel) : null,
+        ]),
+      ]),
+    ]);
+  }
+
+  // serviceCase: case header + [sentiment/AI summary | customer/agent timeline]
+  // (sentiment-case, case-summary-lwc)
+  // Enriched shared layout; both screens fill by config presence:
+  //   • sentiment-case → sentiment bar + escalation timeline + CTA rows.
+  //   • case-summary-lwc → AI wrap-up summary + suggested reply + related cases.
+  // Left column: badges → sentiment → AI summary → CTAs. Right: timeline/related.
+  function sfPanelServiceCase(cfg) {
+    cfg = cfg || {};
+    var left = [];
+    if (cfg.badges && cfg.badges.length) left.push(sfBadgeRow(cfg.badges));
+    if (cfg.sentiment) {
+      var sentBody = [];
+      if (cfg.sentiment.bar) sentBody.push(sfSentimentBar(cfg.sentiment.bar));
+      else if (cfg.sentiment.score) sentBody.push(sfScore(cfg.sentiment.score));
+      if (cfg.sentiment.body) sentBody.push(el("div", { class: "sf-score-insight", text: fitS(cfg.sentiment.body, 300) }));
+      left.push(sfCard({ icon: "🎧", title: sfClip((cfg.sentiment.title) || "Case Sentiment", 34), badge: cfg.sentiment.badge }, sentBody));
+    }
+    if (cfg.aiPanel) {
+      var aiBody = [];
+      if (cfg.aiPanel.body) aiBody.push(el("div", { class: "sf-score-insight", text: fitS(cfg.aiPanel.body, 320) }));
+      var srcs = sfArr(cfg.aiPanel.sources, 4);
+      if (srcs.length) aiBody.push(el("div", { class: "sf-ai-sources" }, srcs.map(function (s) { return el("span", { class: "sf-ai-source", text: sfClip(s, 26) }); })));
+      if (cfg.cta && cfg.cta.length) aiBody.push(sfCtaRow(cfg.cta));
+      left.push(sfCard({ icon: "✦", title: sfClip(cfg.aiPanel.title || "Case Summary", 40), badge: cfg.aiPanel.badge }, aiBody));
+    } else if (cfg.cta && cfg.cta.length) {
+      left.push(sfCtaRow(cfg.cta));
+    }
+    if (cfg.identity) left.push(sfDetail(cfg.identity));
+
+    var right = [];
+    if (cfg.suggestedReply && cfg.suggestedReply.body) {
+      right.push(sfCard({ icon: "💬", title: sfClip((cfg.suggestedReply.groundedOn) || "Suggested reply", 40), badge: "AI" },
+        [el("div", { class: "sf-suggested-body", text: fitS(cfg.suggestedReply.body, 280) }),
+         (sfArr(cfg.suggestedReply.actions, 3).length) ? sfCtaRow(sfArr(cfg.suggestedReply.actions, 3).map(function (a, i) { return { text: a, primary: i === 0 }; })) : null]));
+    }
+    if (cfg.timeline && (cfg.timeline.items || []).length) right.push(sfTimeline(cfg.timeline));
+    if (cfg.related && cfg.related.length) right.push(sfCard({ icon: "🗂", title: sfClip(cfg.relatedTitle || "Related cases", 30) }, [sfList(cfg.related)]));
+    if (cfg.coverage) right.push(sfCard({ icon: "⏱", title: sfClip(cfg.coverage.title || "Handle time", 28) }, [sfCoverage(cfg.coverage)]));
+
+    if (!left.length) left.push(sfAiPanel({ title: "Case Summary", body: "" }));
+    if (!right.length) right.push(sfTimeline(cfg.timeline));
+
+    return el("div", { class: "sf-screen" }, [
+      sfChrome(cfg.chrome),
+      sfHeader(cfg.header),
+      el("div", { class: "sf-main" }, [
+        el("div", { class: "sf-col" }, left),
+        el("div", { class: "sf-col" }, right),
+      ]),
+    ]);
+  }
+
+  // voiceConsole: live-call header + [transcript stream | AI assist / next-best-action]
+  // (voice-console-live). Transcript reuses the timeline atom with a live feel.
+  // Animated live transcript: turns fade+slide in on a stagger (pure CSS
+  // animation-delay, so it plays once on slide entry and renders the final
+  // state in export/headless — no imperative timers). Each turn is tinted by
+  // role (rep|customer). Per the user's directive this is the ONE screen that
+  // keeps a "messages coming in" animation; everything else is static.
+  function sfVoiceTranscript(tr) {
+    tr = tr || {};
+    var turns = sfArr(tr.turns, 8).map(function (t, i) {
+      var isAgent = t.role === "agent" || t.role === "system" || t.roleColor === "rep";
+      return el("div", { class: "sf-vt-turn " + (isAgent ? "rep" : "customer") + " sf-vt-in",
+                         style: "animation-delay:" + (i * 0.6).toFixed(2) + "s" }, [
+        el("div", { class: "sf-vt-who", text: sfClip(t.who || (isAgent ? "Agent" : "Caller"), 24) }),
+        el("div", { class: "sf-vt-bubble", text: fitS(t.body, 220) }),
+      ]);
+    });
+    return el("div", { class: "sf-vt" }, turns);
+  }
+
+  // A quiet placeholder for a side column when the generated config didn't
+  // populate it — beats a bare empty flex cell (or a titled card with no
+  // fields) leaving a visible gap in the 3-column voice console. Reads like a
+  // dimmed, labeled panel so the layout still looks intentional.
+  function sfEmptyCol(label) {
+    return el("div", { class: "sf-card sf-card-empty" }, [
+      el("div", { class: "sf-card-empty-label", text: sfClip(label || "—", 28) }),
+    ]);
+  }
+
+  function sfPanelVoiceConsole(cfg) {
+    cfg = cfg || {};
+    var callBar = el("div", { class: "sf-callbar" }, [
+      el("span", { class: "sf-callbar-dot" }),
+      el("span", { class: "sf-callbar-label", text: sfClip((cfg.call && cfg.call.status) || "On call — live", 32) }),
+      el("span", { class: "sf-callbar-timer", text: sfClip((cfg.call && cfg.call.timer) || "04:12", 10) }),
+    ]);
+
+    // Left column: caller detail cards + a live sentiment pill.
+    var left = [];
+    if (cfg.identity) left.push(sfDetail(cfg.identity));
+    if (cfg.sentiment) left.push(sfCard({ icon: "🎧", title: sfClip(cfg.sentiment.title || "Live Sentiment", 30), badge: cfg.sentiment.badge },
+      [cfg.sentiment.bar ? sfSentimentBar(cfg.sentiment.bar) : sfScore(cfg.sentiment.score)]));
+
+    // Center column: the animated transcript.
+    var center = [sfCard(
+      { icon: "🎙", title: sfClip((cfg.transcript && cfg.transcript.title) || "Live Transcript", 32), badge: "LIVE" },
+      [sfVoiceTranscript(cfg.transcript || { turns: cfg.chat })]
+    )];
+
+    // Right column: SRA assist + next-best actions + grounded knowledge.
+    var right = [];
+    if (cfg.aiPanel) right.push(sfAiPanel(cfg.aiPanel));
+    if ((cfg.list || []).length) right.push(sfCard({ icon: "⚡", title: "Next Best Actions" }, [sfList(cfg.list)]));
+    if ((cfg.knowledge || []).length) right.push(sfCard({ icon: "📚", title: sfClip(cfg.knowledgeTitle || "Knowledge", 28) }, [sfList(cfg.knowledge)]));
+
+    return el("div", { class: "sf-screen" }, [
+      sfChrome(cfg.chrome),
+      sfHeader(cfg.header, { compact: true }),
+      callBar,
+      el("div", { class: "sf-main sf-main-3col" }, [
+        el("div", { class: "sf-col" }, left.length ? left : [sfEmptyCol("Caller details")]),
+        el("div", { class: "sf-col" }, center),
+        el("div", { class: "sf-col" }, right.length ? right : [sfEmptyCol("Agent assist")]),
+      ]),
+    ]);
+  }
+
+  // Prompt box: the natural-language ask with highlight phrases wrapped inline.
+  function sfPromptBox(cfg) {
+    var body = fitS(cfg.prompt, 360);
+    sfArr(cfg.promptHighlights, 6).forEach(function (h) {
+      var clipped = sfClip(h, 80);
+      if (clipped && body.indexOf(clipped) >= 0) {
+        body = body.split(clipped).join('<span class="sf-prompt-hl">' + escapeHtml(clipped) + "</span>");
+      }
+    });
+    return el("div", { class: "sf-prompt-box" }, [
+      el("div", { class: "sf-prompt-input", html: body }),
+      el("div", { class: "sf-prompt-foot" }, [
+        el("span", { class: "sf-prompt-btn", text: sfClip(cfg.buildLabel || "✨ Build campaign", 24) }),
+        cfg.promptMeta ? el("span", { class: "sf-prompt-meta", text: sfClip(cfg.promptMeta, 56) }) : null,
+      ]),
+    ]);
+  }
+
+  // Build-step strip: numbered stages left→right, done stages get a green check.
+  function sfStepStrip(steps) {
+    steps = sfArr(steps, 5);
+    if (!steps.length) return null;
+    return el("div", { class: "sf-step-strip" }, steps.map(function (s, i) {
+      return el("div", { class: "sf-cstep" + (s.done !== false ? " done" : "") }, [
+        el("div", { class: "sf-cstep-num", text: String(i + 1) }),
+        el("div", { class: "sf-cstep-title", text: sfClip(s.title, 30) }),
+        s.preview ? el("div", { class: "sf-cstep-preview", text: sfClip(s.preview, 40) }) : null,
+      ]);
+    }));
+  }
+
+  // Campaign preview grid (2×2): each card renders by kind (count/email/attrs/cta).
+  function sfPreviewGrid(cards) {
+    cards = sfArr(cards, 4);
+    if (!cards.length) return null;
+    return el("div", { class: "sf-cp-grid" }, cards.map(function (c) {
+      var body;
+      if (c.kind === "count") {
+        body = [el("div", { class: "sf-cp-count", text: sfClip(c.count, 12) }),
+                c.countSub ? el("div", { class: "sf-cp-count-sub", text: sfClip(c.countSub, 44) }) : null,
+                sfAttrRows(c.attrs)];
+      } else if (c.kind === "email") {
+        body = [el("div", { class: "sf-cp-email" }, [
+          el("div", { class: "sf-cp-email-subj", text: sfClip(c.subject, 52) }),
+          el("div", { class: "sf-cp-email-body", text: fitS(c.body, 340) }),
+        ])];
+      } else if (c.kind === "cta") {
+        body = [c.body ? el("div", { class: "sf-cp-cta-note", text: fitS(c.body, 220) }) : null,
+                (c.ctas && c.ctas.length) ? sfCtaRow(c.ctas) : null];
+      } else {
+        body = [sfAttrRows(c.attrs)];
+      }
+      return el("div", { class: "sf-cp-card" }, [
+        el("div", { class: "sf-cp-head" }, [
+          el("span", { class: "sf-cp-head-title", text: (c.icon ? c.icon + " " : "") + sfClip(c.title, 34) }),
+          c.badge ? el("span", { class: "sf-pill sf-pill-" + (c.badge.tone || "neutral"), text: sfClip(c.badge.text, 14) }) : null,
+        ]),
+        el("div", { class: "sf-cp-body" }, body),
+      ]);
+    }));
+  }
+
+  // Key/value attribute rows (dashed dividers) — campaign preview + email meta.
+  function sfAttrRows(rows) {
+    rows = sfArr(rows, 6);
+    if (!rows.length) return null;
+    return el("div", { class: "sf-attrs" }, rows.map(function (r) {
+      return el("div", { class: "sf-attr-row" }, [
+        el("span", { class: "sf-attr-k", text: sfClip(r.k, 22) }),
+        el("span", { class: "sf-attr-v", text: sfClip(r.v, 30) }),
+      ]);
+    }));
+  }
+
+  // campaignBuilder: prompt box (highlighted) + build-step strip + 2×2 preview grid.
+  // (prompt-campaign-builder)
+  function sfPanelCampaignBuilder(cfg) {
+    cfg = cfg || {};
+    return el("div", { class: "sf-screen" }, [
+      sfChrome(cfg.chrome),
+      cfg.subtitle ? el("div", { class: "sf-screen-subtitle", text: fitS(cfg.subtitle, 120) }) : null,
+      el("div", { class: "sf-main sf-main-single" }, [
+        el("div", { class: "sf-col" }, [
+          sfCard({ icon: "💬", title: "Describe your campaign" }, [
+            cfg.prompt ? sfPromptBox(cfg) : null,
+            sfStepStrip(cfg.steps),
+          ]),
+          sfPreviewGrid(cfg.previewCards),
+          (!cfg.previewCards || !cfg.previewCards.length) && cfg.aiPanel ? sfAiPanel(cfg.aiPanel) : null,
+        ]),
+      ]),
+    ]);
+  }
+
+  // A single rendered email view (personalized OR generic): banner + intro +
+  // product grid + why-picked callout + cta + footer. Banner/why-picked/cta
+  // can render in a muted variant for the generic (non-personalized) view.
+  function sfEmailView(v) {
+    if (!v) return null;
+    var products = sfArr(v.products, 4).map(function (p) {
+      return el("div", { class: "sf-eproduct" }, [
+        el("div", { class: "sf-eproduct-img", text: sfClip(p.emoji || "•", 4) }),
+        el("div", { class: "sf-eproduct-name", text: sfClip(p.name, 30) }),
+        p.meta ? el("div", { class: "sf-eproduct-meta", text: sfClip(p.meta, 34) }) : null,
+      ]);
+    });
+    return el("div", { class: "sf-eview" }, [
+      el("div", { class: "sf-ebanner" + (v.bannerAlt ? " alt" : "") }, [
+        v.bannerTag ? el("span", { class: "sf-ebanner-tag", text: sfClip(v.bannerTag, 28) }) : null,
+        el("span", { class: "sf-ebanner-text", text: sfClip(v.bannerText, 44) }),
+      ]),
+      el("div", { class: "sf-ebody" }, [
+        v.intro ? el("div", { class: "sf-eintro", text: fitS(v.intro, 220) }) : null,
+        products.length ? el("div", { class: "sf-eproduct-grid" }, products) : null,
+        v.whyPicked ? el("div", { class: "sf-ewhy" + (v.whyPicked.muted ? " muted" : "") }, [
+          el("span", { class: "sf-ewhy-dot" }),
+          el("span", { html: "<strong>" + escapeHtml(sfClip(v.whyPicked.title, 30)) + "</strong> " + escapeHtml(fitS(v.whyPicked.body, 260)) }),
+        ]) : null,
+        v.cta ? el("div", { class: "sf-ecta" + (v.ctaMuted ? " muted" : ""), text: sfClip(v.cta, 40) }) : null,
+      ]),
+      v.footer ? el("div", { class: "sf-efoot" + (v.footerMuted ? " muted" : ""), text: fitS(v.footer, 180) }) : null,
+    ]);
+  }
+
+  // emailPreview: a phone-framed marketing email. Renders the personalized view
+  // as the final static state, with the audience toggle-bar shown (generic tab
+  // present but inactive — no toggling, per the static-snapshot directive).
+  // (thursday-spotlight)
+  function sfPanelEmailPreview(cfg) {
+    cfg = cfg || {};
+    var em = cfg.email || {};
+    var view = em.personalized || em.generic;
+
+    // Fallback for the legacy block-list shape (older configs).
+    var legacy = null;
+    if (!view && sfArr(em.blocks).length) {
+      legacy = el("div", { class: "sf-ebody" }, sfArr(em.blocks, 5).map(function (b) {
+        if (b.type === "image") return el("div", { class: "sf-ebanner" }, [el("span", { class: "sf-ebanner-text", text: sfClip(b.alt || "Image", 40) })]);
+        if (b.type === "button") return el("div", { class: "sf-ecta", text: sfClip(b.text || "Learn more", 30) });
+        if (b.type === "heading") return el("div", { class: "sf-eintro", html: "<strong>" + escapeHtml(fitS(b.text, 90)) + "</strong>" });
+        return el("div", { class: "sf-eintro", text: fitS(b.text, 300) });
+      }));
+    }
+
+    var tabs = sfArr(em.tabs, 2);
+    var toggleBar = tabs.length ? el("div", { class: "sf-etoggle" }, tabs.map(function (t) {
+      return el("div", { class: "sf-etab" + (t.active ? " active" : ""), text: sfClip(t.label, 24) });
+    })) : null;
+
+    var shell = el("div", { class: "sf-email-shell" }, [
+      el("div", { class: "sf-email-head" }, [
+        el("div", { class: "sf-email-from", text: sfClip(em.from || (customer.name + " Marketing"), 46) }),
+        el("div", { class: "sf-email-subj", text: sfClip(em.subject || "This week's spotlight", 60) }),
+        em.toTag ? el("span", { class: "sf-email-to", text: sfClip(em.toTag, 44) }) : null,
+      ]),
+      toggleBar,
+      view ? sfEmailView(view) : legacy,
+    ]);
+
+    return el("div", { class: "sf-screen sf-screen-email" }, [
+      el("div", { class: "sf-main sf-main-single" }, [
+        el("div", { class: "sf-col" }, [shell]),
+      ]),
+    ]);
+  }
+
+  // kpiTable: chrome + subtitle + KPI strip + a scored multi-account table,
+  // with an optional Agentforce panel underneath. (prospecting-agent-view)
+  function sfPanelKpiTable(cfg) {
+    cfg = cfg || {};
+    return el("div", { class: "sf-screen" }, [
+      sfChrome(cfg.chrome),
+      cfg.subtitle ? el("div", { class: "sf-screen-subtitle", text: fitS(cfg.subtitle, 160) }) : null,
+      el("div", { class: "sf-main sf-main-single" }, [
+        el("div", { class: "sf-col" }, [
+          sfKpiStrip(cfg.kpis),
+          (cfg.table && (cfg.table.rows || []).length)
+            ? sfCard({ icon: "🎯", title: sfClip((cfg.table.title) || "Prioritized accounts", 32) }, [sfAccountTable(cfg.table)])
+            : null,
+          cfg.aiPanel ? sfAiPanel(cfg.aiPanel) : null,
+        ]),
+      ]),
+    ]);
+  }
+
+  // Donut header: { value, caption, segments:[{label, pct, tone}] }. Renders a
+  // conic-gradient ring with a center value + a small legend. Semantic tones
+  // (good/bad) fixed; "brand" uses the customer brand color.
+  function sfDonut(d) {
+    if (!d) return null;
+    var TONE = { good: "var(--sf-success,#2E844A)", bad: "var(--sf-danger,#BA0517)",
+                 warn: "var(--sf-warning,#FE9339)", brand: "var(--sf-brand,#0176D3)" };
+    var segs = sfArr(d.segments, 6);
+    var acc = 0, stops = [];
+    segs.forEach(function (s) {
+      var col = TONE[s.tone] || TONE.brand;
+      var start = acc, end = acc + sfPct(s.pct);
+      stops.push(col + " " + start + "% " + end + "%");
+      acc = end;
+    });
+    if (acc < 100) stops.push("var(--sf-border-soft,#EDEBE9) " + acc + "% 100%");
+    var legend = segs.map(function (s) {
+      return el("div", { class: "sf-donut-leg" }, [
+        el("span", { class: "sf-donut-swatch", style: "background:" + (TONE[s.tone] || TONE.brand) }),
+        el("span", { class: "sf-donut-leg-label", text: sfClip(s.label, 26) }),
+        el("span", { class: "sf-donut-leg-pct", text: sfPct(s.pct) + "%" }),
+      ]);
+    });
+    return el("div", { class: "sf-donut-row" }, [
+      el("div", { class: "sf-donut", style: "background:conic-gradient(" + stops.join(",") + ")" }, [
+        el("div", { class: "sf-donut-hole" }, [
+          el("div", { class: "sf-donut-value", text: sfClip(String(d.value != null ? d.value : "—"), 8) }),
+          d.caption ? el("div", { class: "sf-donut-caption", text: sfClip(d.caption, 18) }) : null,
+        ]),
+      ]),
+      legend.length ? el("div", { class: "sf-donut-legend" }, legend) : null,
+    ]);
+  }
+
+  // Stage progress bar: { labels:[], segments:[{state:"done|current|future"}] }.
+  function sfStageBar(sb) {
+    if (!sb || !sfArr(sb.segments).length) return null;
+    var labels = sfArr(sb.labels, 8);
+    var segs = sfArr(sb.segments, 8).map(function (s, i) {
+      var st = (s.state === "done" || s.state === "current") ? s.state : "future";
+      return el("div", { class: "sf-stage-seg " + st }, [
+        el("div", { class: "sf-stage-bar" }),
+        labels[i] ? el("div", { class: "sf-stage-label", text: sfClip(labels[i], 16) }) : null,
+      ]);
+    });
+    return el("div", { class: "sf-stagebar" }, segs);
+  }
+
+  // Transcript with speaker roles + inline highlight spans (objection/action).
+  // t = { title, badge, meta, turns:[{who, roleColor:"rep|customer", body, time, highlights:[{text,tone}]}] }
+  function sfTranscript(t) {
+    if (!t || !sfArr(t.turns).length) return null;
+    var turns = sfArr(t.turns, 10).map(function (tn) {
+      var body = fitS(tn.body, 260);
+      // Wrap any highlight phrases present in the (clipped) body with a tone span.
+      sfArr(tn.highlights, 4).forEach(function (h) {
+        if (h.text && body.indexOf(h.text) >= 0) {
+          body = body.split(h.text).join('<span class="sf-hl sf-hl-' + (h.tone === "action" ? "action" : "objection") + '">' + escapeHtml(h.text) + "</span>");
+        }
+      });
+      return el("div", { class: "sf-tr-turn " + (tn.roleColor === "customer" ? "customer" : "rep") }, [
+        el("div", { class: "sf-tr-meta" }, [
+          el("span", { class: "sf-tr-who", text: sfClip(tn.who, 24) }),
+          tn.time ? el("span", { class: "sf-time", text: sfClip(tn.time, 14) }) : null,
+        ]),
+        el("div", { class: "sf-tr-body", html: body }),
+      ]);
+    });
+    return sfCard(
+      { icon: "🎙", title: sfClip(t.title || "Transcript", 32), sub: t.meta ? sfClip(t.meta, 40) : "", badge: t.badge },
+      turns
+    );
+  }
+
+  // Named narrative sections: [{heading, body}] — research output, briefs.
+  function sfSections(rows) {
+    rows = sfArr(rows, 6);
+    if (!rows.length) return null;
+    return el("div", { class: "sf-sections" }, rows.map(function (r) {
+      return el("div", { class: "sf-section" }, [
+        el("div", { class: "sf-section-head", text: sfClip(r.heading, 40) }),
+        el("div", { class: "sf-section-body", text: fitS(r.body, 300) }),
+      ]);
+    }));
+  }
+
+  // Signed sentiment bar: { value(-1..1), label, meta, insight, marker(0-100) }.
+  // Track is a fixed red→amber→green gradient (semantic); a marker sits at `marker`%.
+  function sfSentimentBar(s) {
+    if (!s) return null;
+    var mk = sfPct(s.marker != null ? s.marker : 50);
+    return el("div", { class: "sf-sent" }, [
+      el("div", { class: "sf-sent-top" }, [
+        el("span", { class: "sf-sent-value", text: sfClip(String(s.value != null ? s.value : ""), 8) }),
+        el("span", { class: "sf-sent-label", text: sfClip(s.label || "Sentiment", 24) }),
+        s.meta ? el("span", { class: "sf-sent-meta", text: sfClip(s.meta, 34) }) : null,
+      ]),
+      el("div", { class: "sf-sent-track" }, [
+        el("div", { class: "sf-sent-marker", style: "left:" + mk + "%" }),
+      ]),
+      s.insight ? el("div", { class: "sf-score-insight", text: fitS(s.insight, 260) }) : null,
+    ]);
+  }
+
+  // Badge/tag row: [{tone, text}] (≤6) — multi-status header chips.
+  function sfBadgeRow(rows) {
+    rows = sfArr(rows, 6);
+    if (!rows.length) return null;
+    return el("div", { class: "sf-badge-row" }, rows.map(function (b) {
+      return el("span", { class: "sf-pill sf-pill-" + (b.tone || "neutral"), text: sfClip(b.text, 22) });
+    }));
+  }
+
+  // CTA button rows: [{text, primary?}] (≤4).
+  function sfCtaRow(rows) {
+    rows = sfArr(rows, 4);
+    if (!rows.length) return null;
+    return el("div", { class: "sf-cta-row" }, rows.map(function (c) {
+      return el("button", { class: "sf-cta" + (c.primary ? " primary" : ""), text: sfClip(c.text, 26) });
+    }));
+  }
+
+  // Related cases / list-with-status: reuses sfList shape but titled card is caller's job.
+  // Coverage/scale math rows: { title, rows:[{label,value,badge}], footer }.
+  function sfCoverage(c) {
+    if (!c || !sfArr(c.rows).length) return null;
+    var rows = sfArr(c.rows, 4).map(function (r) {
+      return el("div", { class: "sf-cov-row" }, [
+        el("span", { class: "sf-cov-label", text: sfClip(r.label, 32) }),
+        el("span", { class: "sf-cov-value", text: sfClip(String(r.value), 16) }),
+        r.badge ? el("span", { class: "sf-pill sf-pill-" + (r.badge.tone || "neutral"), text: sfClip(r.badge.text, 16) }) : null,
+      ]);
+    });
+    var kids = rows.slice();
+    if (c.footer) kids.push(el("div", { class: "sf-cov-foot", text: fitS(c.footer, 140) }));
+    return el("div", { class: "sf-cov" }, kids);
+  }
+
+  // Territory map: illustrative pins on a gradient panel. m = { label, legend:[{tone,text}],
+  // pins:[{tone:"hot|warm|cool", top, left, label?, selected?}] }. Positions are percentages.
+  // Pin colors are semantic (hot=danger red, warm=amber, cool=neutral) — never brand-recolored.
+  function sfMap(m) {
+    if (!m) return null;
+    var pins = [];
+    sfArr(m.pins, 16).forEach(function (p) {
+      var top = sfPct(p.top), left = sfPct(p.left);
+      var cls = "sf-pin sf-pin-" + (p.tone === "hot" ? "hot" : (p.tone === "warm" ? "warm" : "cool")) + (p.selected ? " sf-pin-selected" : "");
+      pins.push(el("div", { class: cls, style: "top:" + top + "%;left:" + left + "%" }));
+      if (p.label) pins.push(el("div", { class: "sf-pin-label", style: "top:" + top + "%;left:" + left + "%", text: sfClip(p.label, 28) }));
+    });
+    var legend = sfArr(m.legend, 4).map(function (l) {
+      return el("span", { class: "sf-map-leg" }, [
+        el("span", { class: "sf-map-dot sf-pin-" + (l.tone === "hot" ? "hot" : (l.tone === "warm" ? "warm" : "cool")) }),
+        el("span", { text: sfClip(l.text, 24) }),
+      ]);
+    });
+    return el("div", { class: "sf-map" }, [
+      el("div", { class: "sf-map-label", text: sfClip(m.label, 60) }),
+    ].concat(pins).concat([legend.length ? el("div", { class: "sf-map-legend" }, legend) : null]));
+  }
+
+  // Attribution funnel: [{label, value, sub}] stages rendered left→right with arrows.
+  function sfFunnel(stages) {
+    stages = sfArr(stages, 5);
+    if (!stages.length) return null;
+    var kids = [];
+    stages.forEach(function (s, i) {
+      if (i) kids.push(el("div", { class: "sf-funnel-arrow", text: "→" }));
+      kids.push(el("div", { class: "sf-funnel-stage" }, [
+        el("div", { class: "sf-funnel-stage-label", text: sfClip(s.label, 22) }),
+        el("div", { class: "sf-funnel-stage-value", text: sfClip(String(s.value != null ? s.value : "—"), 12) }),
+        s.sub ? el("div", { class: "sf-funnel-stage-sub", text: sfClip(s.sub, 42) }) : null,
+      ]));
+    });
+    return el("div", { class: "sf-funnel" }, kids);
+  }
+
+  // Pre-call brief hero: gradient card with eyebrow, name, sub, and a signal grid.
+  // b = { eyebrow, name, sub, signals:[{k,v}] (≤3) }.
+  function sfBriefHero(b) {
+    if (!b) return null;
+    var sig = sfArr(b.signals, 3).map(function (s) {
+      return el("div", { class: "sf-brief-signal" }, [
+        el("div", { class: "sf-brief-signal-k", text: sfClip(s.k, 18) }),
+        el("div", { class: "sf-brief-signal-v", text: sfClip(String(s.v), 12) }),
+      ]);
+    });
+    return el("div", { class: "sf-brief-hero" }, [
+      el("div", { class: "sf-brief-eyebrow", text: sfClip(b.eyebrow, 34) }),
+      el("div", { class: "sf-brief-name", text: sfClip(b.name, 40) }),
+      b.sub ? el("div", { class: "sf-brief-sub", text: sfClip(b.sub, 70) }) : null,
+      sig.length ? el("div", { class: "sf-brief-signals" }, sig) : null,
+    ]);
+  }
+
+  // Dispatch a panel config to the right family builder. Returns the screen DOM.
+  function sfBuildFamily(family, cfg) {
+    switch (family) {
+      case "kpiTable":                   return sfPanelKpiTable(cfg);
+      case "recordWithScoreAndTimeline": return sfPanelScoreTimeline(cfg);
+      case "recordWithAiPanel":          return sfPanelRecordAi(cfg);
+      case "assistantChat":              return sfPanelAssistantChat(cfg);
+      case "metricsAndTable":            return sfPanelMetricsTable(cfg);
+      case "serviceCase":                return sfPanelServiceCase(cfg);
+      case "voiceConsole":               return sfPanelVoiceConsole(cfg);
+      case "campaignBuilder":            return sfPanelCampaignBuilder(cfg);
+      case "emailPreview":               return sfPanelEmailPreview(cfg);
+      default:
+        // Unknown/not-yet-built family → a minimal shell so the slide never blanks.
+        return el("div", { class: "sf-screen" }, [
+          sfChrome(cfg && cfg.chrome),
+          sfHeader(cfg && cfg.header),
+          el("div", { class: "sf-main" }, [
+            el("div", { class: "sf-col" }, [sfCard({ icon: "✦", title: sfClip((cfg && cfg.title) || family || "Screen", 40) }, [
+              el("div", { class: "sf-detail", html: "" }),
+            ])]),
+          ]),
+        ]);
+    }
+  }
+
+  // Numbered steps rail (left panel of a steps+screen composition).
+  // steps = [{n, body, payoff?}] — number circle colors cycle brand→navy.
+  function stepsRail(steps) {
+    var STEP_COLORS = [BLUE, "#5D2E8C", "#2E7A50", "#FF7043", BLUE];
+    var items = sfArr(steps, 5).map(function (st, i) {
+      var isPayoff = !!st.payoff || (i === (Math.min(steps.length, 5) - 1) && steps.length >= 4);
+      return el("li", { class: "sf-step" + (isPayoff ? " sf-step-payoff" : "") }, [
+        el("div", { class: "sf-step-num", style: "background:" + (STEP_COLORS[i] || BLUE), text: String(st.n || (i + 1)) }),
+        el("div", { class: "sf-step-body", html: escapeHtml(fitS(st.body || st.text || "", 240)) }),
+      ]);
+    });
+    return el("ol", { class: "sf-steps" }, items);
+  }
+
+  // Wrap a console screen node in a mobile phone frame. Named distinctly
+  // from the deck's own phoneFrame() (below, ~1660) — that one is
+  // redeclared later in this IIFE and would otherwise shadow this via
+  // function hoisting, silently swapping the .sf-phone shell for the
+  // generic .dd-left device frame.
+  function sfPhoneFrame(node) {
+    return el("div", { style: "display:flex; justify-content:center; align-items:flex-start;" }, [
+      el("div", { class: "sf-phone" }, [
+        el("div", { class: "sf-phone-notch" }),
+        el("div", { class: "sf-phone-screen" }, [node]),
+        el("div", { class: "sf-phone-bar" }),
+      ]),
+    ]);
+  }
+
   // ─── Layout renderers ─────────────────────────────────────────
   // Every demo slide is a TWO-PANEL composition:
   //   • LEFT panel  → device frame (phone/laptop) OR full-bleed photo,
@@ -190,6 +1294,93 @@
         el("p", { class: "dd-opener-sub",      html: sub }),
       ]);
       return [cap];
+    },
+
+    // ─── Screen Flow (paired console composition) ───────────────
+    // Renders a generated Salesforce console screen IN-DOM inside a
+    // paired composition. `s.panels[]` drives the columns:
+    //   [{kind:"steps", steps}, {kind:"screen", family, config}]  → steps + screen
+    //   [{kind:"screen"…}, {kind:"screen"…, frame:"phone"}]        → two screens
+    // Falls back to a single-column screen when only one panel.
+    screenFlow: function (s) {
+      var panels = Array.isArray(s.panels) ? s.panels.slice(0, 2) : [];
+      // Legacy/degenerate config with no panels: synthesize steps+screen from
+      // the slide's own screenId/config so it never blanks.
+      if (!panels.length) {
+        panels = [
+          { kind: "steps", steps: s.steps || [] },
+          { kind: "screen", family: s.family, config: s.config || {} },
+        ];
+      }
+      // Choose the grid shape from the panel kinds/frames.
+      var kinds = panels.map(function (p) { return p.kind === "steps" ? "steps" : (p.frame === "phone" ? "phone" : "screen"); });
+      var hasPhone = kinds.indexOf("phone") !== -1;
+      var colClass = "sf-cols-single";
+      if (panels.length === 2) {
+        if (kinds[0] === "steps") colClass = hasPhone ? "sf-cols-steps-phone" : "sf-cols-steps-screen";
+        else if (hasPhone) colClass = "sf-cols-screen-phone";
+        else colClass = "sf-cols-screen-screen";
+      }
+      var cols = panels.map(function (p) {
+        if (p.kind === "steps") return stepsRail(p.steps || s.steps || []);
+        var node = sfBuildFamily(p.family, p.config || {});
+        return p.frame === "phone" ? sfPhoneFrame(node) : el("div", { class: "sf-screen-wrap" }, [node]);
+      });
+      var out = [];
+      var eyebrow = ebrow(s.eyebrow || deriveEyebrow(s));
+      if (eyebrow) out.push(el("p", { class: "sf-flow-eyebrow", text: eyebrow }));
+      out.push(el("h2", { class: "sf-flow-headline", html: ttl(s.title || deriveHeadline(s), "Autonomous outreach.") }));
+      // Solo (component-only) layout: no steps rail, so the narrative that would
+      // have lived in the rail instead becomes an intro paragraph above the
+      // full-width screen. Only shown when there's a single screen panel.
+      var isSolo = s.soloScreen || (panels.length === 1 && kinds[0] !== "steps");
+      if (isSolo) {
+        var body = (typeof s.flowBody === "string" && s.flowBody.trim())
+          ? s.flowBody
+          : (s.sub || deriveSub(s) || "");
+        if (body) out.push(el("p", { class: "sf-flow-body", html: fitS(body, 320) }));
+        colClass = "sf-cols-single";
+      }
+      out.push(el("div", { class: "sf-flow-grid " + colClass }, cols));
+      return out;
+    },
+
+    // ─── Screen Act Opener (animated scene opener) ──────────────
+    // Ported from the coworker deck's "The call that runs itself."
+    // Renders from s.openerConfig {eyebrow, headline, body, scene}.
+    // A pure-CSS animated frustrated-caller illustration (inline SVG
+    // silhouette + two pulsing rings + a bouncing emoji) sits above the
+    // sub-paragraph and a red-accent SCENE card. No assets.
+    screenActOpener: function (s) {
+      var cfg = s.openerConfig || {};
+      var scene = cfg.scene || {};
+      var rows = sfArr(scene.rows, 4).map(function (r) {
+        return el("div", { html: "<strong>" + escapeHtml(sfClip(r.k, 18)) + ":</strong> " + escapeHtml(fitS(r.v, 160)) });
+      });
+      // Neutral caller silhouette (head + shoulders) — brand-neutral per plan;
+      // only the pulsing rings pull the red accent.
+      var callerSvg = el("div", { class: "sf-caller-svg", html:
+        '<svg viewBox="0 0 64 64" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="96" height="96">' +
+        '<circle cx="32" cy="20" r="12"/>' +
+        '<path d="M8 60c0-13 11-22 24-22s24 9 24 22z"/>' +
+        '</svg>' });
+      var caller = el("div", { class: "sf-opener-caller" }, [
+        el("span", { class: "sf-ring" }),
+        el("span", { class: "sf-ring" }),
+        callerSvg,
+        el("span", { class: "sf-frust-emoji", text: cfg.emoji || "😤" }),
+      ]);
+      return [
+        el("div", { class: "sf-opener" }, [
+          el("p", { class: "sf-flow-eyebrow", text: ebrow(cfg.eyebrow || deriveEyebrow(s)) }),
+          el("h2", { class: "sf-flow-headline", html: ttl(cfg.headline || s.title, "The call that runs itself.") }),
+          caller,
+          cfg.body ? el("p", { class: "sf-opener-body", html: fitS(cfg.body, 220) }) : null,
+          rows.length ? el("div", { class: "sf-opener-scene" }, [
+            el("div", { class: "sf-opener-scene-label", text: sfClip(scene.label || "SCENE", 40) }),
+          ].concat(rows)) : null,
+        ]),
+      ];
     },
 
     // ─── Hero (mid-deck pivot) ──────────────────────────────────
@@ -1250,15 +2441,6 @@
   // Public hook for the journey-map section (buildMap() in the deck HTML):
   // when the SE authored timeline events, swap the circle/flow map for the
   // horizontal timeline so the exported deck matches the builder preview.
-  window.HOLO_DEMO = window.HOLO_DEMO || {};
-  window.HOLO_DEMO.hasAuthoredTimeline = hasAuthoredTimeline;
-  window.HOLO_DEMO.renderJourneyTimeline = function (container) {
-    if (!container) return false;
-    container.innerHTML = "";
-    container.appendChild(buildTimelineTrack());
-    return true;
-  };
-
   function affinityNode(top, left, color) {
     const n = document.createElement("span");
     n.className = "dd-cdp-aff-dot";
@@ -1414,6 +2596,12 @@
   }
 
   // ─── Render the deck ──────────────────────────────────────────
+  // Auto-mount only runs on the /demo deck page (which has #demo-wrap). On the
+  // builder page there's no #demo-wrap; renderScreenFlow was already registered
+  // above and everything it needs (RENDERERS + atoms) is now defined, so we
+  // simply skip the mount instead of early-returning before those definitions.
+  if (!wrap) return;
+
   // Empty-state if nothing planned
   if (!demoSlides.length) {
     const empty = el("div", { class: "pslide active dd-slide dd-layout-empty" }, [

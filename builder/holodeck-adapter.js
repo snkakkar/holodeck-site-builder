@@ -696,6 +696,10 @@
       kpiScorecard:        "stat-grid",
       executiveSummary:    "title",
       nextSteps:           "title",
+      // Config-driven console screens map to themselves — the demo renderer
+      // dispatches on the layout name and reads panels[]/steps[]/openerConfig.
+      screenFlow:          "screenFlow",
+      screenActOpener:     "screenActOpener",
     })[layout] || "two-panel";
   }
 
@@ -964,6 +968,140 @@
     return out;
   }
 
+  // ─── Screen composition fields ───────────────────────────────
+  // A screen slide (layout screenFlow) renders a numbered story-steps
+  // rail beside one in-DOM console screen. Steps derive from storyActs;
+  // the screen config comes from state.screens[screenId].config (built by
+  // HOLO_SCREENFOUND). Returns { steps, panels, family, screenId, config }
+  // ready to spread onto the emitted slide. Null screenId → {} (no-op).
+  function buildScreenFields(state, s) {
+    const screenId = s.screenId || "";
+    if (!screenId) return {};
+    const entry = ((state.screens || {})[screenId]) || {};
+    let config = (entry.config && typeof entry.config === "object") ? entry.config : null;
+    // Zero-wiring default: if the SE never ran generation, synthesize a
+    // customer-flavored, token-free config so the screen always renders a real
+    // console (not a blank shell). A generated config, once present, wins.
+    if (!config) {
+      const FOUND = (typeof global !== "undefined" && global.HOLO_SCREENFOUND) ||
+                    (typeof window !== "undefined" && window.HOLO_SCREENFOUND) || null;
+      config = (FOUND && FOUND.fallbackScreenConfig) ? FOUND.fallbackScreenConfig(screenId, state) : {};
+    }
+    const family = s.family || config.family || "recordWithScoreAndTimeline";
+    // Numbered steps rail. Priority: (0) the SE's per-slide override
+    // (s.steps, edited in the Step-8 preview popover) wins outright; else
+    // (1) the ingested demo script (storyActs); else (2) the screen's
+    // per-screen default steps from the registry (ported from the reference
+    // deck) so the left rail is never empty.
+    let steps = (Array.isArray(s.steps) && s.steps.length)
+      ? s.steps
+          .filter(function (a) { return a && (a.body || a.text); })
+          .slice(0, 5)
+          .map(function (a, i) { return { n: i + 1, body: a.body || a.text || "", payoff: !!a.payoff }; })
+      : [];
+    if (!steps.length) {
+      steps = (state.storyActs || [])
+        .filter(function (a) { return a && a.title; })
+        .slice(0, 5)
+        .map(function (a, i) {
+          const body = a.demoMoment || a.summary || a.title || "";
+          return { n: i + 1, body: body };
+        });
+    }
+    // Whether the left rail has REAL content — an SE override or ingested
+    // story narrative. Registry-default steps (the backfill below) are mere
+    // placeholder filler and do NOT count as "entered", so a screen with no
+    // authored narrative still goes full-width per the content-driven rule.
+    const hasAuthoredSteps = steps.length > 0;
+    if (!steps.length) {
+      const REG = (typeof global !== "undefined" && global.HOLO_SCREEN_REGISTRY) ||
+                  (typeof window !== "undefined" && window.HOLO_SCREEN_REGISTRY) || null;
+      if (REG && REG.defaultStepsFor) steps = REG.defaultStepsFor(screenId);
+    }
+    // Deterministic device frame per screen (plan decision 3, bundled model):
+    // mobile-native screens (assistant chat, email) render inside a phone frame
+    // (Slide-5 style); wide-console screens render in the flat screen shell. An
+    // explicit per-slide s.frame override wins.
+    const REG2 = (typeof global !== "undefined" && global.HOLO_SCREEN_REGISTRY) ||
+                 (typeof window !== "undefined" && window.HOLO_SCREEN_REGISTRY) || null;
+    const frame = s.frame || (REG2 && REG2.frameFor ? REG2.frameFor(screenId) : "") || "";
+    const screenPanel = { kind: "screen", family: family, config: config };
+    if (frame) screenPanel.frame = frame;
+    // Solo (component-only) layout: the console screen spans the full slide
+    // width, with an optional intro paragraph (flowBody) rendered above it.
+    // Content-driven rule: if the left rail has NO authored content (no SE
+    // override and no ingested story narrative), there is nothing to show
+    // beside the screen — so drop the rail and let the screen fill the slide.
+    // If authored steps ARE present, keep the paired steps+screen composition.
+    // An explicit per-slide `s.soloScreen` toggle (Step-8 preview popover)
+    // still forces solo even when steps exist.
+    const soloScreen = !!s.soloScreen || !hasAuthoredSteps;
+    const panels = soloScreen
+      ? [screenPanel]
+      : [
+          { kind: "steps", steps: steps },
+          screenPanel,
+        ];
+    return {
+      screenId: screenId, family: family, config: config, steps: steps,
+      panels: panels, frame: frame, soloScreen: soloScreen,
+      flowBody: (typeof s.flowBody === "string" ? s.flowBody : ""),
+    };
+  }
+
+  // The animated act/scene opener ("The call that runs itself.") reads a small
+  // openerConfig {eyebrow, headline, body, emoji, scene:{label, rows:[{k,v}]}}.
+  // Zero-wiring default: derive it from storyActs[0] + persona + project so the
+  // slide always renders a real scene, not the generic fallback. An explicit
+  // s.openerConfig (SE edit) wins outright; a partial one is filled in.
+  function buildOpenerConfig(state, s) {
+    state = state || {};
+    // Two override channels, both honored (flat wins): the Step-8 editor binds
+    // FLAT per-slide fields (s.openerEyebrow / s.openerHeadline / s.openerBody /
+    // s.openerSceneLabel) because __slide.* paths are flat, not nested; an
+    // imported/programmatic s.openerConfig object is the other channel.
+    s = s || {};
+    const nested = (s.openerConfig && typeof s.openerConfig === "object") ? s.openerConfig : {};
+    const explicit = {
+      eyebrow: s.openerEyebrow || nested.eyebrow,
+      headline: s.openerHeadline || nested.headline,
+      body: s.openerBody || nested.body,
+      emoji: s.openerEmoji || nested.emoji,
+      scene: nested.scene,
+      _sceneLabel: s.openerSceneLabel,
+    };
+    const project = state.project || {};
+    const acts = Array.isArray(state.storyActs) ? state.storyActs : [];
+    const firstAct = acts.find(function (a) { return a && (a.summary || a.demoMoment || a.title); }) || null;
+    const persona = (Array.isArray(state.personas) && state.personas[0]) || {};
+    const customer = project.customerName || "the customer";
+
+    const headline = explicit.headline || (s && s.title) || "The call that runs itself.";
+    const eyebrow = explicit.eyebrow || (s && s.eyebrow) || "The moment";
+    const body = explicit.body ||
+      (firstAct && (firstAct.summary || firstAct.demoMoment)) ||
+      ((persona.role || persona.name || "Your team") + " is stuck doing this by hand — every call, every time.");
+
+    // Scene card: a short "who / where / what" grounded in persona + customer.
+    let rows = Array.isArray(explicit.scene && explicit.scene.rows) ? explicit.scene.rows : null;
+    if (!rows) {
+      rows = [
+        { k: "Distributor", v: customer },
+        { k: "Contact", v: persona.name || persona.role || "Account contact" },
+        { k: "Situation", v: (firstAct && (firstAct.title || firstAct.demoMoment)) || "Inbound call, no context in hand" },
+      ].filter(function (r) { return r.v; });
+    }
+    const sceneLabel = explicit._sceneLabel || (explicit.scene && explicit.scene.label) || "SCENE · LIVE";
+
+    return {
+      eyebrow: eyebrow,
+      headline: headline,
+      body: body,
+      emoji: explicit.emoji || "😤",
+      scene: { label: sceneLabel, rows: rows },
+    };
+  }
+
   // ─── builderPlan (round-trip back to the builder) ────────────
   function buildBuilderPlan(state) {
     const project = state.project || {};
@@ -1015,8 +1153,11 @@
           : (state.slides || []).filter(function (s) {
               return !s.sectionId || s.sectionId === "demo";
             });
+        // sf-ui (Salesforce UI Moments) is folded INTO the demo block by
+        // demoSlidesForExport (buildSlideManifest retags it "demo"), so it must
+        // NOT also pass through here as a non-demo slide — that would double it.
         const nonDemo = (state.slides || []).filter(function (s) {
-          return s.sectionId && s.sectionId !== "demo";
+          return s.sectionId && s.sectionId !== "demo" && s.sectionId !== "sf-ui";
         });
         return nonDemo.concat(demoOrdered).map(function (s, i) {
           const explicitCx = explicitBySlide[s.id] || [];
@@ -1030,7 +1171,14 @@
           const promotedLayout = (explicitCx.length || s.layout === "embeddedCxComponent")
             ? "embeddedCxComponent"
             : s.layout;
-          return {
+          // Config-driven console screens: carry steps[]/panels[]/config so the
+          // demo renderer's screenFlow entry draws the paired composition, plus
+          // openerConfig for a screenActOpener. Empty {} for every other layout.
+          const screenFields = (s.layout === "screenFlow") ? buildScreenFields(state, s) : {};
+          const openerConfig = (s.layout === "screenActOpener")
+            ? buildOpenerConfig(state, s)
+            : undefined;
+          return Object.assign({
             order: i + 1, id: s.id, title: s.title, layout: promotedLayout,
             sectionId: s.sectionId || "demo",
             selectionStatus: s.selectionStatus || "",
@@ -1051,7 +1199,7 @@
             // to the linked component's description, then the default line.
             cxDescription: s.cxDescription || "",
             imageSlot: s.imageSlot || "",
-          };
+          }, screenFields, (openerConfig !== undefined ? { openerConfig: openerConfig } : {}));
         });
       })(),
     };
@@ -1109,5 +1257,11 @@
   global.HOLO_ADAPTER = {
     toPolishedHolodeckConfig: toPolishedHolodeckConfig,
     toPolishedHolodeckConfigJs: toPolishedHolodeckConfigJs,
+    // Exposed so the Step-8 builder preview builds the SAME paired
+    // steps+screen composition (steps/panels/config) the export bakes in,
+    // instead of duplicating the resolution logic. See preview-renderer.js
+    // screenFlow renderer and [[sf-screen-wrap-scroll-fix]].
+    buildScreenFields: buildScreenFields,
+    buildOpenerConfig: buildOpenerConfig,
   };
 })(window);

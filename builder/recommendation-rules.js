@@ -886,6 +886,241 @@
         return null;
       },
     },
+
+    // ── Config-driven Salesforce console/CRM SCREENS ───────────────
+    // These resolve to a paired `screenFlow` composition (a numbered
+    // story-steps rail + one in-DOM console screen), selected in Slide
+    // Selection like any other demo slide. `screenId`/`family` are passed
+    // through recommend() so the adapter knows which panel builder to feed.
+    // Purely additive: gated on real signals, so decks without them are
+    // unaffected. (Phase 1 ships sdr-agent-lead; Phase 2 adds the rest.)
+    {
+      id: "screen-sdr-agent-lead",
+      title: "SDR Agent — Lead Record",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "sdr-agent-lead",
+      family: "recordWithScoreAndTimeline",
+      selectionStatus: "recommended",
+      capabilities: ["Agentforce", "Sales Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.agentforce && sig.sales) return { priority: 74, signals: ["agentforce", "sales"] };
+        if (sig.agentforce)             return { priority: 66, signals: ["agentforce"] };
+        return { priority: 21, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-account-research-agent",
+      title: "Account Research Agent",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "account-research-agent",
+      family: "recordWithAiPanel",
+      selectionStatus: "recommended",
+      capabilities: ["Agentforce", "Sales Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.agentforce && sig.sales) return { priority: 72, signals: ["agentforce", "sales"] };
+        if (sig.sales)                   return { priority: 60, signals: ["sales"] };
+        return { priority: 20, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-eci-opportunity",
+      title: "Opportunity — Conversation Insights",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "eci-opportunity",
+      family: "recordWithAiPanel",
+      selectionStatus: "optional",
+      capabilities: ["Sales Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.sales) return { priority: 58, signals: ["sales"] };
+        return { priority: 19, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-prospecting-agent-view",
+      title: "Prospecting Agent",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "prospecting-agent-view",
+      family: "kpiTable",
+      selectionStatus: "optional",
+      capabilities: ["Agentforce", "Sales Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.agentforce && sig.sales) return { priority: 64, signals: ["agentforce", "sales"] };
+        return { priority: 18, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-sales-assistant",
+      title: "Sales Assistant",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "sales-assistant",
+      family: "assistantChat",
+      selectionStatus: "recommended",
+      capabilities: ["Agentforce", "Sales Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.agentforce) return { priority: 68, signals: ["agentforce"] };
+        if (sig.sales)      return { priority: 56, signals: ["sales"] };
+        return { priority: 16, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-territory-planning",
+      title: "Territory Planning",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "territory-planning",
+      family: "metricsAndTable",
+      selectionStatus: "optional",
+      capabilities: ["Sales Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.sales) return { priority: 54, signals: ["sales"] };
+        return { priority: 17, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-mc-next-attribution",
+      title: "Marketing Cloud — Attribution",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "mc-next-attribution",
+      family: "metricsAndTable",
+      selectionStatus: "optional",
+      capabilities: ["Marketing Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.marketing) return { priority: 66, signals: ["marketing"] };
+        return { priority: 15, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-sentiment-case",
+      title: "Sentiment Case",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "sentiment-case",
+      family: "serviceCase",
+      selectionStatus: "recommended",
+      capabilities: ["Service Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.service) return { priority: 68, signals: ["service"] };
+        return { priority: 14, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-case-summary-lwc",
+      title: "Case Summary (Einstein)",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "case-summary-lwc",
+      family: "serviceCase",
+      selectionStatus: "optional",
+      capabilities: ["Service Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.service) return { priority: 58, signals: ["service"] };
+        return { priority: 13, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-voice-console-live",
+      title: "Voice Console (Live)",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "voice-console-live",
+      family: "voiceConsole",
+      selectionStatus: "recommended",
+      capabilities: ["Service Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.service) return { priority: 64, signals: ["service"] };
+        return { priority: 12, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-prompt-campaign-builder",
+      title: "Prompt Campaign Builder",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "prompt-campaign-builder",
+      family: "campaignBuilder",
+      selectionStatus: "optional",
+      capabilities: ["Marketing Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.marketing) return { priority: 60, signals: ["marketing"] };
+        return { priority: 11, signals: ["catalog"] };
+      },
+    },
+    {
+      id: "screen-thursday-spotlight",
+      title: "Email Spotlight",
+      type: "screen",
+      layout: "screenFlow",
+      sectionId: "sf-ui",
+      screenId: "thursday-spotlight",
+      family: "emailPreview",
+      selectionStatus: "optional",
+      capabilities: ["Marketing Cloud"],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        if (sig.marketing) return { priority: 54, signals: ["marketing"] };
+        return { priority: 10, signals: ["catalog"] };
+      },
+    },
+    // Animated scene opener ("The call that runs itself.") — a pure-CSS
+    // animated caller illustration + red-accent SCENE card. Its own
+    // `screenActOpener` renderer; carries an openerConfig (built by the
+    // adapter), NOT panels. Always available in the Salesforce UI Moments
+    // catalog (never auto-recommended) so any deck can lead a demo act
+    // with it, regardless of domain signals.
+    {
+      id: "screen-act-opener",
+      title: "Scene Opener (animated)",
+      type: "screen",
+      layout: "screenActOpener",
+      sectionId: "sf-ui",
+      selectionStatus: "optional",
+      capabilities: [],
+      requiredInputs: [],
+      intentGroup: "Salesforce UI Moments",
+      match: function (ctx, sig) {
+        return { priority: 9, signals: ["catalog"] };
+      },
+    },
   ];
 
   // ─── Evaluate all rules and return ranked recommendations ──────
@@ -902,13 +1137,20 @@
         if (Array.isArray(v)) return v.length === 0;
         return v == null || v === "";
       });
+      // A screen that matched ONLY via the signal-less "catalog" fallback is
+      // always offered, but never carries its rule's recommended status —
+      // it's an available-but-not-suggested option. Real signal matches keep
+      // the rule's declared status.
+      const sigList = result.signals || [];
+      const catalogOnly = sigList.length === 1 && sigList[0] === "catalog";
+      const selectionStatus = catalogOnly ? "optional" : (rule.selectionStatus || "optional");
       out.push({
         id: rule.id,
         title: rule.title,
         type: rule.type,
         layout: rule.layout,
         sectionId: rule.sectionId || layoutToSectionId(rule.layout),
-        selectionStatus: rule.selectionStatus || "optional",
+        selectionStatus: selectionStatus,
         audienceTags: rule.audienceTags || [],
         capabilities: rule.capabilities ? rule.capabilities.slice() : [],
         priority: result.priority,
@@ -919,6 +1161,10 @@
         rationale: rationaleFor(rule, result, ctx),
         sourceSignals: result.signals || [],
         missingInputs: missing,
+        // Screen slides carry the screen identity so the adapter can feed
+        // the right panel builder. Undefined for normal slide rules.
+        screenId: rule.screenId,
+        family: rule.family,
       });
     });
     out.sort(function (a, b) { return b.priority - a.priority; });
@@ -946,6 +1192,7 @@
       else if (s === "scaffolding") reasons.push("Recommended scaffolding for any demo");
       else if (s === "close")       reasons.push("Always close with executive takeaway");
       else if (s === "lifecycle")   reasons.push("Extends the post-purchase / lifecycle moment");
+      else if (s === "catalog")     reasons.push("Available in the Salesforce UI screen catalog");
       else reasons.push(s);
     });
     return reasons.join(" • ");
@@ -990,6 +1237,10 @@
     kpiScorecard:        "stat-grid",
     executiveSummary:    "title",
     nextSteps:           "title",
+    // Config-driven console screens render via their own demo-deck-renderer
+    // entries; the slide type is the layout name itself (identity mapping).
+    screenFlow:          "screenFlow",
+    screenActOpener:     "screenActOpener",
     unknown:             "two-panel",
   };
 
@@ -1004,7 +1255,9 @@
       purpose: "Introduce the main persona so every demo moment lands." },
     { id: "demo",           label: "Demo",          order: 4, required: true,
       purpose: "Walk through the actual demo moments, agent conversations, and embedded CX components." },
-    { id: "business-value", label: "Business Value", order: 5, required: true,
+    { id: "sf-ui",          label: "Salesforce UI Moments", order: 5, required: false,
+      purpose: "Show the real Salesforce product screens — console, CRM, and Marketing Cloud UI — paired with the story." },
+    { id: "business-value", label: "Business Value", order: 6, required: true,
       purpose: "Tie the demo back to outcomes and the transformation thesis." },
   ];
 
@@ -1029,6 +1282,8 @@
       kpiScorecard:        "business-value",
       executiveSummary:    "business-value",
       nextSteps:           "business-value",
+      screenFlow:          "sf-ui",
+      screenActOpener:     "sf-ui",
     })[layout] || "demo";
   }
 
