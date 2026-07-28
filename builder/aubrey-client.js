@@ -140,6 +140,14 @@
     const sep = url.indexOf("?") >= 0 ? "&" : "?";
     return url + sep + "email=" + encodeURIComponent(email);
   }
+  function currentAuthEmail() {
+    const auth = window.HOLO_AUTH;
+    const u = auth && auth.currentUser && auth.currentUser();
+    return (u && u.email) ? String(u.email).trim().toLowerCase() : "";
+  }
+  function preferredEmail(opts) {
+    return (opts && opts.email) || currentAuthEmail() || getGlobalKeys().email;
+  }
 
   // ─── Shared-key proxy fetch (fallback path) ──────────────────
   // Same-origin GET to /api/aubrey/* — the server holds ONE shared
@@ -182,14 +190,16 @@
   // addition to the X-API-Key header (the example as documented
   // returns "Email required" without it).
   function demoforgeListBrands(opts) {
-    const email = opts && opts.email; const key = opts && opts.key;
+    const email = preferredEmail(opts);
+    const key = opts && opts.key;
     if (!key) return Promise.reject(new Error("DemoForge API key not set"));
     if (!email) return Promise.reject(new Error("Email is required for DemoForge"));
     return apiGet(withEmail(DEMOFORGE_BASE + "/api/brands", email), key)
       .then(function (d) { return d.brands || []; });
   }
   function demoforgeGetBrand(id, opts) {
-    const email = opts && opts.email; const key = opts && opts.key;
+    const email = preferredEmail(opts);
+    const key = opts && opts.key;
     if (!key) return Promise.reject(new Error("DemoForge API key not set"));
     if (!email) return Promise.reject(new Error("Email is required for DemoForge"));
     return apiGet(withEmail(DEMOFORGE_BASE + "/api/brands/" + encodeURIComponent(id), email), key)
@@ -202,7 +212,8 @@
   // ─── Scriptwriter ────────────────────────────────────────────
   // Both list and detail require ?email= alongside the X-API-Key.
   function scriptwriterListScripts(opts) {
-    const email = opts && opts.email; const key = opts && opts.key;
+    const email = preferredEmail(opts);
+    const key = opts && opts.key;
     // No personal key → fall back to the shared server proxy (server
     // supplies the key + the signed-in email). Personal key → direct.
     if (!key) return authedApiGet("/api/aubrey/scriptwriter/scripts").then(function (d) { return d.scripts || []; });
@@ -211,7 +222,8 @@
       .then(function (d) { return d.scripts || []; });
   }
   function scriptwriterGetScript(id, opts) {
-    const email = opts && opts.email; const key = opts && opts.key;
+    const email = preferredEmail(opts);
+    const key = opts && opts.key;
     if (!key) return authedApiGet("/api/aubrey/scriptwriter/scripts/" + encodeURIComponent(id)).then(function (d) { return d.script || null; });
     if (!email) return Promise.reject(new Error("Email is required for Scriptwriter"));
     return apiGet(withEmail(SCRIPTWRITER_BASE + "/api/scripts/" + encodeURIComponent(id), email), key)
@@ -223,7 +235,7 @@
   // so pulls are scoped to the current signed-in/entered user consistently.
   function pocketsicListProjects(opts) {
     const key = opts && opts.key;
-    const email = (opts && opts.email) || getGlobalKeys().email;
+    const email = preferredEmail(opts);
     // No personal key → shared server proxy (server injects the key +
     // signed-in email). Personal key → direct call as before.
     if (!key) return authedApiGet("/api/aubrey/pocketsic/projects").then(function (d) { return d.projects || []; });
@@ -232,7 +244,7 @@
   }
   function pocketsicGetScenes(projectId, opts) {
     const key = opts && opts.key;
-    const email = (opts && opts.email) || getGlobalKeys().email;
+    const email = preferredEmail(opts);
     if (!key) return authedApiGet("/api/aubrey/pocketsic/projects/" + encodeURIComponent(projectId) + "/scenes").then(function (d) { return d.scenes || []; });
     return apiGet(withEmail(POCKETSIC_BASE + "/api/projects/" + encodeURIComponent(projectId) + "/scenes", email), key)
       .then(function (d) { return d.scenes || []; });

@@ -8032,6 +8032,7 @@
   }
   function runConnectionTests(container) {
     const c = getAubreyGlobalKeys();
+    const email = aubreyEmailFor(c);
     // Reset pills to "testing"
     ["demoforge","scriptwriter","pocketsic","brandkit"].forEach(function (n) {
       setConnectionTestPill(container, n, "idle");
@@ -8040,14 +8041,14 @@
     });
 
     // DemoForge
-    if (!c.demoforgeKey || !c.email) setConnectionTestPill(container, "demoforge", "skipped");
-    else AUBREY.demoforge.listBrands({ email: c.email, key: c.demoforgeKey })
+    if (!c.demoforgeKey || !email) setConnectionTestPill(container, "demoforge", "skipped");
+    else AUBREY.demoforge.listBrands({ email: email, key: c.demoforgeKey })
       .then(function () { setConnectionTestPill(container, "demoforge", "ok"); })
       .catch(function (e) { setConnectionTestPill(container, "demoforge", "fail", e.message); });
 
     // Scriptwriter
-    if (!c.scriptwriterKey || !c.email) setConnectionTestPill(container, "scriptwriter", "skipped");
-    else AUBREY.scriptwriter.listScripts({ email: c.email, key: c.scriptwriterKey })
+    if (!c.scriptwriterKey || !email) setConnectionTestPill(container, "scriptwriter", "skipped");
+    else AUBREY.scriptwriter.listScripts({ email: email, key: c.scriptwriterKey })
       .then(function () { setConnectionTestPill(container, "scriptwriter", "ok"); })
       .catch(function (e) { setConnectionTestPill(container, "scriptwriter", "fail", e.message); });
 
@@ -8129,19 +8130,30 @@
       text: filled === 4 ? "All 4 connected" : (filled + " of 4 set") });
   }
 
+  function loggedInEmail() {
+    const u = (AUTH && AUTH.currentUser && AUTH.currentUser()) || null;
+    return (u && u.email) ? String(u.email).trim().toLowerCase() : "";
+  }
+  function aubreyEmailFor(creds) {
+    const c = creds || getAubreyGlobalKeys();
+    return loggedInEmail() || String(c.email || "").trim();
+  }
+
   // ── Shared pre-flight: is the right key present? ───────────
   function ensureAubreyKey(which) {
     const c = getAubreyGlobalKeys();
+    const email = aubreyEmailFor(c);
     const need = {
       demoforge:    { key: "demoforgeKey",    label: "DemoForge",    needsEmail: true  },
       scriptwriter: { key: "scriptwriterKey", label: "Scriptwriter", needsEmail: true  },
       pocketsic:    { key: "pocketsicKey",    label: "Pocket SIC",   needsEmail: false },
     }[which];
     if (!need) return c;
+    const withEmail = Object.assign({}, c, { email: email });
     const hasRequired = (AUBREY && AUBREY.globalKeys && typeof AUBREY.globalKeys.hasRequired === "function")
-      ? AUBREY.globalKeys.hasRequired(which)
-      : (!!c[need.key] && (!need.needsEmail || !!c.email));
-    if (hasRequired) return c;
+      ? (!!withEmail[need.key] && (!need.needsEmail || !!withEmail.email))
+      : (!!withEmail[need.key] && (!need.needsEmail || !!withEmail.email));
+    if (hasRequired) return withEmail;
 
     // No complete personal-key setup. For the apps that have a shared
     // server-side key (pocketsic / scriptwriter), a signed-in SE can
@@ -8149,7 +8161,7 @@
     // which routes the client method through /api/aubrey/*. DemoForge
     // has no proxy path, so it keeps the original bail behavior.
     if ((which === "pocketsic" || which === "scriptwriter") && aubreySharedAvailable(which)) {
-      return c;
+      return withEmail;
     }
 
     if (!c[need.key]) {
@@ -8157,12 +8169,12 @@
       app.state.step = "setup"; renderShell();
       return null;
     }
-    if (need.needsEmail && !c.email) {
-      toast("Add your email under Setup → Aubrey Demo connections (required by " + need.label + ")");
+    if (need.needsEmail && !email) {
+      toast("Sign in with your Salesforce account or add email under Setup → Aubrey Demo connections (required by " + need.label + ")");
       app.state.step = "setup"; renderShell();
       return null;
     }
-    return c;
+    return withEmail;
   }
 
   // ── Brand picker (DemoForge) ───────────────────────────────
@@ -8181,7 +8193,7 @@
     wrap.appendChild(actions);
     openModal("Pull brand from Aubrey", wrap);
 
-    AUBREY.demoforge.listBrands({ email: creds.email, key: creds.demoforgeKey })
+    AUBREY.demoforge.listBrands({ email: aubreyEmailFor(creds), key: creds.demoforgeKey })
       .then(function (brands) {
         list.innerHTML = "";
         if (!brands.length) {
@@ -8218,7 +8230,7 @@
   function importBrandFromAubrey(brandId, creds) {
     const s = app.state;
     toast("Loading brand from DemoForge…");
-    AUBREY.demoforge.getBrand(brandId, { email: creds.email, key: creds.demoforgeKey })
+    AUBREY.demoforge.getBrand(brandId, { email: aubreyEmailFor(creds), key: creds.demoforgeKey })
       .then(function (resp) {
         const b = resp.brand;
         if (!b) throw new Error("Brand not found");
@@ -8358,7 +8370,7 @@
     wrap.appendChild(actions);
     openModal("Pull persona from Aubrey", wrap);
 
-    AUBREY.demoforge.listBrands({ email: creds.email, key: creds.demoforgeKey })
+    AUBREY.demoforge.listBrands({ email: aubreyEmailFor(creds), key: creds.demoforgeKey })
       .then(function (brands) {
         list.innerHTML = "";
         if (!brands.length) {
@@ -8444,7 +8456,7 @@
     wrap.appendChild(actions);
     openModal("Pull script from Aubrey", wrap);
 
-    AUBREY.scriptwriter.listScripts({ email: creds.email, key: creds.scriptwriterKey })
+    AUBREY.scriptwriter.listScripts({ email: aubreyEmailFor(creds), key: creds.scriptwriterKey })
       .then(function (scripts) {
         list.innerHTML = "";
         if (!scripts.length) {
@@ -8479,7 +8491,7 @@
   function importScriptFromAubrey(scriptId, creds) {
     const s = app.state;
     toast("Loading script from Scriptwriter…");
-    AUBREY.scriptwriter.getScript(scriptId, { email: creds.email, key: creds.scriptwriterKey })
+    AUBREY.scriptwriter.getScript(scriptId, { email: aubreyEmailFor(creds), key: creds.scriptwriterKey })
       .then(function (sc) {
         if (!sc) throw new Error("Script not found");
         const text = AUBREY.renderScriptRows(sc);
@@ -8549,7 +8561,7 @@
     const noLogoYet = !s.brand.logoPath;
 
     if (creds.demoforgeKey && creds.email && (stillDefaultColors || noLogoYet)) {
-      AUBREY.demoforge.listBrands({ email: creds.email, key: creds.demoforgeKey })
+      AUBREY.demoforge.listBrands({ email: aubreyEmailFor(creds), key: creds.demoforgeKey })
         .then(function (brands) {
           const target = (sc.brand_name || "").trim().toLowerCase();
           const match = brands.find(function (b) {
