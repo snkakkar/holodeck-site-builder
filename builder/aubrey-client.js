@@ -161,15 +161,67 @@
   // care which path ran.
   function authedApiGet(path) {
     const auth = window.HOLO_AUTH;
-    if (!auth || !auth.authHeaders) {
-      return Promise.reject(new Error("Sign in to pull from Aubrey (no personal API key set)."));
+    // Ensure the auth session is hydrated from cookie first; this avoids false
+    // "not signed in" errors when local auth state is stale but the browser
+    // still has a valid session cookie.
+    const initP = (auth && typeof auth.init === "function") ? auth.init().catch(function () { return null; }) : Promise.resolve(null);
+    function cookieTokenFallback() {
+      // Last resort: mint a bearer directly from the auth cookie session,
+      // independent of local HOLO_AUTH in-memory user state.
+      return fetch("/auth/token", {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      }).then(function (res) {
+        return res.text().then(function (body) {
+          let json = null;
+          try { json = body ? JSON.parse(body) : null; } catch (_) { json = null; }
+          if (!res.ok) {
+            const msg = (json && (json.error || json.message)) || ("HTTP " + res.status);
+            return { token: null, error: "Auth token exchange failed: " + msg };
+          }
+          const token = json && (json.token || json.jwt) ? String(json.token || json.jwt) : "";
+          if (!token) return { token: null, error: "Auth token exchange returned no token." };
+          return { token: token, error: "" };
+        });
+      }).then(function (json) {
+        if (!json || !json.token) return json || { token: null, error: "Auth token exchange returned an empty response." };
+        return json;
+      }).catch(function (err) {
+        return { token: null, error: "Auth token exchange failed: " + ((err && err.message) || "network error") };
+      });
     }
-    return auth.authHeaders().then(function (headers) {
+    return initP.then(function () {
+      return (auth && typeof auth.authHeaders === "function") ? auth.authHeaders() : {};
+    }).then(function (headers) {
       const h = Object.assign({ Accept: "application/json" }, headers || {});
-      if (!h.Authorization) {
-        throw new Error("Sign in to pull from Aubrey (no personal API key set).");
+      if (!h.Authorization && auth && typeof auth.getToken === "function") {
+        return auth.getToken(true).then(function (jwt) {
+          if (jwt) {
+            h.Authorization = "Bearer " + jwt;
+            return h;
+          }
+          return cookieTokenFallback().then(function (fallback) {
+            if (!fallback || !fallback.token) {
+              throw new Error((fallback && fallback.error) || "Sign in to pull from Aubrey.");
+            }
+            h.Authorization = "Bearer " + fallback.token;
+            return h;
+          });
+        });
       }
-      return fetch(path, { headers: h }).then(function (res) {
+      if (!h.Authorization) {
+        return cookieTokenFallback().then(function (fallback) {
+          if (!fallback || !fallback.token) {
+            throw new Error((fallback && fallback.error) || "Sign in to pull from Aubrey.");
+          }
+          h.Authorization = "Bearer " + fallback.token;
+          return h;
+        });
+      }
+      return h;
+    }).then(function (h) {
+      return fetch(path, { headers: h, credentials: "include" }).then(function (res) {
         return res.text().then(function (body) {
           let parsed;
           try { parsed = JSON.parse(body); } catch (_) { parsed = null; }

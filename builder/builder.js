@@ -8155,12 +8155,10 @@
       : (!!withEmail[need.key] && (!need.needsEmail || !!withEmail.email));
     if (hasRequired) return withEmail;
 
-    // No complete personal-key setup. For the apps that have a shared
-    // server-side key (pocketsic / scriptwriter), a signed-in SE can
-    // still pull via the proxy — return the creds as-is (empty key),
-    // which routes the client method through /api/aubrey/*. DemoForge
-    // has no proxy path, so it keeps the original bail behavior.
-    if ((which === "pocketsic" || which === "scriptwriter") && aubreySharedAvailable(which)) {
+    // No complete personal-key setup. Scriptwriter/PocketSIC should always
+    // attempt the signed-in proxy path first when the personal key is absent.
+    // This avoids false "add key" toasts before shared-key status is loaded.
+    if (which === "pocketsic" || which === "scriptwriter") {
       return withEmail;
     }
 

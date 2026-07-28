@@ -1,7 +1,7 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const { jwtVerify, SignJWT } = require("jose");
+const { jwtVerify, SignJWT, createRemoteJWKSet } = require("jose");
 const compression = require("compression");
 
 // ── .env loading ───────────────────────────────────────────────
@@ -120,6 +120,32 @@ const AUBREY = {
 const JWT_SECRET = process.env.JWT_SECRET || "";
 const JWT_KEY = JWT_SECRET ? new TextEncoder().encode(JWT_SECRET) : null;
 const ALLOWED_EMAIL_DOMAIN = "salesforce.com";
+const NEON_AUTH_BASE = (process.env.NEON_AUTH_BASE || "").replace(/\/+$/, "");
+const NEON_JWKS_URL = process.env.NEON_JWKS_URL || (NEON_AUTH_BASE ? `${NEON_AUTH_BASE}/jwks` : "");
+const NEON_JWKS = NEON_JWKS_URL ? createRemoteJWKSet(new URL(NEON_JWKS_URL)) : null;
+const SHIM_TOKEN_TTL = process.env.SHIM_TOKEN_TTL || "15m";
+
+function dbRoleFromUri(uri) {
+  try { return decodeURIComponent(new URL(uri).username || "") || ""; }
+  catch (_) { return ""; }
+}
+const PGRST_DB_ROLE =
+  process.env.PGRST_DB_ROLE ||
+  dbRoleFromUri(process.env.DATABASE_URL || process.env.PGRST_DB_URI || "");
+
+async function verifyBearerToken(jwt) {
+  if (JWT_KEY) {
+    try {
+      return await jwtVerify(jwt, JWT_KEY);
+    } catch (_) {
+      // Fall through: local dev can carry a Neon token if the shim isn't up.
+    }
+  }
+  if (NEON_JWKS) {
+    return jwtVerify(jwt, NEON_JWKS);
+  }
+  throw new Error("no-token-verifier");
+}
 
 // Verify the Bearer token, enforce the salesforce.com email claim, and
 // stash the identity on req.holoUser for downstream handlers (the rate
@@ -134,7 +160,7 @@ async function requireHolodeckAuth(req, res, next) {
     return res.status(401).json({ error: "Missing bearer token." });
   }
   try {
-    const { payload } = await jwtVerify(m[1], JWT_KEY);
+    const { payload } = await verifyBearerToken(m[1]);
     const email = String(payload.email || "").trim().toLowerCase();
     if (email.split("@")[1] !== ALLOWED_EMAIL_DOMAIN) {
       return res.status(403).json({ error: "Not authorized." });
@@ -932,6 +958,59 @@ app.get("/env-config.js", (_req, res) => {
   res.send(`window.HOLO_ENV = ${JSON.stringify(HOLO_ENV)};\n`);
 });
 
+// ── /auth/token exchange (same-origin) ──────────────────────────
+// Prefer minting an HS256 token (PostgREST-compatible) from the Neon
+// session cookie directly in this process. If local HS256 minting
+// isn't possible, return Neon's token verbatim; requireHolodeckAuth
+// accepts both HS256 and Neon tokens (via JWKS) as a dev-safe fallback.
+app.get("/auth/token", async (req, res) => {
+  if (!NEON_AUTH_BASE) {
+    return res.status(503).json({ error: "NEON_AUTH_BASE is not configured." });
+  }
+  let neonToken = "";
+  try {
+    const upstream = await fetchWithTimeout(`${NEON_AUTH_BASE}/token`, {
+      method: "GET",
+      headers: {
+        cookie: req.headers.cookie || "",
+        accept: "application/json",
+      },
+    }, FETCH_TIMEOUT_PROXY_MS);
+    const body = await upstream.text();
+    let parsed = null;
+    try { parsed = body ? JSON.parse(body) : null; } catch (_) { parsed = null; }
+    if (!upstream.ok) {
+      const msg = (parsed && (parsed.error || parsed.message)) || ("HTTP " + upstream.status);
+      return res.status(upstream.status).json({ error: msg });
+    }
+    neonToken = parsed && (parsed.token || parsed.jwt) ? String(parsed.token || parsed.jwt) : "";
+    if (!neonToken) return res.status(502).json({ error: "neon /token returned no token" });
+  } catch (err) {
+    return res.status(504).json({ error: "Auth token exchange failed upstream timeout/network." });
+  }
+
+  if (!JWT_KEY || !NEON_JWKS) {
+    return res.json({ token: neonToken });
+  }
+  try {
+    const { payload } = await jwtVerify(neonToken, NEON_JWKS);
+    const now = Math.floor(Date.now() / 1000);
+    const token = await new SignJWT({
+      sub: payload.sub,
+      email: payload.email,
+      ...(PGRST_DB_ROLE ? { role: PGRST_DB_ROLE } : {}),
+      emailVerified: payload.emailVerified === true || payload.email_verified === true,
+    })
+      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setIssuedAt(now)
+      .setExpirationTime(SHIM_TOKEN_TTL)
+      .sign(JWT_KEY);
+    return res.json({ token });
+  } catch (_) {
+    return res.json({ token: neonToken });
+  }
+});
+
 // ── Reverse proxies to the co-located backend services ─────────
 // Mounted AFTER /api/* (above) and BEFORE the static catch-all (below)
 // so they claim /rest/v1 and /auth without shadowing the app's own API
@@ -946,8 +1025,7 @@ const { createProxyMiddleware } = require("http-proxy-middleware");
 
 // Loopback targets shared with start-web.js (see config/ports.js).
 const { POSTGREST_TARGET, AUTH_SHIM_TARGET } = require("./config/ports");
-// Where the untouched Neon Auth endpoints live. Same value the shim uses.
-const NEON_AUTH_BASE = (process.env.NEON_AUTH_BASE || "").replace(/\/+$/, "");
+// Where the untouched Neon Auth endpoints live.
 
 app.use(
   createProxyMiddleware({
