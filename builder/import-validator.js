@@ -493,7 +493,7 @@
       journeyTimeline: "journey-map", demoMap: "journey-map",
       personaCard: "meet-persona",
       unifiedProfile: "demo", agentConversation: "demo", deviceMoment: "demo",
-      embeddedCxComponent: "demo", architecture: "demo",
+      embeddedCxComponent: "demo", appConsoleIframe: "demo", architecture: "demo",
       kpiScorecard: "business-value", executiveSummary: "business-value", nextSteps: "business-value",
     })[layout] || "demo";
   }
@@ -516,6 +516,7 @@
   function sanitizeUrl(u) {
     if (!u || typeof u !== "string") return "";
     const trimmed = u.trim();
+    if (/^(\/|\.\/|\.\.\/)/.test(trimmed)) return trimmed;
     try {
       const parsed = new URL(trimmed);
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";

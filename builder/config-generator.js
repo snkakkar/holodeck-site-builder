@@ -191,7 +191,7 @@
           storyActs:        state.storyActs        || [],
           cxComponents:     cxAll.map(function (c) {
             return {
-              id: c.id, name: c.name, url: c.url, type: c.type, sectionId: c.sectionId,
+              id: c.id, name: c.name, url: c._exportUrl || c.url, type: c.type, sectionId: c.sectionId,
               linkedStoryActIds: c.linkedStoryActIds || [],
               linkedSlideIds:    c.linkedSlideIds    || [],
               deviceFrame: c.deviceFrame, iframeAllowed: c.iframeAllowed !== false,
@@ -220,7 +220,7 @@
             return nonDemo.concat(demoOrdered).map(function (s, i) {
               const explicitCx = explicitBySlide[s.id] || [];
               const mergedCx = explicitCx.length ? explicitCx : (s.linkedCxComponentIds || []);
-              const promotedLayout = (explicitCx.length || s.layout === "embeddedCxComponent")
+              const promotedLayout = ((explicitCx.length && s.layout !== "appConsoleIframe") || s.layout === "embeddedCxComponent")
                 ? "embeddedCxComponent"
                 : s.layout;
               return Object.assign({
@@ -231,6 +231,7 @@
                 readinessStatus: s.readinessStatus || "",
                 capabilities: s.capabilities || [], persona: s.persona || null,
                 linkedCxComponentIds: mergedCx,
+                appId: s.appId || "",
                 deviceFrame: s.deviceFrame || "",
                 speakerNotes: s.speakerNotes || "",
                 // Per-slide App Moment description override (Step 8 editor).
@@ -257,7 +258,7 @@
       journeyTimeline: "journey-map", demoMap: "journey-map",
       personaCard: "meet-persona",
       unifiedProfile: "demo", agentConversation: "demo", deviceMoment: "demo",
-      embeddedCxComponent: "demo", architecture: "demo",
+      embeddedCxComponent: "demo", appConsoleIframe: "demo", architecture: "demo",
       kpiScorecard: "business-value", executiveSummary: "business-value", nextSteps: "business-value",
     })[layout] || "demo";
   }

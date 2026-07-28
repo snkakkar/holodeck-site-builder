@@ -244,16 +244,24 @@
   }
 
   // ─── Demo-app packaging (R5) ─────────────────────────────────
-  // Returns the list of app ids the user enabled AND generated a config
-  // for. Gating mirrors the Demos step: enabled + a config object present.
-  // Slides are always the deck (handled by the polished payload) and are
-  // not part of this list.
+  // Returns the list of companion app ids to package.
+  // Include an app when:
+  //   1) it is enabled in Step 4, OR
+  //   2) any selected demo slide references it via appConsoleIframe/appId.
+  // This prevents exported deck iframes from pointing at missing app files.
   function enabledAppIds(state) {
     const apps = (state && state.apps) || {};
-    return Object.keys(APP_TEMPLATE_FILES).filter(function (id) {
+    const byToggle = Object.keys(APP_TEMPLATE_FILES).filter(function (id) {
       const slice = apps[id];
-      return slice && slice.enabled && slice.config;
+      return !!(slice && slice.enabled);
     });
+    const bySlides = ((state && state.slides) || [])
+      .filter(function (s) { return s && s.layout === "appConsoleIframe" && s.appId; })
+      .map(function (s) { return s.appId; })
+      .filter(function (id) { return !!APP_TEMPLATE_FILES[id]; });
+    const set = {};
+    byToggle.concat(bySlides).forEach(function (id) { set[id] = true; });
+    return Object.keys(set);
   }
 
   // Fetch one app's template files (verbatim) over http. Resolves to an
@@ -320,7 +328,13 @@
   // Build the file list for ONE enabled app, rooted under apps/<appId>/.
   function buildAppPayload(state, appId, root, templateFiles) {
     const tpl = APP_TEMPLATE_FILES[appId];
-    const slice = state.apps[appId];
+    const slice = (state.apps && state.apps[appId]) || {};
+    // If a project references/has enabled an app but has no generated config,
+    // synthesize a deterministic fallback so the packaged app still loads.
+    const APPFOUND = (typeof window !== "undefined") ? window.HOLO_APPFOUND : null;
+    const generatedConfig = slice.config || (APPFOUND && APPFOUND.buildFallbackConfig
+      ? APPFOUND.buildFallbackConfig(appId, state, { generic: true })
+      : {});
     const appRoot = root + "apps/" + appId + "/";
     const files = [];
     let stockConfig = null;
@@ -329,7 +343,7 @@
     });
     templateFiles.forEach(function (tf) {
       if (tf.dest === tpl.configName) {
-        files.push({ path: appRoot + tf.dest, content: buildAppConfigJs(appId, stockConfig, slice.config) });
+        files.push({ path: appRoot + tf.dest, content: buildAppConfigJs(appId, stockConfig, generatedConfig) });
       } else {
         files.push({ path: appRoot + tf.dest, content: tf.content });
       }

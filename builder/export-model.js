@@ -288,13 +288,13 @@
     // screenImage template — the SE's own eyebrow/headline sit above it.
     screenFlow:         "screenImage",
     screenActOpener:    "screenImage",
-    // embeddedCxComponent handled specially: still image → deviceSceneImage,
+    // embeddedCxComponent/appConsoleIframe handled specially: still image → deviceSceneImage,
     // else placeholderCx (see templateFor()).
   };
 
   function templateFor(slide) {
     const layout = (slide && slide.layout) || "";
-    if (layout === "embeddedCxComponent") {
+    if (layout === "embeddedCxComponent" || layout === "appConsoleIframe") {
       return "cx"; // resolved to deviceSceneImage-or-placeholder by the exporter
     }
     if (layout === "storyInterstitial") {
@@ -722,7 +722,7 @@
 
     return {
       stillUrl:  still || null,
-      targetUrl: comp.url || comp.targetUrl || comp.href || "",
+      targetUrl: comp._exportUrl || comp.url || comp.targetUrl || comp.href || "",
       name:      comp.name || comp.label || slide.title || "CX Component",
     };
   }
@@ -1160,7 +1160,7 @@
     // data isn't pulled for them here (their resolved template drives it).
     const deferred = template === "cx" || template === "interstitial";
     const fields = resolveAll(slide, state);
-    const copy = copyFor(template === "cx" ? "titleSlide" : template, slide, cfg, state, fields);
+    const copy = copyFor(template, slide, cfg, state, fields);
     const structured = deferred ? {} : structuredFor(template, slide, cfg, state, fields);
 
     const ns = {

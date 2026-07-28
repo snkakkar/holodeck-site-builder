@@ -219,20 +219,22 @@
   }
 
   // ─── Pocket SIC ──────────────────────────────────────────────
-  // Project list works without email. Scenes list works with the
-  // key alone too (verified during discovery).
+  // PocketSIC supports key-only calls, but we still pass ?email= when available
+  // so pulls are scoped to the current signed-in/entered user consistently.
   function pocketsicListProjects(opts) {
     const key = opts && opts.key;
+    const email = (opts && opts.email) || getGlobalKeys().email;
     // No personal key → shared server proxy (server injects the key +
     // signed-in email). Personal key → direct call as before.
     if (!key) return authedApiGet("/api/aubrey/pocketsic/projects").then(function (d) { return d.projects || []; });
-    return apiGet(POCKETSIC_BASE + "/api/projects", key)
+    return apiGet(withEmail(POCKETSIC_BASE + "/api/projects", email), key)
       .then(function (d) { return d.projects || []; });
   }
   function pocketsicGetScenes(projectId, opts) {
     const key = opts && opts.key;
+    const email = (opts && opts.email) || getGlobalKeys().email;
     if (!key) return authedApiGet("/api/aubrey/pocketsic/projects/" + encodeURIComponent(projectId) + "/scenes").then(function (d) { return d.scenes || []; });
-    return apiGet(POCKETSIC_BASE + "/api/projects/" + encodeURIComponent(projectId) + "/scenes", key)
+    return apiGet(withEmail(POCKETSIC_BASE + "/api/projects/" + encodeURIComponent(projectId) + "/scenes", email), key)
       .then(function (d) { return d.scenes || []; });
   }
 

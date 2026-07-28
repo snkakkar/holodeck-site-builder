@@ -18,6 +18,15 @@
     const acts = state.storyActs || [];
     const slides = state.slides || [];
     const cx = state.cxComponents || [];
+    const apps = state.apps || {};
+    const appConsoles = slides.filter(function (sl) { return sl.layout === "appConsoleIframe"; });
+    const hasAgentSignal = !!(
+      (f.agentforceMoments || []).length ||
+      /\bagent(force)?|concierge|assistant|copilot\b/i.test(String(state.scriptText || "")) ||
+      acts.some(function (a) {
+        return /\bagent(force)?|concierge|assistant|copilot\b/i.test(String((a && (a.title || a.summary || a.demoMoment || "")) || ""));
+      })
+    );
 
     // ── Foundations ───────────────────────────────────────────
     if (!f.businessProblem)   issues.push(err("foundation-no-problem",  "Story Foundations are incomplete: no business problem."));
@@ -61,21 +70,35 @@
           issues.push(warn("profile-no-signals", "“" + (s.title || "Unified Profile") + "” has no Data Cloud moments to show."));
         }
       }
-      if (s.layout === "agentConversation" && !(f.agentforceMoments || []).length) {
-        issues.push(err("agent-no-moments", "This Agentforce slide has no agent moments.",
-                        "Slide “" + (s.title || "Agent moment") + "” needs at least one Agentforce moment."));
+      if (s.layout === "agentConversation" && !hasAgentSignal) {
+        issues.push(warn("agent-no-moments", "This Agentforce slide has no clear agent signal yet.",
+                         "Add an Agentforce moment in Story Foundations, or capture an agent/concierge act in the script."));
       }
       if (s.layout === "kpiScorecard" && !(f.valueDrivers || []).length) {
         issues.push(warn("kpi-no-drivers", "“" + (s.title || "KPI Scorecard") + "” has no value drivers — KPIs will be generic."));
       }
       if (s.layout === "embeddedCxComponent") {
         const ids = s.linkedCxComponentIds || [];
+        const hasAnyCx = cx.length > 0;
+        const hasAnyAppConsole = appConsoles.length > 0 || !!(
+          (apps.clienteling && apps.clienteling.enabled) ||
+          (apps.cimulate && apps.cimulate.enabled) ||
+          (apps.simulate && apps.simulate.enabled)
+        );
         const missing = ids.length === 0;
         const hasUrl = ids.some(function (id) {
           return cx.some(function (c) { return c.id === id && c.url; });
         });
-        if (missing) issues.push(err("embedded-no-link", "Embedded CX slide is not linked to a CX component.",
-                                     "Add an AubreyDemo URL in the CX Components step and link it here."));
+        if (missing && hasAnyCx) issues.push(warn("embedded-no-link", "Embedded CX slide is not linked to a CX component.",
+                                     "Link a CX component to this slide in the CX Components step."));
+        else if (missing && !hasAnyCx && hasAnyAppConsole) {
+          // No direct CX links yet, but app-console slides are present; this is
+          // common while building app-first demos. Keep it informational only.
+          issues.push(info("embedded-app-only", "Embedded CX slide has no direct CX link yet.",
+                           "You already have app-console moments. Add a dedicated CX URL only if you want a separate Embedded CX slide."));
+        }
+        else if (missing) issues.push(warn("embedded-no-link", "Embedded CX slide is not linked to a CX component.",
+                                     "Add a CX URL in the CX Components step and link it here."));
         else if (!hasUrl) issues.push(warn("embedded-empty-url", "Linked CX components don't have URLs yet."));
       }
     });

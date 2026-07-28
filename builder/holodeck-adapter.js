@@ -258,6 +258,18 @@
     return (products && products.length) ? products : ["Data Cloud"];
   }
 
+  function cxUrl(c, preferExport) {
+    if (!c) return "";
+    if (preferExport && c._builtAppComponent && c._builtAppId) {
+      // In exported ZIPs, the deck lives under /demo/ and companion apps under
+      // /apps/<id>/index.html, so built-app iframe URLs must be relative to
+      // /demo/ (not the local builder's /demo-apps/* routes).
+      return "../apps/" + c._builtAppId + "/index.html";
+    }
+    if (preferExport && c._exportUrl) return c._exportUrl;
+    return c.url || "";
+  }
+
   // ─── scenes (CX component links → /demo's scenes shape) ──────
   // /demo expects scenes as an OBJECT keyed by id (instagramAd, agenticSms,
   // shopperAgent) used directly in the HTML (#scene-instagram .src etc.).
@@ -274,19 +286,20 @@
       const t = String(c.type || "").toLowerCase();
       const n = String(c.name || "").toLowerCase();
       if (/instagram|paid|ad/.test(k + n) || t === "marketing" && /ad|paid/.test(n)) {
-        if (!out.instagramAd) out.instagramAd = c.url || "";
+        if (!out.instagramAd) out.instagramAd = cxUrl(c, true);
       } else if (/sms|text|message/.test(k + n) || (t === "marketing" && c.deviceFrame === "mobile")) {
-        if (!out.agenticSms) out.agenticSms = c.url || "";
+        if (!out.agenticSms) out.agenticSms = cxUrl(c, true);
       } else if (/agent|shopper|chat/.test(k + n) || t === "agent" || t === "commerce") {
-        if (!out.shopperAgent) out.shopperAgent = c.url || "";
+        if (!out.shopperAgent) out.shopperAgent = cxUrl(c, true);
       }
     });
     // Fill any gap with the next available CX URL so the template
     // doesn't load empty iframes.
     cx.forEach(function (c) {
-      if (!out.instagramAd  && c.url) out.instagramAd  = c.url;
-      else if (!out.agenticSms   && c.url) out.agenticSms   = c.url;
-      else if (!out.shopperAgent && c.url) out.shopperAgent = c.url;
+      const url = cxUrl(c, true);
+      if (!out.instagramAd  && url) out.instagramAd  = url;
+      else if (!out.agenticSms   && url) out.agenticSms   = url;
+      else if (!out.shopperAgent && url) out.shopperAgent = url;
     });
     // Empty strings for un-linked scene slots (rather than literal
     // [TODO:] paths) so iframes don't try to load a bogus URL — they
@@ -305,7 +318,7 @@
     return (state.slides || []).map(function (s) {
       // Same promotion as buildBuilderPlan — explicit CX link forces
       // an embedded layout regardless of the saved slide.layout.
-      const layout = linkedSlideIds[s.id] ? "embeddedCxComponent" : s.layout;
+      const layout = (linkedSlideIds[s.id] && s.layout !== "appConsoleIframe") ? "embeddedCxComponent" : s.layout;
       const type = layoutToType[layout] || "two-panel";
       const note = s.title + (s.speakerNotes ? " — " + s.speakerNotes : "");
       return { type: type, note: note };
@@ -607,7 +620,7 @@
       // Map builder layouts to /demo slide types — promote any
       // explicitly-linked slide to embeddedCxComponent so it renders
       // as an iframe (consistent with buildBuilderPlan above).
-      const layout = linkedSlideIds[sl.id] ? "embeddedCxComponent" : sl.layout;
+      const layout = (linkedSlideIds[sl.id] && sl.layout !== "appConsoleIframe") ? "embeddedCxComponent" : sl.layout;
       const type = builderLayoutToHolodeckSlideType(layout);
       // First content-bearing story act — the same source the preview
       // renderers (demoMap/deviceMoment) use, so export = preview.
@@ -693,6 +706,7 @@
       architecture:        "two-panel",
       deviceMoment:        "iframe-phone",
       embeddedCxComponent: "iframe-laptop",
+      appConsoleIframe:    "iframe-laptop",
       kpiScorecard:        "stat-grid",
       executiveSummary:    "title",
       nextSteps:           "title",
@@ -1136,7 +1150,11 @@
       // AI-generated agent-conversation script; the demo's agentConversation
       // slide prefers this over the deterministic SHARED.agentChat() fallback.
       agentChatScript:  state.agentChatScript  || null,
-      cxComponents:     cxAll,
+      cxComponents:     cxAll.map(function (c) {
+        const out = Object.assign({}, c);
+        out.url = cxUrl(c, true);
+        return out;
+      }),
       assetLibrary:     state.assetLibrary || {},
       slideSections:    state.slideSections || [],
       // The exported /demo Demo section renders builderPlan.slides. Two things
@@ -1168,7 +1186,7 @@
           const mergedCx = explicitCx.length
             ? explicitCx
             : (s.linkedCxComponentIds || []);
-          const promotedLayout = (explicitCx.length || s.layout === "embeddedCxComponent")
+          const promotedLayout = ((explicitCx.length && s.layout !== "appConsoleIframe") || s.layout === "embeddedCxComponent")
             ? "embeddedCxComponent"
             : s.layout;
           // Config-driven console screens: carry steps[]/panels[]/config so the
@@ -1186,6 +1204,7 @@
             capabilities: s.capabilities || [],
             persona: s.persona || null,
             linkedCxComponentIds: mergedCx,
+            appId: s.appId || "",
             deviceFrame: s.deviceFrame || "",
             speakerNotes: s.speakerNotes || "",
             // Per-slide narrative copy for the storyInterstitial layout (and any

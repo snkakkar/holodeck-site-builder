@@ -186,6 +186,38 @@
     };
   }
 
+  // ─── Local-shape normalization (back-compat healing) ───────────
+  // Keeps older/corrupted rows from crashing newer builder steps (notably
+  // Step 7 CX Components). Pure, in-place, defensive.
+  function normalizeCxComponent(c) {
+    if (!c || typeof c !== "object") c = {};
+    if (!c.id) c.id = uid("cx_");
+    if (typeof c.name !== "string") c.name = c.name == null ? "" : String(c.name);
+    if (typeof c.url !== "string") c.url = c.url == null ? "" : String(c.url);
+    if (typeof c.type !== "string" || !c.type) c.type = "web";
+    if (typeof c.sectionId !== "string" || !c.sectionId) c.sectionId = "demo";
+    if (!Array.isArray(c.linkedStoryActIds)) c.linkedStoryActIds = [];
+    if (!Array.isArray(c.linkedSlideIds)) c.linkedSlideIds = [];
+    if (typeof c.deviceFrame !== "string" || !c.deviceFrame) c.deviceFrame = "mobile";
+    if (c.iframeAllowed == null) c.iframeAllowed = true;
+    if (typeof c.fallbackMode !== "string" || !c.fallbackMode) c.fallbackMode = "link-card";
+    if (typeof c.status !== "string" || !c.status) c.status = "needs-review";
+    if (typeof c.notes !== "string") c.notes = c.notes == null ? "" : String(c.notes);
+    if (typeof c.imageSlot !== "string") c.imageSlot = c.imageSlot == null ? "" : String(c.imageSlot);
+    if (!c.imageSlotsBySlide || typeof c.imageSlotsBySlide !== "object" || Array.isArray(c.imageSlotsBySlide)) {
+      c.imageSlotsBySlide = {};
+    }
+    return c;
+  }
+  function normalizeProjectStateShape(state) {
+    if (!state || typeof state !== "object") return state;
+    if (!Array.isArray(state.cxComponents)) state.cxComponents = [];
+    state.cxComponents = state.cxComponents
+      .filter(function (c) { return c && typeof c === "object"; })
+      .map(normalizeCxComponent);
+    return state;
+  }
+
   function derivedStatus(state) {
     if (state.slides && state.slides.length) return "Plan ready";
     if (state.recommendations && state.recommendations.some(function (r) { return r.selected; })) return "Picking slides";
@@ -209,6 +241,7 @@
       const state = readJSON(KEY_PREFIX + id, null);
       if (!state) return Promise.resolve(null);
       state.id = id;
+      try { normalizeProjectStateShape(state); } catch (e) { /* never block open */ }
       return Promise.resolve(state);
     },
     saveProject: function (state) {
@@ -307,6 +340,7 @@
     // owner_id lets the client tell "my project" from "shared with me" for
     // owner-only UI (Share button, gallery toggle). RLS remains authoritative.
     if (row.owner_id) state.ownerId = row.owner_id;
+    try { normalizeProjectStateShape(state); } catch (e) { /* never block open */ }
     return state;
   }
   function rowToSummary(row) {
@@ -637,7 +671,10 @@
       // opens it before that write lands, Neon returns 0 rows → null. Falling
       // back to the write-through cache here closes the create→open race so a
       // brand-new project always opens. (An error path also falls back below.)
-      if (state) return state;
+      if (state) {
+        try { normalizeProjectStateShape(state); } catch (e) { /* never block open */ }
+        return state;
+      }
       return LocalBackend.loadProject(id);
     }).catch(function () {
       return LocalBackend.loadProject(id);
@@ -701,7 +738,31 @@
 
   function createProject(seed) {
     const state = newBlankState(seed || {});
+    try { normalizeProjectStateShape(state); } catch (e) { /* never block create */ }
     return saveProject(state).then(function () { return state; });
+  }
+
+  // Heal ALL cached local projects in place (one-shot safe, idempotent).
+  // Returns how many rows were rewritten.
+  function normalizeAllLocalProjects() {
+    let changed = 0;
+    getIndex().forEach(function (p) {
+      const id = p && p.id;
+      if (!id) return;
+      const raw = readJSON(KEY_PREFIX + id, null);
+      if (!raw || typeof raw !== "object") return;
+      let before = "";
+      try { before = JSON.stringify(raw); } catch (e) { before = ""; }
+      normalizeProjectStateShape(raw);
+      let after = "";
+      try { after = JSON.stringify(raw); } catch (e) { after = before; }
+      if (after !== before) {
+        writeJSON(KEY_PREFIX + id, raw);
+        upsertIndex(summaryFromState(raw));
+        changed++;
+      }
+    });
+    return Promise.resolve(changed);
   }
 
   // Retry rows that failed to reach Neon (called on boot / next success).
@@ -1243,6 +1304,7 @@
     migrateLegacyIfPresent: migrateLegacyIfPresent,
     migrateLocalToAccount: migrateLocalToAccount,
     reconcileOwnership: reconcileOwnership,
+    normalizeAllLocalProjects: normalizeAllLocalProjects,
     flushDirty: flushDirty,
     clearCache: clearCache,
     reconcile: reconcile,

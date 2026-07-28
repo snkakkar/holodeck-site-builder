@@ -1686,6 +1686,20 @@
     return "•";
   }
 
+  // URL gate used by preview/runtime iframe decisions. Accepts:
+  //   - absolute http(s) URLs
+  //   - same-origin relative paths (/foo, ./foo, ../foo) for built apps
+  // Rejects everything else (javascript:, data:, mailto:, bare hostnames, etc).
+  function isEmbeddableUrl(rawUrl) {
+    const url = String(rawUrl || "").trim();
+    if (!url) return false;
+    if (/^https?:\/\//i.test(url)) return true;
+    if (/^(\/|\.\/|\.\.\/)/.test(url)) return true;
+    // Any other explicit scheme is non-embeddable here.
+    if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return false;
+    return false;
+  }
+
   // ─── Public API ──────────────────────────────────────────────
   global.HOLO_SHARED = {
     // text helpers
@@ -1739,6 +1753,7 @@
     // channel icons (timeline + demo-map)
     CHANNEL_ICONS:           CHANNEL_ICONS,
     channelIcon:             channelIcon,
+    isEmbeddableUrl:         isEmbeddableUrl,
     nextStepsPhases:         nextStepsPhases,
     defaultWishlist:         defaultWishlist,
     emojiForIndustry:        emojiForIndustry,

@@ -970,6 +970,46 @@
 .dd-cx-iframe-wrap { width:100%; height:100%; background:#fff; }
 .dd-cx-iframe-wrap iframe { width:100%; height:100%; border:0; display:block; }
 
+/* Full-width app console iframe slide */
+.dd-app-console {
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  width:100%;
+  min-height:0;
+  height:100%;
+}
+.dd-app-console-copy {
+  width:100%;
+  max-width:1020px;
+}
+.dd-app-console-copy .dd-sub {
+  max-width:920px;
+}
+.dd-app-console-stage {
+  flex:1;
+  min-height:440px;
+  border-radius:12px;
+  border:1px solid #d9e2ef;
+  background:#fff;
+  overflow:hidden;
+  box-shadow:0 10px 22px rgba(13, 27, 46, .16);
+}
+.dd-app-console-stage > .dd-cx-iframe-wrap,
+.dd-app-console-stage > .dd-skel { width:100%; height:100%; }
+
+/* Keep the app console as a primary stage like screenFlow. */
+.dd-layout-appConsoleIframe .dd-slide-body {
+  gap: 0;
+}
+.dd-layout-appConsoleIframe .dd-app-console {
+  min-height: 0;
+}
+.dd-layout-appConsoleIframe .dd-app-console-stage {
+  height: 100%;
+  min-height: 0;
+}
+
 /* ── Story Foundation / Executive — left quote card ──────────── */
 .dd-left-quote { padding:48px 56px; }
 .dd-quotecard {

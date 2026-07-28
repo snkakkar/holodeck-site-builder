@@ -300,6 +300,9 @@
       case "embeddedCxComponent":
         need(!(slide.linkedCxComponentIds || []).length, "Link a CX component");
         break;
+      case "appConsoleIframe":
+        need(!(slide.linkedCxComponentIds || []).length, "Link a built app or CX component");
+        break;
       case "kpiScorecard":
         need(!data.story.businessValueMoments && !(data.foundations && (data.foundations.valueDrivers || []).length), "Business value drivers");
         break;
@@ -1125,6 +1128,7 @@
       scenePhoto: "Scene Moment",
       storyInterstitial: "Story / Context",
       embeddedCxComponent: "Embedded CX Component",
+      appConsoleIframe: "App Console Iframe",
       kpiScorecard: "KPI Scorecard",
       executiveSummary: "Executive Takeaway",
       nextSteps: "Next Steps",
@@ -1876,6 +1880,44 @@
         }
         return card;
       }
+    },
+
+    // ── App Console Iframe (full-console layout) ────────────────
+    appConsoleIframe: function (data, mode) {
+      function inferAppId(slideLike) {
+        const sid = String(slideLike && slideLike.id || "").toLowerCase();
+        const ttl = String(slideLike && slideLike.title || "").toLowerCase();
+        if (/cimulate|simulate/.test(sid) || /cimulate|simulate/.test(ttl)) return "cimulate";
+        if (/clienteling|concierge/.test(sid) || /clienteling|concierge/.test(ttl)) return "clienteling";
+        return "";
+      }
+      const appId = (data && data.slide && data.slide.appId) || inferAppId(data && data.slide);
+      if (appId) {
+        const list = (data.cxComponents || []);
+        const appComp = list.find(function (c) {
+          if (!c) return false;
+          if (c._builtAppComponent && c._builtAppId === appId) return true;
+          if (c.id === ("cx_app_" + appId)) return true;
+          if ((c._exportUrl || "") === ("/demo-apps/" + appId + "/")) return true;
+          return false;
+        });
+        if (appComp) {
+          // Force app-specific preview binding so Step 8 cannot reuse a stale
+          // linked component from a different app.
+          data = Object.assign({}, data, { linkedCxComponents: [appComp] });
+        } else {
+          // Never show a different app's component on this app-console slide.
+          data = Object.assign({}, data, { linkedCxComponents: [] });
+        }
+      }
+      // Always render the app-console as expanded so the iframe preview is
+      // visible (not just a URL row) in Step 8 cards.
+      const root = LAYOUT_RENDERERS.embeddedCxComponent(data, "expanded");
+      root.classList.remove("hp-embedded");
+      root.classList.add("hp-app-console");
+      const eb = root.querySelector(".hp-eyebrow");
+      if (eb) eb.textContent = "Live app console";
+      return root;
     },
 
     // ── Next steps ───────────────────────────────────────────────
@@ -2717,8 +2759,14 @@
 
   function isSafeHttpUrl(s) {
     if (!s || typeof s !== "string") return false;
-    try { const u = new URL(s); return u.protocol === "http:" || u.protocol === "https:"; }
-    catch (e) { return false; }
+    const v = s.trim();
+    if (!v) return false;
+    // Same-origin relative URLs are valid for built app previews.
+    if (/^(\/|\.\/|\.\.\/)/.test(v)) return true;
+    try {
+      const u = new URL(v);
+      return u.protocol === "http:" || u.protocol === "https:";
+    } catch (e) { return false; }
   }
 
   // Trusted origins are allowed allow-same-origin; everything else gets
@@ -2727,7 +2775,9 @@
   function isTrustedIframeOrigin(s) {
     if (!s) return false;
     try {
-      const u = new URL(s);
+      const u = new URL(s, window.location && window.location.origin ? window.location.origin : undefined);
+      // Local same-origin app routes are trusted.
+      if (window.location && u.origin === window.location.origin) return true;
       return TRUSTED_IFRAME_HOSTS.some(function (h) {
         return u.hostname === h || u.hostname.endsWith("." + h);
       });

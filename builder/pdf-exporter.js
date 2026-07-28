@@ -528,7 +528,7 @@
       doc.roundedRect(bx, by, bw, bh, 8, 8, "FD");
       let y = by + bh * 0.36;
       y = wrapText(doc, (cx.name || ns.title || "CX Component"), bx + 20, y, bw - 40, { size: 18, style: "bold", color: T.ink, align: "center", maxLines: 2 });
-      y = wrapText(doc, "Live component — add a still image in the builder to embed it here.", bx + 20, y + 6, bw - 40, { size: 12, color: T.muted, align: "center", maxLines: 2 });
+      y = wrapText(doc, "Live app/CX iframe isn't renderable in static PDF. Add a still image in CX Components to embed a screenshot here.", bx + 20, y + 6, bw - 40, { size: 12, color: T.muted, align: "center", maxLines: 3 });
       if (cx.targetUrl) wrapText(doc, cx.targetUrl, bx + 20, y + 6, bw - 40, { size: 11, color: ctx.brand.secondary, align: "center", maxLines: 1 });
     },
 

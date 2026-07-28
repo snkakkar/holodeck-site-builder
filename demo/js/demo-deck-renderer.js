@@ -1881,7 +1881,9 @@
       // explicitly assigned still → then the skeleton. The live, click-through
       // component must never be overridden by its static screenshot.
       const hasAssigned = hasStill(assignedStill);
-      const hasLiveIframe = cxComp && cxComp.url && /^https?:\/\//.test(cxComp.url);
+      const hasLiveIframe = !!(cxComp && (SHARED.isEmbeddableUrl
+        ? SHARED.isEmbeddableUrl(cxRuntimeUrl(cxComp))
+        : /^https?:\/\//.test(cxRuntimeUrl(cxComp) || "")));
       let screenInner;
       if (hasLiveIframe) {
         screenInner = renderCxIframe(cxComp);
@@ -2096,7 +2098,8 @@
     embeddedCxComponent: function (s) {
       const cxIds = s.linkedCxComponentIds || [];
       const linked = cxIds.map(cxById).filter(Boolean);
-      const c = linked[0] || cxList[0] || null;
+      const nonAppCx = cxList.filter(function (x) { return x && !x._builtAppComponent; });
+      const c = linked[0] || nonAppCx[0] || null;
       // Pick a CX still: an explicit Assets-page assignment (c.imageSlot)
       // wins; otherwise fall back to the type/name heuristic (mirrors the
       // adapter's buildScenes heuristics), then to whatever is available.
@@ -2117,7 +2120,9 @@
       // Priority: a LIVE CX link (Aubrey iframe) ALWAYS wins → then a
       // generated/uploaded still → then the skeleton. A live, click-through
       // component must never be replaced by its static screenshot.
-      const inner = (c && c.url && /^https?:\/\//.test(c.url))
+      const inner = (c && (SHARED.isEmbeddableUrl
+        ? SHARED.isEmbeddableUrl(cxRuntimeUrl(c))
+        : /^https?:\/\//.test(cxRuntimeUrl(c) || "")))
         ? renderCxIframe(c)
         : hasStill(still)
         ? mediaTile({ src: still, kind: "image", fill: isInstagramAd, adFill: isInstagramAd, alt: (c && c.name) || "CX component" })
@@ -2144,6 +2149,48 @@
           chips:    capsList(s).map(function (cap) { return { type:"blue", label:cap }; }),
         }),
       });
+    },
+
+    // ─── App Console Iframe ────────────────────────────────────
+    // Full-width console stage: top copy + one large iframe body.
+    appConsoleIframe: function (s) {
+      function inferAppId(slideLike) {
+        const sid = String(slideLike && slideLike.id || "").toLowerCase();
+        const ttl = String(slideLike && slideLike.title || "").toLowerCase();
+        if (/cimulate|simulate/.test(sid) || /cimulate|simulate/.test(ttl)) return "cimulate";
+        if (/clienteling|concierge/.test(sid) || /clienteling|concierge/.test(ttl)) return "clienteling";
+        return "";
+      }
+      const cxIds = s.linkedCxComponentIds || [];
+      const linked = cxIds.map(cxById).filter(Boolean);
+      const appId = s.appId || inferAppId(s);
+      const appMatch = (appId && cxList.find(function (c) {
+        return c && c._builtAppComponent && c._builtAppId === appId;
+      })) || null;
+      const c = appId ? appMatch : (appMatch || linked[0] || cxList[0] || null);
+      const hasLive = !!(c && (SHARED.isEmbeddableUrl
+        ? SHARED.isEmbeddableUrl(cxRuntimeUrl(c))
+        : /^https?:\/\//.test(cxRuntimeUrl(c) || "")));
+      const stage = hasLive
+        ? renderCxIframe(c)
+        : el("div", { class: "dd-skel dd-skel-screen" }, [
+            skeletonShimmer(),
+            el("div", { class: "dd-skel-screen-msg",
+              text: c ? "App URL unavailable. Rebuild the app in Step 4." : "Build and link an app in Step 4/7." }),
+          ]);
+      return [
+        el("div", { class: "dd-app-console" }, [
+          el("div", { class: "dd-app-console-copy" }, [
+            el("p", { class: "dd-eyebrow", text: ebrow(s.eyebrow || "Live app console") }),
+            el("h2", { class: "dd-display dd-display-mid",
+              html: s.title ? escapeHtml(ttl(s.title)) : (c && c.name ? escapeHtml(ttl(c.name)) : "App console moment") }),
+            (s.cxDescription || s.speakerNotes)
+              ? el("p", { class: "dd-sub", text: s.cxDescription || s.speakerNotes })
+              : null,
+          ]),
+          el("div", { class: "dd-app-console-stage" }, [stage]),
+        ]),
+      ];
     },
 
     // ─── KPI Scorecard ─────────────────────────────────────────
@@ -2457,11 +2504,23 @@
     ]);
   }
 
+  function cxRuntimeUrl(c) {
+    if (!c) return "";
+    if (c._builtAppComponent && c._builtAppId) {
+      // Keep this relative so it works both on localhost and file:// exports.
+      return "../apps/" + c._builtAppId + "/index.html";
+    }
+    return c.url || "";
+  }
+
   function renderCxIframe(c) {
-    const trusted = /aubreydemo\.com/i.test(c.url);
+    const src = cxRuntimeUrl(c);
+    const trusted = /aubreydemo\.com/i.test(src)
+      || !!(c && c._builtAppComponent)
+      || /^(\/|\.\/|\.\.\/)/.test(String(src || ""));
     const wrap = el("div", { class: "dd-cx-iframe-wrap" });
     const iframe = document.createElement("iframe");
-    iframe.src = c.url;
+    iframe.src = src;
     iframe.setAttribute("sandbox", trusted
       ? "allow-scripts allow-same-origin allow-forms allow-popups"
       : "allow-scripts allow-forms allow-popups");

@@ -245,6 +245,81 @@
     }).catch(navFailed("Couldn't save before leaving. Returning to projects."));
   }
   function goBuilder(projectId) {
+    function emergencyNormalizeState(raw) {
+      const s = (raw && typeof raw === "object") ? raw : {};
+      const obj = function (v, d) { return (v && typeof v === "object" && !Array.isArray(v)) ? v : d; };
+      const arr = function (v) { return Array.isArray(v) ? v : []; };
+      s.id = s.id || projectId || uid();
+      s.step = (typeof s.step === "string" && s.step) ? s.step : "script";
+      s.project = Object.assign({
+        customerName: "", website: "", industry: "", audience: "", salesStage: "",
+        products: [], theme: "", tone: "", presenterName: "", presenterTitle: "",
+      }, obj(s.project, {}));
+      s.brand = Object.assign({
+        mode: "salesforce", logoPath: "", customerLogoPath: "",
+        primaryColor: "#b22234", secondaryColor: "#1a5fa0", accentColor: "#f5c06a",
+        visualDirection: "", notes: "",
+      }, obj(s.brand, {}));
+      s.story = Object.assign({
+        bigProblem: "", currentPain: "", futureVision: "", keyCustomerMoments: "",
+        operationalMoments: "", agentforceMoments: "", dataCloudMoments: "",
+        businessValueMoments: "", executiveTakeaway: "",
+      }, obj(s.story, {}));
+      s.personas = arr(s.personas);
+      s.storyActs = arr(s.storyActs);
+      s.scenes = arr(s.scenes);
+      s.assets = arr(s.assets);
+      s.recommendations = arr(s.recommendations);
+      s.slides = arr(s.slides);
+      s.slideSections = arr(s.slideSections);
+      s.selectedRecIds = obj(s.selectedRecIds, {});
+      s.customRecTitles = obj(s.customRecTitles, {});
+      s.assetLibrary = obj(s.assetLibrary, {});
+      s.storyFoundations = obj(s.storyFoundations, {});
+      s.cxComponents = arr(s.cxComponents).filter(function (c) {
+        return c && typeof c === "object";
+      }).map(function (c) {
+        if (!c.id) c.id = uid("cx_");
+        if (!Array.isArray(c.linkedSlideIds)) c.linkedSlideIds = [];
+        if (!Array.isArray(c.linkedStoryActIds)) c.linkedStoryActIds = [];
+        if (!c.imageSlotsBySlide || typeof c.imageSlotsBySlide !== "object") c.imageSlotsBySlide = {};
+        if (!c.type) c.type = "web";
+        if (!c.sectionId) c.sectionId = "demo";
+        if (!c.deviceFrame) c.deviceFrame = "mobile";
+        if (c.iframeAllowed == null) c.iframeAllowed = true;
+        if (!c.fallbackMode) c.fallbackMode = "link-card";
+        if (!c.status) c.status = "needs-review";
+        if (typeof c.name !== "string") c.name = c.name == null ? "" : String(c.name);
+        if (typeof c.url !== "string") c.url = c.url == null ? "" : String(c.url);
+        if (typeof c.notes !== "string") c.notes = c.notes == null ? "" : String(c.notes);
+        return c;
+      });
+      return s;
+    }
+    function openStateOrRecover(state) {
+      try {
+        if (VALIDATOR && VALIDATOR.migrateState) VALIDATOR.migrateState(state);
+        app.state = state;
+        app.view = "builder";
+        STORE.setActiveProjectId(projectId);
+        prepopulatePresenterFromProfile(state);
+        recompute();
+        render();
+        startPresence(projectId).then(function () { saveActive(); });
+        return;
+      } catch (err) {
+        try { console.warn("[holo] open failed, applying emergency normalization:", err); } catch (_) {}
+      }
+      const recovered = emergencyNormalizeState(state);
+      app.state = recovered;
+      app.view = "builder";
+      STORE.setActiveProjectId(projectId);
+      prepopulatePresenterFromProfile(recovered);
+      recompute();
+      render();
+      startPresence(projectId).then(function () { saveActive(); });
+      toast("Recovered project from a legacy data shape issue.");
+    }
     STORE.loadProject(projectId).then(function (state) {
       if (!state) {
         STORE.reconcile();
@@ -257,26 +332,9 @@
       // rejects — on failure it leaves tokens (renderer shows a placeholder).
       return STORE.signAssets(state).then(function () {
         // Existing projects load straight from the store (bypassing
-        // VALIDATOR.importConfig), so apply the on-load migrations — re-fit
-        // overflowing stored copy to complete thoughts, and flip stored
-        // deviceFrame "desktop" → "mobile" — here too. Idempotent, so it's a
-        // no-op once a project is already migrated.
-        if (VALIDATOR && VALIDATOR.migrateState) VALIDATOR.migrateState(state);
-        app.state = state;
-        app.view = "builder";
-        STORE.setActiveProjectId(projectId);
-        // Seed presenter name/title from the synced profile if still blank.
-        prepopulatePresenterFromProfile(state);
-        recompute();
-        render();
-        // Acquire the soft lock (or drop to read-only if a collaborator is
-        // live). This may flip app.readOnly, so run the migration-persisting
-        // save AFTER it resolves — saveActive is a no-op when read-only.
-        startPresence(projectId).then(function () {
-          // Persist unconditionally so the migration (flipped frames / re-fit
-          // copy) survives the next load and reaches export/preview.
-          saveActive();
-        });
+        // VALIDATOR.importConfig), so apply the on-load migrations and open.
+        // If any legacy shape crashes that path, fall back to a sanitized open.
+        openStateOrRecover(state);
       });
     }).catch(navFailed("That project couldn't be opened."));
   }
@@ -2397,12 +2455,32 @@
     const freshSlice = function () {
       return { enabled: false, expanded: false, status: "opt-in", extracted: false, config: null, productImages: null, _previewOnly: false, _aiGenerated: false, _imageStorySig: null };
     };
+    function hasSignal(sl) {
+      return !!(sl && (sl.enabled || sl.extracted || sl._aiGenerated || sl.config || sl._previewToken || sl._genericToken));
+    }
+    function isGeneratedSignal(sl) {
+      return !!(sl && (sl.extracted || sl._aiGenerated || sl.config));
+    }
     if (!s.apps) {
       s.apps = {
         slides:      { enabled: true,  status: "recommended" },
         clienteling: freshSlice(),
         cimulate:    freshSlice(),
       };
+    }
+    // Legacy alias migration: some older local projects may have the search app
+    // stored under `apps.simulate`. Lift it into `apps.cimulate` so all newer
+    // logic (recommendations, CX auto-component sync, export) sees one key.
+    if (s.apps.simulate) {
+      const sim = s.apps.simulate;
+      const cim = s.apps.cimulate || freshSlice();
+      const simStronger =
+        (sim.enabled && !cim.enabled) ||
+        (isGeneratedSignal(sim) && !isGeneratedSignal(cim)) ||
+        (hasSignal(sim) && !hasSignal(cim));
+      if (simStronger) {
+        s.apps.cimulate = Object.assign(freshSlice(), cim, sim);
+      }
     }
     // Backfill any app key missing from an older slice.
     if (!s.apps.slides)      s.apps.slides      = { enabled: true,  status: "recommended" };
@@ -2525,6 +2603,9 @@
       // `expanded` untouched — the panel is gated on `enabled` too, so a
       // previously-open app reopens expanded if switched back on.
       if (toggle.checked) slice.expanded = true;
+      syncBuiltAppCxComponents();
+      recompute();
+      buildSlidePlanFromSelections();
       commit();
       renderMain(); // re-render to show/hide the preview panel
     });
@@ -2706,6 +2787,98 @@
       return def.previewUrl + "?holo=" + encodeURIComponent(slice._previewToken);
     }
     return def.previewUrl;
+  }
+
+  // Built app iframes are represented as managed CX components so they can be
+  // linked to slides using the same pipeline as Aubrey scene links.
+  function syncBuiltAppCxComponents() {
+    const s = app.state;
+    s.cxComponents = s.cxComponents || [];
+    function pickSlice(apps, appId) {
+      if (appId !== "cimulate") return apps[appId] || null;
+      const cim = apps.cimulate || null;
+      const sim = apps.simulate || null;
+      const score = function (sl) {
+        if (!sl) return 0;
+        let n = 0;
+        if (sl.enabled) n += 4;
+        if (sl.extracted) n += 3;
+        if (sl._aiGenerated) n += 2;
+        if (sl.config) n += 3;
+        if (sl._previewToken) n += 1;
+        return n;
+      };
+      return score(sim) > score(cim) ? sim : cim;
+    }
+    APP_CATALOG.forEach(function (def) {
+      const apps = appsState() || {};
+      const slice = pickSlice(apps, def.id);
+      if (!slice) return;
+      // Presence rule: if the app is ON, keep its managed CX component present.
+      // This avoids legacy flag drift (extracted/_aiGenerated/config) blocking
+      // app-console linking for existing local projects.
+      const shouldExist = !!slice.enabled;
+      const idKey = "cx_app_" + def.id;
+      const existing = s.cxComponents.find(function (c) {
+        if (!c) return false;
+        if (c._builtAppComponent && c._builtAppId === def.id) return true;
+        // Legacy matcher: adopt old rows that predate _builtApp* flags.
+        if (c.id === idKey) return true;
+        if ((c._exportUrl || "") === def.previewUrl) return true;
+        return false;
+      });
+      if (!shouldExist) {
+        if (existing) s.cxComponents = s.cxComponents.filter(function (c) { return c !== existing; });
+        return;
+      }
+      const liveUrl = previewUrlFor(def, slice);
+      // Packaged ZIP path (deck is /demo/*, apps are /apps/<id>/index.html).
+      const exportUrl = "../apps/" + def.id + "/index.html";
+      if (existing) {
+        existing.id = idKey;
+        existing.name = def.name + " (Built app)";
+        existing.url = liveUrl;
+        existing._exportUrl = exportUrl;
+        existing.status = liveUrl ? "ready" : "needs-review";
+        existing.deviceFrame = "desktop";
+        existing.type = "app";
+        existing.sectionId = "demo";
+        existing._builtAppComponent = true;
+        existing._builtAppId = def.id;
+        return;
+      }
+      s.cxComponents.push({
+        id: "cx_app_" + def.id,
+        name: def.name + " (Built app)",
+        url: liveUrl,
+        _exportUrl: exportUrl,
+        type: "app",
+        sectionId: "demo",
+        linkedStoryActIds: [],
+        linkedSlideIds: [],
+        deviceFrame: "desktop",
+        iframeAllowed: true,
+        fallbackMode: "link-card",
+        status: liveUrl ? "ready" : "needs-review",
+        notes: "Auto-managed built app iframe target.",
+        imageSlot: "",
+        imageSlotsBySlide: {},
+        _builtAppComponent: true,
+        _builtAppId: def.id,
+      });
+    });
+    // Cleanup pass: ensure no legacy/mistagged built rows conflict with the
+    // canonical app ids. Prevents both app-console slides from resolving to the
+    // same built component when old rows carry mismatched tags.
+    s.cxComponents = s.cxComponents.filter(function (c, i, arr) {
+      if (!c || !c._builtAppComponent) return true;
+      const id = c._builtAppId;
+      if (id !== "clienteling" && id !== "cimulate") return true;
+      const first = arr.findIndex(function (x) {
+        return x && x._builtAppComponent && x._builtAppId === id;
+      });
+      return first === i;
+    });
   }
 
   // The FIRST preview an enabled-but-not-yet-generated app card shows must be
@@ -2949,6 +3122,9 @@
       if (slice._genStatus === "Done.") slice._genStatus = "";
       slice._abort = null;
       slice._preRun = null;
+      syncBuiltAppCxComponents();
+      recompute();
+      buildSlidePlanFromSelections();
       commit();
       renderMain(); // iframe now points at ?holo=<token> → customer data
     }
@@ -3058,7 +3234,9 @@
       "These are live iFrame embeds — an AubreyDemo scene, a storefront, a Salesforce screen — shown as interactive screens in the Demo section. This is different from Assets (static images / GIFs you upload or generate): use Assets for imagery, use this step for interactive embeddable URLs. Skip if you don't have any; your demo works fine without it."
     ));
     const s = app.state;
-    const components = s.cxComponents || [];
+    const components = (s.cxComponents || []).filter(function (c) {
+      return c && typeof c === "object";
+    });
 
     // Strong empty state if nothing added yet — explains the value
     // and offers a clear "Skip" path so the user isn't stuck.
@@ -3120,6 +3298,18 @@
   }
 
   function cxItem(c, idx) {
+    const SHARED = window.HOLO_SHARED || {};
+    c = c || {};
+    if (!c.id) c.id = uid("cx_");
+    if (!Array.isArray(c.linkedSlideIds)) c.linkedSlideIds = [];
+    if (!Array.isArray(c.linkedStoryActIds)) c.linkedStoryActIds = [];
+    if (!c.imageSlotsBySlide || typeof c.imageSlotsBySlide !== "object") c.imageSlotsBySlide = {};
+    if (!c.type) c.type = "web";
+    if (!c.sectionId) c.sectionId = "demo";
+    if (!c.deviceFrame) c.deviceFrame = "mobile";
+    if (c.iframeAllowed == null) c.iframeAllowed = true;
+    if (!c.fallbackMode) c.fallbackMode = "link-card";
+    if (!c.status) c.status = "needs-review";
     const item = el("div", { class: "bx-item" });
     item.appendChild(el("div", { class: "bx-item-head" }, [
       el("div", { class: "bx-item-handle", text: "Component " + (idx + 1) }),
@@ -3136,12 +3326,12 @@
     grid.appendChild(field({ label: "Name", placeholder: "e.g. Personalized storefront",
       value: c.name, onInput: function (v) { c.name = v; commit(); } }));
     grid.appendChild(field({ label: "URL",
-      help: "(http or https only)",
+      help: "(http(s) or same-origin relative path)",
       placeholder: "https://aubreydemo.com/scene/…",
       value: c.url, onInput: function (v) {
         c.url = v;
         // Live URL validation
-        const ok = /^https?:\/\//i.test(v);
+        const ok = SHARED.isEmbeddableUrl ? SHARED.isEmbeddableUrl(v) : /^https?:\/\//i.test(v);
         c.status = !v ? "needs-review" : (ok ? "ready" : "blocked");
         commit();
       } }));
@@ -3245,10 +3435,10 @@
       value: c.notes, onInput: function (v) { c.notes = v; commit(); } }));
 
     // Live status pill
-    const isUrl = /^https?:\/\//i.test(c.url || "");
+    const isUrl = SHARED.isEmbeddableUrl ? SHARED.isEmbeddableUrl(c.url || "") : /^https?:\/\//i.test(c.url || "");
     const status = el("div", { class: "bx-row bx-mt-12" });
     if (!c.url) status.appendChild(el("span", { class: "bx-rec-pill tone-gold", text: "URL needed" }));
-    else if (!isUrl) status.appendChild(el("span", { class: "bx-rec-pill tone-red", text: "Invalid URL — must be http(s)" }));
+    else if (!isUrl) status.appendChild(el("span", { class: "bx-rec-pill tone-red", text: "Invalid URL — use http(s) or relative path" }));
     else if (!/aubreydemo\.com/i.test(c.url)) status.appendChild(el("span", { class: "bx-rec-pill tone-blue", text: "Custom URL — verify it allows iframe embedding" }));
     else status.appendChild(el("span", { class: "bx-rec-pill tone-good", text: "Ready to embed" }));
     item.appendChild(status);
@@ -5007,8 +5197,9 @@
     if (r.missingInputs && r.missingInputs.length) {
       detailsBody.appendChild(detailRow("Missing", r.missingInputs.join(", ")));
     }
-    if (r.layout === "embeddedCxComponent" && !(app.state.cxComponents || []).length) {
-      detailsBody.appendChild(detailRow("Status", "Needs an AubreyDemo URL"));
+    if ((r.layout === "embeddedCxComponent" || r.layout === "appConsoleIframe") &&
+        !(app.state.cxComponents || []).length) {
+      detailsBody.appendChild(detailRow("Status", "Needs an iframe URL target"));
     }
     if (typeof r.priority === "number") {
       detailsBody.appendChild(detailRow("Score", String(r.priority)));
@@ -5130,7 +5321,8 @@
     if (r.missingInputs && r.missingInputs.length) {
       return el("span", { class: "bx-rec-pill tone-gold", text: "Needs input" });
     }
-    if (r.layout === "embeddedCxComponent" && !(app.state.cxComponents || []).length) {
+    if ((r.layout === "embeddedCxComponent" || r.layout === "appConsoleIframe") &&
+        !(app.state.cxComponents || []).length) {
       return el("span", { class: "bx-rec-pill tone-gold", text: "Needs iframe" });
     }
     if (r.selectionStatus === "required")    return el("span", { class: "bx-rec-pill tone-red",  text: "Required" });
@@ -5150,7 +5342,7 @@
       hero: "Hero", storyFoundation: "Story Foundation", currentFutureState: "Before/After",
       futureState: "Future State", journeyTimeline: "Journey", demoMap: "Demo Map",
       personaCard: "Persona", agentConversation: "Agent", unifiedProfile: "Profile",
-      architecture: "Architecture", deviceMoment: "Device", embeddedCxComponent: "Embedded CX",
+      architecture: "Architecture", deviceMoment: "Device", embeddedCxComponent: "Embedded CX", appConsoleIframe: "App Console",
       kpiScorecard: "KPI", executiveSummary: "Takeaway", nextSteps: "Roadmap",
       scenePhoto: "Scene moment", storyInterstitial: "Story beat",
     })[layout] || layout;
@@ -5206,7 +5398,8 @@
     const cx = (s.cxComponents || []);
     const cxWithoutUrl = cx.filter(function (c) { return !c.url; }).length;
     const slidesNeedingCx = slides.filter(function (sl) {
-      return sl.layout === "embeddedCxComponent" && (!(sl.linkedCxComponentIds || []).length);
+      return (sl.layout === "embeddedCxComponent" || sl.layout === "appConsoleIframe")
+        && (!(sl.linkedCxComponentIds || []).length);
     }).length;
     const slidesWithMissing = slides.filter(function (sl) { return (sl.missingInputs || []).length > 0; }).length;
     const sectionsCovered = new Set(runtimeSlides.map(function (sl) { return sl.sectionId; })).size;
@@ -5441,7 +5634,7 @@
     const out = {};
     const cxAll = s.cxComponents || [];
     const unassignedCx = cxAll.filter(function (c) {
-      return !(c.linkedSlideIds && c.linkedSlideIds[0]);
+      return !c._builtAppComponent && !(c.linkedSlideIds && c.linkedSlideIds[0]);
     });
     if (!unassignedCx.length) return out;
 
@@ -5466,6 +5659,13 @@
 
   function buildSlidePlanFromSelections() {
     const s = app.state;
+    function inferAppId(slideLike) {
+      const sid = String(slideLike && slideLike.id || "").toLowerCase();
+      const ttl = String(slideLike && slideLike.title || "").toLowerCase();
+      if (/cimulate|simulate/.test(sid) || /cimulate|simulate/.test(ttl)) return "cimulate";
+      if (/clienteling|concierge/.test(sid) || /clienteling|concierge/.test(ttl)) return "clienteling";
+      return "";
+    }
     const existingById = {};
     (s.slides || []).forEach(function (sl) { existingById[sl.id] = sl; });
     // Only DEMO-section recommendations become state.slides. The synthetic
@@ -5542,6 +5742,22 @@
       if (!linkedCx.length && autoBySlide[id]) {
         linkedCx = autoBySlide[id].slice();
       }
+      const resolvedAppId = (r.layout === "appConsoleIframe")
+        ? (r.appId || (existing && existing.appId) || inferAppId(r) || inferAppId(existing))
+        : "";
+      if (r.layout === "appConsoleIframe" && resolvedAppId) {
+        const appComp = cxAll.find(function (c) {
+          if (!c) return false;
+          if (c._builtAppComponent && c._builtAppId === resolvedAppId) return true;
+          if (c.id === ("cx_app_" + resolvedAppId)) return true;
+          if ((c._exportUrl || "") === ("/demo-apps/" + resolvedAppId + "/")) return true;
+          return false;
+        });
+        // App-console slides are app-specific. Always bind to the matching app
+        // component (do not inherit a stale explicit link from another app).
+        if (appComp) linkedCx = [appComp.id];
+        else linkedCx = [];
+      }
       const firstCx = linkedCx.length ? cxAll.find(function (c) { return c.id === linkedCx[0]; }) : null;
       const deviceFrame = firstCx ? (firstCx.deviceFrame || "") : "";
 
@@ -5552,7 +5768,7 @@
       // remember the original layout so a later un-link can revert it.
       let effectiveLayout = r.layout;
       const wasExplicitlyLinked = !!(explicitBySlide[id] && explicitBySlide[id].length);
-      if (wasExplicitlyLinked && effectiveLayout !== "embeddedCxComponent") {
+      if (wasExplicitlyLinked && effectiveLayout !== "embeddedCxComponent" && effectiveLayout !== "appConsoleIframe") {
         effectiveLayout = "embeddedCxComponent";
       }
 
@@ -5565,7 +5781,8 @@
         // the adapter can feed the right panel builder. Refresh in case the
         // recommendation changed (additive — undefined for non-screen slides).
         if (r.screenId) { existing.screenId = r.screenId; existing.family = r.family || existing.family; }
-        if (wasExplicitlyLinked) {
+        if (resolvedAppId) existing.appId = resolvedAppId;
+        if (wasExplicitlyLinked && existing.layout !== "appConsoleIframe") {
           // Record the original layout once so we can revert if the SE
           // later clears the link.
           if (existing.layout !== "embeddedCxComponent" && !existing._originalLayout) {
@@ -5595,10 +5812,12 @@
         linkedCxComponentIds: linkedCx,
         deviceFrame: deviceFrame,
         missingInputs: r.missingInputs || [],
-        _originalLayout: (wasExplicitlyLinked && r.layout !== "embeddedCxComponent") ? r.layout : undefined,
+        _originalLayout: (wasExplicitlyLinked && r.layout !== "embeddedCxComponent" && r.layout !== "appConsoleIframe")
+          ? r.layout : undefined,
         // Config-driven console screen identity (undefined for normal slides).
         screenId: r.screenId,
         family: r.family,
+        appId: resolvedAppId || r.appId,
       };
     });
 
@@ -6079,6 +6298,7 @@
   function recompute() {
     if (!app.state) return;
     const s = app.state;
+    syncBuiltAppCxComponents();
     const ctx = {
       customerName: s.project.customerName,
       website:      s.project.website,
@@ -6089,6 +6309,8 @@
       personas:     s.personas,
       storyActs:    s.storyActs,
       scriptText:   s.scriptText,
+      cxComponents: s.cxComponents,
+      apps:         s.apps,
       bigProblem:        s.story.bigProblem,
       currentPain:       s.story.currentPain,
       futureVision:      s.story.futureVision,
@@ -6552,10 +6774,92 @@
     // Admin sees the triage inbox first (top of the page), then the form.
     // Everyone else just gets the form.
     if (FEEDBACK && FEEDBACK.isAdmin()) {
+      renderAdminPerformancePanel(container);
       renderFeedbackInbox(container);
     }
 
     renderFeedbackForm(container);
+  }
+
+  function renderAdminPerformancePanel(container) {
+    const card = el("div", { class: "bx-card" });
+    card.appendChild(el("div", { class: "bx-card-title", text: "Site performance (admin)" }));
+    card.appendChild(el("div", { class: "bx-card-sub",
+      text: "Live browser-side metrics from your current session. Visible only to the feedback admin account." }));
+
+    const host = el("div", { class: "bx-feedback-list" });
+    card.appendChild(host);
+
+    function addRow(label, value, note) {
+      const row = el("div", { class: "bx-feedback-row" }, [
+        el("div", { class: "bx-feedback-row-head" }, [
+          el("span", { class: "bx-feedback-row-type", text: label }),
+          el("span", { class: "bx-feedback-row-status", text: value }),
+        ]),
+        note ? el("div", { class: "bx-feedback-row-msg", text: note }) : null,
+      ]);
+      host.appendChild(row);
+    }
+
+    function fmtMs(v) {
+      return (typeof v === "number" && isFinite(v)) ? (Math.round(v) + " ms") : "n/a";
+    }
+    function fmtNum(v, d) {
+      return (typeof v === "number" && isFinite(v)) ? v.toFixed(d == null ? 2 : d) : "n/a";
+    }
+    function collect() {
+      const nav = performance.getEntriesByType ? performance.getEntriesByType("navigation")[0] : null;
+      const paint = performance.getEntriesByType ? performance.getEntriesByType("paint") : [];
+      const lcpEntry = performance.getEntriesByType ? performance.getEntriesByType("largest-contentful-paint").slice(-1)[0] : null;
+      const clsEntries = performance.getEntriesByType ? performance.getEntriesByType("layout-shift") : [];
+      const inpEntries = performance.getEntriesByType ? performance.getEntriesByType("event") : [];
+      const fcp = (paint || []).find(function (p) { return p && p.name === "first-contentful-paint"; });
+      const cls = (clsEntries || []).reduce(function (sum, e) {
+        if (!e || e.hadRecentInput) return sum;
+        return sum + (e.value || 0);
+      }, 0);
+      // INP approximation from Event Timing entries where supported.
+      const inpDur = (inpEntries || []).reduce(function (max, e) {
+        const d = e && typeof e.duration === "number" ? e.duration : 0;
+        return d > max ? d : max;
+      }, 0);
+      const legacy = performance.timing || null;
+      const ttfb = nav ? (nav.responseStart || 0) : (legacy ? (legacy.responseStart - legacy.requestStart) : NaN);
+      const dcl = nav ? (nav.domContentLoadedEventEnd || 0) : (legacy ? (legacy.domContentLoadedEventEnd - legacy.navigationStart) : NaN);
+      const load = nav ? (nav.loadEventEnd || 0) : (legacy ? (legacy.loadEventEnd - legacy.navigationStart) : NaN);
+      return {
+        ttfb: ttfb, dcl: dcl, load: load,
+        lcp: lcpEntry ? lcpEntry.startTime : NaN,
+        fcp: fcp ? fcp.startTime : NaN,
+        cls: cls,
+        inp: inpDur,
+        ua: navigator.userAgent || "",
+        platform: (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "",
+        width: window.innerWidth || 0,
+        height: window.innerHeight || 0,
+      };
+    }
+
+    function paint() {
+      host.innerHTML = "";
+      const m = collect();
+      addRow("TTFB", fmtMs(m.ttfb), "Time to first byte");
+      addRow("DOMContentLoaded", fmtMs(m.dcl), "Browser parsed the initial HTML");
+      addRow("Load event", fmtMs(m.load), "Window load complete");
+      addRow("FCP", fmtMs(m.fcp), "First contentful paint");
+      addRow("LCP", fmtMs(m.lcp), "Largest contentful paint");
+      addRow("CLS", fmtNum(m.cls, 3), "Cumulative layout shift (lower is better)");
+      addRow("INP (approx)", fmtMs(m.inp), "Interaction latency from Event Timing entries");
+      addRow("Viewport", m.width + "×" + m.height, m.platform || "Unknown platform");
+      if (m.ua) addRow("User agent", "Session browser", m.ua);
+    }
+
+    const actions = el("div", { class: "bx-row bx-mt-12" }, [
+      btn("Refresh metrics", "bx-btn-secondary", paint),
+    ]);
+    card.appendChild(actions);
+    paint();
+    container.appendChild(card);
   }
 
   function renderFeedbackForm(container) {

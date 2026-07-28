@@ -408,9 +408,50 @@
       sectionId: "demo",
       selectionStatus: "recommended",
       capabilities: [],
-      requiredInputs: ["cxComponents"],
+      requiredInputs: [],
       match: function (ctx) {
-        if ((ctx.cxComponents || []).length >= 1) return { priority: 86, signals: ["cx-component"] };
+        const list = (ctx.cxComponents || []).filter(Boolean);
+        const nonApp = list.filter(function (c) { return !c._builtAppComponent; });
+        if (nonApp.length >= 1) return { priority: 86, signals: ["cx-component"] };
+        // Keep the Live CX section visible when only app-managed components
+        // exist, but at lower priority so app-console cards lead.
+        if (list.length >= 1) return { priority: 58, signals: ["cx-slot"] };
+        return null;
+      },
+    },
+    {
+      id: "slide-cimulate-app-console",
+      title: "Cimulate App Console Moment",
+      type: "slide",
+      layout: "appConsoleIframe",
+      appId: "cimulate",
+      sectionId: "demo",
+      selectionStatus: "recommended",
+      capabilities: ["Commerce", "Agentforce"],
+      requiredInputs: [],
+      intentGroup: "Live app moments",
+      match: function (ctx) {
+        if (hasEnabledApp(ctx, "cimulate")) {
+          return { priority: 88, signals: ["cimulate-app"] };
+        }
+        return null;
+      },
+    },
+    {
+      id: "slide-clienteling-concierge-console",
+      title: "Clienteling Concierge Console Moment",
+      type: "slide",
+      layout: "appConsoleIframe",
+      appId: "clienteling",
+      sectionId: "demo",
+      selectionStatus: "recommended",
+      capabilities: ["Sales Cloud", "Agentforce"],
+      requiredInputs: [],
+      intentGroup: "Live app moments",
+      match: function (ctx) {
+        if (hasEnabledApp(ctx, "clienteling")) {
+          return { priority: 88, signals: ["clienteling-app"] };
+        }
         return null;
       },
     },
@@ -1165,6 +1206,7 @@
         // the right panel builder. Undefined for normal slide rules.
         screenId: rule.screenId,
         family: rule.family,
+        appId: rule.appId,
       });
     });
     out.sort(function (a, b) { return b.priority - a.priority; });
@@ -1212,6 +1254,7 @@
     architecture:        { label: "Architecture",        blocks: ["Data sources", "Salesforce platform", "Channels & devices", "Governance"] },
     deviceMoment:        { label: "Device Moment",       blocks: ["Device frame", "Live scene", "Narrative", "Stat strip"] },
     embeddedCxComponent: { label: "Embedded CX Component", blocks: ["AubreyDemo iframe", "Device chrome", "Linked story act", "Fallback link"] },
+    appConsoleIframe:    { label: "App Console Iframe",  blocks: ["Title rail", "Console stage", "Full-width iframe", "Fallback link"] },
     kpiScorecard:        { label: "KPI Scorecard",       blocks: ["3–5 metric cards", "Icon + value + label", "Disclaimer"] },
     executiveSummary:    { label: "Executive Takeaway",  blocks: ["Headline", "Three pillars", "Call to action"] },
     nextSteps:           { label: "Next Steps",          blocks: ["Roadmap phases", "Owners", "Timeline"] },
@@ -1234,6 +1277,7 @@
     architecture:        "two-panel",
     deviceMoment:        "iframe-phone",
     embeddedCxComponent: "iframe-laptop",
+    appConsoleIframe:    "iframe-laptop",
     kpiScorecard:        "stat-grid",
     executiveSummary:    "title",
     nextSteps:           "title",
@@ -1278,6 +1322,7 @@
       agentConversation:   "demo",
       deviceMoment:        "demo",
       embeddedCxComponent: "demo",
+      appConsoleIframe:    "demo",
       architecture:        "demo",
       kpiScorecard:        "business-value",
       executiveSummary:    "business-value",
@@ -1296,6 +1341,7 @@
     if (layout === "agentConversation") return "Agent moments";
     if (layout === "unifiedProfile") return "Data moments";
     if (layout === "embeddedCxComponent") return "Live CX moments";
+    if (layout === "appConsoleIframe") return "Live app moments";
     if (layout === "architecture") {
       // Architecture cards split between agent topics/handoff and data/integration.
       if (signals.indexOf("agentforce") >= 0 || signals.indexOf("handoff") >= 0) return "Agent moments";
@@ -1461,6 +1507,17 @@
 
   function byPriorityDesc(a, b) { return b.priority - a.priority; }
 
+  function hasEnabledApp(ctx, appId) {
+    const apps = (ctx && ctx.apps) || {};
+    if (appId !== "cimulate") {
+      const slice = apps[appId];
+      return !!(slice && slice.enabled);
+    }
+    const cim = apps.cimulate || null;
+    const sim = apps.simulate || null;
+    return !!((cim && cim.enabled) || (sim && sim.enabled));
+  }
+
   // Convert state → ctx for recommend()
   function stateToCtx(state) {
     const f = state.storyFoundations || {};
@@ -1475,6 +1532,7 @@
       storyActs:    state.storyActs || [],
       scriptText:   state.scriptText || "",
       cxComponents: state.cxComponents || [],
+      apps:         state.apps || {},
       bigProblem:        (state.story && state.story.bigProblem)        || f.businessProblem    || "",
       currentPain:       (state.story && state.story.currentPain)       || f.currentStatePain   || "",
       futureVision:      (state.story && state.story.futureVision)      || f.futureStateVision  || "",
