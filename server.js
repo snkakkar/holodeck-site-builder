@@ -154,8 +154,17 @@ function getPgPool() {
   if (!DATABASE_URL) return null;
   try {
     const { Pool } = require("pg");
+    // Heroku Postgres (and Neon) REQUIRE TLS — a plaintext connect is
+    // rejected by pg_hba.conf ("no encryption"). node-pg does NOT infer
+    // SSL from the connection string, so enable it explicitly unless the
+    // target is local or the URL opts out via sslmode=disable. Heroku PG
+    // serves a self-signed cert, hence rejectUnauthorized:false.
+    const isLocal = /@(localhost|127\.0\.0\.1|\[::1\])[:\/]/.test(DATABASE_URL);
+    const sslDisabled = /[?&]sslmode=disable\b/.test(DATABASE_URL);
+    const useSsl = !isLocal && !sslDisabled;
     _pgPool = new Pool({
       connectionString: DATABASE_URL,
+      ssl: useSsl ? { rejectUnauthorized: false } : false,
       max: 3,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
@@ -998,7 +1007,7 @@ app.get("/api/aubrey/brandkit/items/:id", requireHolodeckAuth, rateLimit, (req, 
 // counts and time series — no demo names, feedback text, emails, or ids.
 // Phase 1 uses only existing columns; exports / true active users are not
 // tracked yet and are surfaced as "not tracked" flags for the UI.
-app.get("/api/metrics", requireHolodeckAuth, requireAdmin, async (_req, res) => {
+app.get("/api/metrics", requireHolodeckAuth, requireAdmin, async (req, res) => {
   const pool = getPgPool();
   if (!pool) {
     return res.status(503).json({ error: "Metrics unavailable — database not configured." });
@@ -1053,16 +1062,33 @@ app.get("/api/metrics", requireHolodeckAuth, requireAdmin, async (_req, res) => 
       ) t USING (wk)
       ORDER BY wk`,
   };
+  // The tables carry FORCE ROW LEVEL SECURITY, so even this owner login role
+  // sees ZERO rows unless a policy admits it. We therefore run the roll-ups in
+  // a transaction that first sets `request.jwt.claims` to the verified admin
+  // identity — exactly the GUC PostgREST sets per request — so the admin
+  // branch of projects_select / shares_select / feedback_select (all gated on
+  // app.is_feedback_admin()) fires and returns cross-user rows. requireAdmin
+  // has already proven req.holoUser is the single admin; the DB gate is the
+  // authoritative second check. is_local=true scopes the GUC to this tx.
+  const claims = JSON.stringify({
+    sub: (req.holoUser && req.holoUser.sub) || "",
+    email: (req.holoUser && req.holoUser.email) || "",
+  });
+  let client;
   try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('request.jwt.claims', $1, true)", [claims]);
     const [demos, activeAuthors, feedback, shares, demoTrend, feedbackTrend] =
       await Promise.all([
-        pool.query(q.demos),
-        pool.query(q.activeAuthors),
-        pool.query(q.feedback),
-        pool.query(q.shares),
-        pool.query(q.demoTrend),
-        pool.query(q.feedbackTrend),
+        client.query(q.demos),
+        client.query(q.activeAuthors),
+        client.query(q.feedback),
+        client.query(q.shares),
+        client.query(q.demoTrend),
+        client.query(q.feedbackTrend),
       ]);
+    await client.query("COMMIT");
     res.set("Cache-Control", "no-store");
     return res.json({
       demos: demos.rows[0],
@@ -1077,8 +1103,11 @@ app.get("/api/metrics", requireHolodeckAuth, requireAdmin, async (_req, res) => 
       notTracked: ["exportsByFormat", "activeUsers", "demoOpens"],
     });
   } catch (err) {
+    if (client) { try { await client.query("ROLLBACK"); } catch (_) { /* ignore */ } }
     console.error("[holodeck] /api/metrics failed:", (err && err.message) || err);
     return res.status(500).json({ error: "Failed to compute metrics." });
+  } finally {
+    if (client) client.release();
   }
 });
 

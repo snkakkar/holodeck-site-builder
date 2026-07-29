@@ -29,13 +29,20 @@ ALTER TABLE public.feedback          FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS projects_select ON public.projects;
 CREATE POLICY projects_select ON public.projects FOR SELECT TO PUBLIC
 USING (
-  app.is_salesforce() AND (
+  -- Reporting admin sees ALL rows (org-wide metrics need cross-user counts;
+  -- forced RLS otherwise hides every other user's rows even from the owner
+  -- login role). Same single-admin gate as feedback_select — no separate
+  -- surface. User-facing lists still filter by owner_id in the query, so this
+  -- does NOT change the Projects/gallery/shared views; only /api/metrics
+  -- issues unfiltered count(*) and relies on this branch.
+  app.is_feedback_admin()
+  OR (app.is_salesforce() AND (
     owner_id = app.user_id()
     OR visibility = 'gallery'::text
     OR EXISTS (SELECT 1 FROM public.project_shares s
                WHERE s.project_id = projects.id
                  AND lower(s.shared_with_email) = app.current_email())
-  )
+  ))
 );
 
 DROP POLICY IF EXISTS projects_insert ON public.projects;
@@ -71,10 +78,14 @@ USING (app.is_salesforce() AND (owner_id = app.user_id()));
 DROP POLICY IF EXISTS shares_select ON public.project_shares;
 CREATE POLICY shares_select ON public.project_shares FOR SELECT TO PUBLIC
 USING (
-  app.is_salesforce() AND (
+  -- Reporting admin sees ALL shares for org-wide collaboration counts (see
+  -- projects_select). Same single-admin gate; user-facing share reads are
+  -- unaffected.
+  app.is_feedback_admin()
+  OR (app.is_salesforce() AND (
     lower(shared_with_email) = app.current_email()
     OR created_by = app.user_id()
-  )
+  ))
 );
 
 DROP POLICY IF EXISTS shares_insert ON public.project_shares;
