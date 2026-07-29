@@ -27,6 +27,7 @@
   const AUBREY    = window.HOLO_AUBREY;
   const AUTH      = window.HOLO_AUTH;
   const FEEDBACK  = window.HOLO_FEEDBACK;
+  const METRICS   = window.HOLO_METRICS;
 
   // ─── App-level constants ──────────────────────────────────────
   // 9-step guided flow. Story used to be one step doing three things
@@ -359,6 +360,13 @@
       render();
     }).catch(navFailed("Couldn't open your profile. Returning to projects."));
   }
+  function goReporting() {
+    const save = (app.view === "builder" && app.state) ? saveActive() : Promise.resolve();
+    save.then(function () {
+      app.view = "reporting";
+      render();
+    }).catch(navFailed("Couldn't open reporting. Returning to projects."));
+  }
   // Create a blank project and open the builder on the Script & Story
   // step (the new first step). onReady, if given, runs after the initial
   // render with the fresh state — used by the "Aubrey script" chooser
@@ -523,10 +531,15 @@
     }
 
     // Right-side nav
-    [
+    const navLinks = [
       ["home",     "Home",      function () { goHome(); }],
       ["feedback", "Feedback",  function () { goFeedback(); }],
-    ].forEach(function (n) {
+    ];
+    // Reporting is admin-only (cosmetic gate; /api/metrics enforces it server-side).
+    if (FEEDBACK && FEEDBACK.isAdmin()) {
+      navLinks.push(["reporting", "Reporting", function () { goReporting(); }]);
+    }
+    navLinks.forEach(function (n) {
       const isActive = (app.view === n[0]);
       right.appendChild(el("button", {
         class: "bx-nav-link" + (isActive ? " is-active" : ""),
@@ -682,6 +695,15 @@
       const wrap = el("section", { class: "bx-page", id: "bxPage" });
       shell.appendChild(wrap);
       renderProfilePage(wrap);
+      setSaveIndicator(false);
+      return;
+    }
+
+    if (app.view === "reporting") {
+      shell.classList.add("is-single");
+      const wrap = el("section", { class: "bx-page", id: "bxPage" });
+      shell.appendChild(wrap);
+      renderReportingPage(wrap);
       setSaveIndicator(false);
       return;
     }
@@ -6779,6 +6801,190 @@
     }
 
     renderFeedbackForm(container);
+  }
+
+  // ─── Admin reporting / metrics dashboard ───────────────────────
+  // Aggregate usage across all users. Data comes from /api/metrics (server
+  // aggregates with the owner role; RLS blocks this from the browser). The
+  // admin check here is cosmetic — the endpoint enforces it and 403s others.
+  function renderReportingPage(container) {
+    container.innerHTML = "";
+    container.appendChild(stepHeader(
+      "Reporting",
+      "Usage & metrics",
+      "Aggregate activity across all demos and users. Admin-only."
+    ));
+
+    if (!(METRICS && METRICS.isAdmin && METRICS.isAdmin())) {
+      container.appendChild(el("div", { class: "bx-empty" }, [
+        el("strong", { text: "Not available" }),
+        el("div", { text: "Reporting is limited to the admin account." }),
+      ]));
+      return;
+    }
+
+    const card = el("div", { class: "bx-card" });
+    card.appendChild(el("div", { class: "bx-card-title", text: "Overview" }));
+    const sub = el("div", { class: "bx-card-sub", text: "Loading metrics…" });
+    card.appendChild(sub);
+    const body = el("div", {});
+    card.appendChild(body);
+
+    const refresh = btn("Refresh", "bx-btn-secondary", function () { load(); });
+    card.appendChild(el("div", { class: "bx-row bx-mt-12" }, [refresh]));
+    container.appendChild(card);
+
+    function load() {
+      sub.textContent = "Loading metrics…";
+      body.innerHTML = "";
+      refresh.setAttribute("disabled", "disabled");
+      METRICS.getMetrics().then(function (m) {
+        refresh.removeAttribute("disabled");
+        sub.textContent = "Aggregate activity across all demos and users.";
+        renderMetrics(body, m || {});
+      }).catch(function (err) {
+        refresh.removeAttribute("disabled");
+        sub.textContent = "Couldn't load metrics.";
+        body.innerHTML = "";
+        body.appendChild(el("div", { class: "bx-empty" }, [
+          el("strong", { text: (err && err.status === 403) ? "Not authorized" : "Error" }),
+          el("div", { text: (err && err.message) || "Failed to load metrics." }),
+        ]));
+      });
+    }
+
+    load();
+  }
+
+  // Build the metric tiles / trends / tables from the /api/metrics payload.
+  function renderMetrics(host, m) {
+    const demos = m.demos || {};
+    const authors = m.activeAuthors || {};
+    const fb = m.feedback || {};
+    const shares = m.shares || {};
+    const trends = m.trends || {};
+    const notTracked = m.notTracked || [];
+
+    function num(v) { return (v == null || v === "") ? "0" : String(v); }
+
+    // KPI tile — big number + label + optional note.
+    function tile(label, value, note) {
+      return el("div", { class: "bx-card bx-metric-tile" }, [
+        el("div", { class: "bx-metric-value", text: num(value) }),
+        el("div", { class: "bx-metric-label", text: label }),
+        note ? el("div", { class: "bx-metric-note", text: note }) : null,
+      ]);
+    }
+
+    // ── Demos ──
+    host.appendChild(el("div", { class: "bx-card-title bx-mt-24", text: "Demos" }));
+    host.appendChild(el("div", { class: "bx-grid-3" }, [
+      tile("Total demos", demos.total),
+      tile("Created — last 7 days", demos.last7),
+      tile("Created — last 30 days", demos.last30),
+      tile("Private", demos.private),
+      tile("In gallery", demos.gallery),
+    ]));
+
+    // ── Active authors (proxy) ──
+    host.appendChild(el("div", { class: "bx-card-title bx-mt-24", text: "Active authors" }));
+    host.appendChild(el("div", { class: "bx-card-sub",
+      text: "Distinct users who created or edited a demo. A content-authorship proxy — not login-based active users." }));
+    host.appendChild(el("div", { class: "bx-grid-2" }, [
+      tile("Last 7 days", authors.last7),
+      tile("Last 30 days", authors.last30),
+    ]));
+
+    // ── Feedback ──
+    host.appendChild(el("div", { class: "bx-card-title bx-mt-24", text: "Feedback" }));
+    host.appendChild(el("div", { class: "bx-grid-3" }, [
+      tile("Total", fb.total),
+      tile("Avg rating", fb.avg_rating == null ? "—" : fb.avg_rating, "1–5"),
+      tile("Open (new)", fb.new_count),
+    ]));
+    host.appendChild(metricTable("By type", [
+      ["Likes", fb.like_count],
+      ["Dislikes", fb.dislike_count],
+      ["Bugs", fb.bug_count],
+      ["Complaints", fb.complaint_count],
+    ]));
+    host.appendChild(metricTable("By status", [
+      ["New", fb.new_count],
+      ["In progress", fb.in_progress_count],
+      ["Resolved", fb.resolved_count],
+    ]));
+
+    // ── Collaboration ──
+    host.appendChild(el("div", { class: "bx-card-title bx-mt-24", text: "Collaboration" }));
+    host.appendChild(el("div", { class: "bx-grid-3" }, [
+      tile("Total shares", shares.total),
+      tile("View access", shares.view_count),
+      tile("Edit access", shares.edit_count),
+    ]));
+
+    // ── Trends ──
+    host.appendChild(el("div", { class: "bx-card-title bx-mt-24", text: "Trends — last 12 weeks" }));
+    host.appendChild(trendChart("Demos created per week", trends.demosPerWeek || []));
+    host.appendChild(trendChart("Feedback per week", trends.feedbackPerWeek || []));
+
+    // ── Not yet tracked (Phase 2) ──
+    if (notTracked.length) {
+      const labels = {
+        exportsByFormat: "Exports by format (PPTX / PDF / Slides)",
+        activeUsers: "True active users (DAU / WAU / MAU)",
+        demoOpens: "Demo opens / views",
+      };
+      const rows = notTracked.map(function (k) { return [labels[k] || k, "Not yet tracked"]; });
+      const t = metricTable("Not yet tracked", rows);
+      t.appendChild(el("div", { class: "bx-card-sub",
+        text: "These require event tracking that isn't in place yet (see Phase 2)." }));
+      host.appendChild(t);
+    }
+  }
+
+  // Simple label/value table reusing the feedback-row styling.
+  function metricTable(title, rows) {
+    const card = el("div", { class: "bx-card bx-mt-12" });
+    card.appendChild(el("div", { class: "bx-card-title", text: title }));
+    const list = el("div", { class: "bx-feedback-list" });
+    rows.forEach(function (r) {
+      list.appendChild(el("div", { class: "bx-feedback-row" }, [
+        el("div", { class: "bx-feedback-row-head" }, [
+          el("span", { class: "bx-feedback-row-type", text: String(r[0]) }),
+          el("span", { class: "bx-feedback-row-status", text: (r[1] == null ? "0" : String(r[1])) }),
+        ]),
+      ]));
+    });
+    card.appendChild(list);
+    return card;
+  }
+
+  // Hand-rolled horizontal bar chart (no chart library). Each series point is
+  // { week, count }; bars are sized as a % of the max count in the series.
+  function trendChart(title, series) {
+    const card = el("div", { class: "bx-card bx-mt-12" });
+    card.appendChild(el("div", { class: "bx-card-title", text: title }));
+    if (!series.length) {
+      card.appendChild(el("div", { class: "bx-card-sub", text: "No data yet." }));
+      return card;
+    }
+    const max = series.reduce(function (mx, p) {
+      const c = Number(p && p.count) || 0; return c > mx ? c : mx;
+    }, 0);
+    const wrap = el("div", { class: "bx-trend" });
+    series.forEach(function (p) {
+      const c = Number(p && p.count) || 0;
+      const pct = max > 0 ? Math.round((c / max) * 100) : 0;
+      const bar = el("div", { class: "bx-trend-fill" });
+      bar.style.width = pct + "%";
+      wrap.appendChild(el("div", { class: "bx-trend-row" }, [
+        el("span", { class: "bx-trend-label", text: String((p && p.week) || "") }),
+        el("div", { class: "bx-trend-track" }, [bar]),
+        el("span", { class: "bx-trend-count", text: String(c) }),
+      ]));
+    });
+    card.appendChild(wrap);
+    return card;
   }
 
   function renderAdminPerformancePanel(container) {

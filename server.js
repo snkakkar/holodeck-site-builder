@@ -120,6 +120,10 @@ const AUBREY = {
 const JWT_SECRET = process.env.JWT_SECRET || "";
 const JWT_KEY = JWT_SECRET ? new TextEncoder().encode(JWT_SECRET) : null;
 const ALLOWED_EMAIL_DOMAIN = "salesforce.com";
+// Single admin identity for reporting/metrics — MUST match the DB's
+// app.is_feedback_admin() (db/02_functions.sql) so server-side gating and
+// RLS agree on who the one admin is.
+const ADMIN_EMAIL = "shachi.kakkar@salesforce.com";
 const NEON_AUTH_BASE = (process.env.NEON_AUTH_BASE || "").replace(/\/+$/, "");
 const NEON_JWKS_URL = process.env.NEON_JWKS_URL || (NEON_AUTH_BASE ? `${NEON_AUTH_BASE}/jwks` : "");
 const NEON_JWKS = NEON_JWKS_URL ? createRemoteJWKSet(new URL(NEON_JWKS_URL)) : null;
@@ -132,6 +136,39 @@ function dbRoleFromUri(uri) {
 const PGRST_DB_ROLE =
   process.env.PGRST_DB_ROLE ||
   dbRoleFromUri(process.env.DATABASE_URL || process.env.PGRST_DB_URI || "");
+
+// ── Direct Postgres pool (admin reporting only) ────────────────
+// The app is otherwise 100% client→PostgREST, so all reads are RLS-scoped
+// to the caller. The metrics dashboard needs cross-user aggregates, which
+// RLS forbids. We open ONE pool here as the DATABASE_URL login role (the
+// table owner — not subject to RLS) and use it ONLY for the admin-gated
+// /api/metrics roll-ups, which return counts/series, never raw rows.
+// Lazily built on first use so the server still boots without a DB
+// (mirrors the GCS lazy-init pattern below).
+const DATABASE_URL = process.env.DATABASE_URL || process.env.PGRST_DB_URI || "";
+let _pgPool = null;
+let _pgInit = false;
+function getPgPool() {
+  if (_pgInit) return _pgPool;
+  _pgInit = true;
+  if (!DATABASE_URL) return null;
+  try {
+    const { Pool } = require("pg");
+    _pgPool = new Pool({
+      connectionString: DATABASE_URL,
+      max: 3,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    });
+    _pgPool.on("error", (err) => {
+      console.warn("[holodeck] pg pool error:", (err && err.message) || err);
+    });
+  } catch (err) {
+    console.warn("[holodeck] pg init failed; /api/metrics disabled:", (err && err.message) || err);
+    _pgPool = null;
+  }
+  return _pgPool;
+}
 
 async function verifyBearerToken(jwt) {
   if (JWT_KEY) {
@@ -170,6 +207,16 @@ async function requireHolodeckAuth(req, res, next) {
   } catch (_) {
     return res.status(401).json({ error: "Invalid or expired token." });
   }
+}
+
+// Gate a route to the single admin identity. Chain AFTER requireHolodeckAuth,
+// which populates req.holoUser. This is the authoritative server-side check
+// for the metrics endpoint (the client nav-link gate is cosmetic only).
+function requireAdmin(req, res, next) {
+  if (!req.holoUser || req.holoUser.email !== ADMIN_EMAIL) {
+    return res.status(403).json({ error: "Not authorized." });
+  }
+  return next();
 }
 
 // ── Rate limit (fixed window, in-memory) ───────────────────────
@@ -942,6 +989,98 @@ app.get("/api/aubrey/brandkit/items", requireHolodeckAuth, rateLimit, (req, res)
   aubreyProxyGet(res, "brandkit", "/api/items", req.holoUser.email));
 app.get("/api/aubrey/brandkit/items/:id", requireHolodeckAuth, rateLimit, (req, res) =>
   aubreyProxyGet(res, "brandkit", "/api/items/" + encodeURIComponent(req.params.id), req.holoUser.email));
+
+// ── Admin reporting / metrics ──────────────────────────────────
+// Cross-user aggregates for the admin dashboard. RLS scopes every normal
+// (client→PostgREST) read to the caller, so aggregation happens here via the
+// owner-role pool (getPgPool). Double-gated: requireHolodeckAuth (valid
+// salesforce.com JWT) → requireAdmin (single admin email). Returns ONLY
+// counts and time series — no demo names, feedback text, emails, or ids.
+// Phase 1 uses only existing columns; exports / true active users are not
+// tracked yet and are surfaced as "not tracked" flags for the UI.
+app.get("/api/metrics", requireHolodeckAuth, requireAdmin, async (_req, res) => {
+  const pool = getPgPool();
+  if (!pool) {
+    return res.status(503).json({ error: "Metrics unavailable — database not configured." });
+  }
+  // Each query returns pure aggregates. `now()` is DB-side so trends are
+  // stable regardless of the app server's clock. Weekly series cover the
+  // trailing 12 weeks, oldest first, with zero-filled gaps.
+  const q = {
+    demos: `SELECT
+        count(*)::int AS total,
+        count(*) FILTER (WHERE created_at >= now() - interval '7 days')::int  AS last7,
+        count(*) FILTER (WHERE created_at >= now() - interval '30 days')::int AS last30,
+        count(*) FILTER (WHERE visibility = 'gallery')::int AS gallery,
+        count(*) FILTER (WHERE visibility = 'private')::int AS private
+      FROM public.projects`,
+    activeAuthors: `SELECT
+        count(DISTINCT owner_id) FILTER (
+          WHERE greatest(created_at, updated_at) >= now() - interval '7 days')::int  AS last7,
+        count(DISTINCT owner_id) FILTER (
+          WHERE greatest(created_at, updated_at) >= now() - interval '30 days')::int AS last30
+      FROM public.projects`,
+    feedback: `SELECT
+        count(*)::int AS total,
+        count(*) FILTER (WHERE type = 'like')::int      AS like_count,
+        count(*) FILTER (WHERE type = 'dislike')::int   AS dislike_count,
+        count(*) FILTER (WHERE type = 'bug')::int       AS bug_count,
+        count(*) FILTER (WHERE type = 'complaint')::int AS complaint_count,
+        count(*) FILTER (WHERE status = 'new')::int         AS new_count,
+        count(*) FILTER (WHERE status = 'in_progress')::int AS in_progress_count,
+        count(*) FILTER (WHERE status = 'resolved')::int    AS resolved_count,
+        round(avg(rating)::numeric, 2)::float AS avg_rating
+      FROM public.feedback`,
+    shares: `SELECT
+        count(*)::int AS total,
+        count(*) FILTER (WHERE permission = 'view')::int AS view_count,
+        count(*) FILTER (WHERE permission = 'edit')::int AS edit_count
+      FROM public.project_shares`,
+    demoTrend: `SELECT to_char(wk, 'YYYY-MM-DD') AS week, coalesce(c, 0)::int AS count
+      FROM generate_series(date_trunc('week', now()) - interval '11 weeks',
+                           date_trunc('week', now()), interval '1 week') AS wk
+      LEFT JOIN (
+        SELECT date_trunc('week', created_at) AS wk, count(*) AS c
+        FROM public.projects GROUP BY 1
+      ) t USING (wk)
+      ORDER BY wk`,
+    feedbackTrend: `SELECT to_char(wk, 'YYYY-MM-DD') AS week, coalesce(c, 0)::int AS count
+      FROM generate_series(date_trunc('week', now()) - interval '11 weeks',
+                           date_trunc('week', now()), interval '1 week') AS wk
+      LEFT JOIN (
+        SELECT date_trunc('week', created_at) AS wk, count(*) AS c
+        FROM public.feedback GROUP BY 1
+      ) t USING (wk)
+      ORDER BY wk`,
+  };
+  try {
+    const [demos, activeAuthors, feedback, shares, demoTrend, feedbackTrend] =
+      await Promise.all([
+        pool.query(q.demos),
+        pool.query(q.activeAuthors),
+        pool.query(q.feedback),
+        pool.query(q.shares),
+        pool.query(q.demoTrend),
+        pool.query(q.feedbackTrend),
+      ]);
+    res.set("Cache-Control", "no-store");
+    return res.json({
+      demos: demos.rows[0],
+      activeAuthors: activeAuthors.rows[0],
+      feedback: feedback.rows[0],
+      shares: shares.rows[0],
+      trends: {
+        demosPerWeek: demoTrend.rows,
+        feedbackPerWeek: feedbackTrend.rows,
+      },
+      // Phase 2 — no event data exists yet; the UI shows these as "not tracked".
+      notTracked: ["exportsByFormat", "activeUsers", "demoOpens"],
+    });
+  } catch (err) {
+    console.error("[holodeck] /api/metrics failed:", (err && err.message) || err);
+    return res.status(500).json({ error: "Failed to compute metrics." });
+  }
+});
 
 // ── Backend endpoint config for the browser ───────────────────
 // The frontend reads window.HOLO_ENV to learn where the Data API and

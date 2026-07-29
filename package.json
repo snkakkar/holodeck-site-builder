@@ -21,7 +21,8 @@
     "express": "^4.21.2",
     "googleapis": "^144.0.0",
     "http-proxy-middleware": "^3.0.7",
-    "jose": "^5.10.0"
+    "jose": "^5.10.0",
+    "pg": "^8.22.0"
   },
   "overrides": {
     "uuid": "^11.1.0"
