@@ -571,9 +571,23 @@ window.cartPlaceholderSVG = function(p, w=80, h=232){
 /* Photo (from APP_CONFIG.productImages) with fallback. In a generic/preview
    config (before AI), show the neutral shopping-cart placeholder; otherwise the
    branded procedural silhouette. A generated AI photo always wins. */
+/* onerror handler: a persisted AI photo URL can expire (signed GCS URLs), which
+   would otherwise paint a broken-image icon. Swap the dead <img> for the same
+   neutral placeholder SVG the no-photo path uses, so it degrades cleanly. */
+window.onProdImgError = function(img){
+  try{
+    if(!img || img.dataset.fellBack) return;   // guard against a fallback loop
+    img.dataset.fellBack = "1";
+    const p = (window.byId && window.byId(img.getAttribute("data-pid"))) || { id: img.getAttribute("data-pid"), name: img.getAttribute("alt") };
+    const w = Number(img.getAttribute("width")) || undefined;
+    const h = Number(img.getAttribute("height")) || undefined;
+    const svg = (APP_CONFIG._placeholder ? cartPlaceholderSVG : productSVG)(p, w, h);
+    if(svg) img.outerHTML = svg;
+  }catch(_){/* leave the broken img rather than throw during render */}
+};
 window.productImage = function(p, w, h){
   const src = (APP_CONFIG.productImages||{})[p.id];
-  if(src) return `<img class="prod-img" src="${src}" width="${w}" height="${h}" alt="${esc(p.name)}" loading="lazy"/>`;
+  if(src) return `<img class="prod-img" src="${src}" width="${w}" height="${h}" alt="${esc(p.name)}" loading="lazy" data-pid="${esc(p.id)}" onerror="window.onProdImgError&&window.onProdImgError(this)"/>`;
   if(APP_CONFIG._placeholder) return cartPlaceholderSVG(p, w, h);
   return productSVG(p, w, h);
 };

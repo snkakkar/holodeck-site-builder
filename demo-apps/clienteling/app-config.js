@@ -469,10 +469,22 @@ window.cartPlaceholderSVG = function (p, w = 80, h = 220) {
    generic/preview config (before AI), show the neutral shopping-cart
    placeholder; otherwise the branded procedural silhouette.
    Signature mirrors getProductSVG so call sites keep width/height args. */
+/* onerror handler: a persisted AI photo URL can expire (signed GCS URLs), which
+   would otherwise paint a broken-image icon. Swap the dead <img> for the same
+   neutral placeholder SVG the no-photo path uses, so it degrades cleanly. */
+window.onProdImgError = function (img) {
+  try {
+    if (!img || img.dataset.fellBack) return;   // guard against a fallback loop
+    img.dataset.fellBack = "1";
+    const p = { id: img.getAttribute("data-pid"), name: img.getAttribute("alt") };
+    const svg = (window.APP_CONFIG._placeholder ? window.cartPlaceholderSVG : window.getProductSVG)(p);
+    if (svg) img.outerHTML = svg;
+  } catch (_) { /* leave the broken img rather than throw during render */ }
+};
 window.productImage = function (p, w, h) {
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const src = (window.APP_CONFIG.productImages || {})[p.id];
-  if (src) return '<img class="prod-img" src="' + src + '" alt="' + esc(p.name) + '" style="max-width:100%;max-height:100%;object-fit:contain"/>';
+  if (src) return '<img class="prod-img" src="' + src + '" alt="' + esc(p.name) + '" data-pid="' + esc(p.id) + '" onerror="window.onProdImgError&&window.onProdImgError(this)" style="max-width:100%;max-height:100%;object-fit:contain"/>';
   if (window.APP_CONFIG._placeholder) return window.cartPlaceholderSVG(p, w, h);
   return window.getProductSVG(p, w, h);
 };

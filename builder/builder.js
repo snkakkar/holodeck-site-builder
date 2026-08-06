@@ -2564,6 +2564,26 @@
         });
         if (Object.keys(seed).length) s.retailImages = seed;
       }
+      // Self-heal a STALE image store: if the images were shot against a
+      // different story (persisted retailCatalogSig ≠ the current signature),
+      // they no longer match this project's story. Clear them so the next
+      // explicit "Regenerate with AI" re-shoots cleanly instead of reusing the
+      // old (often broken/expired) photos. Only clear when a real prior
+      // signature exists AND differs — an untracked legacy project (sig == null,
+      // seeded just above) or an unchanged-story reopen (sig matches) keeps its
+      // images and costs 0 image calls. Runs last so a genuinely-stale project
+      // ends with a nulled store regardless of the seed above.
+      const sigNow = storySignature();
+      if (typeof s.retailCatalogSig === "string" && s.retailCatalogSig &&
+          s.retailCatalogSig !== sigNow) {
+        s.retailImages = null;
+        ["clienteling", "cimulate"].forEach(function (id) {
+          const a = s.apps[id];
+          if (!a) return;
+          a.productImages = null;
+          if (a.config) a.config.productImages = null;
+        });
+      }
     }
     return s.apps;
   }
@@ -3221,6 +3241,18 @@
     // An explicit regenerate on an already-AI'd app must refresh the TEXT too
     // (chips/copy/catalog), not just re-photograph the stale config. The first
     // upgrade from a fresh preview keeps the cheap photograph-the-preview path.
+    //
+    // Product SKU ids are STABLE (sku1..sku12), so generateProductPhotos only
+    // re-shoots ids that are MISSING an image — a deliberate re-shoot on an
+    // already-imaged app would otherwise "Reuse existing product photos" and
+    // spend 0 image calls, returning the OLD (often stale) images. Clear the
+    // image maps first so every SKU is missing and all 12 truly regenerate.
+    // Drop the shared pool too, so the other app's stale images can't reseed.
+    if (already) {
+      slice.productImages = null;
+      if (slice.config) slice.config.productImages = null;
+      app.state.retailImages = null;
+    }
     generateApp(def, slice, "ai", { forceText: already });
   }
 
