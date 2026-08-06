@@ -1131,9 +1131,35 @@
   function isGcsToken(v) { return typeof v === "string" && v.lastIndexOf("gcs:", 0) === 0; }
   function tokenPath(token) { return token.slice(4); } // strip "gcs:"
 
+  // Recover the "gcs:ai/.." token from a (possibly EXPIRED) GCS signed URL.
+  // The GCS object never expires — only the V4 signature does — and the
+  // object path lives in the URL pathname before the query string, so a
+  // stale signed URL is enough to re-derive the token and re-sign later.
+  // This is the inverse of the server's path→signed-url mapping
+  // (server.js signGcsUrl); it is what lets tokenizeForPersist self-heal
+  // product images across sessions when the in-memory _urlToToken map is
+  // empty (e.g. a cold load of a project saved days ago). Gated to "ai/"
+  // to match the server's signable-path guard so we never fabricate a
+  // token the sign route would reject.
+  function gcsTokenFromUrl(url) {
+    if (typeof url !== "string" || url.lastIndexOf("https://storage.googleapis.com/", 0) !== 0) return undefined;
+    let parsed;
+    try { parsed = new URL(url); } catch (_) { return undefined; }
+    const segs = parsed.pathname.replace(/^\/+/, "").split("/"); // [bucket, ai, name.png]
+    segs.shift();                                                // drop the bucket
+    const path = segs.join("/");                                 // "ai/name.png"
+    return path.lastIndexOf("ai/", 0) === 0 ? "gcs:" + path : undefined;
+  }
+
   // Walk every asset-bearing slot in a state, applying fn(value) and
   // writing back any string it returns. Covers assetLibrary.* plus the
-  // two brand logo fields (same shape the cache slimmer handles).
+  // two brand logo fields (same shape the cache slimmer handles), AND the
+  // AI product-image maps for the demo apps (cimulate/clienteling). Those
+  // maps are { productId: url }; without walking them here their signed
+  // URLs were persisted verbatim and never re-signed, so they expired
+  // (7-day V4 TTL) → broken thumbnails. Covering them here fixes save
+  // (tokenize), load (re-sign), AND export (re-sign) in one place, since
+  // all three route through this walk.
   function mapAssetValues(state, fn) {
     if (!state) return;
     if (state.assetLibrary && typeof state.assetLibrary === "object") {
@@ -1148,13 +1174,37 @@
         if (typeof out === "string") state.brand[k] = out;
       });
     }
+    // Apply fn to each value of a { key: url } map, writing back strings.
+    function walkStringMap(obj) {
+      if (!obj || typeof obj !== "object") return;
+      Object.keys(obj).forEach(function (k) {
+        const out = fn(obj[k]);
+        if (typeof out === "string") obj[k] = out;
+      });
+    }
+    // Cross-app shared image pool.
+    walkStringMap(state.retailImages);
+    // Per-app product images: both the slice map and the nested config map.
+    if (state.apps && typeof state.apps === "object") {
+      Object.keys(state.apps).forEach(function (id) {
+        const appSlice = state.apps[id];
+        if (!appSlice || typeof appSlice !== "object") return;
+        walkStringMap(appSlice.productImages);
+        walkStringMap(appSlice.config && appSlice.config.productImages);
+      });
+    }
   }
 
   // PERSIST guard: on a CLONE bound for cache/cloud, swap any signed URL
   // we know the token for back to the token. Never mutates live state.
   function tokenizeForPersist(stateClone) {
     mapAssetValues(stateClone, function (v) {
-      return (typeof v === "string" && _urlToToken[v]) || undefined;
+      if (typeof v !== "string") return undefined;
+      // Prefer the session map (exact signed URL we just minted); else
+      // self-heal by parsing the "gcs:ai/.." token straight out of the
+      // signed URL — this is what recovers product images in projects
+      // saved in a prior session (the map is empty on a cold load).
+      return _urlToToken[v] || gcsTokenFromUrl(v) || undefined;
     });
     return stateClone;
   }
