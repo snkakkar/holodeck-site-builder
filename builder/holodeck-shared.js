@@ -215,6 +215,69 @@
     if (v === "they/them") return { subj: "Their", obj: "them", poss: "their", nom: "they" };
     return                        { subj: "Her",   obj: "her",  poss: "her",   nom: "she"  };
   }
+  // Best-effort first-name → pronouns heuristic. Used when no explicit
+  // pronouns are set (e.g. Simple mode, where the persona is inferred from
+  // just a name). These are FICTIONAL demo personas, and the product decision
+  // is to always resolve to he/him or she/her (never they/them): pick whichever
+  // gender the name is >50% likely to be. A broad dictionary (incl. common
+  // nicknames like "Tom") handles known names; a morphological fallback
+  // ('a'-family endings lean female, else male) resolves the rest so the
+  // profile always shows a definite pronoun. Returns a "she/her" | "he/him"
+  // string for pronounsFor.
+  const NAME_PRONOUNS = (function () {
+    const map = {};
+    const add = function (list, val) { list.forEach(function (n) { map[n] = val; }); };
+    add(["james","john","robert","michael","david","william","richard","joseph","thomas",
+         "charles","christopher","daniel","matthew","anthony","mark","donald","steven","paul",
+         "andrew","joshua","kevin","brian","george","edward","ronald","timothy","jason","jeffrey",
+         "ryan","gary","nicholas","eric","jonathan","stephen","larry","justin","scott","brandon",
+         "benjamin","samuel","gregory","alexander","patrick","jack","dennis","jerry","tyler","aaron",
+         "henry","jose","adam","nathan","peter","zachary","kyle","noah","ethan","jeremy","liam",
+         "carlos","juan","luis","miguel","raj","amir","omar","ali","wei","chen","hiroshi","carl",
+         // common nicknames / short forms
+         "tom","tommy","bob","bobby","rob","robbie","bill","billy","will","mike","mikey","dave",
+         "davey","jim","jimmy","joe","joey","dan","danny","ed","eddie","ted","tony","nick","rick",
+         "ricky","ron","ronnie","ken","kenny","greg","jeff","jerry","gary","chuck","hank","matt",
+         "steve","andy","drew","phil","ray","roy","vince","vinny","marty","gus","sal","moe","ike",
+         "fred","frank","gene","jake","josh","zach","nate","ben","sonny","buddy","al"], "he/him");
+    add(["mary","patricia","jennifer","linda","elizabeth","barbara","susan","jessica","sarah",
+         "karen","nancy","lisa","margaret","betty","sandra","ashley","dorothy","kimberly","emily",
+         "donna","michelle","carol","amanda","melissa","deborah","stephanie","rebecca","laura",
+         "helen","sharon","cynthia","kathleen","amy","angela","anna","brenda","pamela","nicole",
+         "emma","samantha","katherine","christine","debra","rachel","catherine","carolyn","janet",
+         "olivia","sophia","isabella","mia","charlotte","amelia","harper","evelyn","abigail","grace",
+         "maria","ana","sofia","priya","aisha","fatima","mei","yuki","hannah","chloe","zoe",
+         // common nicknames / short forms
+         "sue","susie","kate","katie","katy","liz","lizzie","beth","betsy","meg","maggie","peggy",
+         "jen","jenny","jess","jessie","becky","cathy","kathy","patty","trish","deb","debbie",
+         "mandy","tammy","pam","angie","annie","nan","gail","dot","dottie","ellie","nell","nellie",
+         "molly","polly","lucy","ruby","rosie","josie","gracie","bella","abby","cindy","wendy",
+         "vicky","penny","fran","gigi","kim","lynn"], "she/her");
+    return map;
+  })();
+  function inferPronounsFromName(name) {
+    const first = String(name || "").trim().toLowerCase().split(/[\s,]+/)[0].replace(/[^a-z]/g, "");
+    if (first && NAME_PRONOUNS[first]) return NAME_PRONOUNS[first];
+    // Morphological fallback so an unknown name still resolves to a definite
+    // pronoun. Feminine endings (…a / …ah / …ia / …elle / …ette / …ine /
+    // …lyn(n) / …een) are a strong female signal in English & Romance names;
+    // everything else picks he/him (the majority case for consonant endings).
+    if (first && /(?:a|ah|ia|elle|ette|ine|lyn|lynn|een|ette)$/.test(first)) return "she/her";
+    return "he/him";
+  }
+  // Industry-keyed customer role fallback for the unified-profile identity
+  // pane, so it never shows a "[TODO]". Mirrors industryAffinities' regex
+  // keying. These describe the CUSTOMER (the profiled person), not an SE.
+  function roleForIndustry(ind) {
+    const key = String(ind || "").toLowerCase();
+    if (/retail|commerce|fashion|apparel|store/.test(key)) return "Loyalty member";
+    if (/travel|hospitality|airline|hotel|resort/.test(key)) return "Frequent traveler";
+    if (/financ|bank|insur|wealth|fintech/.test(key)) return "Premier account holder";
+    if (/health|medical|pharma|wellness|care/.test(key)) return "Care plan member";
+    if (/tech|software|saas|telecom|media/.test(key)) return "Subscriber";
+    if (/auto|manufactur|industr|energy/.test(key)) return "Vehicle owner";
+    return "Valued customer";
+  }
   // Wishlist headline default. Adapter wraps "Picked just for X" in
   // <strong>; preview renders plain text. Both call this to pick the
   // pronoun-aware default.
@@ -663,7 +726,9 @@
     const prods = (input.products || []).filter(Boolean);
     const f = input.storyFoundations || {};
     const first = personaFirstName(p) || (p.name || "the customer");
-    const pron = pronounsFor(p.pronouns);
+    // Pronouns: explicit persona value wins; otherwise infer he/him or she/her
+    // from the name (see inferPronounsFromName) instead of defaulting to she/her.
+    const pron = pronounsFor(p.pronouns || inferPronounsFromName(p.name || p.fullName));
     const hasAgentforce = prods.indexOf("Agentforce") >= 0;
     // Persona stats ({value,label}) double as concrete profile facts when present.
     const stats = (Array.isArray(p.stats) ? p.stats : []).filter(function (s) {
@@ -683,8 +748,8 @@
     facets.push({
       key: "identity", label: "Identity", eyebrow: "Resolved profile",
       rows: [
-        { label: "Name",        value: p.name || p.fullName || "[TODO: persona name]" },
-        { label: "Role",        value: p.role || p.jobTitle || "[TODO: persona role]" },
+        { label: "Name",        value: p.name || p.fullName || first },
+        { label: "Role",        value: p.role || p.jobTitle || roleForIndustry(input.industry || p.customerOf) },
         { label: "Segment",     value: p.customerOf || (input.industry ? input.industry + " customer" : "Known customer") },
         { label: "Pronouns",    value: pron.nom + "/" + pron.obj },
         { label: "Profile",     value: "Unified across web, mobile & store" },
@@ -919,6 +984,13 @@
     // visible (parked) and re-selectable. The runtime/preview/export paths
     // omit it, so they still drop deselected slides.
     const includeDeselected = !!(opts && opts.includeDeselected);
+    // Simple mode (the one-screen guided path): the deck is JUST the authored
+    // per-experience demo slides — no synthetic intro/journey/persona/BV/opener
+    // framing. Every framing slide is tagged synthetic:true and flows through
+    // add(), while authored demo slides are pushed directly below, so a single
+    // guard in add() drops all framing for simple projects and leaves the full
+    // builder (mode absent/"full") byte-for-byte unchanged.
+    const simpleMode = state.mode === "simple";
     // Selection gate: a synthetic slide is emitted unless the SE explicitly
     // de-selected it in Step 5. selectedRecIds maps id → bool; an id ABSENT
     // from the map means "default on" (so legacy state / first run is
@@ -929,6 +1001,10 @@
       return !(id in sel) || !!sel[id];
     }
     function add(entry) {
+      // Simple mode: drop ALL synthetic framing slides (intro/journey/persona/
+      // business-value + the synthetic demo opener/timeline). Authored demo
+      // slides bypass add() so they still render.
+      if (simpleMode && entry && entry.synthetic) return;
       // Skip synthetic slides the SE de-selected; non-synthetic always added.
       if (!includeDeselected && entry && entry.synthetic && entry.id && !isEnabled(entry.id)) return;
       out.push(Object.assign({ assets: [], capabilities: [] }, entry));
@@ -1716,6 +1792,8 @@
     shortenDriverLabel:      shortenDriverLabel,
     // pronouns
     pronounsFor:             pronounsFor,
+    inferPronounsFromName:   inferPronounsFromName,
+    roleForIndustry:         roleForIndustry,
     wishlistHeadlineFor:     wishlistHeadlineFor,
     isLegacyWishlistHeadline: isLegacyWishlistHeadline,
     // intro

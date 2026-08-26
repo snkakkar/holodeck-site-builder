@@ -328,7 +328,7 @@ CX components (AubreyDemo):
     '  "assumptions": ["..."],',
     '  "openQuestions": ["..."],',
     '  "storyActs": [{ "title": "<≤ 5 words>", "persona": "", "channel": "", "summary": "<ONE complete sentence ≤ 200 chars>", "demoMoment": "<≤ 42 chars scene label>", "salesforceCapabilities": "<≤ 36 chars>", "businessValue": "<≤ 28 chars — fits a button, e.g. \\"Book in seconds\\">", "notes": "" }],',
-    '  "personas": [{ "name": "", "role": "<≤ 16 chars, e.g. \\"CMO\\">", "goals": "<≤ 140 chars>", "painPoints": "<≤ 80 chars>", "demoRelevance": "" }],',
+    '  "personas": [{ "name": "", "role": "<≤ 16 chars — the person\'s title/relationship, e.g. \\"CMO\\" (B2B) or \\"Loyalty member\\" (consumer)>", "pronouns": "<she/her or he/him — infer from the name and pick whichever is the >50% likely gender (do NOT use they/them for these personas)>", "goals": "<≤ 140 chars>", "painPoints": "<≤ 80 chars>", "demoRelevance": "" }],',
     '  "customerName": "",',
     '  "website": "",',
     '  "industry": "",',
@@ -600,6 +600,47 @@ CX components (AubreyDemo):
   // caller from company/industry + persona + story acts + business value.
   function getAgentChatPrompt(context) {
     return AGENT_CHAT_PROMPT.replace("<<CONTEXT>>", String(context || "[no context provided]"));
+  }
+
+  // Simple-mode "help agent" variant: same {turns:[…]} JSON shape (so the
+  // agentConversation renderer is unchanged), but framed as a CUSTOMER SERVICE
+  // / SUPPORT conversation resolving a specific inquiry the SE supplied. Used
+  // by the guided one-screen path where there's no full demo script.
+  const HELP_AGENT_CHAT_PROMPT = [
+    "You are scripting a short, realistic CUSTOMER SERVICE conversation between",
+    "a company's AI help agent and a customer, shown on a phone during a demo.",
+    "Using the CONTEXT below, return ONE valid JSON object (no prose, no markdown",
+    "fences) with EXACTLY this shape:",
+    "",
+    "{",
+    '  "turns": [',
+    '    { "from": "agent", "text": "<short message>" },',
+    '    { "from": "user",  "text": "<short message>" },',
+    '    { "from": "agent", "kind": "card",',
+    '      "card": { "eyebrow": "<2-3 words>", "title": "<short>", "sub": "<one short line>", "cta": "<2-3 words>" } }',
+    "  ]",
+    "}",
+    "",
+    "RULES:",
+    "1. The FIRST turn is the help agent greeting as the company's support agent,",
+    '   e.g. "Hi, I\'m the <Company> support agent — how can I help?"',
+    "2. The customer then states the SERVICE INQUIRY below in their own words.",
+    "3. The agent resolves it step by step — look up the account/order, explain,",
+    "   and take a concrete action. Keep it grounded in this company & industry.",
+    "4. EXACTLY ONE turn may be a card (kind:\"card\"): the resolution/next step",
+    "   (e.g. a confirmation, a booked appointment, a refund summary). Optional.",
+    "5. The conversation ENDS with the issue resolved and the agent confirming.",
+    "6. Keep every message SHORT — chat bubbles, one or two lines.",
+    "7. This is SUPPORT, not shopping — do not turn it into a product pitch.",
+    "8. Aim for 6-9 turns total.",
+    "",
+    "── CONTEXT ──",
+    "<<CONTEXT>>",
+  ].join("\n");
+
+  // getHelpAgentChatPrompt(context) — same signature as getAgentChatPrompt.
+  function getHelpAgentChatPrompt(context) {
+    return HELP_AGENT_CHAT_PROMPT.replace("<<CONTEXT>>", String(context || "[no context provided]"));
   }
 
   // ─── Script-generation prompt (Step 1 "generate with Gemini") ─
@@ -946,6 +987,8 @@ CX components (AubreyDemo):
     getPersonaCopyPrompt: getPersonaCopyPrompt,
     AGENT_CHAT_PROMPT: AGENT_CHAT_PROMPT,
     getAgentChatPrompt: getAgentChatPrompt,
+    HELP_AGENT_CHAT_PROMPT: HELP_AGENT_CHAT_PROMPT,
+    getHelpAgentChatPrompt: getHelpAgentChatPrompt,
     SCRIPT_GEN_PROMPT: SCRIPT_GEN_PROMPT,
     getScriptGenPrompt: getScriptGenPrompt,
     SLIDE_COPY_PROMPT: SLIDE_COPY_PROMPT,

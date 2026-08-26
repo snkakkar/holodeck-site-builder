@@ -212,6 +212,7 @@
         conciergeName: pick(found.conciergeName, custName + " Concierge"),
         assistantName: "Agentforce",
         colors: Object.assign({}, DEFAULT_CLIENT_COLORS, brand.colors || {}),
+        logoImage: brand.logoImage || "",
       },
       unitNoun: unitNoun,
       introScene: {
@@ -400,6 +401,7 @@
         rewardsLabel: pick(fb.rewardsLabel, "Rewards"),
         searchProduct: "Cimulate",
         colors: Object.assign({}, DEFAULT_CIM_COLORS, brand.colors || {}),
+        logoImage: brand.logoImage || "",
       },
       unitNoun: unitNoun,
       storeLocation: pick(found.storeLocation, (found.customer && found.customer.location) || "Your City"),

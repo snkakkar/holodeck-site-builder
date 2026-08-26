@@ -215,6 +215,17 @@
     state.cxComponents = state.cxComponents
       .filter(function (c) { return c && typeof c === "object"; })
       .map(normalizeCxComponent);
+    // Backfill fields added after this project was last persisted, so existing
+    // projects (loaded from the cache or Neon) pick up the new behavior without
+    // regeneration. Deep-merge brand defaults UNDER whatever the project stored
+    // so the R4 color pickers + app applyBrand always have a value to read, and
+    // seed the top-level flags the Simple-mode path + topbar depend on.
+    state.brand = Object.assign(blankBrand(), (state.brand && typeof state.brand === "object") ? state.brand : {});
+    if (!state.mode) state.mode = "full";
+    if (state.simple === undefined) state.simple = null;
+    if (!state.name) {
+      state.name = (state.project && state.project.customerName) || "Untitled project";
+    }
     return state;
   }
 
@@ -826,6 +837,13 @@
       id: id,
       name: seed.name || (seed.project && seed.project.customerName) || "Untitled project",
       step: "script",
+      // Builder flavor: "full" (the 9-step wizard, default/legacy) or "simple"
+      // (the one-screen guided path — see renderSimpleWizard in builder.js).
+      // Absent/"full" on every existing project → identical legacy behavior.
+      mode: seed.mode || "full",
+      // Simple-mode wizard scratch state (panel index + collected answers +
+      // selected experience ids). Additive; ignored by the full builder.
+      simple: seed.simple || null,
       createdAt: seed.createdAt || now,
       updatedAt: now,
       project: Object.assign({
@@ -833,18 +851,7 @@
         salesStage: "", products: [], theme: "", tone: "",
         presenterName: "", presenterTitle: "",
       }, seed.project || {}),
-      brand: Object.assign({
-        // mode: who the demo is "dressed" as.
-        //   "salesforce" (default — identical to legacy behavior),
-        //   "customer"   (lead with the customer's logo/colors),
-        //   "cobrand"    (Salesforce + customer lockup side by side).
-        mode: "salesforce",
-        logoPath: "",            // Salesforce-side / primary mark (legacy field)
-        customerLogoPath: "",    // customer mark, used in customer/cobrand modes
-        primaryColor: "#b22234",
-        secondaryColor: "#1a5fa0", accentColor: "#f5c06a",
-        visualDirection: "", notes: "",
-      }, seed.brand || {}),
+      brand: Object.assign(blankBrand(), seed.brand || {}),
       story: Object.assign({
         bigProblem: "", currentPain: "", futureVision: "",
         keyCustomerMoments: "", operationalMoments: "",
@@ -883,6 +890,24 @@
       // Dismissible in-product guidance state (guided modals). `dismissed`
       // holds hint ids already seen; `neverShowAgain` mutes all of them.
       uxHints: Object.assign({ dismissed: [], version: 1, neverShowAgain: false }, seed.uxHints || {}),
+    };
+  }
+
+  // Default brand block. Shared by newBlankState (fresh projects) and
+  // normalizeProjectStateShape (backfill for projects persisted before a
+  // given brand field existed) so the two never drift.
+  function blankBrand() {
+    return {
+      // mode: who the demo is "dressed" as.
+      //   "salesforce" (default — identical to legacy behavior),
+      //   "customer"   (lead with the customer's logo/colors),
+      //   "cobrand"    (Salesforce + customer lockup side by side).
+      mode: "salesforce",
+      logoPath: "",            // Salesforce-side / primary mark (legacy field)
+      customerLogoPath: "",    // customer mark, used in customer/cobrand modes
+      primaryColor: "#b22234",
+      secondaryColor: "#1a5fa0", accentColor: "#f5c06a",
+      visualDirection: "", notes: "",
     };
   }
 

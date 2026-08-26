@@ -183,6 +183,10 @@
   // the deck always opens with a polished anchor moment.
   ensureChapterOpener(demoSlides);
   function ensureChapterOpener(list) {
+    // Simple / Guided mode decks are just the selected experiences — no
+    // framing. Skip the auto-injected opener so the deck opens straight
+    // on the first experience slide.
+    if (plan.simpleMode) return;
     const hasOpener = list.length && list[0] && list[0].layout === "chapterOpener";
     if (hasOpener) return;
     list.unshift({
@@ -2527,6 +2531,28 @@
     iframe.setAttribute("loading", "lazy");
     iframe.setAttribute("referrerpolicy", "no-referrer");
     iframe.setAttribute("title", c.name || "CX component");
+    // Deck keyboard nav (HOLO_NAV) listens on the PARENT document. Once the
+    // user clicks into an app iframe, focus is trapped inside it and ←/→ never
+    // reach the parent — noticeable in the simple deck, which opens directly on
+    // an interactive experience. For same-origin (trusted) iframes, forward the
+    // arrow keys back up so slide navigation keeps working. Skip when the app's
+    // own focus is on a text field so in-app typing isn't hijacked.
+    if (trusted) {
+      iframe.addEventListener("load", function () {
+        var doc;
+        try { doc = iframe.contentDocument; } catch (e) { return; } // cross-origin
+        if (!doc) return;
+        doc.addEventListener("keydown", function (ev) {
+          if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+          var t = ev.target;
+          var tag = (t && t.tagName) ? t.tagName.toLowerCase() : "";
+          if (tag === "input" || tag === "textarea" || (t && t.isContentEditable)) return;
+          try {
+            document.dispatchEvent(new KeyboardEvent("keydown", { key: ev.key, bubbles: true }));
+          } catch (e) { /* older engines — ignore */ }
+        });
+      });
+    }
     wrap.appendChild(iframe);
     return wrap;
   }

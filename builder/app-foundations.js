@@ -36,6 +36,9 @@
     };
     return {
       flatColors: flatColors,
+      // Real company logo (data URL or path) from setup. Rendered in place of the
+      // apps' generic text logo when present; empty falls back to the text logo.
+      logoImage: b.logoPath || "",
       customerName: c.customerName || p.customerName || "the customer",
       industry: c.industry || p.industry || "Retail",
       website: c.website || p.website || "",
@@ -53,13 +56,19 @@
   // We describe the target shape narratively (not a strict schema) so the
   // model has room to produce rich, on-brand copy; app-config-generator.js
   // then normalizes/defaults anything missing, so a partial answer is safe.
-  function promptForClienteling(cx) {
+  // `simple` (optional) carries the Simple-mode wizard answers for this app:
+  //   { memberPromos, recProducts } — free-text hints the SE typed. Absent for
+  //   the full builder, so those lines drop out and the prompt is unchanged.
+  function promptForClienteling(cx, simple) {
+    simple = simple || {};
     return [
       "You are generating realistic demo data for a RETAIL CLIENTELING app (a store-associate / sales-floor tool) for the customer \"" + cx.customerName + "\" in the " + cx.industry + " industry.",
       cx.website ? ("Their website: " + cx.website + ".") : "",
       cx.bigProblem ? ("Business problem in the demo story: " + cx.bigProblem) : "",
       cx.futureVision ? ("Future vision: " + cx.futureVision) : "",
       cx.persona ? ("Primary persona: " + JSON.stringify({ name: cx.persona.name, role: cx.persona.role, quote: cx.persona.quote })) : "",
+      simple.memberPromos ? ("MEMBER PROMOS to feature: " + String(simple.memberPromos).slice(0, 400) + ". Weave these into walkIns[].headline/detail, coach.<id>.nba, and copy.featurePourLabel so the associate can pitch them.") : "",
+      simple.recProducts ? ("RECOMMENDED PRODUCTS to spotlight: " + String(simple.recProducts).slice(0, 400) + ". Make sku1 (the flagship/featured catalog item) and the coach.<id>.starters reflect these; keep them on-brand for " + cx.customerName + ".") : "",
       "",
       "CRITICAL VOCABULARY RULE: Use " + cx.customerName + "'s REAL industry language everywhere. Do NOT use wine/bottle/tasting/sommelier/vintage/cellar terminology UNLESS " + cx.customerName + " actually sells wine. Every label, product, event, and unit noun must fit THIS customer's category (e.g. a golf retailer uses 'clubs'/'fitting'/'bay'; a beauty retailer uses 'products'/'consultation'; a bank uses 'accounts'/'appointment'). The app chrome (nav labels, KPI labels, search placeholder, concierge name, intro narrative, unit noun) is rendered VERBATIM from the fields you return.",
       "",
@@ -85,7 +94,15 @@
     ].filter(Boolean).join("\n");
   }
 
-  function promptForCimulate(cx) {
+  // `simple` (optional) carries the Simple-mode wizard answers for this app:
+  //   { searchQueries:[…], agentQuestions:[…] } — up to 4 each. When present we
+  //   ask Gemini to seed the searchChips / greetChips from them WHILE still
+  //   honoring the strict 4×3=12 SKU-union and verbatim-key routing contracts.
+  //   Absent for the full builder → the extra lines drop out unchanged.
+  function promptForCimulate(cx, simple) {
+    simple = simple || {};
+    const sq = (simple.searchQueries || []).filter(Boolean).slice(0, 4);
+    const aq = (simple.agentQuestions || []).filter(Boolean).slice(0, 4);
     return [
       "You are generating realistic demo data for an INTENT-AWARE PRODUCT SEARCH + concierge-agent shopping experience (an e-commerce storefront) for \"" + cx.customerName + "\" in the " + cx.industry + " industry.",
       cx.website ? ("Their website: " + cx.website + ".") : "",
@@ -93,6 +110,8 @@
       cx.futureVision ? ("Future vision the demo builds toward: " + cx.futureVision) : "",
       cx.persona ? ("Primary shopper persona: " + JSON.stringify({ name: cx.persona.name, role: cx.persona.role, quote: cx.persona.quote })) : "",
       (cx.storyActs && cx.storyActs.length) ? ("Demo story beats (use these to ground the shopper's goals and the example search queries): " + JSON.stringify(cx.storyActs).slice(0, 1200)) : "",
+      sq.length ? ("SEED SEARCH QUERIES: use these exact shopper queries as the label/q of the FIRST " + sq.length + " searchChips (in order), then invent the remaining chips to reach EXACTLY 4: " + JSON.stringify(sq) + ". Each seeded chip still needs its own 3 distinct resultIds so the 4×3=12 SKU-union contract holds.") : "",
+      aq.length ? ("SEED AGENT QUESTIONS: the shopper wants to ask the concierge these — make each one a sommIntent whose FIRST key is a clean chip-friendly phrase, and surface them as the leading greetChips (each greetChip q copied VERBATIM from its sommIntent key): " + JSON.stringify(aq) + ".") : "",
       "",
       "CRITICAL VOCABULARY RULE: Use " + cx.customerName + "'s REAL industry language everywhere. Do NOT use wine/bottle/sommelier/'Somm'/tasting terminology UNLESS " + cx.customerName + " actually sells wine. The storefront chrome (brand logo text, concierge name/subtitle, hero headline, search suggestion chips, category nav, promo tiles, footer blurb, section headings) is rendered VERBATIM from the fields you return — make every string fit THIS customer's category.",
       "",
@@ -255,7 +274,12 @@
     const status = opts.onStatus || function () {};
     const gen = global.HOLO_GEMINI;
 
-    const prompt = appId === "clienteling" ? promptForClienteling(cx) : promptForCimulate(cx);
+    // Simple-mode answers for this app (optional) steer the prompt; undefined
+    // in the full builder so behavior is identical.
+    const simpleAnswers = opts.simpleAnswers || {};
+    const prompt = appId === "clienteling"
+      ? promptForClienteling(cx, simpleAnswers)
+      : promptForCimulate(cx, simpleAnswers);
 
     // Build the runtime config from an extracted/fallback foundation. Resolves
     // the shared 12-SKU catalog (reuse-or-rebuild, never a growing union), then
@@ -289,7 +313,7 @@
         state.retailImages = null;
       }
       found.catalog = shared;
-      const brand = { name: cx.customerName, flatColors: cx.flatColors };
+      const brand = { name: cx.customerName, flatColors: cx.flatColors, logoImage: cx.logoImage || "" };
       if (state.brand && state.brand.colors) brand.colors = state.brand.colors;
       const appgen = APPGEN();
       const config = appId === "clienteling"
@@ -433,7 +457,7 @@
     const shared = found.catalog || [];
     // Keep the customer's brand colors even in the generic preview so the flow
     // is shown ON-BRAND from the very first (pre-Gemini) render.
-    const brand = { name: cx.customerName || "", flatColors: cx.flatColors };
+    const brand = { name: cx.customerName || "", flatColors: cx.flatColors, logoImage: cx.logoImage || "" };
     const appgen = APPGEN();
     const config = appId === "clienteling"
       ? appgen.buildClientelingConfig(found, brand, shared)

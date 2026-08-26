@@ -389,6 +389,722 @@
     }).catch(navFailed("Couldn't create a new project. Please try again."));
   }
 
+  // Create a blank project in SIMPLE / GUIDED mode. A sibling of newProject()
+  // that stamps state.mode = "simple" so renderShell() routes into the
+  // single-screen wizard (renderSimpleWizard) instead of the 9-step builder.
+  // The full builder is never touched by this flag. state.simple holds the
+  // wizard's own scratch (panel, selected experiences, per-experience answers).
+  function newSimpleProject(onReady) {
+    STORE.createProject({ mode: "simple" }).then(function (state) {
+      app.state = state;
+      app.view = "builder";
+      app.readOnly = false;
+      app.lockHolder = null;
+      state.mode = "simple";                // belt + suspenders (seed already set it)
+      state.step = "simple";
+      state.simple = state.simple || { panel: "menu", selected: [], answers: {}, _status: "" };
+      STORE.setActiveProjectId(state.id);
+      if (prepopulatePresenterFromProfile(state)) saveActive();
+      recompute();
+      render();
+      startPresence(state.id);
+      if (typeof onReady === "function") onReady(state);
+    }).catch(navFailed("Couldn't create a new project. Please try again."));
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  SIMPLE / GUIDED MODE
+  //  ──────────────────────────────────────────
+  //  A self-contained, single-screen wizard that reuses the existing
+  //  Gemini flow, app generators, slide layouts, and ZIP exporter. It
+  //  never touches the 9-step machinery. All framing slides are dropped
+  //  by buildSlideManifest's simpleMode guard, so the deck is just one
+  //  slide per selected experience.
+  // ═══════════════════════════════════════════════════════════════
+
+  // Write value into state at a dot path, creating intermediate objects
+  // and array indices (numeric segments) as needed. Used to route wizard
+  // answers into the paths declared by HOLO_SIMPLE_EXP question.targetPath.
+  function setByPath(root, path, value) {
+    if (!root || !path) return;
+    const parts = String(path).split(".");
+    let cur = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const key = parts[i];
+      const nextIsIndex = /^\d+$/.test(parts[i + 1]);
+      if (cur[key] == null || typeof cur[key] !== "object") {
+        cur[key] = nextIsIndex ? [] : {};
+      }
+      cur = cur[key];
+    }
+    const last = parts[parts.length - 1];
+    cur[/^\d+$/.test(last) ? Number(last) : last] = value;
+  }
+
+  // The experience catalog (data-driven, from simple-experiences.js). Falls
+  // back to an empty list so a missing module degrades to an inert wizard
+  // rather than throwing.
+  function simpleExperiences() {
+    return (window.HOLO_SIMPLE_EXP && window.HOLO_SIMPLE_EXP.experiences) || [];
+  }
+  function simpleExpById(id) {
+    return simpleExperiences().filter(function (e) { return e.id === id; })[0] || null;
+  }
+  // The wizard's scratch state, defaulted for a project that predates it.
+  function simpleState() {
+    const s = app.state;
+    if (!s.simple || typeof s.simple !== "object") {
+      s.simple = { panel: "menu", selected: [], answers: {}, _status: "" };
+    }
+    if (!Array.isArray(s.simple.selected)) s.simple.selected = [];
+    if (!s.simple.answers || typeof s.simple.answers !== "object") s.simple.answers = {};
+    if (!s.simple.panel) s.simple.panel = "menu";
+    return s.simple;
+  }
+
+  // Parse a "list" answer (newline / comma separated) into a capped array.
+  function parseListAnswer(raw, max) {
+    return String(raw || "")
+      .split(/[\n,]+/)
+      .map(function (v) { return v.trim(); })
+      .filter(Boolean)
+      .slice(0, max || 4);
+  }
+
+  // ─── Wizard shell ─────────────────────────────────────────────
+  function renderSimpleWizard(container) {
+    const sim = simpleState();
+    container.innerHTML = "";
+
+    const head = el("div", { class: "bx-simple-head" }, [
+      el("div", { class: "bx-simple-eyebrow", text: "⚡ Simple / Guided" }),
+      el("h1", { class: "bx-simple-title", text: "Build a demo in a few clicks" }),
+      el("p", { class: "bx-simple-sub", text:
+        "Pick the experiences you want, tell us the customer, and AI auto-builds a slim, runnable demo — one slide per experience. No script, no 9 steps." }),
+    ]);
+    container.appendChild(head);
+
+    const body = el("div", { class: "bx-simple-body" });
+    container.appendChild(body);
+
+    if (sim.panel === "menu")            renderSimpleMenu(body, sim);
+    else if (sim.panel === "basics")     renderSimpleBasics(body, sim);
+    else if (sim.panel === "questions")  renderSimpleQuestions(body, sim);
+    else if (sim.panel === "generate")   renderSimpleGenerate(body, sim);
+    else if (sim.panel === "done")       renderSimpleDone(body, sim);
+    else                                 renderSimpleMenu(body, sim);
+  }
+
+  function simpleGoTo(panel) {
+    simpleState().panel = panel;
+    commit();
+    renderShell();
+  }
+
+  function simpleNav(children) {
+    return el("div", { class: "bx-simple-nav" }, children);
+  }
+
+  // Panel 1 — experience menu (multi-select cards).
+  function renderSimpleMenu(body, sim) {
+    body.appendChild(el("h2", { class: "bx-simple-h2", text: "1 · Choose experiences" }));
+    body.appendChild(el("p", { class: "bx-simple-hint", text: "Select one or more. Each becomes a slide in the demo." }));
+
+    const grid = el("div", { class: "bx-simple-cards" });
+    simpleExperiences().forEach(function (exp) {
+      const on = sim.selected.indexOf(exp.id) !== -1;
+      const card = el("button", { class: "bx-simple-card" + (on ? " is-on" : ""), type: "button" }, [
+        el("div", { class: "bx-simple-card-icon", text: exp.icon || "•" }),
+        el("div", { class: "bx-simple-card-body" }, [
+          el("div", { class: "bx-simple-card-title", text: exp.label }),
+          el("div", { class: "bx-simple-card-blurb", text: exp.blurb || "" }),
+        ]),
+        el("div", { class: "bx-simple-card-check", text: on ? "✓" : "" }),
+      ]);
+      card.addEventListener("click", function () {
+        const i = sim.selected.indexOf(exp.id);
+        if (i === -1) sim.selected.push(exp.id); else sim.selected.splice(i, 1);
+        commit();
+        renderShell();
+      });
+      grid.appendChild(card);
+    });
+    body.appendChild(grid);
+
+    const next = btn("Next →", "bx-btn-primary", function () {
+      if (!sim.selected.length) { toast("Pick at least one experience"); return; }
+      simpleGoTo("basics");
+    });
+    if (!sim.selected.length) next.disabled = true;
+    body.appendChild(simpleNav([
+      el("span", { class: "bx-simple-count", text: sim.selected.length + " selected" }),
+      next,
+    ]));
+  }
+
+  // Panel 2 — customer basics (name + website).
+  function renderSimpleBasics(body, sim) {
+    const p = app.state.project = app.state.project || {};
+    body.appendChild(el("h2", { class: "bx-simple-h2", text: "2 · Customer basics" }));
+    body.appendChild(el("p", { class: "bx-simple-hint", text: "Used to brand the apps and ground the AI. The website helps the AI research the brand." }));
+
+    const b = app.state.brand = app.state.brand || {
+      mode: "salesforce", logoPath: "", customerLogoPath: "",
+      primaryColor: "#b22234", secondaryColor: "#1a5fa0", accentColor: "#f5c06a",
+    };
+
+    // Project name (state.name) — how this project shows in the dashboard/topbar.
+    const projIn = el("input", { class: "bx-input", type: "text", placeholder: "Project name (e.g. Acme Q3 Demo)", value: app.state.name || "" });
+    projIn.addEventListener("input", function () { app.state.name = projIn.value; commit(); renderTopbar(); });
+    body.appendChild(el("label", { class: "bx-simple-field" }, [
+      el("span", { class: "bx-simple-label", text: "Project name" }), projIn,
+    ]));
+
+    const nameIn = el("input", { class: "bx-input", type: "text", placeholder: "Customer name (e.g. Acme Retail)", value: p.customerName || "" });
+    nameIn.addEventListener("input", function () { p.customerName = nameIn.value; commit(); });
+    const siteIn = el("input", { class: "bx-input", type: "text", placeholder: "Website (e.g. acme.com)", value: p.website || "" });
+
+    body.appendChild(el("label", { class: "bx-simple-field" }, [
+      el("span", { class: "bx-simple-label", text: "Customer name" }), nameIn,
+    ]));
+    body.appendChild(el("label", { class: "bx-simple-field" }, [
+      el("span", { class: "bx-simple-label", text: "Website" }), siteIn,
+    ]));
+
+    // ── Branding: logo (auto-fetch from the site + upload override) + colors.
+    // The logo is stored as a data URL on state.brand.logoPath — it persists and
+    // exports for free (mapAssetValues leaves non-"gcs:" strings untouched) and
+    // is threaded into the cimulate/clienteling configs as brand.logoImage.
+    body.appendChild(el("div", { class: "bx-simple-label", text: "Branding" }));
+
+    const logoImg = el("img", { class: "bx-simple-logo-preview", alt: "Logo preview" });
+    function showLogo() {
+      if (b.logoPath) { logoImg.src = b.logoPath; logoImg.style.display = ""; }
+      else { logoImg.removeAttribute("src"); logoImg.style.display = "none"; }
+    }
+    showLogo();
+
+    const logoFile = el("input", { type: "file", accept: "image/*", class: "bx-file-input", "aria-label": "Upload logo file" });
+    logoFile.addEventListener("change", function () {
+      const f = logoFile.files && logoFile.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = function () { b.logoPath = String(reader.result || ""); showLogo(); commit(); toast("Logo uploaded"); };
+      reader.onerror = function () { toast("Could not read that file"); };
+      reader.readAsDataURL(f);
+    });
+
+    const fetchBtn = btn("Fetch from website", "bx-btn-secondary", function () {
+      if (!(siteIn.value || "").trim()) { toast("Enter a website first"); return; }
+      fetchBtn.disabled = true; fetchBtn.textContent = "Fetching…";
+      fetchRealLogo(siteIn.value).then(function (dataUrl) {
+        if (dataUrl) { b.logoPath = dataUrl; showLogo(); commit(); toast("Logo found"); }
+        else { toast("No logo found — upload one instead"); }
+      }).catch(function () { toast("Logo fetch failed"); })
+        .then(function () { fetchBtn.disabled = false; fetchBtn.textContent = "Fetch from website"; });
+    });
+
+    body.appendChild(el("div", { class: "bx-simple-field" }, [
+      el("span", { class: "bx-simple-label", text: "Logo" }),
+      el("span", { class: "bx-simple-qhint", text: "Auto-fetched from the website, or upload one. Used in the cimulate & clienteling apps." }),
+      el("div", { class: "bx-simple-logo-row" }, [logoImg, fetchBtn, logoFile]),
+    ]));
+
+    // Auto-fetch once when a website is present and no logo is set yet.
+    let _autoTried = !!b.logoPath;
+    function maybeAutoFetch() {
+      if (_autoTried || b.logoPath || !(siteIn.value || "").trim()) return;
+      _autoTried = true;
+      fetchRealLogo(siteIn.value).then(function (dataUrl) {
+        if (dataUrl && !b.logoPath) { b.logoPath = dataUrl; showLogo(); commit(); }
+      }).catch(function () {});
+    }
+    siteIn.addEventListener("input", function () { p.website = siteIn.value; commit(); });
+    siteIn.addEventListener("blur", maybeAutoFetch);
+    maybeAutoFetch();
+
+    const colorRow = el("div", { class: "bx-grid-3" });
+    colorRow.appendChild(field({ label: "Primary", type: "color", value: b.primaryColor,
+      onInput: function (v) { b.primaryColor = v; commit(); } }));
+    colorRow.appendChild(field({ label: "Secondary", type: "color", value: b.secondaryColor,
+      onInput: function (v) { b.secondaryColor = v; commit(); } }));
+    colorRow.appendChild(field({ label: "Accent", type: "color", value: b.accentColor,
+      onInput: function (v) { b.accentColor = v; commit(); } }));
+    body.appendChild(el("div", { class: "bx-simple-field" }, [
+      el("span", { class: "bx-simple-label", text: "Colors" }), colorRow,
+    ]));
+
+    body.appendChild(simpleNav([
+      btn("← Back", "bx-btn-secondary", function () { simpleGoTo("menu"); }),
+      btn("Next →", "bx-btn-primary", function () {
+        if (!(p.customerName || "").trim()) { toast("Enter a customer name"); return; }
+        simpleGoTo("questions");
+      }),
+    ]));
+  }
+
+  // Panel 3 — per-experience optional follow-up questions.
+  function renderSimpleQuestions(body, sim) {
+    body.appendChild(el("h2", { class: "bx-simple-h2", text: "3 · Optional details" }));
+    body.appendChild(el("p", { class: "bx-simple-hint", text: "All optional — skip anything and the AI fills it in. These steer the generated content." }));
+
+    sim.selected.forEach(function (expId) {
+      const exp = simpleExpById(expId);
+      if (!exp || !(exp.questions || []).length) return;
+      const ans = sim.answers[expId] = sim.answers[expId] || {};
+      const group = el("div", { class: "bx-simple-qgroup" }, [
+        el("div", { class: "bx-simple-qgroup-title", text: (exp.icon || "") + " " + exp.label }),
+      ]);
+      exp.questions.forEach(function (q) {
+        const cur = ans[q.id];
+        let input;
+        if (q.type === "textarea" || q.type === "list") {
+          const initial = Array.isArray(cur) ? cur.join("\n") : (cur || "");
+          input = el("textarea", { class: "bx-textarea", rows: q.type === "list" ? "3" : "3", placeholder: q.hint || "" });
+          input.value = initial;
+          input.addEventListener("input", function () {
+            ans[q.id] = q.type === "list" ? parseListAnswer(input.value, q.max) : input.value;
+            commit();
+          });
+        } else {
+          input = el("input", { class: "bx-input", type: "text", placeholder: q.hint || "", value: cur || "" });
+          input.addEventListener("input", function () { ans[q.id] = input.value; commit(); });
+        }
+        group.appendChild(el("label", { class: "bx-simple-field" }, [
+          el("span", { class: "bx-simple-label", text: q.label }),
+          q.hint ? el("span", { class: "bx-simple-qhint", text: q.hint }) : null,
+          input,
+        ]));
+      });
+      body.appendChild(group);
+    });
+
+    body.appendChild(simpleNav([
+      btn("← Back", "bx-btn-secondary", function () { simpleGoTo("basics"); }),
+      btn("✨ Generate demo", "bx-btn-primary", function () {
+        simpleState().panel = "generate";
+        simpleState()._status = "";
+        commit();
+        renderShell();
+        startSimpleGeneration();
+      }),
+    ]));
+  }
+
+  // Panel 4 — generation progress.
+  function renderSimpleGenerate(body, sim) {
+    body.appendChild(el("h2", { class: "bx-simple-h2", text: "Building your demo…" }));
+    const pb = progressBar(sim._status || "Starting…");
+    pb.set(sim._progress || 0, sim._status || "Starting…");
+    pb.node.id = "bxSimpleProgress";
+    body.appendChild(pb.node);
+    body.appendChild(el("p", { class: "bx-simple-hint", text:
+      "Researching the customer, generating app configs, product imagery, and the agent conversation. This can take a minute." }));
+    if (sim._error) {
+      body.appendChild(el("div", { class: "bx-alert is-error", text: sim._error }));
+      body.appendChild(simpleNav([
+        btn("← Back to details", "bx-btn-secondary", function () {
+          simpleState()._error = ""; simpleGoTo("questions");
+        }),
+      ]));
+    }
+  }
+
+  // Panel 5 — result / export.
+  function renderSimpleDone(body, sim) {
+    const s = app.state;
+    const slideCount = (s.slides || []).filter(function (sl) { return !sl.sectionId || sl.sectionId === "demo"; }).length;
+    body.appendChild(el("div", { class: "bx-simple-done-emoji", text: "🎉" }));
+    body.appendChild(el("h2", { class: "bx-simple-h2", text: "Your demo is ready" }));
+    body.appendChild(el("p", { class: "bx-simple-hint", text:
+      slideCount + " experience slide" + (slideCount === 1 ? "" : "s") + " built for " + ((s.project && s.project.customerName) || "your customer") + "." }));
+
+    const zipBtn = btn("⬇ Download runnable demo ZIP", "bx-btn-primary", function () {
+      if (!window.HOLO_ZIP || !window.HOLO_ZIP.downloadCompleteDemoZip) {
+        toast("ZIP export isn't available — reload the page and try again."); return;
+      }
+      toast("Building demo ZIP…");
+      Promise.resolve(ensureJourneyImages(s))
+        .catch(function () { return 0; })
+        .then(function () { return window.HOLO_ZIP.downloadCompleteDemoZip(s); })
+        .then(function () { toast("Demo ZIP downloaded"); })
+        .catch(function (e) { toast("Couldn't build the ZIP: " + (e && e.message || e)); });
+    });
+    body.appendChild(el("div", { class: "bx-simple-done-actions" }, [
+      zipBtn,
+      btn("Edit selections", "bx-btn-secondary", function () { simpleGoTo("menu"); }),
+    ]));
+    body.appendChild(el("p", { class: "bx-simple-hint bx-mt-12", text:
+      "To run: unzip and open index.html — no server needed. The hub links the deck and any companion apps." }));
+  }
+
+  // ─── Orchestration ────────────────────────────────────────────
+  // Kicks off runSimpleGeneration and moves to the "done" panel on
+  // success. Live progress updates the panel-4 bar in place.
+  function startSimpleGeneration() {
+    const sim = simpleState();
+    sim._error = "";
+    function onStatus(frac, msg) {
+      sim._progress = frac;
+      if (msg != null) sim._status = msg;
+      const wrap = document.getElementById("bxSimpleProgress");
+      if (wrap) {
+        const fill = wrap.querySelector(".bx-progress-fill");
+        const label = wrap.querySelector(".bx-progress-label");
+        if (fill) fill.style.width = Math.round(Math.max(0, Math.min(1, frac || 0)) * 100) + "%";
+        if (label && msg != null) label.textContent = msg;
+      }
+    }
+    runSimpleGeneration(sim.selected.slice(), onStatus).then(function () {
+      sim.panel = "done";
+      sim._progress = 1;
+      commit();
+      renderShell();
+    }).catch(function (err) {
+      sim._error = "Generation hit a problem: " + ((err && err.message) || err) + ". You can go back and try again.";
+      commit();
+      renderShell();
+    });
+  }
+
+  // The end-to-end simple build. Ordered reuse of the existing generators.
+  function runSimpleGeneration(selectedIds, onStatus) {
+    const s = app.state;
+    onStatus = onStatus || function () {};
+    const GEMINI = window.HOLO_GEMINI;
+    const AI_PROMPT = window.HOLO_AI_PROMPT;
+
+    // 1 · Persist each answer at its declared targetPath.
+    const sim = simpleState();
+    selectedIds.forEach(function (expId) {
+      const exp = simpleExpById(expId);
+      if (!exp) return;
+      const ans = (sim.answers[expId]) || {};
+      (exp.questions || []).forEach(function (q) {
+        const v = ans[q.id];
+        const has = Array.isArray(v) ? v.length : String(v == null ? "" : v).trim();
+        if (has) setByPath(s, q.targetPath, v);
+      });
+    });
+    commit();
+
+    onStatus(0.04, "Researching the customer…");
+
+    // 2 · Slim story context (no script). Reuse the two-call research → parse
+    //     Gemini flow with a synthesized seed line. Non-fatal: on any failure
+    //     the generators fall back to their neutral defaults.
+    const storyPromise = runSimpleStoryExtraction(GEMINI, AI_PROMPT)
+      .catch(function () { return; });
+
+    return storyPromise.then(function () {
+      onStatus(0.25, "Preparing experiences…");
+
+      // 3 · Apply the person-name answer AFTER extraction so it wins over any
+      //     persona the parse produced (unified profile reads personas[0].name).
+      if (selectedIds.indexOf("unifiedProfile") !== -1) {
+        const pn = sim.answers.unifiedProfile && sim.answers.unifiedProfile.personName;
+        if (pn && String(pn).trim()) {
+          s.personas = s.personas || [];
+          s.personas[0] = s.personas[0] || { id: uid("persona_") };
+          const nm = String(pn).trim();
+          s.personas[0].name = nm;
+          // Re-infer pronouns from the user-supplied name (unless the persona
+          // carries explicit ones) so the profile matches the chosen name.
+          const SH = window.HOLO_SHARED || {};
+          if (!String(s.personas[0].pronouns || "").trim() && SH.inferPronounsFromName) {
+            s.personas[0].pronouns = SH.inferPronounsFromName(nm);
+          }
+        }
+      }
+
+      // 4 · Generate each experience. Apps are the expensive stages; weight the
+      //     bar across them. Slides (profile/help agent) are quick.
+      const appIds = selectedIds.filter(function (id) {
+        const e = simpleExpById(id); return e && e.kind === "app";
+      });
+      const base = 0.25;
+      const span = 0.7; // leaves headroom to 1.0 for the finalize step
+      const perApp = appIds.length ? (span / appIds.length) : 0;
+
+      // Chain the app generations sequentially so the shared 12-SKU catalog is
+      // built once (first app) and reused (second app) — mirrors generateApp's
+      // rebuildCatalog policy.
+      let chain = Promise.resolve();
+      appIds.forEach(function (appId, idx) {
+        chain = chain.then(function () {
+          const chunkStart = base + idx * perApp;
+          return generateSimpleApp(appId, GEMINI, function (msg, f) {
+            onStatus(chunkStart + (f || 0) * perApp, msg);
+          });
+        });
+      });
+
+      return chain.then(function () {
+        // 5 · Help agent conversation (in-DOM slide) — service-framed prompt.
+        if (selectedIds.indexOf("helpAgent") !== -1) {
+          onStatus(base + span, "Writing the agent conversation…");
+          return generateSimpleHelpAgent(GEMINI, AI_PROMPT).catch(function () { return; });
+        }
+      }).then(function () {
+        onStatus(0.96, "Assembling the deck…");
+        // 6 · Managed CX components for the app iframes.
+        syncBuiltAppCxComponents();
+        // 7 · Slim deck — one slide per selected experience.
+        buildSimpleSlides(selectedIds);
+        recompute();
+        commit();
+        onStatus(1, "Done.");
+      });
+    });
+  }
+
+  // Story extraction for simple mode. A lean, Promise-returning sibling of
+  // runGeminiScriptExtraction (which is UI-button-bound). Synthesizes a seed
+  // "script" from the customer + website, runs the research + parse calls, and
+  // applies the result via the SAME applyExtractionToState pipeline. Resolves
+  // (no-op) when Gemini isn't configured or the parse fails — the generators
+  // then run on neutral defaults.
+  function runSimpleStoryExtraction(GEMINI, AI_PROMPT) {
+    const s = app.state;
+    if (!_geminiReady || !GEMINI || !GEMINI.generate || !AI_PROMPT || !PARSER) return Promise.resolve();
+    const p = s.project || {};
+    const name = (p.customerName || "").trim();
+    const website = (p.website || "").trim();
+    if (!name) return Promise.resolve();
+
+    // A synthesized seed grounds getStoryParsePrompt when there's no real
+    // script. Persist it so storySignature() (which reads scriptText) and the
+    // generators see consistent context.
+    const selectedLabels = simpleState().selected.map(function (id) {
+      const e = simpleExpById(id); return e ? e.label : id;
+    }).join(", ");
+    s.scriptText = s.scriptText || (
+      "Demo for " + name + (website ? (", website " + website) : "") + ". "
+      + "Build a concise retail customer story that showcases: " + (selectedLabels || "modern retail experiences") + ". "
+      + "Focus on the shopper journey, personalization, and service."
+    );
+
+    // Call 1 — grounded research brief (non-fatal).
+    const researchPromise = GEMINI.generate({
+      prompt: AI_PROMPT.getResearchPrompt(name, s.scriptText, website),
+      groundWithSearch: true,
+      fast: false,
+      temperature: 0.3,
+      maxOutputTokens: 1024,
+    }).then(function (b) { return String(b || "").trim(); }).catch(function () { return ""; });
+
+    // Call 2 — the JSON extractor, brief injected.
+    return researchPromise.then(function (brief) {
+      return GEMINI.generate({
+        prompt: AI_PROMPT.getStoryParsePrompt(s.scriptText, brief),
+        jsonMode: true, fast: true, temperature: 0.2, maxOutputTokens: 8192, useCache: true,
+      });
+    }).then(function (text) {
+      const raw = String(text || "");
+      const fenced = raw.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+      let data = null;
+      try { data = JSON.parse(fenced.trim()); } catch (_) {
+        const a = raw.indexOf("{"), b = raw.lastIndexOf("}");
+        if (a !== -1 && b > a) { try { data = JSON.parse(raw.slice(a, b + 1)); } catch (__) {} }
+      }
+      if (!data || typeof data !== "object") return;
+
+      const str = function (v) { return typeof v === "string" ? v : ""; };
+      const arr = function (v) { return Array.isArray(v) ? v.filter(function (x) { return x != null && x !== ""; }) : []; };
+      const obj = function (v) {
+        if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+        const out = {};
+        Object.keys(v).forEach(function (k) { const t = str(v[k]).trim(); if (t && !/^\[TODO/i.test(t)) out[k] = t; });
+        return out;
+      };
+      // storyFoundations shape — every array MUST exist (mergeExtractedStory-
+      // IntoState calls .join on several).
+      const f = {
+        businessProblem: str(data.businessProblem), currentStatePain: str(data.currentStatePain),
+        futureStateVision: str(data.futureStateVision), primaryNarrative: str(data.primaryNarrative),
+        transformationThesis: str(data.transformationThesis), executiveTakeaway: str(data.executiveTakeaway),
+        threeActTitles: arr(data.threeActTitles), customerMoments: arr(data.customerMoments),
+        operationalMoments: arr(data.operationalMoments), agentforceMoments: arr(data.agentforceMoments),
+        dataCloudMoments: arr(data.dataCloudMoments), commerceMoments: arr(data.commerceMoments),
+        marketingMoments: arr(data.marketingMoments), serviceMoments: arr(data.serviceMoments),
+        loyaltyMoments: arr(data.loyaltyMoments), valueDrivers: arr(data.valueDrivers),
+        assumptions: arr(data.assumptions), openQuestions: arr(data.openQuestions),
+        journeyPhases: arr(data.journeyPhases), wishlistEyebrow: str(data.wishlistEyebrow),
+        wishlistHeadline: str(data.wishlistHeadline), wishlist: arr(data.wishlist), imageCues: obj(data.imageCues),
+      };
+      s.project = s.project || {};
+      const acts = arr(data.storyActs);
+      if (acts.length) {
+        s.storyActs = acts.map(function (a) {
+          return {
+            id: uid("act_"), title: str(a && a.title), persona: str(a && a.persona), channel: str(a && a.channel),
+            summary: str(a && a.summary), demoMoment: str(a && a.demoMoment),
+            salesforceCapabilities: str(a && a.salesforceCapabilities), businessValue: str(a && a.businessValue),
+            requiredAssets: str(a && a.requiredAssets), notes: str(a && a.notes),
+          };
+        });
+      }
+      const ppl = arr(data.personas);
+      if (ppl.length && !(s.personas || []).length) {
+        // Simple mode: the unified-profile slide reads role + pronouns +
+        // customerOf/stats/wishlist off personas[0]. Gemini may return them;
+        // when it doesn't, infer pronouns from the name (they/them fallback)
+        // so the profile never mis-defaults or shows a TODO.
+        const SH = window.HOLO_SHARED || {};
+        s.personas = ppl.map(function (pp) {
+          pp = pp || {};
+          const nm = str(pp.name);
+          let pron = str(pp.pronouns);
+          if (!pron && SH.inferPronounsFromName) pron = SH.inferPronounsFromName(nm);
+          return { id: uid("persona_"), name: nm, role: str(pp.role),
+            pronouns: pron,
+            goals: str(pp.goals), painPoints: str(pp.painPoints), demoRelevance: str(pp.demoRelevance),
+            customerOf: str(pp.customerOf),
+            stats: arr(pp.stats), wishlist: arr(pp.wishlist) };
+        });
+      }
+      const free = function (v) { const t = str(v).trim(); return (!t || /^\[TODO/i.test(t)) ? "" : t; };
+      if (!s.project.website)  { const w = free(data.website);  if (w) s.project.website = w; }
+      if (!s.project.industry) { const x = free(data.industry); if (x) s.project.industry = x; }
+      if (!s.project.theme)    { const t = free(data.theme);    if (t) s.project.theme = t; }
+
+      applyExtractionToState(f, s);
+    });
+  }
+
+  // Generate one app experience (cimulate/clienteling) for simple mode.
+  // Mirrors generateApp's AI tier: text config → product photos, reusing the
+  // shared catalog + image store. Threads the wizard's optional answers into
+  // the prompt builder via opts.simpleAnswers.
+  function generateSimpleApp(appId, GEMINI, onStatus) {
+    const s = app.state;
+    onStatus = onStatus || function () {};
+    if (!window.HOLO_APPFOUND || !window.HOLO_APPFOUND.generate) {
+      onStatus("Generator unavailable — skipping " + appId, 1);
+      return Promise.resolve();
+    }
+    const apps = appsState();
+    const slice = apps[appId] || (apps[appId] = { enabled: false, config: null, productImages: null });
+    slice.enabled = true;
+
+    const sigNow = storySignature();
+    const rebuildCatalog = !(Array.isArray(s.retailCatalog) && s.retailCatalog.length && s.retailCatalogSig === sigNow);
+    const simpleAnswers = (simpleState().answers[appId]) || {};
+
+    return window.HOLO_APPFOUND.generate(appId, s, {
+      onStatus: function (msg, f) { onStatus(msg, (f || 0) * 0.3); },
+      storySig: sigNow,
+      rebuildCatalog: rebuildCatalog,
+      simpleAnswers: simpleAnswers,
+    }).then(function (out) {
+      slice.config = out.config;
+      slice.extracted = true;
+      slice._previewToken = stashPreviewConfig(appId, out.config);
+      slice._usedGemini = out.usedGemini;
+      // Product photos (AI tier).
+      const proj = s.project || {};
+      const sharedImgs = (s.retailImages && s.retailCatalogSig === storySignature()) ? s.retailImages : {};
+      return window.HOLO_APPFOUND.generateProductPhotos(appId, out.config, {
+        onStatus: function (msg, f) { onStatus(msg, 0.3 + (f || 0) * 0.7); },
+        industry: proj.industry || "",
+        customerName: proj.customerName || "",
+        existingImages: sharedImgs,
+      }).then(function (images) {
+        if (images && Object.keys(images).length) {
+          out.config.productImages = Object.assign({}, out.config.productImages, images);
+          slice.productImages = out.config.productImages;
+          s.retailImages = Object.assign({}, s.retailImages, out.config.productImages);
+        }
+        out.config._placeholder = false;
+        slice._aiGenerated = true;
+        slice._previewOnly = false;
+        slice._imageStorySig = storySignature();
+        // Re-stash so the token resolves to the photographed config.
+        slice._previewToken = stashPreviewConfig(appId, out.config);
+        onStatus("Generated " + appId, 1);
+      }).catch(function () {
+        // Photos are best-effort; keep the text config.
+        onStatus("Generated " + appId + " (text)", 1);
+      });
+    });
+  }
+
+  // Help-agent conversation (in-DOM agentConversation slide). Uses the new
+  // service-framed prompt seeded with the persona pain + the service-inquiry
+  // answer. Stores state.agentChatScript; on failure the demo falls back to
+  // the deterministic SHARED.agentChat().
+  function generateSimpleHelpAgent(GEMINI, AI_PROMPT) {
+    const s = app.state;
+    if (!_geminiReady || !GEMINI || !GEMINI.generate || !AI_PROMPT || !AI_PROMPT.getHelpAgentChatPrompt) return Promise.resolve();
+    const p = s.project || {};
+    const persona = (s.personas || [])[0] || {};
+    const inquiry = (simpleState().answers.helpAgent && simpleState().answers.helpAgent.serviceInquiry) || "";
+    const clip = function (v, n) { return v ? String(v).slice(0, n) : ""; };
+    const context = [
+      p.customerName ? ("Company: " + p.customerName) : "",
+      p.industry ? ("Industry: " + p.industry) : "",
+      persona.name ? ("Customer: " + persona.name + (persona.role ? (", " + persona.role) : "")) : "",
+      persona.painPoints ? ("Customer pain: " + clip(persona.painPoints, 160)) : "",
+      inquiry ? ("Service inquiry to resolve: " + clip(inquiry, 300)) : "",
+    ].filter(Boolean).join("\n");
+    if (!context.trim()) return Promise.resolve();
+
+    return GEMINI.generate({ prompt: AI_PROMPT.getHelpAgentChatPrompt(context), jsonMode: true })
+      .then(function (text) {
+        const cleaned = String(text).replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+        let data; try { data = JSON.parse(cleaned); } catch (_) { data = null; }
+        const rawTurns = (data && Array.isArray(data.turns)) ? data.turns : [];
+        const turns = rawTurns.map(function (t) {
+          if (!t || typeof t !== "object") return null;
+          const from = (t.from === "user") ? "user" : "agent";
+          if (t.kind === "card" && t.card && typeof t.card === "object") {
+            const c = t.card;
+            return { from: from, kind: "card", card: {
+              eyebrow: String(c.eyebrow || ""), title: String(c.title || ""),
+              sub: String(c.sub || ""), cta: String(c.cta || "See how") } };
+          }
+          const txt = String(t.text || "").trim();
+          if (!txt) return null;
+          return { from: from, text: txt };
+        }).filter(Boolean);
+        if (turns.length < 2) return;
+        s.agentChatScript = { turns: turns };
+        commit();
+      });
+  }
+
+  // Build the slim deck: one demo slide per selected experience, written
+  // directly to state.slides (not via the recs engine). buildSlideManifest's
+  // simpleMode guard drops all synthetic framing, so these are the whole deck.
+  function buildSimpleSlides(selectedIds) {
+    const s = app.state;
+    const p = s.project || {};
+    const cust = (p.customerName || "").trim();
+    const slides = [];
+    selectedIds.forEach(function (expId) {
+      const exp = simpleExpById(expId);
+      if (!exp) return;
+      const title = exp.label + (cust ? (" · " + cust) : "");
+      if (exp.kind === "app") {
+        slides.push({
+          id: "simple-" + expId,
+          title: title,
+          layout: "appConsoleIframe",
+          appId: expId,
+          sectionId: "demo",
+          linkedCxComponentIds: ["cx_app_" + expId],
+        });
+      } else if (exp.layout === "unifiedProfile") {
+        slides.push({ id: "simple-profile", title: title, layout: "unifiedProfile", sectionId: "demo" });
+      } else if (exp.layout === "agentConversation") {
+        slides.push({ id: "simple-agent", title: title, layout: "agentConversation", sectionId: "demo" });
+      }
+    });
+    s.slides = slides;
+    // Simple mode doesn't use the recommendations engine.
+    s.recommendations = s.recommendations || [];
+  }
+
   // ─── Soft-lock presence ───────────────────────────────────────
   // Called after a project is loaded into app.state. Checks for a live
   // foreign holder: if one exists this session opens READ-ONLY (banner +
@@ -705,6 +1421,19 @@
       shell.appendChild(wrap);
       renderReportingPage(wrap);
       setSaveIndicator(false);
+      return;
+    }
+
+    // Simple / Guided mode: a single-screen wizard that bypasses the
+    // 9-step stepper entirely (mirrors the reporting/profile/feedback
+    // is-single views above). The full builder machinery never runs.
+    if (app.view === "builder" && app.state && app.state.mode === "simple") {
+      shell.classList.add("is-single");
+      const wrap = el("section", { class: "bx-page", id: "bxPage" });
+      shell.appendChild(wrap);
+      renderSimpleWizard(wrap);
+      setSaveIndicator(false);
+      renderReadOnlyBanner();
       return;
     }
 
@@ -4142,6 +4871,9 @@
     const GEMINI = window.HOLO_GEMINI;
     const SHARED = window.HOLO_SHARED;
     if (!s) return Promise.resolve(0);
+    // Simple / Guided decks have no journey-timeline slide, so journey-step
+    // images would never render — don't spend image tokens generating them.
+    if (s.mode === "simple") return Promise.resolve(0);
     // isConfigured() is async; skip only on the hard "no client" case and let
     // per-image generateImage rejections (incl. unconfigured server) fall back
     // to the emoji gracefully.
@@ -7321,6 +8053,12 @@
       "Aubrey script",
       "Use Aubrey? Pull a ready-made script to auto-fill customer, brand, persona, products, and story foundations in one go.",
       function () { closeModal(); newProject(function () { openAubreyScriptPicker(); }); }
+    ));
+    grid.appendChild(chooserCard(
+      "⚡",
+      "Simple / Guided",
+      "Pick a few prebuilt experiences, enter the customer + website, and let AI auto-build a slim, runnable demo — no script, no 9 steps.",
+      function () { closeModal(); newSimpleProject(); }
     ));
 
     wrap.appendChild(grid);

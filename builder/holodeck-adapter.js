@@ -1138,6 +1138,11 @@
     });
 
     return {
+      // Simple / Guided mode: the deck is JUST the selected experiences —
+      // no framing. buildSlideManifest already drops synthetic framing
+      // slides; this flag tells the demo runtime to also skip the
+      // auto-injected chapter opener (ensureChapterOpener).
+      simpleMode: state.mode === "simple",
       audience:   project.audience   || "",
       salesStage: project.salesStage || "",
       products:   project.products   || [],

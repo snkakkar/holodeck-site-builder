@@ -628,8 +628,22 @@ window.applyBrandText = function(){
   const setId=(id,val)=>{ const el=document.getElementById(id); if(el&&val!=null) el.textContent=val; };
   const setPh=(id,val)=>{ const el=document.getElementById(id); if(el&&val!=null) el.setAttribute("placeholder",val); };
 
-  document.querySelectorAll(".logo .l-top").forEach(el=>{ el.textContent=B.logoTop||el.textContent; });
-  document.querySelectorAll(".logo .l-sub").forEach(el=>{ el.textContent=B.logoSub||el.textContent; });
+  if(B.logoImage){
+    // Real company logo: replace the Store/&MORE text spans with the image once.
+    document.querySelectorAll(".logo").forEach(el=>{
+      if(el.querySelector(".brand-logo-img")) return;
+      const img=document.createElement("img");
+      img.className="brand-logo-img";
+      img.src=B.logoImage;
+      img.alt=(B.logoTop||"Brand")+" logo";
+      img.style.cssText="max-height:32px;max-width:150px;width:auto;height:auto;object-fit:contain;display:block;";
+      el.innerHTML="";
+      el.appendChild(img);
+    });
+  } else {
+    document.querySelectorAll(".logo .l-top").forEach(el=>{ el.textContent=B.logoTop||el.textContent; });
+    document.querySelectorAll(".logo .l-sub").forEach(el=>{ el.textContent=B.logoSub||el.textContent; });
+  }
   document.querySelectorAll("[data-store-location]").forEach(el=>{ el.textContent=APP_CONFIG.storeLocation||el.textContent; });
   const badge=document.getElementById("search-ai-badge"); if(badge&&B.searchProduct) badge.textContent=B.searchProduct;
   const fabName=document.getElementById("concierge-fab-name"); if(fabName) fabName.textContent=`Chat with ${tk.concierge}`;

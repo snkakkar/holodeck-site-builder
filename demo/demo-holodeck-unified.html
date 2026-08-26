@@ -412,11 +412,19 @@
   // ═══════════════════════════════════════
   const SECTIONS = { map:'sec-map', intro:'sec-intro', rachel:'sec-rachel', demo:'sec-demo', bv:'sec-bv' };
   const NAV_BTNS = { map:'nav-map', intro:'nav-intro', rachel:'nav-rachel', demo:'nav-demo', bv:'nav-bv' };
-  let activeSection = 'intro';
-  window._holoActiveSection = 'intro';
+  // Simple / Guided decks are JUST the demo section — no intro/journey/persona/
+  // BV framing and no section nav. We strip the other four sections + their nav
+  // buttons below and boot straight into 'demo'. Flag comes from the builderPlan
+  // the adapter emits (state.mode === "simple").
+  const SIMPLE = !!(window.HOLODECK_CONFIG && HOLODECK_CONFIG.builderPlan && HOLODECK_CONFIG.builderPlan.simpleMode);
+  let activeSection = SIMPLE ? 'demo' : 'intro';
+  window._holoActiveSection = activeSection;
 
   function showSection(key) {
     if (key === activeSection) return;
+    // In a simple deck the other sections don't exist — never try to switch to
+    // (or away toward) a removed section, which would throw on a null element.
+    if (!document.getElementById(SECTIONS[key])) return;
     document.getElementById(SECTIONS[activeSection]).classList.remove('active');
     document.getElementById(NAV_BTNS[activeSection]).classList.remove('active');
     // Hide all deck chrome
@@ -450,28 +458,55 @@
     if (window.HOLO_NAV) window.HOLO_NAV.notifyChange();
   }
 
-  document.getElementById('nav-intro').classList.add('active');
-  // Intro deck chrome (dots + thumb CTA) needs to be visible since it's the
-  // initial active section.  showSection('intro') would do this but only
-  // toggles when navigating *away* from another section first.
-  (function showInitialIntroChrome() {
-    var d = document.getElementById('intro-dots');
-    var c = document.getElementById('intro-cta');
+  // Initial active section + its deck chrome (dots + thumb CTA). showSection()
+  // would reveal these but only toggles when navigating *away* from another
+  // section first, so seed the initial section's chrome here. Simple decks boot
+  // into 'demo'; full decks into 'intro'.
+  (function showInitialChrome() {
+    var initSec = document.getElementById(SECTIONS[activeSection]);
+    if (initSec) initSec.classList.add('active');   // markup only marks sec-intro active
+    var initNav = document.getElementById(NAV_BTNS[activeSection]);
+    if (initNav) initNav.classList.add('active');
+    var d = document.getElementById(activeSection + '-dots');
+    var c = document.getElementById(activeSection + '-cta');
     if (d) d.style.display = 'flex';
     if (c) c.style.display = 'flex';
   })();
 
-  // Nav button event listeners (replaces inline onclick)
-  document.getElementById('nav-brand').addEventListener('click', () => showSection('map'));
+  // Nav button event listeners (replaces inline onclick). nav-brand jumps to the
+  // journey map in a full deck; in a simple deck (map removed) it stays put.
+  document.getElementById('nav-brand').addEventListener('click', () => showSection(SIMPLE ? 'demo' : 'map'));
   document.getElementById('nav-map').addEventListener('click', () => showSection('map'));
   document.getElementById('nav-intro').addEventListener('click', () => showSection('intro'));
   document.getElementById('nav-rachel').addEventListener('click', () => showSection('rachel'));
   document.getElementById('nav-demo').addEventListener('click', () => showSection('demo'));
   document.getElementById('nav-bv').addEventListener('click', () => showSection('bv'));
 
+  // Simple / Guided deck: strip every non-demo section + its nav button so the
+  // deck IS just the demo scroll. Reuses the sec-map removal pattern below.
+  // Done before the buildMap / buildIntro / etc. IIFEs run — each null-guards
+  // on its root element, so removing the divs first is safe.
+  if (SIMPLE) {
+    ['intro', 'map', 'rachel', 'bv'].forEach(function (k) {
+      var sec = document.getElementById(SECTIONS[k]);
+      var nav = document.getElementById(NAV_BTNS[k]);
+      if (sec) sec.parentNode.removeChild(sec);
+      if (nav) nav.parentNode.removeChild(nav);
+    });
+    // One section left → nothing to navigate between. Hide the nav link group
+    // (keep the brand + slide counter). The links live in .site-nav-links.
+    var navLinks = document.querySelector('.site-nav-links');
+    if (navLinks) {
+      Array.prototype.slice.call(navLinks.querySelectorAll('button')).forEach(function (b) {
+        b.style.display = 'none';
+      });
+    }
+  }
+
   // Journey Map is a whole section (one synthetic slide). If de-selected in
   // Step 5, hide the section and its nav button so it's absent from export.
-  if (!slideEnabled('sec-map')) {
+  // (In simple mode it's already removed above; getElementById → null, no-op.)
+  if (!SIMPLE && !slideEnabled('sec-map')) {
     const secMap = document.getElementById('sec-map');
     const navMap = document.getElementById('nav-map');
     if (secMap) secMap.parentNode.removeChild(secMap);
@@ -593,6 +628,7 @@
   //  BUILD INTRO DECK
   // ═══════════════════════════════════════
   (function buildIntro() {
+    if (SIMPLE) return;   // simple deck: intro section removed
     document.getElementById('vi-presenter').textContent = STORY.presenterName + ' · ' + STORY.presenterTitle;
 
     const tagMap = [
@@ -683,6 +719,7 @@
   //  BUILD MEET RACHEL DECK
   // ═══════════════════════════════════════
   (function buildRachel() {
+    if (SIMPLE) return;   // simple deck: persona section removed
     document.getElementById('mr-quote').textContent = STORY.persona.quote;
     const statsEl = document.getElementById('mr-stats');
     STORY.persona.stats.forEach(s => {
@@ -765,6 +802,7 @@
   //  BUILD BVS DECK
   // ═══════════════════════════════════════
   (function buildBV() {
+    if (SIMPLE) return;   // simple deck: business-value section removed
     const capsEl = document.getElementById('bv-caps');
     // Render the capabilities list directly (label + description, with any
     // SE overrides already applied by SHARED.buildCapabilities → C.technologies).
@@ -883,7 +921,12 @@
   // ═══════════════════════════════════════
   //  RACHEL → DEMO CTA
   // ═══════════════════════════════════════
-  document.getElementById('rachel-journey-cta').addEventListener('click', () => showSection('demo'));
+  // Null-guarded: the persona (rachel) section is absent in a simple deck, so
+  // this CTA doesn't exist. An unguarded null.addEventListener here would throw
+  // and abort the rest of the inline script — including bootNav(), which wires
+  // the keyboard (←/→) navigation.
+  const rachelCta = document.getElementById('rachel-journey-cta');
+  if (rachelCta) rachelCta.addEventListener('click', () => showSection('demo'));
 
   // ═══════════════════════════════════════
   //  BUILD DEMO DECK
