@@ -473,6 +473,48 @@ CX components (AubreyDemo):
       .replace("<<SCRIPT>>", String(scriptText || "").slice(0, 4000));
   }
 
+  // ─── Brand-analysis prompt (Simple mode "Analyze website") ────
+  // Given a company name + website, returns the SE-facing brand basics the
+  // Simple wizard pre-fills: industry, a one-line description, a 3-color
+  // palette, and a few product categories. This is a KNOWLEDGE inference from
+  // the model's training (well-known brands) — NOT a scrape of the live site.
+  // Runs in JSON mode WITHOUT search grounding (grounding is incompatible with
+  // JSON mode on Gemini 2.x — see RESEARCH_PROMPT note). Anything the model
+  // isn't reasonably confident about MUST come back "" so the wizard keeps its
+  // deterministic defaults instead of shipping a hallucinated color.
+  const BRAND_ANALYSIS_PROMPT = [
+    "You are pre-filling brand basics for a Salesforce demo built for the company",
+    "below. Return ONE valid JSON object (no prose, no markdown fences) with EXACTLY",
+    "these keys:",
+    "",
+    "{",
+    '  "industry":       "<the company\'s industry in 1–3 words, e.g. \\"Retail\\", \\"Financial Services\\">",',
+    '  "description":    "<one short sentence: what the company does>",',
+    '  "primaryColor":   "<#rrggbb — the brand\'s dominant color>",',
+    '  "secondaryColor": "<#rrggbb — a supporting brand color>",',
+    '  "accentColor":    "<#rrggbb — an accent/highlight color>",',
+    '  "productCategories": ["<category>", "<category>", "<category>"]',
+    "}",
+    "",
+    "RULES:",
+    "1. Base colors on the company's ACTUAL known brand palette when you recognize",
+    "   the brand (e.g. Coca-Cola red, Tiffany teal). Colors MUST be #rrggbb hex.",
+    "2. If you do NOT recognize the company or are not reasonably confident about a",
+    "   field, return \"\" (empty string) for that field — do NOT guess or invent. For",
+    "   productCategories, return [] when unsure. A missing value is expected and safe;",
+    "   a wrong one is not.",
+    "3. Keep every string SHORT. No commentary, no extra keys.",
+    "",
+    "COMPANY: <<CUSTOMER>>",
+    "WEBSITE: <<WEBSITE>>",
+  ].join("\n");
+
+  function getBrandAnalysisPrompt(customerName, website) {
+    return BRAND_ANALYSIS_PROMPT
+      .replace("<<CUSTOMER>>", String(customerName || "(unknown)"))
+      .replace("<<WEBSITE>>", String(website || "(none provided)"));
+  }
+
   // ─── Persona-card copy prompt (Assets step "Generate all") ────
   // Given one persona + demo context, asks Gemini for the small
   // copy fields the persona card needs: three stat tiles, a three-
@@ -983,6 +1025,8 @@ CX components (AubreyDemo):
     getStoryParsePrompt: getStoryParsePrompt,
     RESEARCH_PROMPT: RESEARCH_PROMPT,
     getResearchPrompt: getResearchPrompt,
+    BRAND_ANALYSIS_PROMPT: BRAND_ANALYSIS_PROMPT,
+    getBrandAnalysisPrompt: getBrandAnalysisPrompt,
     PERSONA_COPY_PROMPT: PERSONA_COPY_PROMPT,
     getPersonaCopyPrompt: getPersonaCopyPrompt,
     AGENT_CHAT_PROMPT: AGENT_CHAT_PROMPT,

@@ -29,7 +29,7 @@
     experiences: [
       {
         id: "cimulate",
-        label: "Cimulate storefront",
+        label: "Cimulate/Shopper Agent",
         blurb: "Intent-aware product search + a shopper concierge agent, branded to the customer.",
         icon: "🔎",
         kind: "app",

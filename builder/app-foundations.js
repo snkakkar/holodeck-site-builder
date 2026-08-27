@@ -388,7 +388,10 @@
       // while staying well under the server's 30-req/60s rate limit. `frac`
       // is this stage's own 0→1 (photos completed / total). If the caller
       // aborts, we stop issuing new waves and return what we have.
-      const BATCH = 4;
+      // Callers may raise the wave size via opts.batch (Simple mode passes 8 to
+      // shave a wave off its ~12-image run); default 4 preserves the full
+      // builder's Assets "Generate all" behavior exactly.
+      const BATCH = Math.max(1, opts.batch || 4);
       const genOne = function (p) {
         return gen.generateImage({ prompt: photoPrompt(p, config, opts) })
           .then(function (res) {

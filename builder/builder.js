@@ -484,6 +484,8 @@
     ]);
     container.appendChild(head);
 
+    container.appendChild(renderSimpleSteps(sim));
+
     const body = el("div", { class: "bx-simple-body" });
     container.appendChild(body);
 
@@ -501,8 +503,133 @@
     renderShell();
   }
 
+  // Horizontal top step-nav (not the full builder's side stepper). Four chips
+  // mapped 1:1 onto the existing panels — Experiences(menu) · Setup(basics) ·
+  // Details(questions) · Build(generate/done) — so the SE can jump back to edit
+  // any field, then re-Build. Gating mirrors the linear Next/Generate checks:
+  // Experiences is always reachable; the rest need ≥1 selected experience, and
+  // Build additionally needs a customer name. Disabled chips grey out + no-op.
+  function renderSimpleSteps(sim) {
+    const p = (app.state && app.state.project) || {};
+    const hasSel = !!(sim.selected && sim.selected.length);
+    const hasName = !!(p.customerName || "").trim();
+    // A finished build is anything with a generated deck — derived from the
+    // persisted slides, NOT just the transient sim._done flag, so a project
+    // built before this flag existed (or reloaded from the store) still routes
+    // to "done" instead of silently rebuilding when the Build chip is clicked.
+    const hasBuild = !!(sim._done || (app.state.slides || []).some(function (sl) {
+      return !sl.sectionId || sl.sectionId === "demo";
+    }));
+    const STEPS = [
+      { n: 1, label: "Experiences", panel: "menu",     panels: ["menu"] },
+      { n: 2, label: "Setup",       panel: "basics",   panels: ["basics"] },
+      { n: 3, label: "Details",     panel: "questions", panels: ["questions"] },
+      { n: 4, label: "Build",       panel: "generate", panels: ["generate", "done"] },
+    ];
+    const order = ["menu", "basics", "questions", "generate", "done"];
+    const activeIdx = order.indexOf(sim.panel);
+
+    const bar = el("div", { class: "bx-simple-steps" });
+    STEPS.forEach(function (st) {
+      const isActive = st.panels.indexOf(sim.panel) !== -1;
+      // A step is "done" once we've moved past its last panel in the flow.
+      const lastPanelIdx = order.indexOf(st.panels[st.panels.length - 1]);
+      const isDone = !isActive && activeIdx > lastPanelIdx;
+      let enabled = true;
+      if (st.panel !== "menu" && !hasSel) enabled = false;
+      if (st.panel === "generate" && (!hasSel || !hasName)) enabled = false;
+
+      const chip = el("button", {
+        class: "bx-simple-step" + (isActive ? " is-active" : "") + (isDone ? " is-done" : ""),
+        type: "button",
+      }, [
+        el("span", { class: "bx-simple-step-num", text: String(st.n) }),
+        el("span", { class: "bx-simple-step-label", text: st.label }),
+      ]);
+      if (!enabled) chip.disabled = true;
+      chip.addEventListener("click", function () {
+        if (!enabled) {
+          toast(st.panel === "generate" && hasSel && !hasName
+            ? "Enter a customer name first"
+            : "Pick at least one experience first");
+          return;
+        }
+        // Build step is special: a COMPLETED build routes to the finished "done"
+        // panel (ZIP preserved — never silently re-runs); an in-flight build
+        // returns to its progress bar; and a build that has never run kicks off
+        // generation (so the chip never strands the user on an idle 0% bar).
+        if (st.panel === "generate") {
+          if (hasBuild) { simpleGoTo("done"); return; }
+          if (sim.panel === "generate") { simpleGoTo("generate"); return; }
+          simpleState()._status = "";
+          simpleGoTo("generate");
+          startSimpleGeneration();
+          return;
+        }
+        simpleGoTo(st.panel);
+      });
+      bar.appendChild(chip);
+    });
+    return bar;
+  }
+
   function simpleNav(children) {
     return el("div", { class: "bx-simple-nav" }, children);
+  }
+
+  // Best-effort brand inference for the Simple setup panel. Fans out two
+  // INDEPENDENT tasks, each isolated so a miss degrades one signal (never the
+  // build): (1) logo via the public-logo-API path (fetchRealLogo → /api/logo:
+  // Clearbit → DuckDuckGo → Google favicon) and (2) a Gemini brand-KNOWLEDGE
+  // inference (industry + hex colors) from the company name + URL. There is NO
+  // live-site DOM/CSS scraping. Valid results are applied to state.brand /
+  // state.project; anything missing keeps the current value/defaults. Resolves
+  // to a short per-signal summary string for the toast.
+  function analyzeWebsite(site, customerName) {
+    const b = app.state.brand = app.state.brand || {};
+    const p = app.state.project = app.state.project || {};
+    const GEMINI = window.HOLO_GEMINI;
+    const AIP = window.HOLO_AI_PROMPT;
+
+    const logoTask = fetchRealLogo(site)
+      .then(function (dataUrl) { if (dataUrl) { b.logoPath = dataUrl; return true; } return false; })
+      .catch(function () { return false; });
+
+    const canBrand = !!(_geminiReady && GEMINI && GEMINI.generate && AIP && AIP.getBrandAnalysisPrompt);
+    const brandTask = !canBrand ? Promise.resolve(null) : GEMINI.generate({
+      prompt: AIP.getBrandAnalysisPrompt(customerName || p.customerName || "", site),
+      jsonMode: true, fast: true, temperature: 0.2, maxOutputTokens: 1024, useCache: true,
+    }).then(function (text) {
+      const data = safeParseJson(text);
+      return (data && typeof data === "object") ? data : null;
+    }).catch(function () { return null; });
+
+    return Promise.all([logoTask, brandTask]).then(function (res) {
+      const gotLogo = res[0];
+      const data = res[1];
+      const isHex = function (v) { return /^#[0-9a-fA-F]{6}$/.test(String(v || "").trim()); };
+      let gotColors = false, gotIndustry = false;
+      if (data) {
+        if (isHex(data.primaryColor))   { b.primaryColor = String(data.primaryColor).trim(); gotColors = true; }
+        if (isHex(data.secondaryColor)) { b.secondaryColor = String(data.secondaryColor).trim(); gotColors = true; }
+        if (isHex(data.accentColor))    { b.accentColor = String(data.accentColor).trim(); gotColors = true; }
+        const ind = String(data.industry || "").trim();
+        if (ind) { p.industry = ind; gotIndustry = true; }
+      }
+      commit();
+
+      const set = [];
+      if (gotLogo) set.push("logo");
+      if (gotColors) set.push("colors");
+      if (gotIndustry) set.push("industry");
+      if (set.length) return "Set " + set.join(" + ");
+      if (!canBrand) {
+        return gotLogo
+          ? "Logo set — colors/industry need manual entry (AI unavailable)"
+          : "AI unavailable — enter logo, colors and industry manually";
+      }
+      return "No signals found — enter details manually";
+    });
   }
 
   // Panel 1 — experience menu (multi-select cards).
@@ -571,6 +698,16 @@
       el("span", { class: "bx-simple-label", text: "Website" }), siteIn,
     ]));
 
+    // Industry — steers the unified-profile role + the app generators. Filled
+    // by "Analyze website" (below), but always hand-editable. Simple generation
+    // reads project.industry and only auto-fills it when empty, so an SE-entered
+    // or analyzed value survives.
+    const indIn = el("input", { class: "bx-input", type: "text", placeholder: "Industry (e.g. Retail, Financial Services)", value: p.industry || "" });
+    indIn.addEventListener("input", function () { p.industry = indIn.value; commit(); });
+    body.appendChild(el("label", { class: "bx-simple-field" }, [
+      el("span", { class: "bx-simple-label", text: "Industry" }), indIn,
+    ]));
+
     // ── Branding: logo (auto-fetch from the site + upload override) + colors.
     // The logo is stored as a data URL on state.brand.logoPath — it persists and
     // exports for free (mapAssetValues leaves non-"gcs:" strings untouched) and
@@ -594,20 +731,27 @@
       reader.readAsDataURL(f);
     });
 
-    const fetchBtn = btn("Fetch from website", "bx-btn-secondary", function () {
-      if (!(siteIn.value || "").trim()) { toast("Enter a website first"); return; }
-      fetchBtn.disabled = true; fetchBtn.textContent = "Fetching…";
-      fetchRealLogo(siteIn.value).then(function (dataUrl) {
-        if (dataUrl) { b.logoPath = dataUrl; showLogo(); commit(); toast("Logo found"); }
-        else { toast("No logo found — upload one instead"); }
-      }).catch(function () { toast("Logo fetch failed"); })
-        .then(function () { fetchBtn.disabled = false; fetchBtn.textContent = "Fetch from website"; });
+    // "Analyze website" — one click infers logo + brand colors + industry from
+    // the company name + URL (no scraping; see analyzeWebsite). Each signal is
+    // best-effort with a fallback, so a miss never blocks the build. On success
+    // we re-render the panel (simpleGoTo("basics")) so the logo preview, color
+    // pickers and industry field reflect the new state.
+    const analyzeBtn = btn("Analyze website", "bx-btn-secondary", function () {
+      const site = (siteIn.value || "").trim();
+      if (!site) { toast("Enter a website first"); return; }
+      analyzeBtn.disabled = true; analyzeBtn.textContent = "Analyzing…";
+      analyzeWebsite(site, (nameIn.value || "").trim())
+        .then(function (summary) { toast(summary || "Analysis complete"); simpleGoTo("basics"); })
+        .catch(function () {
+          analyzeBtn.disabled = false; analyzeBtn.textContent = "Analyze website";
+          toast("Analysis failed — enter details manually");
+        });
     });
 
     body.appendChild(el("div", { class: "bx-simple-field" }, [
       el("span", { class: "bx-simple-label", text: "Logo" }),
-      el("span", { class: "bx-simple-qhint", text: "Auto-fetched from the website, or upload one. Used in the cimulate & clienteling apps." }),
-      el("div", { class: "bx-simple-logo-row" }, [logoImg, fetchBtn, logoFile]),
+      el("span", { class: "bx-simple-qhint", text: "Analyze the website to infer the logo, brand colors and industry — or upload a logo. Used in the cimulate & clienteling apps." }),
+      el("div", { class: "bx-simple-logo-row" }, [logoImg, analyzeBtn, logoFile]),
     ]));
 
     // Auto-fetch once when a website is present and no logo is set yet.
@@ -632,6 +776,19 @@
       onInput: function (v) { b.accentColor = v; commit(); } }));
     body.appendChild(el("div", { class: "bx-simple-field" }, [
       el("span", { class: "bx-simple-label", text: "Colors" }), colorRow,
+    ]));
+
+    // Optional story context — grounds the AI verbatim. runSimpleStoryExtraction
+    // only synthesizes a placeholder seed when state.scriptText is empty
+    // (`s.scriptText = s.scriptText || …`), so a blurb here is used as-is for the
+    // research + parse calls. Not required — leaving it blank keeps prior behavior.
+    const storyIn = el("textarea", { class: "bx-textarea", rows: "4",
+      placeholder: "Optional — a sentence or two about the customer, their goals, or the story you want to tell. Helps the AI; not required." });
+    storyIn.value = app.state.scriptText || "";
+    storyIn.addEventListener("input", function () { app.state.scriptText = storyIn.value; commit(); });
+    body.appendChild(el("label", { class: "bx-simple-field" }, [
+      el("span", { class: "bx-simple-label", text: "Story context (optional)" }),
+      storyIn,
     ]));
 
     body.appendChild(simpleNav([
@@ -730,8 +887,18 @@
         .then(function () { toast("Demo ZIP downloaded"); })
         .catch(function (e) { toast("Couldn't build the ZIP: " + (e && e.message || e)); });
     });
+    // Regeneration is explicit only — navigating back never silently re-runs.
+    const rebuildBtn = btn("↻ Rebuild demo", "bx-btn-secondary", function () {
+      const sm = simpleState();
+      sm.panel = "generate";
+      sm._status = "";
+      commit();
+      renderShell();
+      startSimpleGeneration();
+    });
     body.appendChild(el("div", { class: "bx-simple-done-actions" }, [
       zipBtn,
+      rebuildBtn,
       btn("Edit selections", "bx-btn-secondary", function () { simpleGoTo("menu"); }),
     ]));
     body.appendChild(el("p", { class: "bx-simple-hint bx-mt-12", text:
@@ -744,6 +911,7 @@
   function startSimpleGeneration() {
     const sim = simpleState();
     sim._error = "";
+    sim._done = false; // a build is now in flight; clear any prior completion
     function onStatus(frac, msg) {
       sim._progress = frac;
       if (msg != null) sim._status = msg;
@@ -758,6 +926,10 @@
     runSimpleGeneration(sim.selected.slice(), onStatus).then(function () {
       sim.panel = "done";
       sim._progress = 1;
+      // Durable completion flag: lets the Build step-chip / navigate-back route
+      // straight to the finished "done" panel (ZIP present) instead of a stale
+      // progress bar. Cleared whenever a build (re)starts.
+      sim._done = true;
       commit();
       renderShell();
     }).catch(function (err) {
@@ -817,39 +989,65 @@
         }
       }
 
-      // 4 · Generate each experience. Apps are the expensive stages; weight the
-      //     bar across them. Slides (profile/help agent) are quick.
+      // 4 · Generate the experiences, overlapping everything the dependency
+      //     graph allows (R9 — lossless, same output, fewer serial round-trips):
+      //       • the help-agent chat depends only on Stage-1 story output, so it
+      //         runs CONCURRENTLY with all the app work;
+      //       • app CONFIG calls stay sequential (the first builds the shared
+      //         12-SKU catalog, the rest reuse it — rebuildCatalog policy), but
+      //         each app's PHOTOS ride a single serial chain that overlaps the
+      //         NEXT app's config call. Photos remain one dedup-safe pass: the
+      //         serial photoChain guarantees app-2's photos see app-1's populated
+      //         shared store and early-return (pending = []).
       const appIds = selectedIds.filter(function (id) {
         const e = simpleExpById(id); return e && e.kind === "app";
       });
-      const base = 0.25;
-      const span = 0.7; // leaves headroom to 1.0 for the finalize step
-      const perApp = appIds.length ? (span / appIds.length) : 0;
 
-      // Chain the app generations sequentially so the shared 12-SKU catalog is
-      // built once (first app) and reused (second app) — mirrors generateApp's
-      // rebuildCatalog policy.
-      let chain = Promise.resolve();
-      appIds.forEach(function (appId, idx) {
-        chain = chain.then(function () {
-          const chunkStart = base + idx * perApp;
-          return generateSimpleApp(appId, GEMINI, function (msg, f) {
-            onStatus(chunkStart + (f || 0) * perApp, msg);
+      // Coarse progress: with the phases running concurrently there is no clean
+      // linear fraction, so count task completions (each config + each photo
+      // pass + the help-agent call). Monotonic; reaches the finalize handoff.
+      const base = 0.25;
+      const span = 0.68; // leaves headroom to ~0.96 for the finalize step
+      const wantHelp = selectedIds.indexOf("helpAgent") !== -1;
+      const totalTasks = appIds.length * 2 + (wantHelp ? 1 : 0);
+      let doneTasks = 0;
+      function fracNow() {
+        return totalTasks ? base + span * Math.min(1, doneTasks / totalTasks) : base + span;
+      }
+      function tick(msg) { doneTasks += 1; onStatus(fracNow(), msg); }
+
+      // Help-agent chat — concurrent with the whole app pipeline.
+      const helpPromise = wantHelp
+        ? generateSimpleHelpAgent(GEMINI, AI_PROMPT)
+            .catch(function () { return; })
+            .then(function () { tick("Wrote the agent conversation"); })
+        : Promise.resolve();
+
+      // Sequential configs; each schedules its photos onto the shared photoChain.
+      let cfgChain = Promise.resolve();
+      let photoChain = Promise.resolve();
+      appIds.forEach(function (appId) {
+        cfgChain = cfgChain.then(function () {
+          onStatus(fracNow(), "Configuring " + appId + "…");
+          return generateSimpleAppConfig(appId, GEMINI, function () {});
+        }).then(function (cfg) {
+          tick("Configured " + appId);
+          photoChain = photoChain.then(function () {
+            onStatus(fracNow(), "Generating imagery…");
+            return generateSimpleAppPhotos(appId, cfg, function () {})
+              .then(function () { tick("Imaged " + appId); });
           });
         });
       });
+      // By the time cfgChain settles, every photoChain segment is appended, so
+      // this awaits the full (serial) image pass too.
+      const appWork = cfgChain.then(function () { return photoChain; });
 
-      return chain.then(function () {
-        // 5 · Help agent conversation (in-DOM slide) — service-framed prompt.
-        if (selectedIds.indexOf("helpAgent") !== -1) {
-          onStatus(base + span, "Writing the agent conversation…");
-          return generateSimpleHelpAgent(GEMINI, AI_PROMPT).catch(function () { return; });
-        }
-      }).then(function () {
+      return Promise.all([appWork, helpPromise]).then(function () {
         onStatus(0.96, "Assembling the deck…");
-        // 6 · Managed CX components for the app iframes.
+        // 5 · Managed CX components for the app iframes.
         syncBuiltAppCxComponents();
-        // 7 · Slim deck — one slide per selected experience.
+        // 6 · Slim deck — one slide per selected experience.
         buildSimpleSlides(selectedIds);
         recompute();
         commit();
@@ -972,16 +1170,21 @@
     });
   }
 
-  // Generate one app experience (cimulate/clienteling) for simple mode.
-  // Mirrors generateApp's AI tier: text config → product photos, reusing the
-  // shared catalog + image store. Threads the wizard's optional answers into
-  // the prompt builder via opts.simpleAnswers.
-  function generateSimpleApp(appId, GEMINI, onStatus) {
+  // Generate one app experience (cimulate/clienteling) for simple mode, split
+  // into two phases so the orchestrator can overlap app-N's config call with
+  // app-(N-1)'s image generation (R9). Both mirror generateApp's AI tier and
+  // reuse the shared catalog + image store.
+
+  // Phase A — text config. Ensures the slice, builds/reuses the shared catalog
+  // via HOLO_APPFOUND.generate, and returns the generated config (also stored on
+  // the slice). Must run in selection order so the FIRST app builds the catalog
+  // and the rest reuse it. onStatus(msg, frac) spans 0→1 for this call.
+  function generateSimpleAppConfig(appId, GEMINI, onStatus) {
     const s = app.state;
     onStatus = onStatus || function () {};
     if (!window.HOLO_APPFOUND || !window.HOLO_APPFOUND.generate) {
       onStatus("Generator unavailable — skipping " + appId, 1);
-      return Promise.resolve();
+      return Promise.resolve(null);
     }
     const apps = appsState();
     const slice = apps[appId] || (apps[appId] = { enabled: false, config: null, productImages: null });
@@ -992,7 +1195,7 @@
     const simpleAnswers = (simpleState().answers[appId]) || {};
 
     return window.HOLO_APPFOUND.generate(appId, s, {
-      onStatus: function (msg, f) { onStatus(msg, (f || 0) * 0.3); },
+      onStatus: function (msg, f) { onStatus(msg, f || 0); },
       storySig: sigNow,
       rebuildCatalog: rebuildCatalog,
       simpleAnswers: simpleAnswers,
@@ -1001,31 +1204,47 @@
       slice.extracted = true;
       slice._previewToken = stashPreviewConfig(appId, out.config);
       slice._usedGemini = out.usedGemini;
-      // Product photos (AI tier).
-      const proj = s.project || {};
-      const sharedImgs = (s.retailImages && s.retailCatalogSig === storySignature()) ? s.retailImages : {};
-      return window.HOLO_APPFOUND.generateProductPhotos(appId, out.config, {
-        onStatus: function (msg, f) { onStatus(msg, 0.3 + (f || 0) * 0.7); },
-        industry: proj.industry || "",
-        customerName: proj.customerName || "",
-        existingImages: sharedImgs,
-      }).then(function (images) {
-        if (images && Object.keys(images).length) {
-          out.config.productImages = Object.assign({}, out.config.productImages, images);
-          slice.productImages = out.config.productImages;
-          s.retailImages = Object.assign({}, s.retailImages, out.config.productImages);
-        }
-        out.config._placeholder = false;
-        slice._aiGenerated = true;
-        slice._previewOnly = false;
-        slice._imageStorySig = storySignature();
-        // Re-stash so the token resolves to the photographed config.
-        slice._previewToken = stashPreviewConfig(appId, out.config);
-        onStatus("Generated " + appId, 1);
-      }).catch(function () {
-        // Photos are best-effort; keep the text config.
-        onStatus("Generated " + appId + " (text)", 1);
-      });
+      return out.config;
+    });
+  }
+
+  // Phase B — product photos (the expensive AI images). MUST run on a single
+  // serial chain across apps so the shared image store dedups: app-2's photos
+  // see app-1's populated s.retailImages and early-return (pending empty). Runs
+  // 8-wide (batch:8) to shave a wave off the ~12-image cimulate run. Best-effort:
+  // a failure keeps the text config. onStatus(msg, frac) spans 0→1.
+  function generateSimpleAppPhotos(appId, config, onStatus) {
+    const s = app.state;
+    onStatus = onStatus || function () {};
+    if (!config || !window.HOLO_APPFOUND || !window.HOLO_APPFOUND.generateProductPhotos) {
+      return Promise.resolve();
+    }
+    const apps = appsState();
+    const slice = apps[appId] || (apps[appId] = { enabled: true, config: config, productImages: null });
+    const proj = s.project || {};
+    const sharedImgs = (s.retailImages && s.retailCatalogSig === storySignature()) ? s.retailImages : {};
+    return window.HOLO_APPFOUND.generateProductPhotos(appId, config, {
+      onStatus: function (msg, f) { onStatus(msg, f || 0); },
+      industry: proj.industry || "",
+      customerName: proj.customerName || "",
+      existingImages: sharedImgs,
+      batch: 8,
+    }).then(function (images) {
+      if (images && Object.keys(images).length) {
+        config.productImages = Object.assign({}, config.productImages, images);
+        slice.productImages = config.productImages;
+        s.retailImages = Object.assign({}, s.retailImages, config.productImages);
+      }
+      config._placeholder = false;
+      slice._aiGenerated = true;
+      slice._previewOnly = false;
+      slice._imageStorySig = storySignature();
+      // Re-stash so the token resolves to the photographed config.
+      slice._previewToken = stashPreviewConfig(appId, config);
+      onStatus("Generated " + appId, 1);
+    }).catch(function () {
+      // Photos are best-effort; keep the text config.
+      onStatus("Generated " + appId + " (text)", 1);
     });
   }
 

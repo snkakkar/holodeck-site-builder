@@ -3374,6 +3374,29 @@ button { font-family: inherit; }
 }
 .bx-simple-title { font-size: 30px; line-height: 1.15; margin: 0 0 var(--bx-sp-3); color: var(--bx-ink); }
 .bx-simple-sub { font-size: 15px; line-height: 1.55; color: var(--bx-ink-2); margin: 0; }
+/* Horizontal top step-nav for the Simple wizard (jump-to-edit any step). */
+.bx-simple-steps {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: var(--bx-sp-2); max-width: 760px; margin: 0 auto var(--bx-sp-6);
+}
+.bx-simple-step {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 8px 14px; border-radius: var(--bx-radius-pill);
+  border: 1px solid var(--bx-border); background: var(--bx-bg-1);
+  color: var(--bx-ink-2); font-size: 13px; font-weight: 600;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.bx-simple-step:hover:not([disabled]) { border-color: var(--bx-blue); color: var(--bx-ink); }
+.bx-simple-step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%; font-size: 12px; font-weight: 700;
+  background: var(--bx-bg-2); color: var(--bx-ink-2);
+}
+.bx-simple-step.is-active { border-color: var(--bx-blue); background: var(--bx-blue); color: #fff; }
+.bx-simple-step.is-active .bx-simple-step-num { background: rgba(255, 255, 255, 0.28); color: #fff; }
+.bx-simple-step.is-done { border-color: var(--bx-blue); color: var(--bx-blue); }
+.bx-simple-step.is-done .bx-simple-step-num { background: var(--bx-blue); color: #fff; }
+.bx-simple-step[disabled] { opacity: 0.45; cursor: not-allowed; }
 .bx-simple-body { max-width: 760px; margin: 0 auto; }
 .bx-simple-h2 { font-size: 20px; margin: 0 0 var(--bx-sp-2); color: var(--bx-ink); }
 .bx-simple-hint { font-size: 13px; color: var(--bx-ink-2); margin: 0 0 var(--bx-sp-4); line-height: 1.5; }
