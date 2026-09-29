@@ -320,21 +320,18 @@
       var spec = tr.filterSpec || tr.filter || {};
       var fams = (spec.families || []).map(function (s) { return String(s).toLowerCase(); });
       var cats = (spec.categories || []).map(function (s) { return String(s).toLowerCase(); });
-      var types = (spec.types || []).map(function (s) { return String(s).toLowerCase(); });
       var kws  = (spec.keywords || []).map(function (s) { return String(s).toLowerCase(); });
       var tier = spec.priceTier ? String(spec.priceTier).toLowerCase() : '';
       tr.filter = function (p) {
         var fam = String(p.family || '').toLowerCase();
         var cat = String(p.category || '').toLowerCase();
-        var typ = String(p.type || '').toLowerCase();
         var txt = ((p.name || '') + ' ' + (p.description || '')).toLowerCase();
         if (fams.length && fams.indexOf(fam) === -1) return false;
         if (cats.length && cats.indexOf(cat) === -1) return false;
-        if (types.length && types.indexOf(typ) === -1) return false;
         if (tier && String(p.priceTier || '').toLowerCase() !== tier) return false;
         if (kws.length && !kws.some(function (k) { return txt.indexOf(k) !== -1; })) return false;
         // With no positive signal, don't match everything.
-        return !!(fams.length || cats.length || types.length || kws.length || tier);
+        return !!(fams.length || cats.length || kws.length || tier);
       };
     });
   }
