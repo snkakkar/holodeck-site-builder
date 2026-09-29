@@ -53,10 +53,38 @@
     if (Number.isFinite(secs) && secs > 0) return secs * 1000;
     return Math.min(30000, 1000 * Math.pow(2, attempt));
   }
+  // ─── Client-side pacing ───────────────────────────────────────
+  // Retry alone still lets a batch of concurrent calls (Retail CAB fires
+  // 4 at a time, 60-80 total) slam the server's 30-req/60s budget all at
+  // once — every request in the batch 429s together, and since callers
+  // await Promise.all per batch, the WHOLE batch (and the progress bar)
+  // stalls for up to a minute waiting on Retry-After. Pace requests to
+  // stay under the budget proactively so 429s become rare and progress
+  // advances roughly one image at a time instead of bursting then stalling.
+  const CLIENT_RATE_MAX = 25; // stay under the server's default 30/60s
+  const CLIENT_RATE_WINDOW_MS = 60000;
+  let _requestTimes = [];
+  let _gate = Promise.resolve();
+
+  function throttleSlot() {
+    const next = _gate.then(function () {
+      const now = Date.now();
+      _requestTimes = _requestTimes.filter(function (t) { return now - t < CLIENT_RATE_WINDOW_MS; });
+      if (_requestTimes.length < CLIENT_RATE_MAX) {
+        _requestTimes.push(now);
+        return;
+      }
+      const waitMs = CLIENT_RATE_WINDOW_MS - (now - _requestTimes[0]) + 50;
+      return sleep(waitMs).then(function () { _requestTimes.push(Date.now()); });
+    });
+    _gate = next;
+    return next;
+  }
+
   function fetchWithRetry(doFetch, maxRetries) {
     const retries = typeof maxRetries === "number" ? maxRetries : 4;
     function attempt(n) {
-      return doFetch().then(function (res) {
+      return throttleSlot().then(doFetch).then(function (res) {
         if (res.ok || res.status !== 429 || n >= retries) return res;
         return sleep(retryDelayMs(res, n)).then(function () { return attempt(n + 1); });
       });

@@ -220,15 +220,27 @@
         // image via copy.heroImage; when absent, drop the baked Cavender's photo
         // so the hero falls to the brand-tinted gradient instead of showing
         // another brand's cowboys.
-        var heroImg = (window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImage) || b.heroImage || '';
+        // A baked export rewrites these to a path relative to the app root
+        // (e.g. "images/generated/img-42.jpg"). Custom-property url()s
+        // resolve against the STYLESHEET that consumes them (styles.css,
+        // under css/), not this document — so a bare relative path 404s at
+        // css/images/generated/... Resolve to an absolute URL against this
+        // document first; a value that's already absolute (a live signed
+        // GCS URL in preview) passes through unchanged.
+        function absUrl(u) {
+          if (!u) return '';
+          try { return new URL(u, document.baseURI).href; } catch (e) { return u; }
+        }
+
+        var heroImg = absUrl((window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImage) || b.heroImage || '');
         root.style.setProperty('--hero-image', heroImg ? "url('" + heroImg.replace(/'/g, "\\'") + "')" : 'none');
 
         // Signed-in "Insider" hero — same treatment, its own generated photo.
-        var heroImgSignedIn = (window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImageSignedIn) || '';
+        var heroImgSignedIn = absUrl((window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImageSignedIn) || '');
         root.style.setProperty('--hero-image-signedin', heroImgSignedIn ? "url('" + heroImgSignedIn.replace(/'/g, "\\'") + "')" : 'none');
 
         // Lifestyle "our story" panel — same treatment as the hero photo.
-        var lifeImg = (window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.lifestyleImage) || b.lifestyleImage || '';
+        var lifeImg = absUrl((window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.lifestyleImage) || b.lifestyleImage || '');
         root.style.setProperty('--lifestyle-image', lifeImg ? "url('" + lifeImg.replace(/'/g, "\\'") + "')" : 'none');
       }
 

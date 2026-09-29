@@ -501,19 +501,23 @@
       return urlToLocal[url];
     }
 
-    const productsOut = (products || []).map(function (p) {
-      return isRemote(p.image) ? Object.assign({}, p, { image: localPathFor(p.image) }) : p;
-    });
+    // Collect every remote URL that needs baking WITHOUT rewriting fields
+    // yet — a fetch can fail (expired signed URL, GCS CORS) and rewriting
+    // up front would point the field at a local file that never gets
+    // written, a guaranteed 404 in the exported app. Only swap a field to
+    // its local path once the bytes are confirmed in hand.
+    const productImgs = (products || []).filter(function (p) { return isRemote(p.image); });
+    productImgs.forEach(function (p) { localPathFor(p.image); });
     const bc = JSON.parse(JSON.stringify(brandConfig || {}));
-    (bc.styledPosts || []).forEach(function (sp) {
-      if (isRemote(sp.image)) sp.image = localPathFor(sp.image);
-    });
+    const styledImgs = (bc.styledPosts || []).filter(function (sp) { return isRemote(sp.image); });
+    styledImgs.forEach(function (sp) { localPathFor(sp.image); });
     if (bc.copy) {
-      if (isRemote(bc.copy.heroImage)) bc.copy.heroImage = localPathFor(bc.copy.heroImage);
-      if (isRemote(bc.copy.heroImageSignedIn)) bc.copy.heroImageSignedIn = localPathFor(bc.copy.heroImageSignedIn);
+      if (isRemote(bc.copy.heroImage)) localPathFor(bc.copy.heroImage);
+      if (isRemote(bc.copy.heroImageSignedIn)) localPathFor(bc.copy.heroImageSignedIn);
     }
 
     const images = [];
+    const baked = {}; // url → true once its bytes are fetched successfully
     const urls = Object.keys(urlToLocal);
     return Promise.all(urls.map(function (url) {
       return fetch(url).then(function (res) {
@@ -521,12 +525,25 @@
         return res.arrayBuffer();
       }).then(function (buf) {
         images.push({ dest: urlToLocal[url], content: new Uint8Array(buf) });
+        baked[url] = true;
       }).catch(function (err) {
         if (typeof console !== "undefined" && console.warn) {
-          console.warn("[holo] retailCab: failed to bake image " + url, err && err.message);
+          console.warn("[holo] retailCab: failed to bake image " + url + " — leaving the live URL in place", err && err.message);
         }
       });
     })).then(function () {
+      // Rewrite only what actually baked; anything that failed keeps its
+      // original (still-live-for-now) remote URL instead of a dead local path.
+      const productsOut = (products || []).map(function (p) {
+        return baked[p.image] ? Object.assign({}, p, { image: urlToLocal[p.image] }) : p;
+      });
+      (bc.styledPosts || []).forEach(function (sp) {
+        if (baked[sp.image]) sp.image = urlToLocal[sp.image];
+      });
+      if (bc.copy) {
+        if (baked[bc.copy.heroImage]) bc.copy.heroImage = urlToLocal[bc.copy.heroImage];
+        if (baked[bc.copy.heroImageSignedIn]) bc.copy.heroImageSignedIn = urlToLocal[bc.copy.heroImageSignedIn];
+      }
       return { brandConfig: bc, products: productsOut, images: images };
     });
   }
