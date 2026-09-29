@@ -1049,10 +1049,17 @@
       const wantHelp = selectedIds.indexOf("helpAgent") !== -1;
       const totalTasks = appIds.length * 2 + (wantHelp ? 1 : 0);
       let doneTasks = 0;
+      const taskSpan = totalTasks ? span / totalTasks : 0;
       function fracNow() {
         return totalTasks ? base + span * Math.min(1, doneTasks / totalTasks) : base + span;
       }
       function tick(msg) { doneTasks += 1; onStatus(fracNow(), msg); }
+      // Sub-progress within the current task's slice (e.g. per-image status
+      // from generateRetailCab's onStatus), so the bar creeps forward instead
+      // of sitting frozen for the whole task.
+      function subTick(msg, f) {
+        onStatus(fracNow() + taskSpan * Math.min(1, Math.max(0, f || 0)), msg);
+      }
 
       // Help-agent chat — concurrent with the whole app pipeline.
       const helpPromise = wantHelp
@@ -1067,12 +1074,16 @@
       appIds.forEach(function (appId) {
         cfgChain = cfgChain.then(function () {
           onStatus(fracNow(), "Configuring " + appId + "…");
-          return generateSimpleAppConfig(appId, GEMINI, function () {});
+          return generateSimpleAppConfig(appId, GEMINI, function (msg, f) {
+            subTick(msg || ("Configuring " + appId + "…"), f);
+          });
         }).then(function (cfg) {
           tick("Configured " + appId);
           photoChain = photoChain.then(function () {
             onStatus(fracNow(), "Generating imagery…");
-            return generateSimpleAppPhotos(appId, cfg, function () {})
+            return generateSimpleAppPhotos(appId, cfg, function (msg, f) {
+              subTick(msg || "Generating imagery…", f);
+            })
               .then(function () { tick("Imaged " + appId); });
           });
         });
