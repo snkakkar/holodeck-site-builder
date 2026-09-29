@@ -27,25 +27,33 @@
   // Reuses the same story-context source (HOLO_RULES.stateToCtx) and
   // persona slot as the Clienteling/Cimulate generator (app-foundations.js
   // ctxFrom) — this app draws from the SAME project inputs, not a
-  // separate wizard. agentName/agentChips/searchTerms/trends are left
-  // blank (Gemini fills them; see promptForStorefront's optionalBits).
-  function ctxFrom(state) {
+  // separate wizard. `simple` (optional) carries the Simple-mode wizard's
+  // merged General + retailCab answers — { searchTerms:[…], chatChips:[…],
+  // genderLean } — same shape/convention as promptForClienteling/Cimulate's
+  // `simple` param in app-foundations.js. Absent for the full builder, so
+  // these stay at their prior blank/unisex defaults (Gemini fills them; see
+  // promptForStorefront's optionalBits). agentName/trends are still always
+  // left blank — no wizard question feeds them yet.
+  function ctxFrom(state, simple) {
     state = state || {};
+    simple = simple || {};
     const rules = window.HOLO_RULES;
     const c = (rules && rules.stateToCtx) ? rules.stateToCtx(state) : {};
     const persona = (state.personas && state.personas[0]) || {};
     const b = state.brand || {};
+    const searchTerms = Array.isArray(simple.searchTerms) ? simple.searchTerms.filter(Boolean).join(", ") : "";
+    const agentChips = Array.isArray(simple.chatChips) ? simple.chatChips.filter(Boolean).join(", ") : "";
     return {
       customerName: (c.customerName || "").trim(),
       website: (c.website || "").trim(),
       brandColor: (b.primaryColor || "").trim(), // optional override
       personaName: (persona.name || "").trim(),
       personaDetails: [persona.role, persona.quote].filter(Boolean).join(" — "),
-      genderLean: "unisex",
-      searchTerms: "",
+      genderLean: simple.genderLean || "unisex",
+      searchTerms: searchTerms,
       trends: "",
       agentName: "",          // blank → Gemini names it
-      agentChips: "",         // blank → Gemini generates them
+      agentChips: agentChips,
     };
   }
 

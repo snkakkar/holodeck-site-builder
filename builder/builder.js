@@ -800,10 +800,59 @@
     ]));
   }
 
-  // Panel 3 — per-experience optional follow-up questions.
+  // Builds one question's <label><input> pair, reading/writing into `ans`
+  // (the per-group answers bucket). Shared by the General group and each
+  // per-experience group below so a new question.type only needs handling
+  // in one place.
+  function renderSimpleQuestionField(q, ans) {
+    const cur = ans[q.id];
+    let input;
+    if (q.type === "textarea" || q.type === "list") {
+      const initial = Array.isArray(cur) ? cur.join("\n") : (cur || "");
+      input = el("textarea", { class: "bx-textarea", rows: q.type === "list" ? "3" : "3", placeholder: q.hint || "" });
+      input.value = initial;
+      input.addEventListener("input", function () {
+        ans[q.id] = q.type === "list" ? parseListAnswer(input.value, q.max) : input.value;
+        commit();
+      });
+    } else if (q.type === "select") {
+      input = el("select", { class: "bx-input" });
+      (q.options || []).forEach(function (opt) {
+        input.appendChild(el("option", { value: opt.value, text: opt.label || opt.value }));
+      });
+      input.value = cur || q.default || "";
+      input.addEventListener("change", function () { ans[q.id] = input.value; commit(); });
+    } else {
+      input = el("input", { class: "bx-input", type: "text", placeholder: q.hint || "", value: cur || "" });
+      input.addEventListener("input", function () { ans[q.id] = input.value; commit(); });
+    }
+    return el("label", { class: "bx-simple-field" }, [
+      el("span", { class: "bx-simple-label", text: q.label }),
+      q.hint ? el("span", { class: "bx-simple-qhint", text: q.hint }) : null,
+      input,
+    ]);
+  }
+
+  // Panel 3 — general (cross-experience) + per-experience optional follow-up questions.
   function renderSimpleQuestions(body, sim) {
     body.appendChild(el("h2", { class: "bx-simple-h2", text: "3 · Optional details" }));
     body.appendChild(el("p", { class: "bx-simple-hint", text: "All optional — skip anything and the AI fills it in. These steer the generated content." }));
+
+    // General group: questions shared across multiple experiences (search
+    // terms, chat chips, person name, gender lean) — asked once, answered
+    // once, regardless of how many of `appliesTo` are selected.
+    const generalQs = (window.HOLO_SIMPLE_EXP && window.HOLO_SIMPLE_EXP.generalQuestions) || [];
+    const activeGeneralQs = generalQs.filter(function (q) {
+      return (q.appliesTo || []).some(function (id) { return sim.selected.indexOf(id) !== -1; });
+    });
+    if (activeGeneralQs.length) {
+      const ans = sim.answers.general = sim.answers.general || {};
+      const group = el("div", { class: "bx-simple-qgroup" }, [
+        el("div", { class: "bx-simple-qgroup-title", text: "General" }),
+      ]);
+      activeGeneralQs.forEach(function (q) { group.appendChild(renderSimpleQuestionField(q, ans)); });
+      body.appendChild(group);
+    }
 
     sim.selected.forEach(function (expId) {
       const exp = simpleExpById(expId);
@@ -812,27 +861,7 @@
       const group = el("div", { class: "bx-simple-qgroup" }, [
         el("div", { class: "bx-simple-qgroup-title", text: (exp.icon || "") + " " + exp.label }),
       ]);
-      exp.questions.forEach(function (q) {
-        const cur = ans[q.id];
-        let input;
-        if (q.type === "textarea" || q.type === "list") {
-          const initial = Array.isArray(cur) ? cur.join("\n") : (cur || "");
-          input = el("textarea", { class: "bx-textarea", rows: q.type === "list" ? "3" : "3", placeholder: q.hint || "" });
-          input.value = initial;
-          input.addEventListener("input", function () {
-            ans[q.id] = q.type === "list" ? parseListAnswer(input.value, q.max) : input.value;
-            commit();
-          });
-        } else {
-          input = el("input", { class: "bx-input", type: "text", placeholder: q.hint || "", value: cur || "" });
-          input.addEventListener("input", function () { ans[q.id] = input.value; commit(); });
-        }
-        group.appendChild(el("label", { class: "bx-simple-field" }, [
-          el("span", { class: "bx-simple-label", text: q.label }),
-          q.hint ? el("span", { class: "bx-simple-qhint", text: q.hint }) : null,
-          input,
-        ]));
-      });
+      exp.questions.forEach(function (q) { group.appendChild(renderSimpleQuestionField(q, ans)); });
       body.appendChild(group);
     });
 
@@ -948,6 +977,15 @@
 
     // 1 · Persist each answer at its declared targetPath.
     const sim = simpleState();
+    const generalQs = (window.HOLO_SIMPLE_EXP && window.HOLO_SIMPLE_EXP.generalQuestions) || [];
+    const generalAns = sim.answers.general || {};
+    generalQs.forEach(function (q) {
+      const applies = (q.appliesTo || []).some(function (id) { return selectedIds.indexOf(id) !== -1; });
+      if (!applies) return;
+      const v = generalAns[q.id];
+      const has = Array.isArray(v) ? v.length : String(v == null ? "" : v).trim();
+      if (has) setByPath(s, q.targetPath, v);
+    });
     selectedIds.forEach(function (expId) {
       const exp = simpleExpById(expId);
       if (!exp) return;
@@ -1192,7 +1230,10 @@
 
     const sigNow = storySignature();
     const rebuildCatalog = !(Array.isArray(s.retailCatalog) && s.retailCatalog.length && s.retailCatalogSig === sigNow);
-    const simpleAnswers = (simpleState().answers[appId]) || {};
+    // Merge the shared "General" answers (search terms, chat chips, person
+    // name, gender lean — asked once, applicable to multiple apps) with this
+    // app's own answers so the generator sees both in one object.
+    const simpleAnswers = Object.assign({}, simpleState().answers.general, simpleState().answers[appId]);
 
     return window.HOLO_APPFOUND.generate(appId, s, {
       onStatus: function (msg, f) { onStatus(msg, f || 0); },

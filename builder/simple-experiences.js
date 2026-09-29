@@ -20,12 +20,60 @@
 //              plus the state fields its renderer reads.
 //
 //  question.type: "text" | "textarea" | "list" (comma / newline split,
-//  capped at `max`).
+//  capped at `max`) | "select" (dropdown; needs `options` — an array of
+//  {value,label} — and usually a `default`).
 // ════════════════════════════════════════════════════════════════
 (function () {
   "use strict";
 
   window.HOLO_SIMPLE_EXP = {
+    // Questions here aren't tied to one experience — each declares which
+    // experience ids it applies to via `appliesTo`. The wizard renders one
+    // "General" group (if any selected experience is in some question's
+    // appliesTo list), asked once, answered once, instead of duplicating
+    // the same question under every app that happens to read it.
+    generalQuestions: [
+      {
+        id: "searchTerms",
+        label: "Search terms a shopper would type",
+        hint: "1–2 (up to 4). One per line or comma-separated.",
+        type: "list",
+        max: 4,
+        targetPath: "simple.answers.general.searchTerms",
+        appliesTo: ["cimulate", "retailCab"],
+      },
+      {
+        id: "chatChips",
+        label: "Things to ask the AI agent",
+        hint: "1–2 (up to 6). One per line or comma-separated.",
+        type: "list",
+        max: 6,
+        targetPath: "simple.answers.general.chatChips",
+        appliesTo: ["cimulate", "retailCab"],
+      },
+      {
+        id: "personName",
+        label: "Person name",
+        hint: "Whose profile/persona is this? (optional)",
+        type: "text",
+        targetPath: "personas.0.name",
+        appliesTo: ["unifiedProfile", "cimulate", "clienteling", "retailCab"],
+      },
+      {
+        id: "genderLean",
+        label: "Catalog & persona gender lean",
+        hint: "Skews the generated catalog mix and persona; keeps some cross-gender coverage either way.",
+        type: "select",
+        options: [
+          { value: "unisex", label: "Unisex (balanced)" },
+          { value: "male", label: "Men" },
+          { value: "female", label: "Women" },
+        ],
+        default: "unisex",
+        targetPath: "simple.answers.general.genderLean",
+        appliesTo: ["retailCab"],
+      },
+    ],
     experiences: [
       {
         id: "cimulate",
@@ -34,24 +82,7 @@
         icon: "🔎",
         kind: "app",
         generatorId: "cimulate",
-        questions: [
-          {
-            id: "searchQueries",
-            label: "Search queries a shopper would type",
-            hint: "1–2 (up to 4). One per line or comma-separated.",
-            type: "list",
-            max: 4,
-            targetPath: "simple.answers.cimulate.searchQueries",
-          },
-          {
-            id: "agentQuestions",
-            label: "Things to ask the shopper agent",
-            hint: "1–2 (up to 4). One per line or comma-separated.",
-            type: "list",
-            max: 4,
-            targetPath: "simple.answers.cimulate.agentQuestions",
-          },
-        ],
+        questions: [],
       },
       {
         id: "clienteling",
@@ -84,10 +115,9 @@
         icon: "🛒",
         kind: "app",
         generatorId: "retailCab",
-        // No follow-up questions: unlike cimulate/clienteling, this
-        // generator is single-shot (scrape + one big catalog call + all
-        // photo passes) driven entirely by the project's own customer
-        // name/website/brand color — nothing extra to collect here.
+        // Follow-up questions live in the shared generalQuestions list
+        // above (search terms, chat chips, person name, gender lean) —
+        // this app doesn't have anything uniquely its own to ask.
         questions: [],
       },
       {
@@ -97,15 +127,7 @@
         icon: "🧬",
         kind: "slide",
         layout: "unifiedProfile",
-        questions: [
-          {
-            id: "personName",
-            label: "Person name",
-            hint: "Whose profile is this? (optional)",
-            type: "text",
-            targetPath: "personas.0.name",
-          },
-        ],
+        questions: [],
       },
       {
         id: "helpAgent",

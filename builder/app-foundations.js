@@ -94,15 +94,17 @@
     ].filter(Boolean).join("\n");
   }
 
-  // `simple` (optional) carries the Simple-mode wizard answers for this app:
-  //   { searchQueries:[…], agentQuestions:[…] } — up to 4 each. When present we
-  //   ask Gemini to seed the searchChips / greetChips from them WHILE still
-  //   honoring the strict 4×3=12 SKU-union and verbatim-key routing contracts.
-  //   Absent for the full builder → the extra lines drop out unchanged.
+  // `simple` (optional) carries the Simple-mode wizard answers, merged from
+  // the shared "General" question group plus this app's own:
+  //   { searchTerms:[…], chatChips:[…] } — up to 4/6 respectively. When
+  //   present we ask Gemini to seed the searchChips / greetChips from them
+  //   WHILE still honoring the strict 4×3=12 SKU-union and verbatim-key
+  //   routing contracts. Absent for the full builder → the extra lines drop
+  //   out unchanged.
   function promptForCimulate(cx, simple) {
     simple = simple || {};
-    const sq = (simple.searchQueries || []).filter(Boolean).slice(0, 4);
-    const aq = (simple.agentQuestions || []).filter(Boolean).slice(0, 4);
+    const sq = (simple.searchTerms || []).filter(Boolean).slice(0, 4);
+    const aq = (simple.chatChips || []).filter(Boolean).slice(0, 4);
     return [
       "You are generating realistic demo data for an INTENT-AWARE PRODUCT SEARCH + concierge-agent shopping experience (an e-commerce storefront) for \"" + cx.customerName + "\" in the " + cx.industry + " industry.",
       cx.website ? ("Their website: " + cx.website + ".") : "",
@@ -378,7 +380,7 @@
 
     if (!gen || !F || !CG) return Promise.resolve(fallback());
 
-    const cx = F.ctxFrom(state);
+    const cx = F.ctxFrom(state, opts.simpleAnswers);
     status("Checking AI availability…", 0.05);
     return gen.isConfigured().then(function (ok) {
       if (!ok) return fallback();

@@ -475,6 +475,12 @@
       templateFiles.forEach(function (tf) {
         if (tf.dest === "js/brand-config.js") files.push({ path: appRoot + tf.dest, content: configJs });
         else if (tf.dest === "js/products.json") files.push({ path: appRoot + tf.dest, content: productsJson });
+        else if (tf.dest.indexOf("images/styled/") === 0 || tf.dest === "images/birthdaypromo.png") {
+          // Stock Cavender's-branded template photos — the generated
+          // brand-config.js/products.json above no longer reference them
+          // (styledPosts/hero images now point at baked images/generated/*),
+          // so shipping them would just be dead weight in the export.
+        }
         else files.push({ path: appRoot + tf.dest, content: tf.content });
       });
       baked.images.forEach(function (img) { files.push({ path: appRoot + img.dest, content: img.content }); });
