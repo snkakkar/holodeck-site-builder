@@ -734,6 +734,22 @@
     return banner +
       "(function () {\n" +
       "  'use strict';\n" +
+      // Mount-path detection — the template's own js/brand-config.js carries
+      // this same IIFE, but a GENERATED config replaces that file wholesale
+      // via this serializer, dropping it. Without it window.APP_BASE_PATH is
+      // never set, and every /js/products.json fetch (search-engine.js,
+      // views.js, web-curation-component.js) resolves against the domain
+      // root instead of the app's mount point (e.g. /apps/retailCab/),
+      // 404ing once exported under that subpath.
+      "  (function () {\n" +
+      "    var script = document.currentScript;\n" +
+      "    var src = script && script.src;\n" +
+      "    if (!src) { window.APP_BASE_PATH = ''; return; }\n" +
+      "    var path;\n" +
+      "    try { path = new URL(src, window.location.href).pathname; } catch (e) { path = ''; }\n" +
+      "    var idx = path.indexOf('/js/brand-config.js');\n" +
+      "    window.APP_BASE_PATH = idx === -1 ? '' : path.slice(0, idx);\n" +
+      "  })();\n" +
       "  var BrandConfig = " + JSON.stringify(brandConfig, null, 2) + ";\n" +
       "  BrandConfig.offer = BrandConfig.offer || (BrandConfig.offers && BrandConfig.offers[0]);\n" +
       "  if (BrandConfig.persona && BrandConfig.persona.identity) BrandConfig.persona.RACHEL = BrandConfig.persona.identity;\n" +
