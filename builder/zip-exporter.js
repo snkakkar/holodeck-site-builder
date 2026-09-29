@@ -516,22 +516,41 @@
       if (isRemote(bc.copy.heroImageSignedIn)) localPathFor(bc.copy.heroImageSignedIn);
     }
 
+    // Signed GCS URLs are cross-origin from the builder's own origin and
+    // the bucket has no CORS config, so a direct browser fetch() fails
+    // (CORS error / opaque 403) even though the signature itself is
+    // valid — the same failure export-model.js's PPTX/PDF image embedding
+    // already hit and fixed by routing through the same-origin
+    // /api/asset/proxy (server.js), which fetches the bytes server-side
+    // where CORS doesn't apply. Reuse that route here instead of fetching
+    // storage.googleapis.com directly from the browser.
+    function fetchUrlFor(url) {
+      if (typeof window !== "undefined" && /^https:\/\/storage\.googleapis\.com\//i.test(url)) {
+        return "/api/asset/proxy?url=" + encodeURIComponent(url);
+      }
+      return url;
+    }
+    const auth = (typeof window !== "undefined") ? window.HOLO_AUTH : null;
+    const authHeadersP = auth && auth.authHeaders ? auth.authHeaders() : Promise.resolve({});
+
     const images = [];
     const baked = {}; // url → true once its bytes are fetched successfully
     const urls = Object.keys(urlToLocal);
-    return Promise.all(urls.map(function (url) {
-      return fetch(url).then(function (res) {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.arrayBuffer();
-      }).then(function (buf) {
-        images.push({ dest: urlToLocal[url], content: new Uint8Array(buf) });
-        baked[url] = true;
-      }).catch(function (err) {
-        if (typeof console !== "undefined" && console.warn) {
-          console.warn("[holo] retailCab: failed to bake image " + url + " — leaving the live URL in place", err && err.message);
-        }
-      });
-    })).then(function () {
+    return authHeadersP.then(function (authHeaders) {
+      return Promise.all(urls.map(function (url) {
+        return fetch(fetchUrlFor(url), { headers: authHeaders }).then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.arrayBuffer();
+        }).then(function (buf) {
+          images.push({ dest: urlToLocal[url], content: new Uint8Array(buf) });
+          baked[url] = true;
+        }).catch(function (err) {
+          if (typeof console !== "undefined" && console.warn) {
+            console.warn("[holo] retailCab: failed to bake image " + url + " — leaving the live URL in place", err && err.message);
+          }
+        });
+      }));
+    }).then(function () {
       // Rewrite only what actually baked; anything that failed keeps its
       // original (still-live-for-now) remote URL instead of a dead local path.
       const productsOut = (products || []).map(function (p) {
