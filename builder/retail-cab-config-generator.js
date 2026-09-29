@@ -430,7 +430,16 @@
           conflictsWith: Array.isArray(o.conflictsWith) ? o.conflictsWith.map(String) : [],
         };
         if (type === "tiered-unit") offer.discountRates = Array.isArray(o.discountRates) && o.discountRates.length ? o.discountRates.map(Number) : [0.5, 0.25];
-        if (type === "family-percent") { offer.percent = Number(o.percent) || 0.15; offer.family = String(o.family || (products[0] && products[0].family) || ""); }
+        if (type === "family-percent") {
+          // `percent` must be a 0–1 fraction (0.15 == 15% off) — the model
+          // sometimes emits a whole-number percentage (15) instead, which
+          // birthday-promo.js would otherwise apply as a 1500% discount.
+          let pct = Number(o.percent);
+          if (!isFinite(pct) || pct <= 0) pct = 0.15;
+          else if (pct > 1) pct = pct / 100;
+          offer.percent = Math.min(pct, 0.9);
+          offer.family = String(o.family || (products[0] && products[0].family) || "");
+        }
         return offer;
       });
     // Guarantee at least a free-shipping offer so checkout never lacks one.
@@ -452,6 +461,7 @@
           filterSpec: {
             families: Array.isArray(spec.families) ? spec.families.map(String) : [],
             categories: Array.isArray(spec.categories) ? spec.categories.map(String) : [],
+            types: Array.isArray(spec.types) ? spec.types.map(String) : [],
             keywords: Array.isArray(spec.keywords) ? spec.keywords.map(String) : [],
             priceTier: TIERS.indexOf(spec.priceTier) !== -1 ? spec.priceTier : "",
           },
@@ -758,17 +768,20 @@
       "    var spec = tr.filterSpec || {};\n" +
       "    var fams = (spec.families || []).map(function (s) { return String(s).toLowerCase(); });\n" +
       "    var cats = (spec.categories || []).map(function (s) { return String(s).toLowerCase(); });\n" +
+      "    var types = (spec.types || []).map(function (s) { return String(s).toLowerCase(); });\n" +
       "    var kws  = (spec.keywords || []).map(function (s) { return String(s).toLowerCase(); });\n" +
       "    var tier = spec.priceTier ? String(spec.priceTier).toLowerCase() : '';\n" +
       "    tr.filter = function (p) {\n" +
       "      var fam = String(p.family || '').toLowerCase();\n" +
       "      var cat = String(p.category || '').toLowerCase();\n" +
+      "      var typ = String(p.type || '').toLowerCase();\n" +
       "      var txt = ((p.name || '') + ' ' + (p.description || '')).toLowerCase();\n" +
       "      if (fams.length && fams.indexOf(fam) === -1) return false;\n" +
       "      if (cats.length && cats.indexOf(cat) === -1) return false;\n" +
+      "      if (types.length && types.indexOf(typ) === -1) return false;\n" +
       "      if (tier && String(p.priceTier || '').toLowerCase() !== tier) return false;\n" +
       "      if (kws.length && !kws.some(function (k) { return txt.indexOf(k) !== -1; })) return false;\n" +
-      "      return !!(fams.length || cats.length || kws.length || tier);\n" +
+      "      return !!(fams.length || cats.length || types.length || kws.length || tier);\n" +
       "    };\n" +
       "  });\n" +
       "  window.BrandConfig = BrandConfig;\n" +
