@@ -438,6 +438,24 @@
       },
     },
     {
+      id: "slide-retail-cab-app-console",
+      title: "Retail CAB Storefront Moment",
+      type: "slide",
+      layout: "appConsoleIframe",
+      appId: "retailCab",
+      sectionId: "demo",
+      selectionStatus: "recommended",
+      capabilities: ["Commerce", "Agentforce"],
+      requiredInputs: [],
+      intentGroup: "Live app moments",
+      match: function (ctx) {
+        if (hasEnabledApp(ctx, "retailCab")) {
+          return { priority: 88, signals: ["retail-cab-app"] };
+        }
+        return null;
+      },
+    },
+    {
       id: "slide-clienteling-concierge-console",
       title: "Clienteling Concierge Console Moment",
       type: "slide",
@@ -1580,6 +1598,9 @@
   const APP_SIGNAL_RULES = {
     clienteling: { any: ["retail_store"] },
     cimulate:    { any: ["commerce", "retail_store"], allGroups: [["agentforce", "retail_store"], ["agentforce", "commerce"]] },
+    // Retail CAB is a full AI-generated storefront (catalog + AI stylist chat) —
+    // same commerce/retail_store signal as Cimulate, no clienteling-only gate.
+    retailCab:   { any: ["commerce", "retail_store"], allGroups: [["agentforce", "retail_store"], ["agentforce", "commerce"]] },
   };
 
   // Which keywords, if present in the project's free text, count as evidence
@@ -1676,6 +1697,7 @@
     return {
       clienteling: evalApp("clienteling"),
       cimulate:    evalApp("cimulate"),
+      retailCab:   evalApp("retailCab"),
     };
   }
 

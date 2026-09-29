@@ -36,6 +36,34 @@
   // checked.
   let _statusPromise = null;
 
+  // ─── Retry on rate limit ─────────────────────────────────────
+  // The server's per-user rate limiter (server.js rateLimit()) returns
+  // 429 with a Retry-After header once a caller exceeds its window —
+  // batched image generation (retail-cab-foundations.js) can fire 60-80
+  // calls in one run, well past that budget. Without a retry, every
+  // call after the limit trips fails and the per-item .catch() in the
+  // caller silently drops that image. Wait for Retry-After (falling
+  // back to exponential backoff if it's absent) and try again.
+  function sleep(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+  function retryDelayMs(res, attempt) {
+    const header = res.headers && res.headers.get && res.headers.get("Retry-After");
+    const secs = Number(header);
+    if (Number.isFinite(secs) && secs > 0) return secs * 1000;
+    return Math.min(30000, 1000 * Math.pow(2, attempt));
+  }
+  function fetchWithRetry(doFetch, maxRetries) {
+    const retries = typeof maxRetries === "number" ? maxRetries : 4;
+    function attempt(n) {
+      return doFetch().then(function (res) {
+        if (res.ok || res.status !== 429 || n >= retries) return res;
+        return sleep(retryDelayMs(res, n)).then(function () { return attempt(n + 1); });
+      });
+    }
+    return attempt(0);
+  }
+
   // ─── Availability ────────────────────────────────────────────
   // Resolves to { configured, model }. Never rejects — a failed
   // probe is treated as "not configured" so the UI degrades to the
@@ -142,10 +170,12 @@
     // callers are unchanged.
     return authHeaders()
       .then(function (auth) {
-        return fetch(GENERATE_URL, {
-          method: "POST",
-          headers: Object.assign({ "Content-Type": "application/json", Accept: "application/x-ndjson" }, auth),
-          body: JSON.stringify(payload),
+        return fetchWithRetry(function () {
+          return fetch(GENERATE_URL, {
+            method: "POST",
+            headers: Object.assign({ "Content-Type": "application/json", Accept: "application/x-ndjson" }, auth),
+            body: JSON.stringify(payload),
+          });
         });
       })
       .catch(function (err) {
@@ -153,9 +183,9 @@
           "(Underlying: " + ((err && err.message) || err) + ")");
       })
       .then(function (res) {
-        // A non-2xx with no stream (e.g. 503 unconfigured) still arrives
-        // as a single JSON object — handle that before streaming.
-        if (!res.ok && !res.body) {
+        // A non-2xx (rate limit, unconfigured, etc.) arrives as a single
+        // JSON object, not an NDJSON stream — handle that before streaming.
+        if (!res.ok) {
           return res.text().then(function (body) {
             let parsed; try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
             throw new Error((parsed && parsed.error) || ("HTTP " + res.status));
@@ -252,10 +282,12 @@
     // string the assetLibrary slot uses directly, so callers are unchanged.
     return authHeaders()
       .then(function (auth) {
-        return fetch(IMAGE_URL, {
-          method: "POST",
-          headers: Object.assign({ "Content-Type": "application/json", Accept: "application/x-ndjson" }, auth),
-          body: JSON.stringify(payload),
+        return fetchWithRetry(function () {
+          return fetch(IMAGE_URL, {
+            method: "POST",
+            headers: Object.assign({ "Content-Type": "application/json", Accept: "application/x-ndjson" }, auth),
+            body: JSON.stringify(payload),
+          });
         });
       })
       .catch(function (err) {
@@ -263,7 +295,9 @@
           "(Underlying: " + ((err && err.message) || err) + ")");
       })
       .then(function (res) {
-        if (!res.ok && !res.body) {
+        // A non-2xx (rate limit, unconfigured, etc.) arrives as a single
+        // JSON object, not an NDJSON stream — handle that before streaming.
+        if (!res.ok) {
           return res.text().then(function (body) {
             let parsed; try { parsed = JSON.parse(body); } catch (_) { parsed = null; }
             throw new Error((parsed && parsed.error) || ("HTTP " + res.status));

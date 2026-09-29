@@ -1,0 +1,2889 @@
+[
+  {
+    "id": "CAV-001",
+    "sku": "CVLE003-4",
+    "name": "Cavender’s Women’s Camel Suede and Brown Maricopa Horseman Wide Square Toe Cowboy Boots",
+    "price": "159.99",
+    "image": "https://assets.cavenders.com/image/upload/v1759337631/Products/CVLE003-4_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Cavender’s Women’s Camel Suede and Brown Maricopa Horseman Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown",
+      "camel"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-002",
+    "sku": "CSL037-2",
+    "name": "JRC & Sons Women’s Whitney Olive Suede Snip Toe Cowboy Boots",
+    "price": "199.98",
+    "image": "https://assets.cavenders.com/image/upload/v1763004229/Products/CSL037-2_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "JRC & Sons Women’s Whitney Olive Suede Snip Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-003",
+    "sku": "RC19976",
+    "name": "Rockin C Women’s Black with Silver Braiding Snip Toe Booties",
+    "price": "99.98",
+    "image": "https://assets.cavenders.com/image/upload/v1759354833/Products/RC19976_1.jpg",
+    "family": "Boots",
+    "category": "Booties",
+    "description": "Rockin C Women’s Black with Silver Braiding Snip Toe Booties. Part of Cavender’s Booties collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black",
+      "silver"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-004",
+    "sku": "RC20210",
+    "name": "Rockin' C Women's Nut Brown Tooled Snip Toe Cowboy Boots",
+    "price": "149.99",
+    "image": "https://assets.cavenders.com/image/upload/v1759355258/Products/RC20210_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Rockin' C Women's Nut Brown Tooled Snip Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-005",
+    "sku": "MF0412501CV",
+    "name": "Cavender's Women's Black Tall Cavender's Logo Boot Bag",
+    "price": "42.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755203005/Products/MF0412501CV_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Cavender's Women's Black Tall Cavender's Logo Boot Bag. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-006",
+    "sku": "F231108",
+    "name": "Girl Dangerous Women's Black Cowgirl Hat & Boots Stardust Graphic T-Shirt",
+    "price": "26.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755618019/Products/F231108_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Girl Dangerous Women's Black Cowgirl Hat & Boots Stardust Graphic T-Shirt. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-007",
+    "sku": "CVLE003-5",
+    "name": "Cavender's Women's Cognac Suede Metallic Blue Wide Square Toe Cowboy Boots",
+    "price": "99.98",
+    "image": "https://assets.cavenders.com/image/upload/v1759337900/Products/CVLE003-5_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Cavender's Women's Cognac Suede Metallic Blue Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "blue",
+      "cognac"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-008",
+    "sku": "RCMK599BK",
+    "name": "Rockin' C Women's Black Rhinestone Boot Print Mesh Top",
+    "price": "36.00",
+    "image": "https://assets.cavenders.com/image/upload/v1759099085/Products/RCMK599BK_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Rockin' C Women's Black Rhinestone Boot Print Mesh Top. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-009",
+    "sku": "2119043633",
+    "name": "Roper Women's Shayla Brown Western Stitch Wide Square Toe Booties",
+    "price": "69.99",
+    "image": "https://assets.cavenders.com/image/upload/v1780877921/Products/2119043633_1.jpg",
+    "family": "Boots",
+    "category": "Booties",
+    "description": "Roper Women's Shayla Brown Western Stitch Wide Square Toe Booties. Part of Cavender’s Booties collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-010",
+    "sku": "PSJCSD",
+    "name": "Bulwark Women's Curvy Fit FR Stretch Work Jeans",
+    "price": "109.95",
+    "image": "https://assets.cavenders.com/image/upload/v1753470788/Products/PSJCSD_1.jpg",
+    "family": "Boots",
+    "category": "Work Boots",
+    "description": "Bulwark Women's Curvy Fit FR Stretch Work Jeans. Part of Cavender’s Work Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-011",
+    "sku": "BW51T0391110",
+    "name": "Rock & Roll Denim Women's White & Blue Boot Print Smocked Cropped Top",
+    "price": "28.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755548668/Products/BW51T0391110_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Rock & Roll Denim Women's White & Blue Boot Print Smocked Cropped Top. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "blue",
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-012",
+    "sku": "JRCLHO2401",
+    "name": "JRC & Sons Women's Nancy Nude Boot Stitch Leather Belt",
+    "price": "55.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755283342/Products/JRCLHO2401_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "JRC & Sons Women's Nancy Nude Boot Stitch Leather Belt. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-013",
+    "sku": "250394073",
+    "name": "Cowgirl Hardware Women's Tan Boot Stitch Print Tank Top",
+    "price": "28.98",
+    "image": "https://assets.cavenders.com/image/upload/v1779308167/Products/250394073_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Cowgirl Hardware Women's Tan Boot Stitch Print Tank Top. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "tan"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-014",
+    "sku": "CVL182-4",
+    "name": "Cavender’s Women’s Chestnut Goatskin Embroidered Snip Toe Cowboy Boots",
+    "price": "199.99",
+    "image": "https://assets.cavenders.com/image/upload/v1759333810/Products/CVL182-4_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Cavender’s Women’s Chestnut Goatskin Embroidered Snip Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-015",
+    "sku": "112375242",
+    "name": "Wrangler Retro Women's Erin Light Wash Bailey High Rise Bootcut Jeans",
+    "price": "59.98",
+    "image": "https://assets.cavenders.com/image/upload/v1762294519/Products/112375242_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Wrangler Retro Women's Erin Light Wash Bailey High Rise Bootcut Jeans. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-016",
+    "sku": "AR0034163",
+    "name": "Ariat Women's PrimeTime Tack Room Brown Bantamweight Wide Square Toe Cowboy Boots",
+    "price": "199.99",
+    "image": "https://assets.cavenders.com/image/upload/v1759154306/Products/AR0034163_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Women's PrimeTime Tack Room Brown Bantamweight Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-017",
+    "sku": "CBZ5370",
+    "name": "Corral Women's Brown Roughout Leather Embroidered Snip Toe Cowboy Boots",
+    "price": "229.99",
+    "image": "https://assets.cavenders.com/image/upload/v1777402033/Products/CBZ5370_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Corral Women's Brown Roughout Leather Embroidered Snip Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-018",
+    "sku": "AR0017323",
+    "name": "Ariat Women's Darlin Burnt Sugar Leather Round Toe Western Booties",
+    "price": "169.99",
+    "image": "https://assets.cavenders.com/image/upload/v1759153919/Products/AR0017323_1.jpg",
+    "family": "Boots",
+    "category": "Booties",
+    "description": "Ariat Women's Darlin Burnt Sugar Leather Round Toe Western Booties. Part of Cavender’s Booties collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-019",
+    "sku": "AR0050870",
+    "name": "Ariat Women's Casanova Red Alert Snip Toe Tall Cowboy Boots",
+    "price": "279.99",
+    "image": "https://assets.cavenders.com/image/upload/v1780878138/Products/AR0050870_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Women's Casanova Red Alert Snip Toe Tall Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "red"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-020",
+    "sku": "AR0074365",
+    "name": "Ariat Women's Grayson Velvety Black Round Toe Cowboy Boots",
+    "price": "179.99",
+    "image": "https://assets.cavenders.com/image/upload/v1760506065/Products/AR0074365_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Women's Grayson Velvety Black Round Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-021",
+    "sku": "M9564BV",
+    "name": "Miss Me Women's Medium Wash Rhinestone Horse Embroidered Bootcut Jeans",
+    "price": "89.98",
+    "image": "https://assets.cavenders.com/image/upload/v1761105066/Products/M9564BV_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Miss Me Women's Medium Wash Rhinestone Horse Embroidered Bootcut Jeans. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-022",
+    "sku": "EB81816FP",
+    "name": "Grace In LA Women's Medium Wash Embellished Faux Flap Pocket Mid Rise Bootcut Jeans",
+    "price": "69.98",
+    "image": "https://assets.cavenders.com/image/upload/v1769559185/Products/EB81816FP_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Grace In LA Women's Medium Wash Embellished Faux Flap Pocket Mid Rise Bootcut Jeans. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-023",
+    "sku": "CVBL369-3",
+    "name": "Cavender's Women's Rustic Natural Python Snip Toe Western Booties",
+    "price": "199.98",
+    "image": "https://assets.cavenders.com/image/upload/v1759333002/Products/CVBL369-3_1.jpg",
+    "family": "Boots",
+    "category": "Booties",
+    "description": "Cavender's Women's Rustic Natural Python Snip Toe Western Booties. Part of Cavender’s Booties collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-024",
+    "sku": "2119031657",
+    "name": "Roper Women's Kennedy Black with Glitter Inlay Wide Square Toe Cowboy Boots",
+    "price": "99.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757296486/Products/2119031657_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Roper Women's Kennedy Black with Glitter Inlay Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-025",
+    "sku": "MF0489208CBC",
+    "name": "Cavender's Brown Diamond and Oak Leaf Embossed Leather Boot Jack",
+    "price": "60.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755203238/Products/MF0489208CBC_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Cavender's Brown Diamond and Oak Leaf Embossed Leather Boot Jack. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-026",
+    "sku": "MF0489308JRC",
+    "name": "Cavender's Natural Tan Diamond and Oak Leaf Embossed JRC Leather Boot Jack",
+    "price": "60.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755203239/Products/MF0489308JRC_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Cavender's Natural Tan Diamond and Oak Leaf Embossed JRC Leather Boot Jack. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "tan"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-027",
+    "sku": "112381666J",
+    "name": "Wrangler Toddler & Boys' 20X No. 42 Light Wash Slim Fit Bootcut Jeans",
+    "price": "41.00",
+    "image": "https://assets.cavenders.com/image/upload/v1776709503/Products/112381666J_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Wrangler Toddler & Boys' 20X No. 42 Light Wash Slim Fit Bootcut Jeans. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-028",
+    "sku": "GB81817",
+    "name": "Grace In LA Girls' Medium Wash Dreamcatcher Embroidered Bootcut Jeans",
+    "price": "39.98",
+    "image": "https://assets.cavenders.com/image/upload/v1785957348/Products/GB81817_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Grace In LA Girls' Medium Wash Dreamcatcher Embroidered Bootcut Jeans. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-029",
+    "sku": "1819032141",
+    "name": "Roper Girls' Tan and Rainbow Glitter Square Toe Cowboy Boots",
+    "price": "69.99",
+    "image": "https://assets.cavenders.com/image/upload/v1756994582/Products/1819032141_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Roper Girls' Tan and Rainbow Glitter Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "tan"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-030",
+    "sku": "CV20196C",
+    "name": "Cavender's Kids' Sand Ostrich Print and Blue Wide Square Toe Cowboy Boots",
+    "price": "89.99",
+    "image": "https://assets.cavenders.com/image/upload/v1756997437/Products/CV20196C_1.jpg",
+    "family": "Boots",
+    "category": "Exotic",
+    "description": "Cavender's Kids' Sand Ostrich Print and Blue Wide Square Toe Cowboy Boots. Part of Cavender’s Exotic collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "blue"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-031",
+    "sku": "MF443000108",
+    "name": "Twister Toddler Brown and USA Flag Square Toe Cowboy Boots",
+    "price": "39.98",
+    "image": "https://assets.cavenders.com/image/upload/v1757265375/Products/MF443000108_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Twister Toddler Brown and USA Flag Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-032",
+    "sku": "11912243500",
+    "name": "Roper Youth Jed Brown and Tan Ostrich Print Faux Leather Square Toe Boots",
+    "price": "84.99",
+    "image": "https://assets.cavenders.com/image/upload/v1756994642/Products/11912243500_1.jpg",
+    "family": "Boots",
+    "category": "Exotic",
+    "description": "Roper Youth Jed Brown and Tan Ostrich Print Faux Leather Square Toe Boots. Part of Cavender’s Exotic collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown",
+      "tan"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-033",
+    "sku": "CV20495Y",
+    "name": "Cavender’s Girls' Nancy Ivory Snip Toe Cowboy Boots",
+    "price": "99.99",
+    "image": "https://assets.cavenders.com/image/upload/v1756921501/Products/CV20495Y_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Cavender’s Girls' Nancy Ivory Snip Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "ivory"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-034",
+    "sku": "BB0BD09798",
+    "name": "Rock & Roll Denim Boys' Dark Wash Ladder Stitch Bootcut Jeans",
+    "price": "62.99",
+    "image": "https://assets.cavenders.com/image/upload/v1773271044/Products/BB0BD09798_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Rock & Roll Denim Boys' Dark Wash Ladder Stitch Bootcut Jeans. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-035",
+    "sku": "1815663376",
+    "name": "Roper Kids Riley Multi-Colored Leopard with Glitter Snip Toe Cowboy Boots",
+    "price": "69.99",
+    "image": "https://assets.cavenders.com/image/upload/v1756934551/Products/1815663376_1.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Roper Kids Riley Multi-Colored Leopard with Glitter Snip Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-036",
+    "sku": "HHCROSE",
+    "name": "Hondo Hat Co. Women's Pink & Creme Yeehaw Curved Bill Cap",
+    "price": "35.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755719260/HHCROSE_1.jpg",
+    "family": "Hats",
+    "category": "Caps",
+    "description": "Hondo Hat Co. Women's Pink & Creme Yeehaw Curved Bill Cap. Part of Cavender’s Caps collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "pink"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-037",
+    "sku": "CWLKYM0340",
+    "name": "Charlie 1 Horse Laney Wilson Women's Black Wool Felt 'Lucky Me' Hat",
+    "price": "130.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755714343/Products/CWLKYM0340_1.jpg",
+    "family": "Hats",
+    "category": "Felt Hats",
+    "description": "Charlie 1 Horse Laney Wilson Women's Black Wool Felt 'Lucky Me' Hat. Part of Cavender’s Felt Hats collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-038",
+    "sku": "CR7815002",
+    "name": "Rockin' C Women's Brown Pinch Front Aztec Ribbon  Accented Western Hat",
+    "price": "69.99",
+    "image": "https://assets.cavenders.com/image/upload/v1755713291/Products/CR7815002_1.jpg",
+    "family": "Hats",
+    "category": "Cowboy Hats",
+    "description": "Rockin' C Women's Brown Pinch Front Aztec Ribbon  Accented Western Hat. Part of Cavender’s Cowboy Hats collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-039",
+    "sku": "CSRDRN40348T",
+    "name": "Charlie 1 Horse Laney Wilson Women's Straw \"Road Runner\" Cowboy Hat",
+    "price": "84.99",
+    "image": "https://assets.cavenders.com/image/upload/v1755714057/Products/CSRDRN40348T_1.jpg",
+    "family": "Hats",
+    "category": "Straw Hats",
+    "description": "Charlie 1 Horse Laney Wilson Women's Straw \"Road Runner\" Cowboy Hat. Part of Cavender’s Straw Hats collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-040",
+    "sku": "D740002002",
+    "name": "3D Belt Company Women's Brown Nailhead & Concho Hatband",
+    "price": "30.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755201838/Products/D740002002_1.jpg",
+    "family": "Hats",
+    "category": "Cowboy Hats",
+    "description": "3D Belt Company Women's Brown Nailhead & Concho Hatband. Part of Cavender’s Cowboy Hats collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-041",
+    "sku": "RCLAUREN",
+    "name": "Rockin' C Women's Teal Tall Crown Felt Cowboy Hat",
+    "price": "79.99",
+    "image": "https://assets.cavenders.com/image/upload/v1759717176/Products/RCLAUREN_1.jpg",
+    "family": "Hats",
+    "category": "Felt Hats",
+    "description": "Rockin' C Women's Teal Tall Crown Felt Cowboy Hat. Part of Cavender’s Felt Hats collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "teal"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-042",
+    "sku": "D740002636",
+    "name": "3D Belt Company Women's Silver Rhinestone Hatband",
+    "price": "18.00",
+    "image": "https://assets.cavenders.com/image/upload/v1773016060/Products/D740002636_1.jpg",
+    "family": "Hats",
+    "category": "Cowboy Hats",
+    "description": "3D Belt Company Women's Silver Rhinestone Hatband. Part of Cavender’s Cowboy Hats collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "silver"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-043",
+    "sku": "RCANNA",
+    "name": "Rockin' C Women's Tan Wide Brim Standard Crown Felt Cowboy Hat",
+    "price": "79.99",
+    "image": "https://assets.cavenders.com/image/upload/v1763158057/Products/RCANNA_1.jpg",
+    "family": "Hats",
+    "category": "Felt Hats",
+    "description": "Rockin' C Women's Tan Wide Brim Standard Crown Felt Cowboy Hat. Part of Cavender’s Felt Hats collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "tan"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-044",
+    "sku": "RDHCT151",
+    "name": "Red Dirt Hat Company Women's Sand & Aztec Thunderbird Logo Graphic T-Shirt",
+    "price": "23.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755634700/Products/RDHCT151_1.jpg",
+    "family": "Hats",
+    "category": "Cowboy Hats",
+    "description": "Red Dirt Hat Company Women's Sand & Aztec Thunderbird Logo Graphic T-Shirt. Part of Cavender’s Cowboy Hats collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "red"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-045",
+    "sku": "RCNIKKI",
+    "name": "Rockin' C Women's Silverbelly Tall Crown Felt Cowboy Hat",
+    "price": "79.99",
+    "image": "https://assets.cavenders.com/image/upload/v1759716242/Products/RCNIKKI_1.jpg",
+    "family": "Hats",
+    "category": "Felt Hats",
+    "description": "Rockin' C Women's Silverbelly Tall Crown Felt Cowboy Hat. Part of Cavender’s Felt Hats collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-046",
+    "sku": "D740002562",
+    "name": "3D Belt Company Women's White Hair On Concho Hatband",
+    "price": "30.00",
+    "image": "https://assets.cavenders.com/image/upload/v1773016061/Products/D740002562_1.jpg",
+    "family": "Hats",
+    "category": "Cowboy Hats",
+    "description": "3D Belt Company Women's White Hair On Concho Hatband. Part of Cavender’s Cowboy Hats collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-047",
+    "sku": "RKNOK3042",
+    "name": "Resistol 10X George Strait Kingman Straw Cowboy Hat",
+    "price": "180.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755724574/Products/RKNOK3042_1.jpg",
+    "family": "Hats",
+    "category": "Straw Hats",
+    "description": "Resistol 10X George Strait Kingman Straw Cowboy Hat. Part of Cavender’s Straw Hats collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-048",
+    "sku": "23111875M11",
+    "name": "Red Dirt Hat Co. Brown Leather with Colorful Aztec Money Clip Card Case",
+    "price": "36.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755268753/Products/23111875M11_1.jpg",
+    "family": "Hats",
+    "category": "Cowboy Hats",
+    "description": "Red Dirt Hat Co. Brown Leather with Colorful Aztec Money Clip Card Case. Part of Cavender’s Cowboy Hats collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "brown",
+      "red"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-049",
+    "sku": "TGRN14",
+    "name": "Cavender's Hat Collection 3X Tracker Granite Premium Wool Cowboy Hat",
+    "price": "79.99",
+    "image": "https://assets.cavenders.com/image/upload/v1755873366/Products/TGRN14_1.jpg",
+    "family": "Hats",
+    "category": "Felt Hats",
+    "description": "Cavender's Hat Collection 3X Tracker Granite Premium Wool Cowboy Hat. Part of Cavender’s Felt Hats collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-050",
+    "sku": "RSHAZE3042",
+    "name": "Resistol 10X George Strait Hazer Straw Cowboy Hat",
+    "price": "180.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755724818/Products/RSHAZE3042_1.jpg",
+    "family": "Hats",
+    "category": "Straw Hats",
+    "description": "Resistol 10X George Strait Hazer Straw Cowboy Hat. Part of Cavender’s Straw Hats collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-051",
+    "sku": "RDHC9186",
+    "name": "Red Dirt Hat Co. American Flag Print Cap Carrier",
+    "price": "50.00",
+    "image": "https://assets.cavenders.com/image/upload/v1759093192/Products/RDHC9186_1.jpg",
+    "family": "Hats",
+    "category": "Caps",
+    "description": "Red Dirt Hat Co. American Flag Print Cap Carrier. Part of Cavender’s Caps collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "red"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-052",
+    "sku": "D740001701",
+    "name": "3D Belt Co. Silver with Black Stones Concho Hat Band",
+    "price": "18.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755714361/Products/D740001701_1.jpg",
+    "family": "Hats",
+    "category": "Cowboy Hats",
+    "description": "3D Belt Co. Silver with Black Stones Concho Hat Band. Part of Cavender’s Cowboy Hats collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "black",
+      "silver"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-053",
+    "sku": "CCHAT08",
+    "name": "Cowgirl Confetti Glamorous Turquoise Silver Feather Hat Pin",
+    "price": "16.00",
+    "image": "https://assets.cavenders.com/image/upload/v1756150666/Products/CCHAT08_1.jpg",
+    "family": "Hats",
+    "category": "Cowboy Hats",
+    "description": "Cowgirl Confetti Glamorous Turquoise Silver Feather Hat Pin. Part of Cavender’s Cowboy Hats collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "turquoise",
+      "silver"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-054",
+    "sku": "D740001733",
+    "name": "3D Belt Co. Silver with Turquoise Stones Concho Hat Band",
+    "price": "18.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755714365/Products/D740001733_1.jpg",
+    "family": "Hats",
+    "category": "Cowboy Hats",
+    "description": "3D Belt Co. Silver with Turquoise Stones Concho Hat Band. Part of Cavender’s Cowboy Hats collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "turquoise",
+      "silver"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-055",
+    "sku": "SSLOBO3042",
+    "name": "Stetson 10X Lobo Vent Ivory Straw Cowboy Hat",
+    "price": "180.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755873230/Products/SSLOBO3042_1.jpg",
+    "family": "Hats",
+    "category": "Straw Hats",
+    "description": "Stetson 10X Lobo Vent Ivory Straw Cowboy Hat. Part of Cavender’s Straw Hats collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "ivory"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-056",
+    "sku": "BW3HD07898",
+    "name": "Rock & Roll Cowgirl Women's Light Wash Paisley Studded Jeans",
+    "price": "39.97",
+    "image": "https://assets.cavenders.com/image/upload/v1755723765/Products/BW3HD07898_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Rock & Roll Cowgirl Women's Light Wash Paisley Studded Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-057",
+    "sku": "81454071",
+    "name": "Cinch Women's Lynden Moderate Rise Slim Trouser Jeans",
+    "price": "59.98",
+    "image": "https://assets.cavenders.com/image/upload/v1756842068/Products/81454071_1.jpg",
+    "family": "Jeans",
+    "category": "Slim",
+    "description": "Cinch Women's Lynden Moderate Rise Slim Trouser Jeans. Part of Cavender’s Slim collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-058",
+    "sku": "5639",
+    "name": "Warp & Weft Women's Venetian Sailing Day Wide Leg Trouser Jeans",
+    "price": "118.00",
+    "image": "https://assets.cavenders.com/image/upload/v1771384712/Products/5639_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Warp & Weft Women's Venetian Sailing Day Wide Leg Trouser Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-059",
+    "sku": "82638X",
+    "name": "Judy Blue Women's Mid Rise Button Fly Distress Flare Jeans - Plus Size",
+    "price": "70.00",
+    "image": "https://assets.cavenders.com/image/upload/v1756502514/Products/82638X_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Judy Blue Women's Mid Rise Button Fly Distress Flare Jeans - Plus Size. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "blue"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-060",
+    "sku": "7U30744A1ZS",
+    "name": "7 For All Mankind Women's Dojo Rebellion Dark Wash Metallic Ombre Stitched Trouser Jeans",
+    "price": "248.00",
+    "image": "https://assets.cavenders.com/image/upload/v1764354329/Products/7U30744A1ZS_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "7 For All Mankind Women's Dojo Rebellion Dark Wash Metallic Ombre Stitched Trouser Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-061",
+    "sku": "H2351EWV",
+    "name": "Miss Me Women's Medium Wash Hight Rise Super Wide Leg 32\" Jeans",
+    "price": "98.00",
+    "image": "https://assets.cavenders.com/image/upload/v1773713106/Products/H2351EWV_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Miss Me Women's Medium Wash Hight Rise Super Wide Leg 32\" Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-062",
+    "sku": "EW115Y912B",
+    "name": "7 For All Mankind Women's Mel Rose Dojo Trouser Jeans",
+    "price": "179.00",
+    "image": "https://assets.cavenders.com/image/upload/v1756844774/Products/EW115Y912B_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "7 For All Mankind Women's Mel Rose Dojo Trouser Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-063",
+    "sku": "MRCF3653",
+    "name": "Rockin' C Women's Black Pearl Studded High Rise Flare Jeans",
+    "price": "39.97",
+    "image": "https://assets.cavenders.com/image/upload/v1757093874/Products/MRCF3653_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Rockin' C Women's Black Pearl Studded High Rise Flare Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-064",
+    "sku": "PSPP111BL",
+    "name": "Sneak Peek Women's Medium Wash High Rise Wide Leg Balloon Jeans",
+    "price": "49.98",
+    "image": "https://assets.cavenders.com/image/upload/v1762127043/Products/PSPP111BL_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Sneak Peek Women's Medium Wash High Rise Wide Leg Balloon Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-065",
+    "sku": "7U30S44A",
+    "name": "7 For All Mankind Women's Dojo Faded Echo Slim Illusion Star Studded Trouser Jeans",
+    "price": "298.00",
+    "image": "https://assets.cavenders.com/image/upload/v1768575705/Products/7U30S44A_1.jpg",
+    "family": "Jeans",
+    "category": "Slim",
+    "description": "7 For All Mankind Women's Dojo Faded Echo Slim Illusion Star Studded Trouser Jeans. Part of Cavender’s Slim collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-066",
+    "sku": "PSPP100",
+    "name": "Sneak Peek Women's Dark Wash Super Wide Leg Offset Button Pleated Jeans",
+    "price": "39.97",
+    "image": "https://assets.cavenders.com/image/upload/v1762127043/Products/PSPP100_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Sneak Peek Women's Dark Wash Super Wide Leg Offset Button Pleated Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-067",
+    "sku": "MRCF3623",
+    "name": "Rockin' C Women's Medium Wash Distressed Knee High Rise Flare Jeans",
+    "price": "59.98",
+    "image": "https://assets.cavenders.com/image/upload/v1757096490/Products/MRCF3623_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Rockin' C Women's Medium Wash Distressed Knee High Rise Flare Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-068",
+    "sku": "MDPW3895",
+    "name": "Mica Denim Women's Camo Print High Rise Wide Leg Cuffed Jeans",
+    "price": "68.00",
+    "image": "https://assets.cavenders.com/image/upload/v1773713100/Products/MDPW3895_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Mica Denim Women's Camo Print High Rise Wide Leg Cuffed Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-069",
+    "sku": "MRCT3685",
+    "name": "Rockin' C Women's Medium Wash Mid Rise Straight Leg Cuffed 31\" Jeans",
+    "price": "49.98",
+    "image": "https://assets.cavenders.com/image/upload/v1757096507/Products/MRCT3685_1.jpg",
+    "family": "Jeans",
+    "category": "Straight",
+    "description": "Rockin' C Women's Medium Wash Mid Rise Straight Leg Cuffed 31\" Jeans. Part of Cavender’s Straight collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-070",
+    "sku": "10032550",
+    "name": "Ariat Women's Ella Dark Wash High Rise Slim Trouser Jeans",
+    "price": "89.95",
+    "image": "https://assets.cavenders.com/image/upload/v1779202514/Products/10032550_1.jpg",
+    "family": "Jeans",
+    "category": "Slim",
+    "description": "Ariat Women's Ella Dark Wash High Rise Slim Trouser Jeans. Part of Cavender’s Slim collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-071",
+    "sku": "7U307C12",
+    "name": "7 For All Mankind Women's Dojo Indigo Bloom Pink Stitched 34\" Trouser Jeans",
+    "price": "248.00",
+    "image": "https://assets.cavenders.com/image/upload/v1768575705/Products/7U307C12_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "7 For All Mankind Women's Dojo Indigo Bloom Pink Stitched 34\" Trouser Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "indigo",
+      "pink"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-072",
+    "sku": "HL52068SL",
+    "name": "Grace In LA Women's Medium Wash Floral Embroidered High Rise 32\" Flare Jeans",
+    "price": "69.98",
+    "image": "https://assets.cavenders.com/image/upload/v1769559592/Products/HL52068SL_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Grace In LA Women's Medium Wash Floral Embroidered High Rise 32\" Flare Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-073",
+    "sku": "10065886",
+    "name": "Ariat Women's Petaluma Wash Mid Rise Slim Trouser Leg Jeans",
+    "price": "59.97",
+    "image": "https://assets.cavenders.com/image/upload/v1752708631/Products/10065886_1.jpg",
+    "family": "Jeans",
+    "category": "Slim",
+    "description": "Ariat Women's Petaluma Wash Mid Rise Slim Trouser Leg Jeans. Part of Cavender’s Slim collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-074",
+    "sku": "FW115Y44A",
+    "name": "7 For All Mankind Women's Dojo Lake Blue Mid Rise Trouser Jeans",
+    "price": "228.00",
+    "image": "https://assets.cavenders.com/image/upload/v1756844797/Products/FW115Y44A_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "7 For All Mankind Women's Dojo Lake Blue Mid Rise Trouser Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "blue"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-075",
+    "sku": "10081001",
+    "name": "Cinch Boy's Medium Wash Original Slim Fit Straight Leg Jeans (8-18)",
+    "price": "42.00",
+    "image": "https://assets.cavenders.com/image/upload/v1756920477/Products/10081001_1.jpg",
+    "family": "Jeans",
+    "category": "Slim",
+    "description": "Cinch Boy's Medium Wash Original Slim Fit Straight Leg Jeans (8-18). Part of Cavender’s Slim collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-076",
+    "sku": "13MWZWK3",
+    "name": "Wrangler Cowboy Cut Black Original Fit Big Jeans",
+    "price": "52.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757949395/Products/13MWZWK3_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Wrangler Cowboy Cut Black Original Fit Big Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-077",
+    "sku": "13MWZTN1",
+    "name": "Wrangler Cowboy Cut Prewashed Tan Original Fit Jeans",
+    "price": "49.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757949282/Products/13MWZTN1_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Wrangler Cowboy Cut Prewashed Tan Original Fit Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "tan"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-078",
+    "sku": "RCGJHQ708",
+    "name": "Rockin' C Girls’ Medium Wash Embroidered Scroll Pocket Jeans",
+    "price": "29.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755030554/Products/RCGJHQ708_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Rockin' C Girls’ Medium Wash Embroidered Scroll Pocket Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-079",
+    "sku": "47MWZPW2",
+    "name": "Wrangler Premium Performance Cowboy Cut Prewashed Tall Jeans",
+    "price": "52.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757950051/Products/47MWZPW2_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Wrangler Premium Performance Cowboy Cut Prewashed Tall Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-080",
+    "sku": "PQJ113D",
+    "name": "Wrangler Toddler Girls' Embroidered Jeans",
+    "price": "28.00",
+    "image": "https://assets.cavenders.com/image/upload/v1757275355/Products/PQJ113D_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Wrangler Toddler Girls' Embroidered Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-081",
+    "sku": "YD1419BJ",
+    "name": "Yura Women's Black Lace Trim Cami Mini Dress",
+    "price": "49.00",
+    "image": "https://assets.cavenders.com/image/upload/v1780446792/Products/YD1419BJ_1.jpg",
+    "family": "Apparel",
+    "category": "Dresses",
+    "description": "Yura Women's Black Lace Trim Cami Mini Dress. Part of Cavender’s Dresses collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-082",
+    "sku": "LL140",
+    "name": "Lulu Mac Women's Sweet Sage Vintage Butterfly Logo Graphic T-Shirt",
+    "price": "17.98",
+    "image": "https://assets.cavenders.com/image/upload/v1712070030/Products/LL140_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Lulu Mac Women's Sweet Sage Vintage Butterfly Logo Graphic T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-083",
+    "sku": "CAVSP3115",
+    "name": "Girl Dangerous Women's Sweetheart Of The Rodeo Cream Graphic T-Shirt",
+    "price": "13.98",
+    "image": "https://assets.cavenders.com/image/upload/v1775154623/Products/CAVSP3115_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Girl Dangerous Women's Sweetheart Of The Rodeo Cream Graphic T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "cream"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-084",
+    "sku": "A2262RD",
+    "name": "Day + Moon Women's Satin Red Short Puff Sleeve Ruffle Cropped Top",
+    "price": "23.97",
+    "image": "https://assets.cavenders.com/image/upload/v1755546123/Products/A2262RD_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Day + Moon Women's Satin Red Short Puff Sleeve Ruffle Cropped Top. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "red"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-085",
+    "sku": "RCET71023",
+    "name": "Rockin C Women's Tan With Floral Embroidery Top",
+    "price": "27.98",
+    "image": "https://assets.cavenders.com/image/upload/v1741053739/Products/RCET71023_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Rockin C Women's Tan With Floral Embroidery Top. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "tan"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-086",
+    "sku": "BWN2S0940890",
+    "name": "Rock & Roll Denim Women's Rust Western Scroll Embroidered Long Sleeve Pearl Snap Shirt",
+    "price": "66.95",
+    "image": "https://assets.cavenders.com/image/upload/v1774583905/Products/BWN2S0940890_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Rock & Roll Denim Women's Rust Western Scroll Embroidered Long Sleeve Pearl Snap Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-087",
+    "sku": "RC32731N",
+    "name": "Rockin' C Women's Navy Tie-Front Long Sleeve Top",
+    "price": "21.98",
+    "image": "https://assets.cavenders.com/image/upload/v1764090424/Products/RC32731N_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Rockin' C Women's Navy Tie-Front Long Sleeve Top. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "navy"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-088",
+    "sku": "ED23074KO",
+    "name": "Easel Women's Ivory Embroidered Dress ",
+    "price": "23.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755617972/Products/ED23074KO_1.jpg",
+    "family": "Apparel",
+    "category": "Dresses",
+    "description": "Easel Women's Ivory Embroidered Dress . Part of Cavender’s Dresses collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "ivory"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-089",
+    "sku": "RCDZ24F313",
+    "name": "Rockin’ C Women’s Rust Waffle Knit Long Sleeve Top",
+    "price": "15.98",
+    "image": "https://assets.cavenders.com/image/upload/v1757093894/Products/RCDZ24F313_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Rockin’ C Women’s Rust Waffle Knit Long Sleeve Top. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-090",
+    "sku": "MK165BU",
+    "name": "Merigold Kiss Women's Cream Multicolor Buckaroo Print Mesh Shirt",
+    "price": "16.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755622404/Products/MK165BU_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Merigold Kiss Women's Cream Multicolor Buckaroo Print Mesh Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "cream"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-091",
+    "sku": "CT10559J",
+    "name": "Camellia Women's Medium Wash Denim Puff Sleeve Cropped Peplum Top",
+    "price": "49.00",
+    "image": "https://assets.cavenders.com/image/upload/v1782774260/Products/CT10559J_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Camellia Women's Medium Wash Denim Puff Sleeve Cropped Peplum Top. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-092",
+    "sku": "BW21T0402701",
+    "name": "Rock & Roll Denim Women's Black Rambler Graphic T-Shirt",
+    "price": "24.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755547079/Products/BW21T0402701_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Rock & Roll Denim Women's Black Rambler Graphic T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-093",
+    "sku": "25M50",
+    "name": "Merigold Kiss Women's Taupe Animal Print Tie Front Dress",
+    "price": "22.98",
+    "image": "https://assets.cavenders.com/image/upload/v1759101298/Products/25M50_1.jpg",
+    "family": "Apparel",
+    "category": "Dresses",
+    "description": "Merigold Kiss Women's Taupe Animal Print Tie Front Dress. Part of Cavender’s Dresses collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-094",
+    "sku": "112379632",
+    "name": "Wrangler Retro Women's Cream Americana Horse Graphic Sweatshirt",
+    "price": "54.00",
+    "image": "https://assets.cavenders.com/image/upload/v1788316996/Products/112379632_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Wrangler Retro Women's Cream Americana Horse Graphic Sweatshirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "cream"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-095",
+    "sku": "RCDZ25E160C",
+    "name": "Rockin’ C Women’s Cream Ribbed Knit Long Sleeve Top",
+    "price": "17.98",
+    "image": "https://assets.cavenders.com/image/upload/v1757097124/Products/RCDZ25E160C_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Rockin’ C Women’s Cream Ribbed Knit Long Sleeve Top. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "cream"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-096",
+    "sku": "CED26102A",
+    "name": "Camellia Women's Brown Floral Embroidered Flutter Sleeve Maxi Dress",
+    "price": "69.00",
+    "image": "https://assets.cavenders.com/image/upload/v1784560916/Products/CED26102A_1.jpg",
+    "family": "Apparel",
+    "category": "Dresses",
+    "description": "Camellia Women's Brown Floral Embroidered Flutter Sleeve Maxi Dress. Part of Cavender’s Dresses collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-097",
+    "sku": "RCHF24F873",
+    "name": "Rockin' C Women's Rust Faux Suede Long Sleeve Shirt",
+    "price": "21.98",
+    "image": "https://assets.cavenders.com/image/upload/v1759099081/Products/RCHF24F873_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Rockin' C Women's Rust Faux Suede Long Sleeve Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-098",
+    "sku": "10032958",
+    "name": "Ariat Women's Malbec AC Long Sleeve FR Work Shirt",
+    "price": "94.95",
+    "image": "https://assets.cavenders.com/image/upload/v1755875493/Products/10032958_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Ariat Women's Malbec AC Long Sleeve FR Work Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-099",
+    "sku": "RCF24I198",
+    "name": "Rockin C Girl's Coral & Pink Aztec Print Western Onesie",
+    "price": "16.98",
+    "image": "https://assets.cavenders.com/image/upload/v1719334696/Products/RCF24I198_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Rockin C Girl's Coral & Pink Aztec Print Western Onesie. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "pink"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-100",
+    "sku": "RCCAV255T",
+    "name": "Rafter C Toddler Boys' Blue & Cream Aztec Stripe Print Polo Shirt",
+    "price": "26.00",
+    "image": "https://assets.cavenders.com/image/upload/v1770781465/Products/RCCAV255T_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Rafter C Toddler Boys' Blue & Cream Aztec Stripe Print Polo Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "blue",
+      "cream"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-101",
+    "sku": "MS70319T",
+    "name": "Wrangler Khaki Long Sleeve Workshirt MS70319 - Big & Tall",
+    "price": "39.99",
+    "image": "https://assets.cavenders.com/image/upload/v1778522230/Products/MS70319T_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Wrangler Khaki Long Sleeve Workshirt MS70319 - Big & Tall. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-102",
+    "sku": "112379615",
+    "name": "Wrangler Boys' Antique White Heather Steer Wresting Graphic T-Shirt",
+    "price": "18.00",
+    "image": "https://assets.cavenders.com/image/upload/v1776448171/Products/112379615_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Wrangler Boys' Antique White Heather Steer Wresting Graphic T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-103",
+    "sku": "00082BK1",
+    "name": "Wrangler Wrancher Black Dress Pants",
+    "price": "54.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757950404/Products/00082BK1_1.jpg",
+    "family": "Apparel",
+    "category": "Dresses",
+    "description": "Wrangler Wrancher Black Dress Pants. Part of Cavender’s Dresses collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-104",
+    "sku": "SBB3S08965",
+    "name": "Panhandle Slim Boys' White & Turquoise Geo Print Stretch Shirt",
+    "price": "34.95",
+    "image": "https://assets.cavenders.com/image/upload/v1779202743/Products/SBB3S08965_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Panhandle Slim Boys' White & Turquoise Geo Print Stretch Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "turquoise",
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-105",
+    "sku": "RCK26201",
+    "name": "Rafter C Boys' White & Blue Paisley Print Pearl Snap Western Shirt",
+    "price": "34.00",
+    "image": "https://assets.cavenders.com/image/upload/v1770780174/Products/RCK26201_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Rafter C Boys' White & Blue Paisley Print Pearl Snap Western Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "blue",
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-106",
+    "sku": "BWD1R0973401",
+    "name": "Rock & Roll Denim Women's Black Fringed Wild & Western Graphic T-Shirt Dress",
+    "price": "46.95",
+    "image": "https://assets.cavenders.com/image/upload/v1774583906/Products/BWD1R0973401_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Rock & Roll Denim Women's Black Fringed Wild & Western Graphic T-Shirt Dress. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-107",
+    "sku": "BW92C0935290",
+    "name": "Rock & Roll Denim Women's Rust Faux Suede Fringed Cropped Shirt Jacket",
+    "price": "110.95",
+    "image": "https://assets.cavenders.com/image/upload/v1774583909/Products/BW92C0935290_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Rock & Roll Denim Women's Rust Faux Suede Fringed Cropped Shirt Jacket. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-108",
+    "sku": "MSW9163019",
+    "name": "Cinch Women's Royal Blue Deep Red & Spring Green Serape Long Sleeve Western Shirt",
+    "price": "37.97",
+    "image": "https://assets.cavenders.com/image/upload/v1755622877/Products/MSW9163019_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Cinch Women's Royal Blue Deep Red & Spring Green Serape Long Sleeve Western Shirt. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "red",
+      "blue",
+      "green"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-109",
+    "sku": "235930010",
+    "name": "Cowgirl Hardware Women's Black Outlaw Country Graphic Fringe Sleeveless Top",
+    "price": "18.98",
+    "image": "https://assets.cavenders.com/image/upload/v1763407377/Products/235930010_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Cowgirl Hardware Women's Black Outlaw Country Graphic Fringe Sleeveless Top. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-110",
+    "sku": "IFJ5413002",
+    "name": "Fantastic Fawn Women's Shiny Hot Pink with Clear Crystal & Silver Fringed Shacket",
+    "price": "35.97",
+    "image": "https://assets.cavenders.com/image/upload/v1755618644/Products/IFJ5413002_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Fantastic Fawn Women's Shiny Hot Pink with Clear Crystal & Silver Fringed Shacket. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "pink",
+      "silver"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-111",
+    "sku": "1001J",
+    "name": "Southern Grace Women's Change of Pace Metallic Hot Pink Fringed Jacket",
+    "price": "45.97",
+    "image": "https://assets.cavenders.com/image/upload/v1755533406/Products/1001J_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Southern Grace Women's Change of Pace Metallic Hot Pink Fringed Jacket. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "pink"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-112",
+    "sku": "N770012202",
+    "name": "Nocona Women’s Tan & Soft Cow Print Leather with Embroidery Strap Conceal Carry Bag",
+    "price": "91.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755285470/Products/N770012202_1.jpg",
+    "family": "Accessories",
+    "category": "Bags",
+    "description": "Nocona Women’s Tan & Soft Cow Print Leather with Embroidery Strap Conceal Carry Bag. Part of Cavender’s Bags collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "tan"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-113",
+    "sku": "SK322",
+    "name": "Fashion Express Women's Tan Cow Print with Fringe Mini Skirt",
+    "price": "32.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755634810/Products/SK322_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Fashion Express Women's Tan Cow Print with Fringe Mini Skirt. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "tan"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-114",
+    "sku": "IS6285001",
+    "name": "Peach Love Women's Metallic Silver with Rhinestone Fringe Skirt",
+    "price": "22.97",
+    "image": "https://assets.cavenders.com/image/upload/v1755618720/Products/IS6285001_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Peach Love Women's Metallic Silver with Rhinestone Fringe Skirt. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "silver"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-115",
+    "sku": "BW20T0888239",
+    "name": "Rock & Roll Denim Women's Green Cowboy Round Up Graphic Fringed Tank Top",
+    "price": "42.95",
+    "image": "https://assets.cavenders.com/image/upload/v1769729267/Products/BW20T0888239_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Rock & Roll Denim Women's Green Cowboy Round Up Graphic Fringed Tank Top. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "green"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-116",
+    "sku": "FE24C084",
+    "name": "HYFVE Women's Green Apple Short Shimmering Sheer Puff Sleeve Smock Top",
+    "price": "23.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755618061/Products/FE24C084_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "HYFVE Women's Green Apple Short Shimmering Sheer Puff Sleeve Smock Top. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "green"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-117",
+    "sku": "255491661",
+    "name": "Cowgirl Hardware Women's Dark Brown Leopard Bandana Print Off-the-Shoulder Top",
+    "price": "39.95",
+    "image": "https://assets.cavenders.com/image/upload/v1780446494/Products/255491661_1.jpg",
+    "family": "Accessories",
+    "category": "Wild Rags",
+    "description": "Cowgirl Hardware Women's Dark Brown Leopard Bandana Print Off-the-Shoulder Top. Part of Cavender’s Wild Rags collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-118",
+    "sku": "12119BK",
+    "name": "Blue B Women's Black Fringe Sleeve Sweater",
+    "price": "32.98",
+    "image": "https://assets.cavenders.com/image/upload/v1657948433/Products/12119BK_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Blue B Women's Black Fringe Sleeve Sweater. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "black",
+      "blue"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-119",
+    "sku": "806E513STQ08",
+    "name": "806 by Pink Panache 3 Piece Silver & Turquoise Earring Set",
+    "price": "13.98",
+    "image": "https://assets.cavenders.com/image/upload/v1754951339/806E513STQ08_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "806 by Pink Panache 3 Piece Silver & Turquoise Earring Set. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "turquoise",
+      "pink",
+      "silver"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-120",
+    "sku": "S20AXX",
+    "name": "Sendero Provisions Co Yellow And Orange Opossum Bandana",
+    "price": "15.00",
+    "image": "https://assets.cavenders.com/image/upload/v1740682198/Products/S20AXX_1.jpg",
+    "family": "Accessories",
+    "category": "Wild Rags",
+    "description": "Sendero Provisions Co Yellow And Orange Opossum Bandana. Part of Cavender’s Wild Rags collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-121",
+    "sku": "AE92553",
+    "name": "Southern Grace Silver & Turquoise Dangle Earrings",
+    "price": "16.00",
+    "image": "https://assets.cavenders.com/image/upload/v1768186349/Products/AE92553_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Southern Grace Silver & Turquoise Dangle Earrings. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "turquoise",
+      "silver"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-122",
+    "sku": "0905435",
+    "name": "M&F Gold Feather Wild Rags Scarf",
+    "price": "38.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755193964/Products/0905435_1.jpg",
+    "family": "Accessories",
+    "category": "Wild Rags",
+    "description": "M&F Gold Feather Wild Rags Scarf. Part of Cavender’s Wild Rags collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "gold"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-123",
+    "sku": "SRCGAMBLER",
+    "name": "Salty Rodeo White with the Burgundy Gambler Bandana Patch Cap",
+    "price": "24.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755873160/Products/SRCGAMBLER_1.jpg",
+    "family": "Accessories",
+    "category": "Wild Rags",
+    "description": "Salty Rodeo White with the Burgundy Gambler Bandana Patch Cap. Part of Cavender’s Wild Rags collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-124",
+    "sku": "WG2268120BG",
+    "name": "Wrangler Beige Aztec Print Tote Bag",
+    "price": "64.99",
+    "image": "https://assets.cavenders.com/image/upload/v1755293302/Products/WG2268120BG_1.jpg",
+    "family": "Accessories",
+    "category": "Bags",
+    "description": "Wrangler Beige Aztec Print Tote Bag. Part of Cavender’s Bags collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-125",
+    "sku": "CCNEC121",
+    "name": "Cowgirl Confetti Roam Wild Silver & Black Squash Blossom Necklace",
+    "price": "40.00",
+    "image": "https://assets.cavenders.com/image/upload/v1772472340/Products/CCNEC121_1.jpg",
+    "family": "Accessories",
+    "category": "Jewelry",
+    "description": "Cowgirl Confetti Roam Wild Silver & Black Squash Blossom Necklace. Part of Cavender’s Jewelry collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "black",
+      "silver"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-126",
+    "sku": "N3512044",
+    "name": "Blazin Roxx Women's Brown with Rhinestones and Conchos Scalloped Western Belt",
+    "price": "72.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755284536/Products/N3512044_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Blazin Roxx Women's Brown with Rhinestones and Conchos Scalloped Western Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-127",
+    "sku": "BWD0R0878820",
+    "name": "Rock & Roll Denim Women's Light Wash Denim Buckle Strap Mini Dress",
+    "price": "69.95",
+    "image": "https://assets.cavenders.com/image/upload/v1769729259/Products/BWD0R0878820_1.jpg",
+    "family": "Belts",
+    "category": "Buckles",
+    "description": "Rock & Roll Denim Women's Light Wash Denim Buckle Strap Mini Dress. Part of Cavender’s Buckles collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-128",
+    "sku": "S12110",
+    "name": "Myra Women's Brown Tooled Leather Buckle Belt",
+    "price": "42.00",
+    "image": "https://assets.cavenders.com/image/upload/v1763006300/Products/S12110_1.jpg",
+    "family": "Belts",
+    "category": "Buckles",
+    "description": "Myra Women's Brown Tooled Leather Buckle Belt. Part of Cavender’s Buckles collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-129",
+    "sku": "B92207REG",
+    "name": "Southern Grace Women's Turquoise & Silver Floral Concho Ring Belt",
+    "price": "60.00",
+    "image": "https://assets.cavenders.com/image/upload/v1766970781/Products/B92207REG_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Southern Grace Women's Turquoise & Silver Floral Concho Ring Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "turquoise",
+      "silver"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-130",
+    "sku": "A10006944",
+    "name": "Ariat Women's Medium Brown Rhinestone Filigree Belt",
+    "price": "80.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755270053/Products/A10006944_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Ariat Women's Medium Brown Rhinestone Filigree Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-131",
+    "sku": "CVSFA22BT33B",
+    "name": "Cavender's Women's Tan with Fancy Stitch Leather Belt",
+    "price": "38.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755273433/Products/CVSFA22BT33B_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Cavender's Women's Tan with Fancy Stitch Leather Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "tan"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-132",
+    "sku": "A1533508",
+    "name": "Ariat Women's Brown Tooled with Sunflower Concho Leather Belt",
+    "price": "89.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755269158/Products/A1533508_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Ariat Women's Brown Tooled with Sunflower Concho Leather Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-133",
+    "sku": "A1533008",
+    "name": "Ariat Women's Red Flower with Cowhide Inlay and Turquoise Embellishments Tooled Belt",
+    "price": "82.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755269157/Products/A1533008_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Ariat Women's Red Flower with Cowhide Inlay and Turquoise Embellishments Tooled Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "turquoise",
+      "red"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-134",
+    "sku": "A886",
+    "name": "Attitude by Montana Silversmiths A-Blaze Bull Rider Belt Buckle",
+    "price": "50.00",
+    "image": "https://assets.cavenders.com/image/upload/v1756146462/Products/A886_1.jpg",
+    "family": "Belts",
+    "category": "Buckles",
+    "description": "Attitude by Montana Silversmiths A-Blaze Bull Rider Belt Buckle. Part of Cavender’s Buckles collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-135",
+    "sku": "A1308230",
+    "name": "Ariat Girl's Silver & Pink Stone Oval Concho Belt",
+    "price": "42.00",
+    "image": "https://assets.cavenders.com/image/upload/v1756994873/Products/A1308230_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Ariat Girl's Silver & Pink Stone Oval Concho Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "pink",
+      "silver"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-136",
+    "sku": "CVSMSS2513",
+    "name": "Bandana Medium Brown Pirarucu Print Inlay Belt",
+    "price": "65.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755273516/Products/CVSMSS2513_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Bandana Medium Brown Pirarucu Print Inlay Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-137",
+    "sku": "D130003006",
+    "name": "Angel Ranch Girl's Coffee Leather White & Pink Embroidered Flowers & Bling Buckle Western Belt",
+    "price": "48.00",
+    "image": "https://assets.cavenders.com/image/upload/v1756997538/Products/D130003006_1.jpg",
+    "family": "Belts",
+    "category": "Buckles",
+    "description": "Angel Ranch Girl's Coffee Leather White & Pink Embroidered Flowers & Bling Buckle Western Belt. Part of Cavender’s Buckles collection — authentic western style, built to last.",
+    "gender": "women",
+    "colors": [
+      "pink",
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-138",
+    "sku": "37072C",
+    "name": "M&F Western Productions Gold\"C\" Silver Floral Large Oval Belt Buckle",
+    "price": "25.00",
+    "image": "https://assets.cavenders.com/image/upload/v1652762691/Products/37072C_1.jpg",
+    "family": "Belts",
+    "category": "Buckles",
+    "description": "M&F Western Productions Gold\"C\" Silver Floral Large Oval Belt Buckle. Part of Cavender’s Buckles collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "silver",
+      "gold"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-139",
+    "sku": "RC003B",
+    "name": "Andwest Silver Nashville Scrolled Beaded Edge Belt Buckle",
+    "price": "55.00",
+    "image": "https://assets.cavenders.com/image/upload/v1756158664/Products/RC003B_1.jpg",
+    "family": "Belts",
+    "category": "Buckles",
+    "description": "Andwest Silver Nashville Scrolled Beaded Edge Belt Buckle. Part of Cavender’s Buckles collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "silver"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-140",
+    "sku": "150356200R1",
+    "name": "Montana Silversmiths Sanders Silver & Gold Bareback Bronc Rider Trophy Buckle",
+    "price": "270.00",
+    "image": "https://assets.cavenders.com/image/upload/v1763006314/Products/150356200R1_1.jpg",
+    "family": "Belts",
+    "category": "Buckles",
+    "description": "Montana Silversmiths Sanders Silver & Gold Bareback Bronc Rider Trophy Buckle. Part of Cavender’s Buckles collection — authentic western style, built to last.",
+    "gender": "unisex",
+    "colors": [
+      "silver",
+      "gold"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-141",
+    "sku": "ABHP2201",
+    "name": "Anderson Bean Men's Horse Power Saddle Ostrich Print Wide Square Toe Chelsea Boots",
+    "price": "189.99",
+    "image": "https://assets.cavenders.com/image/upload/v1716861592/Products/ABHP2201_1.jpg",
+    "family": "Boots",
+    "category": "Exotic",
+    "description": "Anderson Bean Men's Horse Power Saddle Ostrich Print Wide Square Toe Chelsea Boots. Part of Cavender’s Exotic collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "saddle"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-142",
+    "sku": "AR0061277",
+    "name": "Ariat Men's Jasper Black Hybrid Rancher Wide Square Toe Cowboy Boots",
+    "price": "199.99",
+    "image": "https://assets.cavenders.com/image/upload/v1753121746/Products/AR0061277_sw.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Jasper Black Hybrid Rancher Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-143",
+    "sku": "AR0061326",
+    "name": "Ariat Men's Distressed Brown Sport Freedom Wide Square Toe Cowboy Boots",
+    "price": "169.99",
+    "image": "https://assets.cavenders.com/image/upload/v1721680786/Products/AR0061326_6.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Distressed Brown Sport Freedom Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-144",
+    "sku": "AR0050936",
+    "name": "Ariat Men's Slingshot Rust & Rugged Tan SmartLite Wide Square Toe Cowboy Boots",
+    "price": "239.99",
+    "image": "https://assets.cavenders.com/image/upload/v1689016821/Products/AR0050936_7.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Slingshot Rust & Rugged Tan SmartLite Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "tan"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-145",
+    "sku": "AR0050905",
+    "name": "Ariat Men's Rowder VentTEK 360° Marble Tan and White Bantamweight Wide Square Toe Cowboy Boots",
+    "price": "249.99",
+    "image": "https://assets.cavenders.com/image/upload/v1689016785/Products/AR0050905_5.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Rowder VentTEK 360° Marble Tan and White Bantamweight Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "tan",
+      "white"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-146",
+    "sku": "DUDDB0495",
+    "name": "Durango Men's Shyloh Saddie Brown Wide Square Toe Cowboy Boots",
+    "price": "149.99",
+    "image": "https://assets.cavenders.com/image/upload/v1726171168/Products/DUDDB0495_3.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Durango Men's Shyloh Saddie Brown Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-147",
+    "sku": "ABHP2202",
+    "name": "Anderson Bean Men's Horse Power Distressed Brown Wide Square Toe Chelsea Boots",
+    "price": "189.99",
+    "image": "https://assets.cavenders.com/image/upload/v1716861588/Products/ABHP2202_7.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Anderson Bean Men's Horse Power Distressed Brown Wide Square Toe Chelsea Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-148",
+    "sku": "AR0061301",
+    "name": "Ariat Men's Gingersnap & Black Sidewinder TekStep Wide Square Toe Cowboy Boots",
+    "price": "299.99",
+    "image": "https://assets.cavenders.com/image/upload/v1722892798/Products/AR0061301_7.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Gingersnap & Black Sidewinder TekStep Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-149",
+    "sku": "AR0061159",
+    "name": "Ariat Men's Beasty Brown Pacific Blue Narrow Cutter Toe Cowboy Boots",
+    "price": "249.99",
+    "image": "https://assets.cavenders.com/image/upload/v1753121735/Products/AR0061159_sw.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Beasty Brown Pacific Blue Narrow Cutter Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown",
+      "blue"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-150",
+    "sku": "AR0061120",
+    "name": "Ariat Men's Activator Dark Brown Waterproof Wide Square Soft Toe Work Boots",
+    "price": "209.99",
+    "image": "https://assets.cavenders.com/image/upload/v1756481855/Products/AR0061120_6.jpg",
+    "family": "Boots",
+    "category": "Work Boots",
+    "description": "Ariat Men's Activator Dark Brown Waterproof Wide Square Soft Toe Work Boots. Part of Cavender’s Work Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-151",
+    "sku": "AR0053631",
+    "name": "Ariat Men's Ricochet Black Carbon SMARTLITE Wide Square Toe Cowboy Boots",
+    "price": "249.99",
+    "image": "https://assets.cavenders.com/image/upload/v1726689083/Products/AR0053631_7.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Ricochet Black Carbon SMARTLITE Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-152",
+    "sku": "AR0053579",
+    "name": "Ariat Men's Brush Creek Tan and Brown Wide Square Toe Shock Shield Cowboy Boots",
+    "price": "199.98",
+    "image": "https://assets.cavenders.com/image/upload/v1708458526/Products/AR0053579_6.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Brush Creek Tan and Brown Wide Square Toe Shock Shield Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown",
+      "tan"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-153",
+    "sku": "DUDDB0485",
+    "name": "Durango Men's Shyloh Black Onyx R-Toe Cowboy Boots",
+    "price": "139.99",
+    "image": "https://assets.cavenders.com/image/upload/v1752676092/Products/DUDDB0485_sw.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Durango Men's Shyloh Black Onyx R-Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-154",
+    "sku": "AR0053629",
+    "name": "Ariat Men's Sport Big Country Black and Mahogany Wide Square Toe Cowboy Boots",
+    "price": "189.99",
+    "image": "https://assets.cavenders.com/image/upload/v1723563302/Products/AR0053629_6.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Sport Big Country Black and Mahogany Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-155",
+    "sku": "AR0061163",
+    "name": "Ariat Men's Beasty Bomber VentTEK Bantamweight Wide Square Toe Cowboy Boots",
+    "price": "209.99",
+    "image": "https://assets.cavenders.com/image/upload/v1721680739/Products/AR0061163_4.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Beasty Bomber VentTEK Bantamweight Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-156",
+    "sku": "AR0061237",
+    "name": "Ariat Men's Baxter Dark Tan and Black Wide Square Toe Cowboy Boots",
+    "price": "259.99",
+    "image": "https://assets.cavenders.com/image/upload/v1753121748/Products/AR0061237_sw.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Baxter Dark Tan and Black Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black",
+      "tan"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-157",
+    "sku": "AR0053654",
+    "name": "Ariat Men's Booker Ultra Oiled Brown Bantamweight Wide Square Toe Chelsea Boots",
+    "price": "149.99",
+    "image": "https://assets.cavenders.com/image/upload/v1708458549/Products/AR0053654_6.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Booker Ultra Oiled Brown Bantamweight Wide Square Toe Chelsea Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-158",
+    "sku": "AR0061162",
+    "name": "Ariat Men's Black & Red-Hot Bantamweight Wide Square Toe Cowboy Boots",
+    "price": "209.99",
+    "image": "https://assets.cavenders.com/image/upload/v1753121735/Products/AR0061162_sw.jpg",
+    "family": "Boots",
+    "category": "Western Boots",
+    "description": "Ariat Men's Black & Red-Hot Bantamweight Wide Square Toe Cowboy Boots. Part of Cavender’s Western Boots collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black",
+      "red"
+    ],
+    "priceTier": "premium"
+  },
+  {
+    "id": "CAV-159",
+    "sku": "RC2305",
+    "name": "Rafter C Men's Black & White Embroidered Bull Logo Cap",
+    "price": "19.99",
+    "image": "https://assets.cavenders.com/image/upload/v1763952899/Products/RC2305_1.jpg",
+    "family": "Hats",
+    "category": "Caps",
+    "description": "Rafter C Men's Black & White Embroidered Bull Logo Cap. Part of Cavender’s Caps collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black",
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-160",
+    "sku": "RDHC458",
+    "name": "Red Dirt Hat Co. Men's Chocolate & White Aztec Logo Patch Cap",
+    "price": "32.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755722286/RDHC458_1.jpg",
+    "family": "Hats",
+    "category": "Caps",
+    "description": "Red Dirt Hat Co. Men's Chocolate & White Aztec Logo Patch Cap. Part of Cavender’s Caps collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "red",
+      "white",
+      "chocolate"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-161",
+    "sku": "KRDELANOBLK",
+    "name": "Kimes Ranch Men's Black Aztec Logo Patch Cap",
+    "price": "32.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755719864/KRDELANOBLK_1.jpg",
+    "family": "Hats",
+    "category": "Caps",
+    "description": "Kimes Ranch Men's Black Aztec Logo Patch Cap. Part of Cavender’s Caps collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-162",
+    "sku": "A300091801",
+    "name": "Ariat Men's Black Embroidered Logo Cap",
+    "price": "40.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755707883/Products/A300091801_1.jpg",
+    "family": "Hats",
+    "category": "Caps",
+    "description": "Ariat Men's Black Embroidered Logo Cap. Part of Cavender’s Caps collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-163",
+    "sku": "A300092601",
+    "name": "Ariat Men's Black Performance Logo Patch Cap",
+    "price": "35.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755707969/Products/A300092601_1.jpg",
+    "family": "Hats",
+    "category": "Caps",
+    "description": "Ariat Men's Black Performance Logo Patch Cap. Part of Cavender’s Caps collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-164",
+    "sku": "KRDELANONVY",
+    "name": "Kimes Ranch Men's Navy & Slate Aztec Logo Patch Cap",
+    "price": "32.00",
+    "image": "https://assets.cavenders.com/image/upload/v1785864356/Products/KRDELANONVY_1.jpg",
+    "family": "Hats",
+    "category": "Caps",
+    "description": "Kimes Ranch Men's Navy & Slate Aztec Logo Patch Cap. Part of Cavender’s Caps collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "navy"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-165",
+    "sku": "A300092508",
+    "name": "Ariat Men's Cream & White Logo Patch Cap",
+    "price": "35.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755707968/Products/A300092508_1.jpg",
+    "family": "Hats",
+    "category": "Caps",
+    "description": "Ariat Men's Cream & White Logo Patch Cap. Part of Cavender’s Caps collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "white",
+      "cream"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-166",
+    "sku": "KRJERICOBLK",
+    "name": "Kimes Ranch Men's Black & Black Rubber Logo Patch Cap",
+    "price": "32.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755719866/KRJERICOBLK_1.jpg",
+    "family": "Hats",
+    "category": "Caps",
+    "description": "Kimes Ranch Men's Black & Black Rubber Logo Patch Cap. Part of Cavender’s Caps collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-167",
+    "sku": "10061444",
+    "name": "Ariat Men's M4 Wilbur Dakota Bootcut Jeans",
+    "price": "89.95",
+    "image": "https://assets.cavenders.com/image/upload/v1757956442/Products/10061444_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Ariat Men's M4 Wilbur Dakota Bootcut Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-168",
+    "sku": "13MWZPW1",
+    "name": "Wrangler Men's Cowboy Cut Prewashed Indigo Original Fit Tapered Leg Jeans",
+    "price": "49.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757949211/Products/13MWZPW1_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Wrangler Men's Cowboy Cut Prewashed Indigo Original Fit Tapered Leg Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "indigo"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-169",
+    "sku": "0936DEN1",
+    "name": "Wrangler Men's Rigid Indigo Cowboy Cut Slim Fit Jeans",
+    "price": "29.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757951553/Products/0936DEN1_1.jpg",
+    "family": "Jeans",
+    "category": "Slim",
+    "description": "Wrangler Men's Rigid Indigo Cowboy Cut Slim Fit Jeans. Part of Cavender’s Slim collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "indigo"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-170",
+    "sku": "13MWZGH1",
+    "name": "Wrangler Men's Cowboy Cut Bleach Wash Original Fit Straight Leg Jeans",
+    "price": "49.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757949080/Products/13MWZGH1_1.jpg",
+    "family": "Jeans",
+    "category": "Straight",
+    "description": "Wrangler Men's Cowboy Cut Bleach Wash Original Fit Straight Leg Jeans. Part of Cavender’s Straight collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-171",
+    "sku": "13MGSHD1",
+    "name": "Wrangler George Strait Men's Cowboy Cut Heavyweight Stone Tapered Leg Original Fit Jean",
+    "price": "64.00",
+    "image": "https://assets.cavenders.com/image/upload/v1757948931/Products/13MGSHD1_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Wrangler George Strait Men's Cowboy Cut Heavyweight Stone Tapered Leg Original Fit Jean. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-172",
+    "sku": "13MAFGK",
+    "name": "Wrangler Men's Cowboy Cut Original Fit Active Flex Jeans",
+    "price": "49.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757948885/Products/13MAFGK_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Wrangler Men's Cowboy Cut Original Fit Active Flex Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-173",
+    "sku": "13MWZAW1",
+    "name": "Wrangler Men's Antique Wash Cowboy Cut Original Fit Jeans",
+    "price": "49.99",
+    "image": "https://assets.cavenders.com/image/upload/v1766976787/Products/13MWZAW1_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Wrangler Men's Antique Wash Cowboy Cut Original Fit Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-174",
+    "sku": "47MWZPW1",
+    "name": "Wrangler Men's Premium Performance Cowboy Cut Prewash Regular Fit Tapered Leg Jeans",
+    "price": "49.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757950028/Products/47MWZPW1_1.jpg",
+    "family": "Jeans",
+    "category": "Relaxed",
+    "description": "Wrangler Men's Premium Performance Cowboy Cut Prewash Regular Fit Tapered Leg Jeans. Part of Cavender’s Relaxed collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-175",
+    "sku": "13MWZCG1",
+    "name": "Wrangler Men's Charcoal Cowboy Cut Original Fit Jeans",
+    "price": "49.99",
+    "image": "https://assets.cavenders.com/image/upload/v1757949057/Products/13MWZCG1_1.jpg",
+    "family": "Jeans",
+    "category": "Bootcut",
+    "description": "Wrangler Men's Charcoal Cowboy Cut Original Fit Jeans. Part of Cavender’s Bootcut collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-176",
+    "sku": "936AFGH1",
+    "name": "Wrangler Men's Cowboy Cut Bleach Slim Fit Active Flex Jeans",
+    "price": "49.99",
+    "image": "https://assets.cavenders.com/image/upload/v1758134470/Products/936AFGH1_1.jpg",
+    "family": "Jeans",
+    "category": "Slim",
+    "description": "Wrangler Men's Cowboy Cut Bleach Slim Fit Active Flex Jeans. Part of Cavender’s Slim collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-177",
+    "sku": "10041095",
+    "name": "Ariat Men's M5 Walden Marston Medium Wash Straight Fit Straight Leg Jeans",
+    "price": "89.95",
+    "image": "https://assets.cavenders.com/image/upload/v1777066553/Products/10041095_1.jpg",
+    "family": "Jeans",
+    "category": "Straight",
+    "description": "Ariat Men's M5 Walden Marston Medium Wash Straight Fit Straight Leg Jeans. Part of Cavender’s Straight collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-178",
+    "sku": "47MACMS1",
+    "name": "Wrangler Men's Advanced Comfort Cowboy Cut Mid Stone Wash Regular Fit Jean",
+    "price": "64.00",
+    "image": "https://assets.cavenders.com/image/upload/v1757949918/Products/47MACMS1_1.jpg",
+    "family": "Jeans",
+    "category": "Relaxed",
+    "description": "Wrangler Men's Advanced Comfort Cowboy Cut Mid Stone Wash Regular Fit Jean. Part of Cavender’s Relaxed collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-179",
+    "sku": "FPS1026038",
+    "name": "Ferrell Men's Harrison Blue & White Stripe Print Pearl Snap Western Shirt",
+    "price": "65.00",
+    "image": "https://assets.cavenders.com/image/upload/v1769708838/Products/FPS1026038_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Ferrell Men's Harrison Blue & White Stripe Print Pearl Snap Western Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "blue",
+      "white"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-180",
+    "sku": "FPS1026028",
+    "name": "Ferrell Men's Hudson Blue Aztec Stripe Print Pearl Snap Western Shirt",
+    "price": "39.98",
+    "image": "https://assets.cavenders.com/image/upload/v1764958217/Products/FPS1026028_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Ferrell Men's Hudson Blue Aztec Stripe Print Pearl Snap Western Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "blue"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-181",
+    "sku": "112374804",
+    "name": "Wrangler Men's Brushpopper Blue & Multi Stripe Pearl Snap Long Sleeve Western Shirt",
+    "price": "39.98",
+    "image": "https://assets.cavenders.com/image/upload/v1761935105/Products/112374804_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Wrangler Men's Brushpopper Blue & Multi Stripe Pearl Snap Long Sleeve Western Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "blue"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-182",
+    "sku": "FPS1026002",
+    "name": "Ferrell Men's Brooks White Stripe Print Pearl Snap Western Shirt",
+    "price": "39.98",
+    "image": "https://assets.cavenders.com/image/upload/v1764958222/Products/FPS1026002_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Ferrell Men's Brooks White Stripe Print Pearl Snap Western Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-183",
+    "sku": "MFRB25001",
+    "name": "Forge Men's Taupe Geo Print FR Work Shirt",
+    "price": "51.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755882268/Products/MFRB25001_1.jpg",
+    "family": "Apparel",
+    "category": "Western Shirts",
+    "description": "Forge Men's Taupe Geo Print FR Work Shirt. Part of Cavender’s Western Shirts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-184",
+    "sku": "HT1906WH",
+    "name": "Hooey Men's Country Clubbin' White T-Shirt",
+    "price": "23.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755109845/Products/HT1906WH_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Hooey Men's Country Clubbin' White T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-185",
+    "sku": "10062947",
+    "name": "Ariat Men's Crimson Red Barb Shield T-Shirt",
+    "price": "32.95",
+    "image": "https://assets.cavenders.com/image/upload/v1768837448/Products/10062947_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Ariat Men's Crimson Red Barb Shield T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "red"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-186",
+    "sku": "10058897",
+    "name": "Ariat Men's Lagoon Green Puebla Serape T-Shirt",
+    "price": "32.95",
+    "image": "https://assets.cavenders.com/image/upload/v1785863856/Products/10058897_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Ariat Men's Lagoon Green Puebla Serape T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "green"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-187",
+    "sku": "112361834",
+    "name": "Wrangler Men's Washed Black Rugged Goods T-Shirt",
+    "price": "24.99",
+    "image": "https://assets.cavenders.com/image/upload/v1778522129/Products/112361834_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Wrangler Men's Washed Black Rugged Goods T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-188",
+    "sku": "10062923",
+    "name": "Ariat Men's Black Bandana Logo Graphic T-Shirt",
+    "price": "32.95",
+    "image": "https://assets.cavenders.com/image/upload/v1738787433/Products/10062923_3.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Ariat Men's Black Bandana Logo Graphic T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-189",
+    "sku": "112361844",
+    "name": "Wrangler Men's White Bronc & Rider Logo Graphic T-Shirt",
+    "price": "17.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755020172/Products/112361844_1.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Wrangler Men's White Bronc & Rider Logo Graphic T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "white"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-190",
+    "sku": "HT1889BK",
+    "name": "Hooey Men's Western Original Black Graphic T-Shirt",
+    "price": "29.00",
+    "image": "https://assets.cavenders.com/image/upload/v1748385108/Products/HT1889BK_3.jpg",
+    "family": "Apparel",
+    "category": "Tops",
+    "description": "Hooey Men's Western Original Black Graphic T-Shirt. Part of Cavender’s Tops collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-191",
+    "sku": "742",
+    "name": "AndWest Men's Silver and Gold Skull and Etched Floral Scalloped Belt Buckle",
+    "price": "55.00",
+    "image": "https://assets.cavenders.com/image/upload/v1666379715/Products/742_1.jpg",
+    "family": "Belts",
+    "category": "Buckles",
+    "description": "AndWest Men's Silver and Gold Skull and Etched Floral Scalloped Belt Buckle. Part of Cavender’s Buckles collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "silver",
+      "gold"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-192",
+    "sku": "A1012402",
+    "name": "Ariat Brown Tooled Double Stitched Men's Western Belt",
+    "price": "45.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755269047/Products/A1012402_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Ariat Brown Tooled Double Stitched Men's Western Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-193",
+    "sku": "CC2725",
+    "name": "Cowboy Chrome Men's Brown Floral Tooled Cross Leather Western Belt",
+    "price": "45.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755271903/Products/CC2725_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Cowboy Chrome Men's Brown Floral Tooled Cross Leather Western Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-194",
+    "sku": "A1012401",
+    "name": "Ariat Men's Black Embossed Floral Tooled Double Stitched Leather Belt",
+    "price": "45.00",
+    "image": "https://assets.cavenders.com/image/upload/v1761529450/Products/A1012401_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Ariat Men's Black Embossed Floral Tooled Double Stitched Leather Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "budget"
+  },
+  {
+    "id": "CAV-195",
+    "sku": "CV21002",
+    "name": "Cavender's Men's Black Caiman Hornback Print Western Belt",
+    "price": "60.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755272743/Products/CV21002_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Cavender's Men's Black Caiman Hornback Print Western Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "black"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-196",
+    "sku": "A1020467",
+    "name": "Ariat Men's Etched Silver Buckle & Brown Genuine Leather Floral Tooled Belt",
+    "price": "60.00",
+    "image": "https://assets.cavenders.com/image/upload/v1755269074/Products/A1020467_1.jpg",
+    "family": "Belts",
+    "category": "Buckles",
+    "description": "Ariat Men's Etched Silver Buckle & Brown Genuine Leather Floral Tooled Belt. Part of Cavender’s Buckles collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown",
+      "silver"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-197",
+    "sku": "A1701534",
+    "name": "Ariat Men's Dark Brown Work Center Inlay Belt",
+    "price": "50.00",
+    "image": "https://assets.cavenders.com/image/upload/v1776448160/Products/A1701534_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "Ariat Men's Dark Brown Work Center Inlay Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown"
+    ],
+    "priceTier": "mid"
+  },
+  {
+    "id": "CAV-198",
+    "sku": "D100013702",
+    "name": "3D Belt Co Men's Brown with Red Blue and Cinnamon Aztec Stitch Western Belt",
+    "price": "62.98",
+    "image": "https://assets.cavenders.com/image/upload/v1755273532/Products/D100013702_1.jpg",
+    "family": "Belts",
+    "category": "Belts",
+    "description": "3D Belt Co Men's Brown with Red Blue and Cinnamon Aztec Stitch Western Belt. Part of Cavender’s Belts collection — authentic western style, built to last.",
+    "gender": "men",
+    "colors": [
+      "brown",
+      "red",
+      "blue"
+    ],
+    "priceTier": "mid"
+  }
+]

@@ -60,6 +60,7 @@ const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 //     fail fast to their fallback (502 / next source / 404).
 const FETCH_TIMEOUT_GEMINI_MS = 120000;
 const FETCH_TIMEOUT_PROXY_MS = 10000;
+const FETCH_TIMEOUT_SCRAPE_MS = 8000;
 async function fetchWithTimeout(url, opts, ms) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
@@ -930,6 +931,218 @@ app.get("/api/asset/proxy", requireHolodeckAuth, async (req, res) => {
     return res.send(buf);
   } catch (_) {
     return res.status(502).json({ error: "failed to fetch asset" });
+  }
+});
+
+// ── Retail CAB: site scrape + image proxy ──────────────────────
+// Ported from the standalone Retail CAB Demo Creator's server-scrape.js.
+// The generator scrapes a customer's live site for product photos + a
+// brand color BEFORE the Gemini catalog call, so Gemini only gap-fills.
+// SSRF guard: block private/loopback hosts; the discovered CDN hosts are
+// auto-registered (bounded) so /api/scrape/img-proxy will serve them —
+// a customer's CDN can't be known in advance, unlike the fixed
+// storage.googleapis.com host /api/asset/proxy is locked to above.
+const RETAILCAB_STATIC_HOSTS = [
+  "cdn.shopify.com", "images.ctfassets.net", "i.imgur.com",
+  "images.unsplash.com", "res.cloudinary.com", "scene7.com",
+  "cloudfront.net", "akamaihd.net",
+];
+const RETAILCAB_ALLOWED_HOSTS = new Set(
+  RETAILCAB_STATIC_HOSTS.concat(
+    String(process.env.IMG_PROXY_HOSTS || "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean)
+  )
+);
+const RETAILCAB_MAX_DYNAMIC_HOSTS = 200;
+let _retailCabDynamicHostCount = 0;
+
+function retailCabHostAllowed(hostname) {
+  const h = String(hostname || "").toLowerCase();
+  if (RETAILCAB_ALLOWED_HOSTS.has(h)) return true;
+  for (const allowed of RETAILCAB_ALLOWED_HOSTS) {
+    if (allowed.indexOf(".") === -1) continue;
+    if (h === allowed || h.endsWith("." + allowed)) return true;
+  }
+  return false;
+}
+function retailCabRegisterHost(hostname) {
+  const h = String(hostname || "").toLowerCase();
+  if (!h || retailCabHostAllowed(h)) return;
+  if (_retailCabDynamicHostCount >= RETAILCAB_MAX_DYNAMIC_HOSTS) return;
+  RETAILCAB_ALLOWED_HOSTS.add(h);
+  _retailCabDynamicHostCount += 1;
+}
+function retailCabBlockedHost(hostname) {
+  const h = String(hostname || "").toLowerCase();
+  if (!h || h === "localhost" || h.endsWith(".localhost") || h.endsWith(".internal")) return true;
+  if (/^(127\.|10\.|0\.|169\.254\.|::1|fe80:|fc00:|fd)/.test(h)) return true;
+  if (/^192\.168\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+  return false;
+}
+
+function retailCabAbsolutize(base, u) {
+  try { return new URL(u, base).toString(); } catch (_) { return null; }
+}
+function retailCabExtractImages(html, baseUrl) {
+  const urls = new Set();
+  const push = (u) => { const a = retailCabAbsolutize(baseUrl, u); if (a && /^https?:/.test(a)) urls.add(a); };
+  const meta = html.match(/<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)[^>]*>/gi) || [];
+  meta.forEach((m) => { const c = m.match(/content=["']([^"']+)["']/i); if (c) push(c[1]); });
+  const ld = html.match(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi) || [];
+  ld.forEach((block) => {
+    const imgs = block.match(/"image"\s*:\s*("(?:[^"\\]|\\.)*"|\[[^\]]*\])/gi) || [];
+    imgs.forEach((seg) => { (seg.match(/https?:\/\/[^"'\\\s\]]+/g) || []).forEach(push); });
+  });
+  const imgTags = html.match(/<img[^>]+>/gi) || [];
+  imgTags.forEach((tag) => {
+    const src = tag.match(/\bsrc=["']([^"']+)["']/i);
+    if (src) push(src[1]);
+    const dsrc = tag.match(/\bdata-src=["']([^"']+)["']/i);
+    if (dsrc) push(dsrc[1]);
+    const sset = tag.match(/\bsrcset=["']([^"']+)["']/i);
+    if (sset) { const first = sset[1].split(",")[0].trim().split(/\s+/)[0]; if (first) push(first); }
+  });
+  const cruft = /(sprite|icon|logo|favicon|pixel|1x1|placeholder|loader|spinner|\.svg(\?|$))/i;
+  return Array.from(urls).filter((u) => !cruft.test(u)).slice(0, 60);
+}
+function retailCabExtractProducts(html, baseUrl) {
+  const out = [];
+  const seen = new Set();
+  const cruft = /(sprite|icon|logo|favicon|pixel|1x1|placeholder|loader|spinner|\.svg(\?|$))/i;
+  const pushProduct = (name, imgUrl, sourceCategory) => {
+    const n = String(name || "").trim();
+    const a = retailCabAbsolutize(baseUrl, imgUrl);
+    if (!n || !a || !/^https?:/.test(a) || cruft.test(a) || seen.has(a)) return;
+    seen.add(a);
+    const entry = { name: n, image: a };
+    const sc = String(sourceCategory || "").trim();
+    if (sc) entry.sourceCategory = sc;
+    out.push(entry);
+  };
+  const ldRe = /<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi;
+  let m;
+  while ((m = ldRe.exec(html))) {
+    let json;
+    try { json = JSON.parse(m[1]); } catch (_) { continue; }
+    const items = Array.isArray(json) ? json : Array.isArray(json && json["@graph"]) ? json["@graph"] : [json];
+    items.forEach((item) => {
+      if (!item || typeof item !== "object") return;
+      const type = item["@type"];
+      const isProduct = type === "Product" || (Array.isArray(type) && type.indexOf("Product") !== -1);
+      if (!isProduct) return;
+      let img = item.image;
+      if (Array.isArray(img)) img = img[0];
+      if (img && typeof img === "object") img = img.url;
+      let cat = item.category || item.additionalType;
+      if (Array.isArray(cat)) cat = cat[0];
+      if (cat && typeof cat === "object") cat = cat.name;
+      if (item.name && img) pushProduct(item.name, img, cat);
+    });
+  }
+  const imgTags = html.match(/<img[^>]+>/gi) || [];
+  imgTags.forEach((tag) => {
+    const alt = tag.match(/\balt=["']([^"']+)["']/i);
+    if (!alt) return;
+    const src = tag.match(/\bsrc=["']([^"']+)["']/i) || tag.match(/\bdata-src=["']([^"']+)["']/i);
+    if (!src) return;
+    pushProduct(alt[1], src[1]);
+  });
+  return out.slice(0, 60);
+}
+function retailCabExtractBrandColor(html) {
+  const theme = html.match(/<meta[^>]+name=["']theme-color["'][^>]*content=["'](#[0-9a-f]{3,8})["']/i);
+  if (theme) return theme[1];
+  const hexes = html.match(/#[0-9a-fA-F]{6}\b/g) || [];
+  const counts = new Map();
+  const neutral = /^#(fff|000|ffffff|000000|f{6}|0{6}|(\w)\2{5})$/i;
+  hexes.forEach((h) => { const k = h.toLowerCase(); if (!neutral.test(k)) counts.set(k, (counts.get(k) || 0) + 1); });
+  let best = null, bestN = 0;
+  counts.forEach((n, k) => { if (n > bestN) { bestN = n; best = k; } });
+  return bestN >= 3 ? best : null;
+}
+
+// GET /api/scrape/img-proxy?url=… — same-origin fetch of a scraped CDN
+// image so the live preview can load it without CORS/hotlink issues. Left
+// UNauthenticated (unlike /api/asset/proxy above): this URL is embedded
+// directly as plain <img src> inside the retailCab storefront preview
+// (iframe), which can't attach a bearer header. Safe to leave open — the
+// SSRF guard below is the actual boundary, and it only proxies read-only,
+// publicly-hosted images that were already discovered by an authenticated
+// /api/scrape/site call (or sit on the static CDN allow-list).
+app.get("/api/scrape/img-proxy", async (req, res) => {
+  const raw = typeof req.query.url === "string" ? req.query.url : "";
+  let parsed;
+  try { parsed = new URL(raw); } catch (_) { parsed = null; }
+  if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
+    return res.status(400).json({ error: "a valid url is required" });
+  }
+  if (retailCabBlockedHost(parsed.hostname)) return res.status(403).json({ error: "host blocked" });
+  if (!retailCabHostAllowed(parsed.hostname)) return res.status(403).json({ error: "host not allowed" });
+  try {
+    const upstream = await fetchWithTimeout(parsed.toString(), { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
+    if (!upstream.ok) return res.status(502).json({ error: `upstream ${upstream.status}` });
+    const type = upstream.headers.get("content-type") || "application/octet-stream";
+    if (!/^image\//i.test(type)) return res.status(415).json({ error: "not an image" });
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.set("Content-Type", type);
+    res.set("Cache-Control", "public, max-age=86400");
+    return res.send(buf);
+  } catch (_) {
+    return res.status(502).json({ error: "failed to fetch image" });
+  }
+});
+
+// POST /api/scrape/site { url } — fetch a customer's live site and pull
+// product/brand imagery + a brand color for the Retail CAB generator.
+// Never rejects with an error status the client needs to branch on: a
+// scrape failure returns ok:false so the pipeline falls back to Gemini.
+app.post("/api/scrape/site", requireHolodeckAuth, rateLimit, async (req, res) => {
+  const target = req.body && typeof req.body.url === "string" ? req.body.url.trim() : "";
+  if (!target) return res.status(400).json({ error: "url is required" });
+  let parsed;
+  try { parsed = new URL(/^https?:\/\//i.test(target) ? target : "https://" + target); }
+  catch (_) { return res.status(400).json({ error: "bad url" }); }
+  if (retailCabBlockedHost(parsed.hostname)) return res.status(403).json({ error: "host blocked" });
+
+  try {
+    const upstream = await fetchWithTimeout(parsed.toString(), {
+      redirect: "follow",
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; HolodeckBuilder/1.0)", Accept: "text/html" },
+    }, FETCH_TIMEOUT_SCRAPE_MS);
+    if (!upstream.ok) throw new Error("HTTP " + upstream.status);
+    const type = upstream.headers.get("content-type") || "";
+    if (!/text\/html/i.test(type)) throw new Error("not an HTML page");
+    const html = await upstream.text();
+    const images = retailCabExtractImages(html, parsed.toString());
+    const products = retailCabExtractProducts(html, parsed.toString());
+    const brandColor = retailCabExtractBrandColor(html);
+
+    const hosts = new Set();
+    images.forEach((u) => { try { hosts.add(new URL(u).hostname); } catch (_) {} });
+    hosts.forEach(retailCabRegisterHost);
+
+    const proxied = images.map((u) => "/api/scrape/img-proxy?url=" + encodeURIComponent(u));
+
+    return res.json({
+      ok: true,
+      site: parsed.origin,
+      brandColor: brandColor || null,
+      imageCount: images.length,
+      images,
+      proxiedImages: proxied,
+      products,
+    });
+  } catch (err) {
+    return res.json({
+      ok: false,
+      site: parsed.origin,
+      brandColor: null,
+      imageCount: 0,
+      images: [],
+      proxiedImages: [],
+      products: [],
+      error: (err && err.message) || "scrape failed",
+    });
   }
 });
 

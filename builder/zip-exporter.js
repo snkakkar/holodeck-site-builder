@@ -103,12 +103,93 @@
         { src: "../demo-apps/cimulate/app.js",        dest: "app.js",        kind: "text" },
       ],
     },
+    // Retail CAB doesn't fit the single-configName/window.money convention
+    // above: it has TWO data files (js/brand-config.js + js/products.json),
+    // neither with a helper tail to graft onto, plus generated photos that
+    // need baking to local files so they don't expire. No `configName` —
+    // buildAppPayload dispatches this id to buildRetailCabAppPayload instead.
+    retailCab: {
+      files: [
+        { src: "../demo-apps/retail-cab/css/styles.css", dest: "css/styles.css", kind: "text" },
+        { src: "../demo-apps/retail-cab/images/birthdaypromo.png", dest: "images/birthdaypromo.png", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/bold-color-1.jpg", dest: "images/styled/bold-color-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/bold-color-2.jpg", dest: "images/styled/bold-color-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/bold-color-3.jpg", dest: "images/styled/bold-color-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/bridal-moments-1.jpg", dest: "images/styled/bridal-moments-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/bridal-moments-2.jpg", dest: "images/styled/bridal-moments-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/bridal-moments-3.jpg", dest: "images/styled/bridal-moments-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c01.jpg", dest: "images/styled/cand/c01.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c02.jpg", dest: "images/styled/cand/c02.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c03.jpg", dest: "images/styled/cand/c03.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c04.jpg", dest: "images/styled/cand/c04.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c05.jpg", dest: "images/styled/cand/c05.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c06.jpg", dest: "images/styled/cand/c06.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c07.jpg", dest: "images/styled/cand/c07.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c08.jpg", dest: "images/styled/cand/c08.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c09.jpg", dest: "images/styled/cand/c09.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c10.jpg", dest: "images/styled/cand/c10.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c11.jpg", dest: "images/styled/cand/c11.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c12.jpg", dest: "images/styled/cand/c12.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c13.jpg", dest: "images/styled/cand/c13.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c14.jpg", dest: "images/styled/cand/c14.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c15.jpg", dest: "images/styled/cand/c15.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c16.jpg", dest: "images/styled/cand/c16.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c17.jpg", dest: "images/styled/cand/c17.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c18.jpg", dest: "images/styled/cand/c18.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c19.jpg", dest: "images/styled/cand/c19.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c20.jpg", dest: "images/styled/cand/c20.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c21.jpg", dest: "images/styled/cand/c21.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c22.jpg", dest: "images/styled/cand/c22.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c23.jpg", dest: "images/styled/cand/c23.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/cand/c24.jpg", dest: "images/styled/cand/c24.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/coastal-grandmother-1.jpg", dest: "images/styled/coastal-grandmother-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/coastal-grandmother-2.jpg", dest: "images/styled/coastal-grandmother-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/coastal-grandmother-3.jpg", dest: "images/styled/coastal-grandmother-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/denim-and-boots-1.jpg", dest: "images/styled/denim-and-boots-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/denim-and-boots-2.jpg", dest: "images/styled/denim-and-boots-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/denim-and-boots-3.jpg", dest: "images/styled/denim-and-boots-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/festival-ready-1.jpg", dest: "images/styled/festival-ready-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/festival-ready-2.jpg", dest: "images/styled/festival-ready-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/festival-ready-3.jpg", dest: "images/styled/festival-ready-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/mob-wife-1.jpg", dest: "images/styled/mob-wife-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/mob-wife-2.jpg", dest: "images/styled/mob-wife-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/mob-wife-3.jpg", dest: "images/styled/mob-wife-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/quiet-luxury-1.jpg", dest: "images/styled/quiet-luxury-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/quiet-luxury-2.jpg", dest: "images/styled/quiet-luxury-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/quiet-luxury-3.jpg", dest: "images/styled/quiet-luxury-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/ranch-ready-1.jpg", dest: "images/styled/ranch-ready-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/ranch-ready-2.jpg", dest: "images/styled/ranch-ready-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/ranch-ready-3.jpg", dest: "images/styled/ranch-ready-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/rodeo-chic-1.jpg", dest: "images/styled/rodeo-chic-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/rodeo-chic-2.jpg", dest: "images/styled/rodeo-chic-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/rodeo-chic-3.jpg", dest: "images/styled/rodeo-chic-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/turquoise-and-fringe-1.jpg", dest: "images/styled/turquoise-and-fringe-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/turquoise-and-fringe-2.jpg", dest: "images/styled/turquoise-and-fringe-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/turquoise-and-fringe-3.jpg", dest: "images/styled/turquoise-and-fringe-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/y2k-revival-1.jpg", dest: "images/styled/y2k-revival-1.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/y2k-revival-2.jpg", dest: "images/styled/y2k-revival-2.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/images/styled/y2k-revival-3.jpg", dest: "images/styled/y2k-revival-3.jpg", kind: "binary" },
+        { src: "../demo-apps/retail-cab/index.html", dest: "index.html", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/birthday-promo.js", dest: "js/birthday-promo.js", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/brand-config.js", dest: "js/brand-config.js", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/orders.js", dest: "js/orders.js", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/persona.js", dest: "js/persona.js", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/products.json", dest: "js/products.json", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/router.js", dest: "js/router.js", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/search-engine.js", dest: "js/search-engine.js", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/search-overlay.js", dest: "js/search-overlay.js", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/sitemap.js", dest: "js/sitemap.js", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/views.js", dest: "js/views.js", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/web-curation-component.js", dest: "js/web-curation-component.js", kind: "text" },
+      ],
+    },
   };
 
   // Human-facing metadata for the root hub index + README.
   const APP_META = {
     clienteling: { name: "Clienteling",       blurb: "Store-associate concierge — unified guest view, live coaching, and event prep." },
     cimulate:    { name: "Cimulate Search",   blurb: "Intent-aware product search + shopper/service concierge agent." },
+    retailCab:   { name: "Retail CAB Storefront", blurb: "AI-generated retail storefront — catalog, styled looks, and an AI shopping stylist." },
   };
 
   // ─── Public entry point ──────────────────────────────────────
@@ -179,19 +260,25 @@
             return null;   // one bad app never aborts the whole export
           });
       })).then(function (fetched) {
+        // buildAppPayload can be async (retailCab bakes remote images into
+        // local files) — always treat its result as a promise.
         const packagedIds = [];
-        fetched.filter(Boolean).forEach(function (r) {
-          if (!r.files || !r.files.length) return;
-          buildAppPayload(state, r.id, root, r.files).forEach(function (f) { payload.files.push(f); });
-          packagedIds.push(r.id);
+        const perApp = fetched.filter(Boolean).filter(function (r) { return r.files && r.files.length; }).map(function (r) {
+          return Promise.resolve(buildAppPayload(state, r.id, root, r.files)).then(function (files) {
+            files.forEach(function (f) { payload.files.push(f); });
+            packagedIds.push(r.id);
+          });
         });
-        if (packagedIds.length) {
-          payload.files.push({ path: root + "index.html", content: generateHubIndexHtml(state, packagedIds) });
-          payload.apps = packagedIds;
-        }
-        // Re-sort so the merged payload stays byte-stable across runs.
-        payload.files.sort(function (a, b) { return a.path < b.path ? -1 : (a.path > b.path ? 1 : 0); });
-        return payload;
+        return Promise.all(perApp).then(function () {
+          packagedIds.sort();
+          if (packagedIds.length) {
+            payload.files.push({ path: root + "index.html", content: generateHubIndexHtml(state, packagedIds) });
+            payload.apps = packagedIds;
+          }
+          // Re-sort so the merged payload stays byte-stable across runs.
+          payload.files.sort(function (a, b) { return a.path < b.path ? -1 : (a.path > b.path ? 1 : 0); });
+          return payload;
+        });
       });
     });
   }
@@ -275,6 +362,9 @@
           if (tf.optional) return null;
           throw new Error("HTTP " + res.status + " on " + tf.src);
         }
+        if (tf.kind === "binary") {
+          return res.arrayBuffer().then(function (buf) { return { dest: tf.dest, content: new Uint8Array(buf) }; });
+        }
         return res.text().then(function (text) { return { dest: tf.dest, content: text }; });
       }).catch(function (err) {
         if (tf.optional) return null;
@@ -326,7 +416,10 @@
   function HOLO_APPGEN() { return (typeof window !== "undefined") ? window.HOLO_APPGEN : null; }
 
   // Build the file list for ONE enabled app, rooted under apps/<appId>/.
+  // Retail CAB has no configName (two data files, no window.money tail) and
+  // needs image baking — dispatched to its own async builder.
   function buildAppPayload(state, appId, root, templateFiles) {
+    if (appId === "retailCab") return buildRetailCabAppPayload(state, appId, root, templateFiles);
     const tpl = APP_TEMPLATE_FILES[appId];
     const slice = (state.apps && state.apps[appId]) || {};
     // If a project references/has enabled an app but has no generated config,
@@ -349,6 +442,93 @@
       }
     });
     return files;
+  }
+
+  // Retail CAB export: js/brand-config.js + js/products.json are serialized
+  // directly from the generated config via HOLO_RETAILCABGEN's own
+  // full-file-replacement serializers (no stock file to graft onto), and
+  // any live Gemini-generated image URLs are fetched + baked into local
+  // files under images/generated/ so the exported app doesn't depend on
+  // GCS-signed URLs that expire ~7 days after generation.
+  function buildRetailCabAppPayload(state, appId, root, templateFiles) {
+    const slice = (state.apps && state.apps.retailCab) || {};
+    const config = slice.config;
+    const appRoot = root + "apps/" + appId + "/";
+    if (!config) {
+      // No generation has run — ship the stock template verbatim; its
+      // baked-in defaults already render a complete generic storefront.
+      return Promise.resolve(templateFiles.map(function (tf) {
+        return { path: appRoot + tf.dest, content: tf.content };
+      }));
+    }
+    const GEN = (typeof window !== "undefined") ? window.HOLO_RETAILCABGEN : null;
+    const brandConfig = config.brandConfig || config;
+    const products = config.products || config.catalog || [];
+    return bakeRetailCabImages(brandConfig, products).then(function (baked) {
+      const configJs = GEN
+        ? GEN.toBrandConfigJs(baked.brandConfig, (baked.brandConfig.brand && baked.brandConfig.brand.name) || "Retail CAB")
+        : "window.BrandConfig = " + JSON.stringify(baked.brandConfig, null, 2) + ";\n";
+      const productsJson = GEN
+        ? GEN.toProductsJson(baked.products)
+        : JSON.stringify(baked.products, null, 2) + "\n";
+      const files = [];
+      templateFiles.forEach(function (tf) {
+        if (tf.dest === "js/brand-config.js") files.push({ path: appRoot + tf.dest, content: configJs });
+        else if (tf.dest === "js/products.json") files.push({ path: appRoot + tf.dest, content: productsJson });
+        else files.push({ path: appRoot + tf.dest, content: tf.content });
+      });
+      baked.images.forEach(function (img) { files.push({ path: appRoot + img.dest, content: img.content }); });
+      return files;
+    });
+  }
+
+  // Fetches every remote (http/https) image URL referenced by the products
+  // array / styledPosts / hero copy, rewrites those fields to a local
+  // images/generated/<n>.<ext> path, and returns the baked binary files
+  // alongside the rewritten config. A failed fetch is logged and simply
+  // leaves that one field pointing at its (still-live, for now) remote URL
+  // rather than aborting the whole export.
+  function bakeRetailCabImages(brandConfig, products) {
+    if (typeof fetch !== "function") return Promise.resolve({ brandConfig: brandConfig, products: products, images: [] });
+    const urlToLocal = {};
+    let n = 0;
+    function isRemote(u) { return typeof u === "string" && /^https?:\/\//i.test(u); }
+    function localPathFor(url) {
+      if (urlToLocal[url]) return urlToLocal[url];
+      n++;
+      const ext = /\.png(\?|$)/i.test(url) ? "png" : "jpg";
+      urlToLocal[url] = "images/generated/img-" + n + "." + ext;
+      return urlToLocal[url];
+    }
+
+    const productsOut = (products || []).map(function (p) {
+      return isRemote(p.image) ? Object.assign({}, p, { image: localPathFor(p.image) }) : p;
+    });
+    const bc = JSON.parse(JSON.stringify(brandConfig || {}));
+    (bc.styledPosts || []).forEach(function (sp) {
+      if (isRemote(sp.image)) sp.image = localPathFor(sp.image);
+    });
+    if (bc.copy) {
+      if (isRemote(bc.copy.heroImage)) bc.copy.heroImage = localPathFor(bc.copy.heroImage);
+      if (isRemote(bc.copy.heroImageSignedIn)) bc.copy.heroImageSignedIn = localPathFor(bc.copy.heroImageSignedIn);
+    }
+
+    const images = [];
+    const urls = Object.keys(urlToLocal);
+    return Promise.all(urls.map(function (url) {
+      return fetch(url).then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.arrayBuffer();
+      }).then(function (buf) {
+        images.push({ dest: urlToLocal[url], content: new Uint8Array(buf) });
+      }).catch(function (err) {
+        if (typeof console !== "undefined" && console.warn) {
+          console.warn("[holo] retailCab: failed to bake image " + url, err && err.message);
+        }
+      });
+    })).then(function () {
+      return { brandConfig: bc, products: productsOut, images: images };
+    });
   }
 
   // Root hub index.html — a small landing page linking the deck + built apps.
@@ -554,11 +734,14 @@
       "**Secondary — local server (only if a live CX component won't embed):**",
       "",
       "```bash",
-      "cd demo",
       "python3 -m http.server 8080",
       "```",
       "",
-      "Then open `http://localhost:8080/`. See `HOW_TO_RUN.md` for details.",
+      "Run this from **this unzipped folder itself** (not `demo/`) — embedded",
+      "apps live in a sibling `apps/` folder and are loaded via a relative",
+      "`../apps/...` path, which only resolves if the server root is the whole",
+      "unzipped folder. Then open `http://localhost:8080/demo/`. See",
+      "`HOW_TO_RUN.md` for details.",
       "",
       "## Branding modes",
       "",
@@ -661,16 +844,25 @@
       "## If a live CX component won't load — run a local server (optional)",
       "",
       "Everything works from a plain browser open. The one exception is a slide",
-      "that embeds a **live CX component** in an iframe: a few browsers are",
-      "stricter about iframes on `file://` pages. If such a slide looks empty,",
-      "serve the folder over a local server instead:",
+      "that embeds a **live CX component** or a built app (Clienteling,",
+      "Cimulate, Retail CAB, …) in an iframe: a few browsers are stricter about",
+      "iframes on `file://` pages. If such a slide looks empty — or shows a",
+      "'404 File not found' page inside the iframe — serve the folder over a",
+      "local server instead:",
       "",
       "```bash",
-      "cd demo",
       "python3 -m http.server 8080",
       "```",
       "",
-      "Then open `http://localhost:8080/` in Chrome.",
+      "Run this from **this unzipped folder itself, not the `demo/` subfolder.**",
+      "Built apps live in a sibling `apps/` folder next to `demo/` and are",
+      "loaded via a relative `../apps/<app>/index.html` path — that only",
+      "resolves if the server's root is the whole unzipped folder. Serving from",
+      "inside `demo/` instead makes the server treat `../apps/...` as outside",
+      "its root and return a 404 for the embedded app.",
+      "",
+      "Then open `http://localhost:8080/demo/` in Chrome (note the `/demo/`",
+      "in the URL — the server root is one level above it).",
       "",
       "## Keyboard shortcuts",
       "",

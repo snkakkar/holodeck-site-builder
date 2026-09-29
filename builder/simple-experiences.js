@@ -78,6 +78,19 @@
         ],
       },
       {
+        id: "retailCab",
+        label: "Retail CAB storefront",
+        blurb: "AI-generated retail storefront — full catalog, styled looks, and an AI shopping stylist, branded to the customer.",
+        icon: "🛒",
+        kind: "app",
+        generatorId: "retailCab",
+        // No follow-up questions: unlike cimulate/clienteling, this
+        // generator is single-shot (scrape + one big catalog call + all
+        // photo passes) driven entirely by the project's own customer
+        // name/website/brand color — nothing extra to collect here.
+        questions: [],
+      },
+      {
         id: "unifiedProfile",
         label: "Unified profile (Data Cloud)",
         blurb: "A live customer 360 profile assembled from unified Data Cloud signals.",

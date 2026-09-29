@@ -270,6 +270,7 @@
   // Resolves { found, config, usedGemini }.
   function generate(appId, state, opts) {
     opts = opts || {};
+    if (appId === "retailCab") return generateRetailCab(state, opts);
     const cx = ctxFrom(state);
     const status = opts.onStatus || function () {};
     const gen = global.HOLO_GEMINI;
@@ -350,6 +351,80 @@
           status("AI call failed — using a customer-flavored template.", 1);
           return Object.assign(assemble(fallbackFoundation(appId, cx)), { usedGemini: false });
         });
+    });
+  }
+
+  // ── Retail CAB: own generation pipeline ───────────────────────
+  // Retail CAB doesn't fit the clienteling/cimulate prompt+shared-catalog
+  // shape above — it's a schema-constrained Gemini call over its own
+  // (much larger) catalog, seeded by a site scrape, with its own three
+  // image-generation passes (product/styled-post/hero). Ported from the
+  // standalone Retail CAB Demo Creator's builder.js onGenerate() flow;
+  // logic unchanged, just wrapped in a promise chain that matches this
+  // dispatcher's { found, config, usedGemini } contract instead of
+  // driving its own status/progress DOM directly.
+  function generateRetailCab(state, opts) {
+    opts = opts || {};
+    const status = opts.onStatus || function () {};
+    const F = global.HOLO_RETAILCABFOUND;
+    const CG = global.HOLO_RETAILCABGEN;
+    const SCRAPE = global.HOLO_SCRAPE;
+    const gen = global.HOLO_GEMINI;
+
+    function fallback() {
+      status("Gemini unavailable — using stock storefront defaults.", 1);
+      return { found: null, config: null, usedGemini: false };
+    }
+
+    if (!gen || !F || !CG) return Promise.resolve(fallback());
+
+    const cx = F.ctxFrom(state);
+    status("Checking AI availability…", 0.05);
+    return gen.isConfigured().then(function (ok) {
+      if (!ok) return fallback();
+      status("Scraping " + (cx.website || "site") + "…", 0.1);
+      const scrapePromise = (SCRAPE && cx.website) ? SCRAPE.scrapeSite(cx.website) : Promise.resolve(null);
+      return scrapePromise.then(function (scraped) {
+        status("Generating catalog & brand with Gemini…", 0.25);
+        return gen.generate({
+          prompt: F.promptForStorefront(cx, scraped),
+          jsonMode: true,
+          schema: F.storefrontSchema(),
+          temperature: 0.4,
+          maxOutputTokens: 65536,
+          useCache: true,
+        }).then(function (text) {
+          const found = parseJson(text);
+          if (!found || !Array.isArray(found.catalog)) return fallback();
+          status("Assembling storefront configuration…", 0.4);
+          let config = CG.buildStorefrontConfig(found, cx, {}, scraped && scraped.brandColor, null, scraped);
+          status("Generating product photos…", 0.45);
+          return F.generateProductPhotos(config.catalog, config.productImages, cx, {
+            batchSize: opts.batch || 4,
+            onProgress: function (d, t) { status("Product photos " + d + "/" + t + "…", 0.45 + (t ? 0.25 * d / t : 0)); },
+          }).then(function (images) {
+            config = CG.buildStorefrontConfig(found, cx, images, scraped && scraped.brandColor, null, scraped);
+            const productsByName = {};
+            config.catalog.forEach(function (p) { productsByName[p.name] = p; });
+            status("Generating styled-post photos…", 0.7);
+            return F.generateStyledPostPhotos(config.styledPosts, productsByName, cx, {
+              batchSize: opts.batch || 4,
+              onProgress: function (d, t) { status("Styled-post photos " + d + "/" + t + "…", 0.7 + (t ? 0.15 * d / t : 0)); },
+            }).then(function (styledImages) {
+              status("Generating hero photos…", 0.85);
+              return F.generateHeroImages(cx, {
+                onProgress: function (d, t) { status("Hero photos " + d + "/" + t + "…", 0.85 + (t ? 0.15 * d / t : 0)); },
+              }).then(function (heroImages) {
+                config = CG.buildStorefrontConfig(found, cx, images, scraped && scraped.brandColor, styledImages, scraped, heroImages);
+                status("Retail CAB configuration ready.", 1);
+                return { found: found, config: config, usedGemini: true };
+              });
+            });
+          });
+        });
+      });
+    }).catch(function () {
+      return fallback();
     });
   }
 
@@ -446,6 +521,9 @@
   // retail instead of the stock (Total Wine) app-config.js.
   function buildFallbackConfig(appId, state, opts) {
     opts = opts || {};
+    // Retail CAB doesn't use this clienteling/cimulate fallback assembly — its
+    // stock template already ships full generic-retail default data.
+    if (appId === "retailCab") return null;
     const cx = ctxFrom(state || {});
     if (opts.generic) {
       // Strip customer identity so the placeholder is industry-neutral retail.

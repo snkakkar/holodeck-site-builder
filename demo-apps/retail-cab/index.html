@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+  <title>Cavender's — Western Wear, Boots & Country Style</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;500;600;700&family=Oswald:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Top Banner -->
+  <div class="top-banner">
+    <div class="top-banner-left">
+      <a href="#" class="top-link">Find a Store</a>
+      <a href="#" class="top-link">Community</a>
+    </div>
+    <div class="top-banner-center">
+      <span id="top-banner-msg">🤠 Free Shipping on Orders $75+ · Free Returns to Any Store</span>
+    </div>
+    <div class="top-banner-right">
+      <a href="#" class="top-link" id="signin-link">Sign In</a>
+      <a href="#" class="top-link">Help</a>
+    </div>
+  </div>
+
+  <!-- Main Header -->
+  <header class="header">
+    <div class="container header-inner">
+      <a href="/" class="logo">
+        <span class="logo-text" data-brand-name>Cavender's</span>
+      </a>
+      <!-- Mobile hamburger -->
+      <button id="hamburger-btn" class="hamburger-btn" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="nav" id="main-nav">
+        <a href="/boots" class="nav-link">Boots</a>
+        <a href="/hats" class="nav-link">Hats</a>
+        <a href="/jeans" class="nav-link">Jeans</a>
+        <a href="/apparel" class="nav-link">Apparel</a>
+        <a href="/accessories" class="nav-link">Accessories</a>
+        <a href="/belts" class="nav-link">Belts &amp; Buckles</a>
+      </nav>
+      <div class="header-actions">
+        <button id="header-search-btn" class="icon-btn agent-btn" aria-label="Ask the AI assistant">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        </button>
+        <button class="icon-btn wishlist-btn-header" id="header-wishlist-btn" aria-label="Wishlist">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          <span class="wishlist-count" style="display:none">0</span>
+          <div class="wishlist-panel" id="wishlist-panel"></div>
+        </button>
+        <button class="icon-btn account-btn" id="header-account-btn" aria-label="Account">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="account-initials" id="account-initials" style="display:none">RM</span>
+        </button>
+        <button class="icon-btn cart-btn" aria-label="Cart">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+          <span class="cart-count" style="display:none">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Cart Drawer — slides in from right -->
+  <div class="cart-drawer-backdrop" id="cart-drawer-backdrop"></div>
+  <aside class="cart-drawer" id="cart-drawer">
+    <div class="cart-drawer-header">
+      <h2 class="cart-drawer-title">Your Bag</h2>
+      <button class="cart-drawer-close" id="cart-drawer-close" aria-label="Close cart">&times;</button>
+    </div>
+    <div class="cart-drawer-items" id="cart-drawer-items">
+      <!-- Dynamically rendered -->
+    </div>
+    <div class="cart-drawer-footer" id="cart-drawer-footer">
+      <!-- Subtotal + Checkout button rendered dynamically -->
+    </div>
+  </aside>
+
+  <!-- Sign-In Modal — any email signs in as Dakota Reyes (demo) -->
+  <div class="signin-backdrop" id="signin-backdrop"></div>
+  <div class="signin-modal" id="signin-modal" role="dialog" aria-modal="true" aria-labelledby="signin-title">
+    <button class="signin-close" id="signin-close" aria-label="Close">&times;</button>
+    <div class="signin-modal-inner">
+      <div class="signin-badge" data-brand-tmpl="My {brand} Member">My Cavender's Member</div>
+      <h2 class="signin-title" id="signin-title">Welcome Back</h2>
+      <p class="signin-subtitle">Sign in to see recommendations tailored to your style and your closet.</p>
+      <form class="signin-form" id="signin-form">
+        <input type="email" class="signin-input" id="signin-email" placeholder="Enter your email address" autocomplete="email" required>
+        <button type="submit" class="signin-submit btn btn-dark">Sign In</button>
+      </form>
+      <p class="signin-hint">Demo: any email signs you in as <strong id="signin-hint-name">Rachel Morris</strong>.</p>
+    </div>
+  </div>
+
+  <!-- Route content swaps in here. Header, curation zone, and footer stay mounted. -->
+  <main id="app-root"></main>
+
+  <!-- Web Curation Zone — Agentforce curated content renders here. Persistent across routes. -->
+  <section class="section curation-section" id="curation-zone">
+    <div class="container">
+      <div id="web-curation-container">
+        <!-- Agentforce curated content will be dynamically injected here -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <span class="footer-logo-text" data-brand-name style="color:#fff;font-family:var(--font-serif);font-size:28px;font-weight:500;letter-spacing:0.28em;text-transform:uppercase">Cavender's</span>
+          <div class="footer-signup">
+            <p class="footer-signup-label">Email Sign Up</p>
+            <p class="footer-signup-text" data-brand-tmpl="Be the first to know about new collections, exclusive designs, and more from {brand}.">Be the first to know about new collections, exclusive designs, and more from Cavender's.</p>
+            <form class="footer-email-form" onsubmit="return false;">
+              <input type="email" placeholder="Enter email address" class="footer-email-input">
+              <button type="submit" class="footer-email-btn" aria-label="Subscribe">→</button>
+            </form>
+          </div>
+        </div>
+        <div class="footer-nav-grid">
+          <div class="footer-col" id="footer-category-col">
+            <h4 class="footer-heading">Shop By Category</h4>
+            <a href="/boots" class="footer-link">Boots</a>
+            <a href="/hats" class="footer-link">Hats</a>
+            <a href="/jeans" class="footer-link">Jeans</a>
+            <a href="/belts" class="footer-link">Belts &amp; Buckles</a>
+          </div>
+          <div class="footer-col">
+            <h4 class="footer-heading">Resources</h4>
+            <a href="#" class="footer-link">My Account</a>
+            <a href="#" class="footer-link">Check Order</a>
+            <a href="#" class="footer-link">Wish List</a>
+            <a href="#" class="footer-link">Gift Registry</a>
+          </div>
+          <div class="footer-col">
+            <h4 class="footer-heading">Customer Service</h4>
+            <a href="#" class="footer-link">Contact Us</a>
+            <a href="#" class="footer-link">Help</a>
+            <a href="#" class="footer-link">Site Map</a>
+            <a href="#" class="footer-link">Give Feedback</a>
+          </div>
+          <div class="footer-col">
+            <h4 class="footer-heading">About</h4>
+            <a href="#" class="footer-link">About Us</a>
+            <a href="#" class="footer-link">Careers</a>
+            <a href="#" class="footer-link">News</a>
+            <a href="#" class="footer-link">In-Store Experience</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="footer-built">
+          Built on <img src="https://www.salesforce.com/etc/designs/sfdc-www/en_us/favicon.ico" alt="Salesforce" class="salesforce-logo" onerror="this.outerHTML='<span style=&quot;font-weight:700;color:white&quot;>Salesforce</span>'">
+        </div>
+        <p class="footer-legal">&copy; 2026 Salesforce.com, inc. | Cavender's — Powered by Agentforce &amp; Data Cloud.</p>
+        <div class="footer-legal-links">
+          <a href="#">Legal</a>
+          <a href="#">Terms of Service</a>
+          <a href="#">Privacy</a>
+          <a href="#">Contact</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============================================================ -->
+  <!-- STOREFRONT SCRIPTS — deterministic client-side only.         -->
+  <!-- (Live Salesforce / Data Cloud / MIAW / voice stack removed;  -->
+  <!--  this demo runs fully offline from BrandConfig + products.)   -->
+  <!-- ============================================================ -->
+
+  <!-- Brand config — single source of truth for all customer-specific values.
+       Loaded FIRST so every script below can read window.BrandConfig
+       synchronously. To rebrand: edit this file + products.json + the CSS
+       :root token block. -->
+  <script src="js/brand-config.js"></script>
+  <!-- Stamp static brand surfaces (title, logo text, footer) from BrandConfig, then
+       load persona.js through birthday-promo.js — all of which read window.BrandConfig
+       at module-init time. Both are gated on window.__HOLO_BRAND_READY: a preview
+       (?holo=token) resolves that promise asynchronously (IndexedDB has no sync read
+       API), so nothing that depends on BrandConfig may run until it settles — running
+       earlier would stamp/read the stale baked default before the override lands. An
+       export (no ?holo) has no override to await, so __HOLO_BRAND_READY resolves on
+       the next microtask and this reduces to the original synchronous behavior. -->
+  <script>
+    (function () {
+      function onReady(fn) {
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
+        else fn();
+      }
+
+      function stampBrandSurfaces() {
+      var b = (window.BrandConfig && window.BrandConfig.brand) || {};
+      var name = b.name || "Cavender's";
+      var tagline = (b.pageTitleSuffix) || 'Western Wear, Boots & Country Style';
+      try { document.title = name + ' — ' + tagline; } catch (e) {}
+
+      // ── Brand color → CSS tokens ──────────────────────────────────────────
+      // The CSS :root block ships Cavender's red. When BrandConfig carries a
+      // generated palette (brand.colors from derivePalette), override the token
+      // knobs at runtime so the whole site reskins to the generated brand color
+      // instead of rendering in the baked red. No-op when colors are absent.
+      var c = b.colors || {};
+      if (c.primary) {
+        var root = document.documentElement;
+        root.style.setProperty('--primary', c.primary);
+        if (c.primaryDk) root.style.setProperty('--primary-dark', c.primaryDk);
+        if (c.navy) root.style.setProperty('--ink', c.navy);
+        // accent: prefer an explicit accent, else lean on the primary tint.
+        if (c.accent) root.style.setProperty('--accent', c.accent);
+        else if (c.primaryDk) root.style.setProperty('--accent', c.primaryDk);
+
+        // Hero photo: a generated build (has brand.colors) supplies its own hero
+        // image via copy.heroImage; when absent, drop the baked Cavender's photo
+        // so the hero falls to the brand-tinted gradient instead of showing
+        // another brand's cowboys.
+        var heroImg = (window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImage) || b.heroImage || '';
+        root.style.setProperty('--hero-image', heroImg ? "url('" + heroImg.replace(/'/g, "\\'") + "')" : 'none');
+
+        // Signed-in "Insider" hero — same treatment, its own generated photo.
+        var heroImgSignedIn = (window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImageSignedIn) || '';
+        root.style.setProperty('--hero-image-signedin', heroImgSignedIn ? "url('" + heroImgSignedIn.replace(/'/g, "\\'") + "')" : 'none');
+
+        // Lifestyle "our story" panel — same treatment as the hero photo.
+        var lifeImg = (window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.lifestyleImage) || b.lifestyleImage || '';
+        root.style.setProperty('--lifestyle-image', lifeImg ? "url('" + lifeImg.replace(/'/g, "\\'") + "')" : 'none');
+      }
+
+        onReady(function () {
+          document.querySelectorAll('[data-brand-name]').forEach(function (el) { el.textContent = name; });
+          document.querySelectorAll('[data-brand-tmpl]').forEach(function (el) {
+            el.textContent = el.getAttribute('data-brand-tmpl').replace('{brand}', name);
+          });
+          var legal = document.querySelector('.footer-legal');
+          if (legal) legal.innerHTML = '&copy; 2026 Salesforce.com, inc. | ' + name +
+            ' — Powered by Agentforce &amp; Data Cloud.';
+
+          // ── Nav categories → header nav ────────────────────────────────────
+          // The baked nav lists Cavender's families. When BrandConfig carries
+          // generated navCategories, rebuild the links from them so nav, routes,
+          // and the catalog all speak the same vocabulary. router.js derives its
+          // ROUTES table from the same navCategories list.
+          var cats = (window.BrandConfig && window.BrandConfig.navCategories) || [];
+          var nav = document.getElementById('main-nav');
+          if (nav && cats.length) {
+            nav.innerHTML = cats.map(function (label) {
+              var href = '/' + String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+              var esc = String(label).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              return '<a href="' + href + '" class="nav-link">' + esc + '</a>';
+            }).join('');
+          }
+
+          // ── Nav categories → footer "Shop By Category" grid ────────────────
+          // Same source/pattern as #main-nav above — stampBrandSurfaces() used
+          // to rewrite the header nav but leave this column baked to Cavender's
+          // Boots/Hats/Jeans/Belts regardless of the loaded brand.
+          var footerCol = document.getElementById('footer-category-col');
+          if (footerCol && cats.length) {
+            var heading = footerCol.querySelector('.footer-heading');
+            footerCol.innerHTML = (heading ? heading.outerHTML : '<h4 class="footer-heading">Shop By Category</h4>') +
+              cats.map(function (label) {
+                var href = '/' + String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                var esc = String(label).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return '<a href="' + href + '" class="footer-link">' + esc + '</a>';
+              }).join('');
+          }
+
+          // ── Top promo banner icon ───────────────────────────────────────────
+          // Same gating pattern as the search/curation cowboy-hat fallbacks:
+          // a generated (non-Cavender's) brand gets a brand-neutral icon.
+          var bannerMsg = document.getElementById('top-banner-msg');
+          if (bannerMsg) {
+            var bc = window.BrandConfig || {};
+            var isGenerated = !!(cats.length || (bc.trends && bc.trends.length));
+            if (isGenerated) {
+              bannerMsg.textContent = bannerMsg.textContent.replace(/^🤠\s*/, '🛍️ ');
+            }
+          }
+
+          // ── Sign-in hint persona name ───────────────────────────────────────
+          // The badge above it already rebinds via [data-brand-tmpl]; this span
+          // was left hardcoded to "Rachel Morris" even for a generated brand.
+          var hintName = document.getElementById('signin-hint-name');
+          var persona = (window.BrandConfig && window.BrandConfig.persona) || {};
+          if (hintName && persona.identity && persona.identity.name) {
+            hintName.textContent = persona.identity.name;
+          }
+        });
+      }
+
+      // persona.js → birthday-promo.js all read window.BrandConfig at
+      // module-init time, so they must load strictly in order, and only
+      // after __HOLO_BRAND_READY settles (see the comment above this block).
+      var DOWNSTREAM_SCRIPTS = [
+        'js/persona.js',
+        'js/orders.js',
+        'js/web-curation-component.js',
+        'js/sitemap.js',
+        'js/views.js',
+        'js/router.js',
+        'js/search-engine.js',
+        'js/search-overlay.js',
+        'js/birthday-promo.js'
+      ];
+      function loadDownstream() {
+        (function loadNext(i) {
+          if (i >= DOWNSTREAM_SCRIPTS.length) return;
+          var s = document.createElement('script');
+          s.src = DOWNSTREAM_SCRIPTS[i];
+          s.onload = function () { loadNext(i + 1); };
+          s.onerror = function () { loadNext(i + 1); };
+          document.head.appendChild(s);
+        })(0);
+      }
+
+      (window.__HOLO_BRAND_READY || Promise.resolve()).then(function () {
+        stampBrandSurfaces();
+        loadDownstream();
+      }).catch(function (err) {
+        // A broken/orphaned ?holo token must show an error, not silently
+        // render the baked default brand — see brand-config.js.
+        onReady(function () {
+          var main = document.querySelector('main') || document.body;
+          var box = document.createElement('div');
+          box.style.cssText = 'padding:40px;font:16px sans-serif;color:#b00020;text-align:center';
+          box.textContent = "Couldn't load the preview configuration — please regenerate the preview from the builder.";
+          main.insertBefore(box, main.firstChild);
+        });
+        if (window.console && console.error) console.error('[preview] brand-ready failed:', err);
+      });
+    })();
+  </script>
+
+  <!-- Search icon: expand the agent panel and focus the chat input -->
+  <script>
+    // Sticky header scroll shadow
+    (function() {
+      var header = document.querySelector('.header');
+      var scrolled = false;
+      window.addEventListener('scroll', function() {
+        var shouldScroll = window.scrollY > 10;
+        if (shouldScroll !== scrolled) {
+          scrolled = shouldScroll;
+          header.classList.toggle('scrolled', scrolled);
+        }
+      }, { passive: true });
+    })();
+
+    document.getElementById('header-search-btn').addEventListener('click', function () {
+      // Open Cimulate-style search overlay
+      if (window.SearchOverlay && window.SearchOverlay.open) {
+        window.SearchOverlay.open();
+      } else {
+        // Fallback: open agent panel if search overlay not loaded
+        if (window.WebCuration && window.WebCuration.expand) window.WebCuration.expand();
+        setTimeout(function () {
+          var field = document.getElementById('curation-chat-field');
+          if (field) field.focus();
+        }, 200);
+      }
+    });
+
+    // Mobile hamburger toggle
+    document.getElementById('hamburger-btn').addEventListener('click', function () {
+      var nav = document.getElementById('main-nav');
+      nav.classList.toggle('nav-open');
+      this.classList.toggle('hamburger-open');
+    });
+    // Close mobile nav on link click
+    document.getElementById('main-nav').addEventListener('click', function(e) {
+      if (e.target.classList.contains('nav-link')) {
+        this.classList.remove('nav-open');
+        document.getElementById('hamburger-btn').classList.remove('hamburger-open');
+      }
+    });
+
+    // ── Wishlist Panel ──
+    (function() {
+      var wishBtn = document.getElementById('header-wishlist-btn');
+      var panel = document.getElementById('wishlist-panel');
+      if (!wishBtn || !panel) return;
+
+      function renderWishlistPanel() {
+        var items = window.Views && window.Views.getWishlist ? window.Views.getWishlist() : [];
+        if (items.length === 0) {
+          panel.innerHTML = '<div class="wishlist-empty">Your wishlist is empty.<br>♡ Click hearts on products to save them.</div>';
+        } else {
+          var html = '<div class="wishlist-panel-header">' +
+            '<span class="wishlist-panel-title">♡ Wishlist (' + items.length + ')</span>' +
+            '<button class="wishlist-panel-clear" id="wishlist-clear-all">Clear All</button>' +
+          '</div>';
+          items.forEach(function(item) {
+            html += '<div class="wishlist-item">' +
+              (item.image ? '<img class="wishlist-item-img" src="' + item.image + '" alt="">' :
+                '<div class="wishlist-item-img" style="display:flex;align-items:center;justify-content:center">♡</div>') +
+              '<div class="wishlist-item-info">' +
+                '<div class="wishlist-item-name">' + (item.name || '') + '</div>' +
+                (item.price ? '<div class="wishlist-item-price">' + item.price + '</div>' : '') +
+              '</div>' +
+              '<button class="wishlist-item-remove" data-remove-name="' + (item.name || '').replace(/"/g, '&quot;') + '">&times;</button>' +
+            '</div>';
+          });
+          panel.innerHTML = html;
+
+          // Wire remove buttons
+          panel.querySelectorAll('.wishlist-item-remove').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              var name = this.getAttribute('data-remove-name');
+              if (window.Views && window.Views.toggleWishlist) {
+                window.Views.toggleWishlist(name);
+                window.Views.refreshWishlistHearts();
+                renderWishlistPanel();
+              }
+            });
+          });
+
+          // Wire clear all
+          var clearBtn = panel.querySelector('#wishlist-clear-all');
+          if (clearBtn) {
+            clearBtn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              var items = window.Views.getWishlist();
+              items.splice(0, items.length);
+              try { sessionStorage.setItem('nto_wishlist', '[]'); } catch(_) {}
+              window.Views.updateWishlistBadge();
+              window.Views.refreshWishlistHearts();
+              renderWishlistPanel();
+            });
+          }
+        }
+      }
+
+      wishBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var isOpen = panel.classList.contains('wishlist-panel-open');
+        if (isOpen) {
+          panel.classList.remove('wishlist-panel-open');
+        } else {
+          renderWishlistPanel();
+          panel.classList.add('wishlist-panel-open');
+        }
+      });
+
+      // Close on outside click
+      document.addEventListener('click', function(e) {
+        if (!wishBtn.contains(e.target)) {
+          panel.classList.remove('wishlist-panel-open');
+        }
+      });
+    })();
+
+    // ── Cart Drawer ──
+    (function() {
+      var cartBtn = document.querySelector('.cart-btn');
+      var drawer = document.getElementById('cart-drawer');
+      var backdrop = document.getElementById('cart-drawer-backdrop');
+      var closeBtn = document.getElementById('cart-drawer-close');
+      var itemsContainer = document.getElementById('cart-drawer-items');
+      var footerContainer = document.getElementById('cart-drawer-footer');
+      if (!cartBtn || !drawer) return;
+
+      function openDrawer() {
+        renderCartDrawer();
+        drawer.classList.add('cart-drawer-open');
+        backdrop.classList.add('cart-drawer-open');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeDrawer() {
+        drawer.classList.remove('cart-drawer-open');
+        backdrop.classList.remove('cart-drawer-open');
+        document.body.style.overflow = '';
+      }
+
+      function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+      function renderCartDrawer() {
+        var WC = window.WebCuration;
+        var cart = WC && WC._getCart ? WC._getCart() : JSON.parse(sessionStorage.getItem('nto_cart') || '[]');
+        var total = WC && WC._getCartTotal ? WC._getCartTotal() : 0;
+        var count = WC && WC._getCartItemCount ? WC._getCartItemCount() : cart.length;
+
+        if (cart.length === 0) {
+          itemsContainer.innerHTML =
+            '<div class="cart-drawer-empty">' +
+              '<div class="cart-drawer-empty-icon">🛒</div>' +
+              '<p><strong>Your cart is empty</strong></p>' +
+              '<p>Add items while you browse or chat with our AI assistant.</p>' +
+              '<a class="cart-drawer-shop-link" data-cart-close-shop>Continue Shopping</a>' +
+            '</div>';
+          footerContainer.innerHTML = '';
+          var shopLink = itemsContainer.querySelector('[data-cart-close-shop]');
+          if (shopLink) shopLink.addEventListener('click', function(e) { e.preventDefault(); closeDrawer(); });
+          return;
+        }
+
+        var html = '';
+        cart.forEach(function(item) {
+          var imgHtml = item.image
+            ? '<img src="' + esc(item.image) + '" alt="' + esc(item.name) + '">'
+            : '<div class="cart-drawer-item-img-placeholder">🛍️</div>';
+          var priceNum = parseFloat(item.price) || 0;
+          var qty = item.quantity || 1;
+          var lineTotal = (priceNum * qty).toFixed(2);
+
+          html += '<div class="cart-drawer-item">' +
+            '<div class="cart-drawer-item-img">' + imgHtml + '</div>' +
+            '<div class="cart-drawer-item-info">' +
+              '<p class="cart-drawer-item-name">' + esc(item.name) + '</p>' +
+              (item.category ? '<p class="cart-drawer-item-category">' + esc(item.category) + '</p>' : '') +
+              '<p class="cart-drawer-item-price">$' + lineTotal + '</p>' +
+              '<div class="cart-drawer-item-actions">' +
+                '<button class="cart-drawer-qty-btn" data-qty-minus="' + esc(item.name) + '">−</button>' +
+                '<span class="cart-drawer-qty">' + qty + '</span>' +
+                '<button class="cart-drawer-qty-btn" data-qty-plus="' + esc(item.name) + '">+</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="cart-drawer-item-remove">' +
+              '<button data-cart-remove="' + esc(item.name) + '" title="Remove">&times;</button>' +
+            '</div>' +
+          '</div>';
+        });
+        itemsContainer.innerHTML = html;
+
+        // Footer
+        footerContainer.innerHTML =
+          '<div class="cart-drawer-subtotal">' +
+            '<span class="cart-drawer-subtotal-label">' + count + ' item' + (count !== 1 ? 's' : '') + '</span>' +
+            '<span class="cart-drawer-subtotal-value">$' + total.toFixed(2) + '</span>' +
+          '</div>' +
+          '<button class="cart-drawer-checkout-btn" id="cart-drawer-checkout">Proceed to Checkout</button>' +
+          '<a class="cart-drawer-continue-link" data-cart-close-shop>Continue Shopping</a>';
+
+        // Wire quantity buttons
+        itemsContainer.querySelectorAll('[data-qty-minus]').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var name = this.getAttribute('data-qty-minus');
+            var cartItems = WC._getCart();
+            var found = cartItems.find(function(c) { return c.name === name; });
+            if (found) {
+              WC._updateCartQuantity(name, (found.quantity || 1) - 1);
+              renderCartDrawer();
+            }
+          });
+        });
+        itemsContainer.querySelectorAll('[data-qty-plus]').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var name = this.getAttribute('data-qty-plus');
+            var cartItems = WC._getCart();
+            var found = cartItems.find(function(c) { return c.name === name; });
+            if (found) {
+              WC._updateCartQuantity(name, (found.quantity || 1) + 1);
+              renderCartDrawer();
+            }
+          });
+        });
+
+        // Wire remove buttons
+        itemsContainer.querySelectorAll('[data-cart-remove]').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            WC._removeFromCart(this.getAttribute('data-cart-remove'));
+            renderCartDrawer();
+          });
+        });
+
+        // Wire checkout button
+        var checkoutBtn = document.getElementById('cart-drawer-checkout');
+        if (checkoutBtn) {
+          checkoutBtn.addEventListener('click', function() {
+            closeDrawer();
+            if (window.Router) window.Router.navigate('/checkout');
+          });
+        }
+
+        // Wire continue shopping
+        footerContainer.querySelectorAll('[data-cart-close-shop]').forEach(function(el) {
+          el.addEventListener('click', function(e) { e.preventDefault(); closeDrawer(); });
+        });
+      }
+
+      cartBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        openDrawer();
+      });
+
+      closeBtn.addEventListener('click', closeDrawer);
+      backdrop.addEventListener('click', closeDrawer);
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && drawer.classList.contains('cart-drawer-open')) closeDrawer();
+      });
+
+      // Re-render if cart changes while drawer is open
+      window.addEventListener('cart:updated', function() {
+        if (drawer.classList.contains('cart-drawer-open')) renderCartDrawer();
+      });
+    })();
+
+    // ── Sign In / Account (Dakota Reyes demo persona) ──
+    (function() {
+      var backdrop = document.getElementById('signin-backdrop');
+      var modal = document.getElementById('signin-modal');
+      var closeBtn = document.getElementById('signin-close');
+      var form = document.getElementById('signin-form');
+      var emailInput = document.getElementById('signin-email');
+      var signinLink = document.getElementById('signin-link');
+      var accountBtn = document.getElementById('header-account-btn');
+      var accountInitials = document.getElementById('account-initials');
+
+      function isIdentified() {
+        return window.WebCuration && window.WebCuration.isUserIdentified && window.WebCuration.isUserIdentified();
+      }
+
+      function initials(name) {
+        return (name || '').split(/\s+/).map(function(w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
+      }
+
+      // Reflect the current identity in the header (banner link + account chip).
+      function syncHeader() {
+        var identity = window.WebCuration && window.WebCuration.getUserIdentity && window.WebCuration.getUserIdentity();
+        if (identity && identity.email) {
+          if (signinLink) signinLink.textContent = 'Hi, ' + (identity.firstName || identity.name) + ' · Sign Out';
+          if (accountInitials) {
+            accountInitials.textContent = initials(identity.name);
+            accountInitials.style.display = 'flex';
+          }
+          if (accountBtn) accountBtn.classList.add('account-signed-in');
+        } else {
+          if (signinLink) signinLink.textContent = 'Sign In';
+          if (accountInitials) accountInitials.style.display = 'none';
+          if (accountBtn) accountBtn.classList.remove('account-signed-in');
+        }
+      }
+
+      function openModal() {
+        modal.classList.add('signin-open');
+        backdrop.classList.add('signin-open');
+        document.body.style.overflow = 'hidden';
+        setTimeout(function() { if (emailInput) emailInput.focus(); }, 120);
+      }
+
+      function closeModal() {
+        modal.classList.remove('signin-open');
+        backdrop.classList.remove('signin-open');
+        document.body.style.overflow = '';
+      }
+
+      // Expose so other views (e.g. the /profile empty state) can trigger sign-in.
+      window.openSignInModal = openModal;
+
+      function signIn(email) {
+        var rachel = (window.Persona && window.Persona.RACHEL) || { name: 'Rachel Morris', firstName: 'Rachel' };
+        var identity = {
+          name: rachel.name,
+          firstName: rachel.firstName,
+          email: email || rachel.email,
+          memberSince: rachel.memberSince
+        };
+        if (window.WebCuration && window.WebCuration.setUserIdentity) {
+          window.WebCuration.setUserIdentity(identity);
+        }
+        window.dispatchEvent(new CustomEvent('identity:changed', { detail: identity }));
+        syncHeader();
+        closeModal();
+        // Re-render the current route so every surface picks up Rachel's persona.
+        if (window.Router && window.Router.render) window.Router.render();
+      }
+
+      function signOut() {
+        if (window.WebCuration && window.WebCuration.setUserIdentity) {
+          window.WebCuration.setUserIdentity(null);
+        }
+        window.dispatchEvent(new CustomEvent('identity:changed', { detail: null }));
+        syncHeader();
+        if (window.Router && window.Router.render) window.Router.render();
+      }
+
+      // Banner link toggles between opening the modal and signing out.
+      if (signinLink) {
+        signinLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          if (isIdentified()) signOut();
+          else openModal();
+        });
+      }
+
+      // Account icon: go to profile when signed in, otherwise prompt sign-in.
+      if (accountBtn) {
+        accountBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          if (isIdentified()) {
+            if (window.Router) window.Router.navigate('/profile');
+          } else {
+            openModal();
+          }
+        });
+      }
+
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          signIn(emailInput ? emailInput.value.trim() : '');
+        });
+      }
+
+      if (closeBtn) closeBtn.addEventListener('click', closeModal);
+      if (backdrop) backdrop.addEventListener('click', closeModal);
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.classList.contains('signin-open')) closeModal();
+      });
+
+      // Restore header state on load (identity persists in sessionStorage).
+      syncHeader();
+
+      // The header lives OUTSIDE #app-root, so Router.render() never refreshes
+      // it. Subscribe to identity:changed so ANY sign-in/out path (this modal,
+      // the Coco panel's in-panel form, or any future entry point) updates the
+      // avatar/initials — no path has to remember to poke syncHeader() itself.
+      window.addEventListener('identity:changed', syncHeader);
+    })();
+  </script>
+</body>
+</html>

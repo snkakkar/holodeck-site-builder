@@ -1216,6 +1216,13 @@
   function generateSimpleAppPhotos(appId, config, onStatus) {
     const s = app.state;
     onStatus = onStatus || function () {};
+    // retailCab's config phase (generateSimpleAppConfig → HOLO_APPFOUND.generate)
+    // is single-shot: catalog + product + styled-post + hero photos all in one
+    // call. Running this second phase too would re-shoot every product photo
+    // (it seeds "existing" images from the shared retailImages store, which
+    // retailCab deliberately never joins — see appsState()'s comment on why
+    // it owns its own catalog) — pure wasted Gemini image spend.
+    if (appId === "retailCab") { onStatus("Reusing already-generated photos.", 1); return Promise.resolve(); }
     if (!config || !window.HOLO_APPFOUND || !window.HOLO_APPFOUND.generateProductPhotos) {
       return Promise.resolve();
     }
@@ -1832,7 +1839,7 @@
       // The slide deck is always built; the two apps are opt-in, so this step
       // is OPTIONAL by default. Turning an app on (or moving past the step via
       // Next) marks it complete.
-      const enabledApps = ["clienteling", "cimulate"].filter(function (k) {
+      const enabledApps = ["clienteling", "cimulate", "retailCab"].filter(function (k) {
         return s.apps && s.apps[k] && s.apps[k].enabled;
       });
       if (enabledApps.length) return st("complete", enabledApps.length + (enabledApps.length === 1 ? " app added" : " apps added"));
@@ -2011,7 +2018,7 @@
       sidePlanHealth(body);
     } else if (step === "apps") {
       const a = app.state.apps || {};
-      const on = ["slides", "clienteling", "cimulate"].filter(function (k) { return a[k] && a[k].enabled; });
+      const on = ["slides", "clienteling", "cimulate", "retailCab"].filter(function (k) { return a[k] && a[k].enabled; });
       title.textContent = "Demos selected";
       sub.textContent = on.length + " selected to build";
       sideAppsSummary(body);
@@ -3415,6 +3422,13 @@
       icon: "🔎",
       previewUrl: "/demo-apps/cimulate/",
     },
+    {
+      id: "retailCab",
+      name: "Retail CAB Demo Creator",
+      tagline: "AI-generated interactive storefront — full catalog, AI stylist chat, order tracking, loyalty sign-in",
+      icon: "🛒",
+      previewUrl: "/demo-apps/retail-cab/",
+    },
   ];
 
   // Safe accessor: returns the app slice, defaulting for older projects that
@@ -3425,6 +3439,9 @@
     const freshSlice = function () {
       return { enabled: false, expanded: false, status: "opt-in", extracted: false, config: null, productImages: null, _previewOnly: false, _aiGenerated: false, _imageStorySig: null };
     };
+    // NOTE: retailCab deliberately does NOT join the ["clienteling","cimulate"]
+    // migration/shared-catalog loops below — it owns its own (much larger)
+    // catalog and has no legacy history needing healing.
     function hasSignal(sl) {
       return !!(sl && (sl.enabled || sl.extracted || sl._aiGenerated || sl.config || sl._previewToken || sl._genericToken));
     }
@@ -3436,6 +3453,7 @@
         slides:      { enabled: true,  status: "recommended" },
         clienteling: freshSlice(),
         cimulate:    freshSlice(),
+        retailCab:   freshSlice(),
       };
     }
     // Legacy alias migration: some older local projects may have the search app
@@ -3456,6 +3474,7 @@
     if (!s.apps.slides)      s.apps.slides      = { enabled: true,  status: "recommended" };
     if (!s.apps.clienteling) s.apps.clienteling = freshSlice();
     if (!s.apps.cimulate)    s.apps.cimulate    = freshSlice();
+    if (!s.apps.retailCab)   s.apps.retailCab   = freshSlice();
     // Migrate pre-two-tier slices: an older project that already has a
     // generated config (generation always ran the photo pass back then) is
     // effectively AI-generated. If neither tier flag is set but a config
@@ -3547,7 +3566,7 @@
 
     // Read intent signals from the current story. Best-effort: if the rules
     // engine isn't loaded for any reason, everything falls back to opt-in.
-    let intents = { clienteling: { hasSignal: false, evidence: [] }, cimulate: { hasSignal: false, evidence: [] } };
+    let intents = { clienteling: { hasSignal: false, evidence: [] }, cimulate: { hasSignal: false, evidence: [] }, retailCab: { hasSignal: false, evidence: [] } };
     try {
       if (window.HOLO_RULES && HOLO_RULES.detectAppIntents) {
         intents = HOLO_RULES.detectAppIntents(app.state);
@@ -3681,6 +3700,18 @@
         genRow.appendChild(busy);
         genRow.appendChild(btn("✕ Cancel", "bx-btn-secondary", function () {
           cancelAppGen(def, slice);
+        }));
+      } else if (def.id === "retailCab" && !slice.extracted) {
+        // Retail CAB has no cheap text-only tier — one click runs the catalog
+        // call and all three image passes together (see generateRetailCabApp).
+        genRow.appendChild(btn("✨ Generate this app", "bx-btn-primary", function () {
+          generateApp(def, slice, "ai");
+        }));
+      } else if (def.id === "retailCab") {
+        genRow.appendChild(btn("↻ Regenerate with AI", "bx-btn-primary", function () {
+          if (window.confirm("Regenerate this app with AI? This re-runs the catalog and all product/styled-post/hero photos, spending Gemini text + image tokens.")) {
+            generateApp(def, slice, "ai");
+          }
         }));
       } else if (!slice.extracted) {
         // Nothing generated yet → the cheap preview is the primary action.
@@ -3863,7 +3894,7 @@
     s.cxComponents = s.cxComponents.filter(function (c, i, arr) {
       if (!c || !c._builtAppComponent) return true;
       const id = c._builtAppId;
-      if (id !== "clienteling" && id !== "cimulate") return true;
+      if (id !== "clienteling" && id !== "cimulate" && id !== "retailCab") return true;
       const first = arr.findIndex(function (x) {
         return x && x._builtAppComponent && x._builtAppId === id;
       });
@@ -3880,6 +3911,10 @@
   function ensureGenericPreview(def, slice) {
     if (slice.extracted) return;              // a real preview/AI config exists
     if (slice._genericToken) return;          // already seeded this session
+    // Retail CAB's stock template already ships full generic-retail default
+    // data (see demo-apps/retail-cab/js/brand-config.js) — previewUrlFor()
+    // falls back to def.previewUrl with no token, so there's nothing to stash.
+    if (def.id === "retailCab") return;
     if (!window.HOLO_APPFOUND || !window.HOLO_APPFOUND.buildFallbackConfig) return;
     try {
       const generic = window.HOLO_APPFOUND.buildFallbackConfig(def.id, app.state, { generic: true });
@@ -3980,6 +4015,11 @@
   function generateApp(def, slice, mode, opts) {
     mode = mode || "preview";
     opts = opts || {};
+    // Retail CAB has no preview/AI two-tier split — its own generator (see
+    // app-foundations.js generateRetailCab) runs the catalog call and all
+    // three image passes (product/styled-post/hero) in one shot, mirroring
+    // the standalone Retail CAB Demo Creator's single "Generate" button.
+    if (def.id === "retailCab") return generateRetailCabApp(def, slice);
     // forceText: rebuild the TEXT config (chips/copy/catalog) from Gemini even
     // when a cached config exists. Set by an explicit "Regenerate with AI" so a
     // regenerate actually refreshes the copy — not just re-photographs the old
@@ -4177,6 +4217,81 @@
       })
       .then(function (r) { finish(r.config, r.tier); })
       .catch(fail);
+  }
+
+  // Single-shot generator for Retail CAB: one Gemini catalog call + all three
+  // image passes (product/styled-post/hero), matching app-foundations.js's
+  // generateRetailCab. Always lands as the "ai" tier — there's no cheap
+  // text-only preview to gate behind a separate confirm.
+  function generateRetailCabApp(def, slice) {
+    if (slice._generating) return;
+    if (!window.HOLO_APPFOUND) { slice._genStatus = "Generator unavailable."; renderMain(); return; }
+    slice._generating = true;
+    slice._genMode = "ai";
+    slice._progress = 0;
+    slice._genStatus = "Preparing generation…";
+    slice._preRun = {
+      config: slice.config,
+      productImages: slice.productImages,
+      extracted: slice.extracted,
+      _previewToken: slice._previewToken,
+      _previewOnly: slice._previewOnly,
+      _aiGenerated: slice._aiGenerated,
+      _genStatus: "",
+    };
+    slice._cancelled = false;
+    renderMain();
+
+    function setProgress(frac, text) {
+      slice._progress = Math.max(0, Math.min(1, frac));
+      if (text != null) slice._genStatus = text;
+      const fill = document.getElementById("bx-appgen-fill-" + def.id);
+      if (fill) fill.style.width = Math.round(slice._progress * 100) + "%";
+      const label = document.getElementById("bx-appgen-status-" + def.id);
+      if (label && text != null) label.textContent = text;
+    }
+
+    function stop() {
+      slice._generating = false;
+      slice._genMode = null;
+      slice._progress = 0;
+      slice._abort = null;
+      slice._preRun = null;
+    }
+
+    HOLO_APPFOUND.generate("retailCab", app.state, {
+      onStatus: function (text, frac) { setProgress(frac || 0, text); },
+    })
+      .then(function (out) {
+        if (slice._cancelled) return;
+        const config = out && out.config;
+        if (!config) {
+          slice._genStatus = "Generation unavailable — showing stock defaults.";
+          stop();
+          renderMain();
+          return;
+        }
+        slice._usedGemini = out.usedGemini;
+        slice.config = config;
+        slice.extracted = true;
+        slice._previewToken = stashPreviewConfig(def.id, config);
+        slice._previewOnly = false;
+        slice._aiGenerated = true;
+        slice.productImages = config.productImages || null;
+        slice._genStatus = "";
+        stop();
+        syncBuiltAppCxComponents();
+        recompute();
+        buildSlidePlanFromSelections();
+        commit();
+        renderMain();
+      })
+      .catch(function (err) {
+        if (slice._cancelled) return;
+        slice._genStatus = "Generation failed: " + ((err && err.message) || err);
+        stop();
+        renderMain();
+      });
   }
 
   // AI tier is confirm-gated so it can't silently re-spend image tokens.
