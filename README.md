@@ -80,6 +80,21 @@ The Builder now uses a 9-step flow:
 - Local save diagnostics and quota-surfacing behavior to make cache failures visible.
 - Navigation reliability hardening that routes users back safely on async/store failures.
 - In-place UI render optimizations (quality footer/topbar/CDP carousel) to reduce unnecessary repaint/rebuild churn.
+- Simple mode's overall progress bar now reflects per-image generation progress instead of freezing during image generation.
+- Simple mode's Step 3 shows one shared **General** question group (search terms, AI chat chip labels, persona name, catalog/persona gender lean) instead of duplicating these per app.
+
+## Retail CAB demo app
+
+A new generated app type — alongside Cimulate and Clienteling — that produces a **branded retail storefront** demo from a scraped customer site plus Gemini-generated brand/persona/catalog content:
+
+- Ported from the standalone Retail CAB Demo Creator into the Builder as `builder/retail-cab-foundations.js` (prompt/context) and `builder/retail-cab-config-generator.js` (BrandConfig/products normalization), with the rendered app living at `demo-apps/retail-cab/`.
+- Server-side site scrape and image proxy (`server.js`) with an allowlisted-host model so scraping/exporting works for arbitrary customer domains.
+- Real SKUs are scraped first; Gemini gap-fills and tags them (gender/colors/priceTier/category) rather than generating a catalog from scratch.
+- No-bleed guarantee: the generated storefront never seeds from a prior/sample customer — missing fields fall back to neutral defaults.
+- Export hardening: image baking now routes signed GCS URLs through the same-origin asset proxy (direct cross-origin fetch was failing due to CORS), generated `brand-config.js` carries the same mount-path detection as the template so `products.json` resolves correctly once exported under `/apps/retailCab/`, and the 55 stock styled-look photos + birthday promo image are dropped from the export once real generation has produced replacements.
+- Client-side Gemini request pacing to avoid batch 429 stalls during generation.
+- Fixed a unit bug where birthday-promo family-percent offers applied whole-number percentages as 100x discounts (e.g. 15% as 1500% off).
+- Fixed a trend-filter category leak (a trend meant to target one sub-style within a shared family/priceTier, e.g. "Driver" only, was matching every type in that family/tier) — resolved via keyword-narrowed matching rather than a schema change, since the schema approach pushed Gemini's generation schema past its state-count limit and broke generation outright.
 
 ### AI and content generation updates
 
@@ -166,6 +181,8 @@ On Heroku Essential, app credentials typically lack `CREATEROLE`, so these scrip
 - `builder/zip-exporter.js` - complete ZIP export pipeline
 - `builder/import-validator.js`, `builder/project-store.js` - import validation and persisted project schema
 - `builder/project-home.js`, `builder/share-modal.js` - project home actions and share workflow UI
+- `builder/retail-cab-foundations.js`, `builder/retail-cab-config-generator.js` - Retail CAB prompt/context and BrandConfig/products generation
+- `demo-apps/retail-cab/`, `demo-apps/cimulate/`, `demo-apps/clienteling/` - generated CX app runtimes exportable from the Builder
 - `demo/index.html` - demo entry URL
 - `demo/demo-holodeck-unified.html` - unified presentation shell
 - `demo/holodeck.config.js` - primary content configuration
