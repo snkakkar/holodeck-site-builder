@@ -80,21 +80,19 @@ The Builder now uses a 9-step flow:
 - Local save diagnostics and quota-surfacing behavior to make cache failures visible.
 - Navigation reliability hardening that routes users back safely on async/store failures.
 - In-place UI render optimizations (quality footer/topbar/CDP carousel) to reduce unnecessary repaint/rebuild churn.
-- Simple mode's overall progress bar now reflects per-image generation progress instead of freezing during image generation.
-- Simple mode's Step 3 shows one shared **General** question group (search terms, AI chat chip labels, persona name, catalog/persona gender lean) instead of duplicating these per app.
+- **Simple mode** (`builder/simple-experiences.js`): a streamlined, one-flow guided path alongside the full 9-step wizard — fewer questions, one shared **General** question group (search terms, AI chat chip labels, persona name, catalog/persona gender lean) instead of duplicating them per app, and an overall progress bar that now reflects per-image generation progress instead of freezing during image generation.
+- Native **Google Slides** export alongside PPTX/PDF: creates a real Slides deck server-side via the Slides API, using per-user OAuth with refresh tokens stored in GCS; `slides-renderer.js` scales the shared PPTX-space layout (×0.75) to Slides' coordinate space.
 
-## Retail CAB demo app
+## Generated CX demo apps
 
-A new generated app type — alongside Cimulate and Clienteling — that produces a **branded retail storefront** demo from a scraped customer site plus Gemini-generated brand/persona/catalog content:
+Beyond the core Holodeck deck, the Builder's **CX Components** step can generate and export full, standalone storefront/app experiences — branded and pre-populated from the customer's story, then embedded as a linked slide or opened standalone:
 
-- Ported from the standalone Retail CAB Demo Creator into the Builder as `builder/retail-cab-foundations.js` (prompt/context) and `builder/retail-cab-config-generator.js` (BrandConfig/products normalization), with the rendered app living at `demo-apps/retail-cab/`.
-- Server-side site scrape and image proxy (`server.js`) with an allowlisted-host model so scraping/exporting works for arbitrary customer domains.
-- Real SKUs are scraped first; Gemini gap-fills and tags them (gender/colors/priceTier/category) rather than generating a catalog from scratch.
-- No-bleed guarantee: the generated storefront never seeds from a prior/sample customer — missing fields fall back to neutral defaults.
-- Export hardening: image baking now routes signed GCS URLs through the same-origin asset proxy (direct cross-origin fetch was failing due to CORS), generated `brand-config.js` carries the same mount-path detection as the template so `products.json` resolves correctly once exported under `/apps/retailCab/`, and the 55 stock styled-look photos + birthday promo image are dropped from the export once real generation has produced replacements.
-- Client-side Gemini request pacing to avoid batch 429 stalls during generation.
-- Fixed a unit bug where birthday-promo family-percent offers applied whole-number percentages as 100x discounts (e.g. 15% as 1500% off).
-- Fixed a trend-filter category leak (a trend meant to target one sub-style within a shared family/priceTier, e.g. "Driver" only, was matching every type in that family/tier) — resolved via keyword-narrowed matching rather than a schema change, since the schema approach pushed Gemini's generation schema past its state-count limit and broke generation outright.
+- **Cimulate** (`demo-apps/cimulate/`) — an intent-aware product-search + concierge-chat storefront. Gemini generates a 12-SKU catalog, 4 intent-rich search chips (3 results each), and a scripted concierge (deterministic chip-driven replies, no free-text search) themed to the customer's real industry vocabulary.
+- **Clienteling** (`demo-apps/clienteling/`) — a companion store-associate / sales-floor tool that shares the *same* 12-SKU catalog and stable `sku1..sku12` ids as Cimulate, so a product looked up on the floor matches what a shopper sees online. A shared-catalog sizing fix ensures both apps get the full SKU set they each need even though they read from one common `state.retailCatalog`.
+- **Retail CAB** (`demo-apps/retail-cab/`) — a branded retail storefront generated from a **scraped live customer site** rather than invented from scratch: `builder/scrape-client.js` + an allowlisted-host server proxy (`server.js`) pull real SKUs/imagery first, and Gemini (`builder/retail-cab-foundations.js`, `builder/retail-cab-config-generator.js`) gap-fills and tags them (gender/colors/priceTier/category) and adds a birthday-promo flow. No-bleed guarantee: the generated storefront never seeds from a prior/sample customer. Export hardening routes image baking through the same-origin asset proxy (signed GCS URLs are cross-origin and fail directly), carries mount-path detection into the generated `brand-config.js` so `products.json` resolves once exported under `/apps/retailCab/`, paces Gemini requests to avoid batch 429s, and drops the 55 stock styled-look photos + birthday-promo image once real generation has produced replacements. Fixed bugs: a discount-percent unit bug (15% applying as 1500% off) and a trend-filter category leak, both described in the commit history.
+- **Screen flows** (`builder/screen-foundations.js`, `builder/screen-config-generator.js`, `builder/screen-registry.js`, `demo/styles/screens.css`) — a generated set of mobile app "screens" (phone-frame UI panels) that can appear as their own slide type in the deck and carry through to PPTX/PDF export; the manifest derives screen panels, so exports re-derive them rather than caching stale ones.
+- Generation client hardening: `builder/aubrey-client.js` wraps the Gemini client with server-side request validation/guardrails, and `builder/story-validator.js` makes malformed/older story data resilient across regenerate/import.
+- Product-image durability: signed GCS asset URLs are re-signed on load (`builder/project-store.js`) rather than assumed still valid, stale photo maps clear on regenerate/story drift, and images that do expire fall back to a placeholder instead of a broken `<img>`.
 
 ### AI and content generation updates
 
@@ -111,6 +109,10 @@ A new generated app type — alongside Cimulate and Clienteling — that produce
 - Unsynced/dirty project protection during cache clear and sign-out paths.
 - Local cache slimming reduces large payload pressure and mitigates storage quota failures.
 - Neon/PostgREST error surfacing improved with structured sync diagnostics.
+
+### Admin reporting dashboard
+
+An admin-only usage-metrics view (`builder/metrics-store.js` + a server aggregation endpoint) backed by Postgres aggregate queries. Fixed shortly after launch: forced RLS was blocking the admin aggregate queries from seeing rows, and the metrics DB pool wasn't enforcing TLS for non-local connections — both closed so the dashboard is both visible to admins and safe by default.
 
 ### Runtime and deck quality updates
 
@@ -181,7 +183,13 @@ On Heroku Essential, app credentials typically lack `CREATEROLE`, so these scrip
 - `builder/zip-exporter.js` - complete ZIP export pipeline
 - `builder/import-validator.js`, `builder/project-store.js` - import validation and persisted project schema
 - `builder/project-home.js`, `builder/share-modal.js` - project home actions and share workflow UI
-- `builder/retail-cab-foundations.js`, `builder/retail-cab-config-generator.js` - Retail CAB prompt/context and BrandConfig/products generation
+- `builder/app-foundations.js`, `builder/app-config-generator.js` - shared Cimulate/Clienteling prompt/context and config generation
+- `builder/retail-cab-foundations.js`, `builder/retail-cab-config-generator.js`, `builder/scrape-client.js` - Retail CAB prompt/context, BrandConfig/products generation, and live-site scraping
+- `builder/screen-foundations.js`, `builder/screen-config-generator.js`, `builder/screen-registry.js` - generated mobile "screen flow" slide type
+- `builder/simple-experiences.js` - Simple mode's streamlined guided flow
+- `builder/aubrey-client.js`, `builder/gemini-client.js`, `builder/story-validator.js` - Gemini generation client, request guardrails, and story-data validation
+- `builder/metrics-store.js` - admin usage-metrics dashboard data layer
+- `builder/google-slides-exporter.js`, `slides-renderer.js` - Google Slides export path (per-user OAuth, GCS-stored refresh tokens)
 - `demo-apps/retail-cab/`, `demo-apps/cimulate/`, `demo-apps/clienteling/` - generated CX app runtimes exportable from the Builder
 - `demo/index.html` - demo entry URL
 - `demo/demo-holodeck-unified.html` - unified presentation shell
