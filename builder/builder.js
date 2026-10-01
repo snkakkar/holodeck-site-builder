@@ -930,8 +930,16 @@
       rebuildBtn,
       btn("Edit selections", "bx-btn-secondary", function () { simpleGoTo("menu"); }),
     ]));
+    const exportAppIds = (window.HOLO_ZIP && window.HOLO_ZIP.enabledAppIds)
+      ? window.HOLO_ZIP.enabledAppIds(s) : [];
     body.appendChild(el("p", { class: "bx-simple-hint bx-mt-12", text:
-      "To run: unzip and open index.html — no server needed. The hub links the deck and any companion apps." }));
+      exportAppIds.length
+        ? ("To run: unzip and open index.html. The hub links the deck and your "
+           + exportAppIds.length + " companion app" + (exportAppIds.length === 1 ? "" : "s")
+           + ". If an embedded app (like Retail CAB) doesn't load in the iframe, serve the "
+           + "unzipped folder instead: run `python3 -m http.server 8080` from that folder "
+           + "(not the demo/ subfolder) and open it in your browser.")
+        : "To run: unzip and open index.html — no server needed. The hub links the deck and any companion apps." }));
   }
 
   // ─── Orchestration ────────────────────────────────────────────
