@@ -48,7 +48,7 @@
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
   function retryDelayMs(res, attempt) {
-    const header = res.headers && res.headers.get && res.headers.get("Retry-After");
+    const header = res && res.headers && res.headers.get && res.headers.get("Retry-After");
     const secs = Number(header);
     if (Number.isFinite(secs) && secs > 0) return secs * 1000;
     return Math.min(30000, 1000 * Math.pow(2, attempt));
@@ -81,12 +81,20 @@
     return next;
   }
 
+  // Retries on: HTTP 429 (rate limit), HTTP 5xx (transient server error),
+  // and a rejected fetch() itself (network blip/timeout) — previously only
+  // 429 retried, so any other failure dropped straight through with zero
+  // retries even though it's just as likely to be transient under the
+  // concurrent-batch load the Retail CAB photo passes now run at.
   function fetchWithRetry(doFetch, maxRetries) {
     const retries = typeof maxRetries === "number" ? maxRetries : 4;
     function attempt(n) {
       return throttleSlot().then(doFetch).then(function (res) {
-        if (res.ok || res.status !== 429 || n >= retries) return res;
+        if (res.ok || (res.status !== 429 && res.status < 500) || n >= retries) return res;
         return sleep(retryDelayMs(res, n)).then(function () { return attempt(n + 1); });
+      }, function (err) {
+        if (n >= retries) throw err;
+        return sleep(retryDelayMs(null, n)).then(function () { return attempt(n + 1); });
       });
     }
     return attempt(0);

@@ -508,7 +508,35 @@
       })).then(function () { return runBatch(start + batchSize); });
     }
 
-    return runBatch(0).then(function () { return images; });
+    // One extra pass over whatever is still missing after the main run —
+    // catches stragglers that exhausted gemini-client's retry budget during
+    // the first attempt (more likely now that product/styled-post/hero
+    // photos all fire concurrently instead of serially).
+    function sweepStragglers() {
+      const missing = todo.filter(function (p) {
+        const have = images[p.id];
+        return !(have && String(have).trim());
+      });
+      if (!missing.length) return Promise.resolve();
+      return Promise.all(missing.map(function (p) {
+        return gemini.generateImage({ prompt: photoPrompt(p, cx) })
+          .then(function (url) { if (url) images[p.id] = url; })
+          .catch(function (err) {
+            if (window.console) console.warn("[photos] retry " + p.id + " failed:", (err && err.message) || err);
+          });
+      })).then(function () {
+        const stillMissing = missing.filter(function (p) {
+          const have = images[p.id];
+          return !(have && String(have).trim());
+        });
+        if (stillMissing.length && window.console) {
+          console.warn("[photos] " + stillMissing.length + " of " + total + " product photos missing after retry: " +
+            stillMissing.map(function (p) { return p.id; }).join(", "));
+        }
+      });
+    }
+
+    return runBatch(0).then(sweepStragglers).then(function () { return images; });
   }
 
   // ── Styled-post photos ──────────────────────────────────────
@@ -540,15 +568,19 @@
     let done = 0;
     const total = todo.length;
 
+    function shootOne(post) {
+      const matched = (post.productNames || post.products || [])
+        .map(function (n) { return productsByName[n]; })
+        .filter(Boolean);
+      return gemini.generateImage({ prompt: styledPostPhotoPrompt(post, matched, cx) })
+        .then(function (url) { if (url) images[post.id] = url; });
+    }
+
     function runBatch(start) {
       const slice = todo.slice(start, start + batchSize);
       if (!slice.length) return Promise.resolve();
       return Promise.all(slice.map(function (post) {
-        const matched = (post.productNames || post.products || [])
-          .map(function (n) { return productsByName[n]; })
-          .filter(Boolean);
-        return gemini.generateImage({ prompt: styledPostPhotoPrompt(post, matched, cx) })
-          .then(function (url) { if (url) images[post.id] = url; })
+        return shootOne(post)
           .catch(function (err) {
             if (window.console) console.warn("[styled-photos] " + post.id + " failed:", (err && err.message) || err);
           })
@@ -556,7 +588,25 @@
       })).then(function () { return runBatch(start + batchSize); });
     }
 
-    return runBatch(0).then(function () { return images; });
+    // One extra pass over whatever is still missing after the main run —
+    // same straggler sweep as generateProductPhotos, for the same reason.
+    function sweepStragglers() {
+      const missing = todo.filter(function (post) { return !images[post.id]; });
+      if (!missing.length) return Promise.resolve();
+      return Promise.all(missing.map(function (post) {
+        return shootOne(post).catch(function (err) {
+          if (window.console) console.warn("[styled-photos] retry " + post.id + " failed:", (err && err.message) || err);
+        });
+      })).then(function () {
+        const stillMissing = missing.filter(function (post) { return !images[post.id]; });
+        if (stillMissing.length && window.console) {
+          console.warn("[styled-photos] " + stillMissing.length + " of " + total + " styled-post photos missing after retry: " +
+            stillMissing.map(function (post) { return post.id; }).join(", "));
+        }
+      });
+    }
+
+    return runBatch(0).then(sweepStragglers).then(function () { return images; });
   }
 
   // ── Hero photos ─────────────────────────────────────────────
