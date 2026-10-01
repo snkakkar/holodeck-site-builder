@@ -885,7 +885,7 @@
     pb.node.id = "bxSimpleProgress";
     body.appendChild(pb.node);
     body.appendChild(el("p", { class: "bx-simple-hint", text:
-      "Researching the customer, generating app configs, product imagery, and the agent conversation. This can take a minute." }));
+      "Researching the customer, generating app configs, product imagery, and the agent conversation. This can take up to 10 minutes." }));
     if (sim._error) {
       body.appendChild(el("div", { class: "bx-alert is-error", text: sim._error }));
       body.appendChild(simpleNav([
