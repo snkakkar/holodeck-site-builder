@@ -1362,12 +1362,26 @@
   // Build the slim deck: one demo slide per selected experience, written
   // directly to state.slides (not via the recs engine). buildSlideManifest's
   // simpleMode guard drops all synthetic framing, so these are the whole deck.
+  // Fixed presentation order for these five experiences whenever more than
+  // one is selected, independent of the order the user clicked them in.
+  // Ids not in this list (future experiences) keep their original relative
+  // order, appended after the pinned block.
+  const SIMPLE_SLIDE_ORDER = ["retailCab", "clienteling", "unifiedProfile", "helpAgent", "cimulate"];
+  function orderSimpleSlideIds(selectedIds) {
+    const pinned = [], rest = [];
+    selectedIds.forEach(function (id) {
+      (SIMPLE_SLIDE_ORDER.indexOf(id) !== -1 ? pinned : rest).push(id);
+    });
+    pinned.sort(function (a, b) { return SIMPLE_SLIDE_ORDER.indexOf(a) - SIMPLE_SLIDE_ORDER.indexOf(b); });
+    return pinned.concat(rest);
+  }
+
   function buildSimpleSlides(selectedIds) {
     const s = app.state;
     const p = s.project || {};
     const cust = (p.customerName || "").trim();
     const slides = [];
-    selectedIds.forEach(function (expId) {
+    orderSimpleSlideIds(selectedIds).forEach(function (expId) {
       const exp = simpleExpById(expId);
       if (!exp) return;
       const title = exp.label + (cust ? (" · " + cust) : "");
