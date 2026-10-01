@@ -488,6 +488,7 @@
               onProgress: function (d, t) { status("Styled-post photos " + d + "/" + t + "…", 0.45 + (t ? 0.2 * d / t : 0)); },
             }),
             F.generateHeroImages(cx, {
+              catalog: baseConfig.catalog,
               onProgress: function (d, t) { status("Hero photos " + d + "/" + t + "…", 0.45 + (t ? 0.2 * d / t : 0)); },
             }),
           ]).then(function (results) {

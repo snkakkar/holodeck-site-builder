@@ -45,6 +45,7 @@
     const agentChips = Array.isArray(simple.chatChips) ? simple.chatChips.filter(Boolean).join(", ") : "";
     return {
       customerName: (c.customerName || "").trim(),
+      industry: (c.industry || "Retail").trim(),
       website: (c.website || "").trim(),
       brandColor: (b.primaryColor || "").trim(), // optional override
       personaName: (persona.name || "").trim(),
@@ -638,7 +639,7 @@
   // ── Hero photos ─────────────────────────────────────────────
   // Two lifestyle hero shots: the signed-out homepage banner, and a warmer,
   // more personal shot for the signed-in "Insider"/loyalty hero.
-  function heroPhotoPrompt(cx, variant) {
+  function heroPhotoPrompt(cx, variant, categorySummary) {
     const isSignedIn = variant === "signedIn";
     return [
       isSignedIn
@@ -646,6 +647,8 @@
           (cx && cx.customerName ? " for the retailer " + cx.customerName : "") + "."
         : "Aspirational lifestyle photograph for a retail homepage hero banner" +
           (cx && cx.customerName ? " for the retailer " + cx.customerName : "") + ".",
+      cx && cx.industry ? "This is a " + cx.industry + " brand." : "",
+      categorySummary ? "Their products: " + categorySummary + ". The scene must clearly reflect this — e.g. show the kind of products/activity/subjects this brand's category implies." : "",
       cx && cx.personaDetails ? "Audience: " + cx.personaDetails + "." : "",
       cx && cx.trends ? "Reflects these style trends: " + cx.trends + "." : "",
       isSignedIn
@@ -654,6 +657,22 @@
       "Wide 16:9 framing, natural lighting, no text, no watermark, no logos, photorealistic.",
       brandSafetyLine(cx),
     ].filter(Boolean).join(" ");
+  }
+
+  // Top 2-3 most common category (fallback family) values across the real
+  // catalog, so the hero prompt is grounded in what the brand actually
+  // sells (e.g. "dog toys, dog treats" → a dog/cat belongs in the shot)
+  // instead of inferring purely from the brand name string.
+  function categorySummaryFrom(catalog) {
+    const counts = {};
+    (catalog || []).forEach(function (p) {
+      const key = String((p && (p.category || p.family)) || "").trim();
+      if (key) counts[key] = (counts[key] || 0) + 1;
+    });
+    return Object.keys(counts)
+      .sort(function (a, b) { return counts[b] - counts[a]; })
+      .slice(0, 3)
+      .join(", ");
   }
 
   // Generates both hero images. Never throws — a failed image just leaves
@@ -666,13 +685,14 @@
 
     if (!gemini) return Promise.resolve(result);
 
+    const categorySummary = categorySummaryFrom(opts.catalog);
     const jobs = [
       { key: "heroImage", variant: "signedOut" },
       { key: "heroImageSignedIn", variant: "signedIn" },
     ];
     let done = 0;
     return Promise.all(jobs.map(function (job) {
-      return gemini.generateImage({ prompt: heroPhotoPrompt(cx, job.variant) })
+      return gemini.generateImage({ prompt: heroPhotoPrompt(cx, job.variant, categorySummary) })
         .then(function (url) { if (url) result[job.key] = url; })
         .catch(function (err) {
           if (window.console) console.warn("[hero] " + job.key + " failed:", (err && err.message) || err);
