@@ -68,23 +68,39 @@
       return OFFERS.filter(function (o) { return self.isActive(o.id); }).map(function (o) { return o.id; });
     },
     // Ids that must be greyed out: any offer that conflicts with a currently
-    // active one (and is not itself active).
+    // active one (and is not itself active), PLUS a hard rule — at most one
+    // non-free-shipping offer may be active at a time. `conflictsWith` is
+    // Gemini-generated and can't be trusted to list every pair, so dollar-off
+    // offers conflict with each other unconditionally; free-shipping always
+    // stacks with either.
     conflictedIds: function () {
       var active = this.activeIds();
+      var activeNonShipping = OFFERS.some(function (o) {
+        return active.indexOf(o.id) !== -1 && o.type !== 'free-shipping';
+      });
       var out = [];
       OFFERS.forEach(function (o) {
         if (active.indexOf(o.id) !== -1) return;
-        var conflicts = (o.conflictsWith || []).some(function (c) { return active.indexOf(c) !== -1; });
-        if (conflicts) out.push(o.id);
+        var declaredConflict = (o.conflictsWith || []).some(function (c) { return active.indexOf(c) !== -1; });
+        var hardConflict = activeNonShipping && o.type !== 'free-shipping';
+        if (declaredConflict || hardConflict) out.push(o.id);
       });
       return out;
     },
     // Activate an offer, auto-deactivating anything it conflicts with (so a
-    // conflicting pair can never both be on). Fires 'offers:changed'.
+    // conflicting pair can never both be on) AND any other non-free-shipping
+    // offer (the hard rule above), so two dollar-off promos can never stack
+    // even if the generated conflictsWith data missed the pair. Fires
+    // 'offers:changed'.
     activate: function (id) {
       var offer = this.byId(id);
       if (!offer || !this.isEligible(offer)) return;
       (offer.conflictsWith || []).forEach(function (c) { STORE.removeItem(offerKey(c)); });
+      if (offer.type !== 'free-shipping') {
+        OFFERS.forEach(function (o) {
+          if (o.id !== id && o.type !== 'free-shipping') STORE.removeItem(offerKey(o.id));
+        });
+      }
       STORE.setItem(offerKey(id), '1');
       window.dispatchEvent(new CustomEvent('offers:changed'));
     },
