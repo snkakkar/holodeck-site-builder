@@ -429,7 +429,17 @@
           eligibleFirstName: o.eligibleFirstName ? String(o.eligibleFirstName) : null,
           conflictsWith: Array.isArray(o.conflictsWith) ? o.conflictsWith.map(String) : [],
         };
-        if (type === "tiered-unit") offer.discountRates = Array.isArray(o.discountRates) && o.discountRates.length ? o.discountRates.map(Number) : [0.5, 0.25];
+        if (type === "tiered-unit") {
+          // Rates must be 0–1 fractions (0.2 == 20% off) — the model sometimes
+          // emits whole-number percentages (20) instead, which birthday-promo.js
+          // would otherwise apply as a 2000% discount (same bug class as `percent`
+          // above).
+          const rawRates = Array.isArray(o.discountRates) && o.discountRates.length ? o.discountRates.map(Number) : [0.5, 0.25];
+          offer.discountRates = rawRates.map(function (r) {
+            if (!isFinite(r) || r <= 0) return 0;
+            return Math.min(r > 1 ? r / 100 : r, 0.9);
+          });
+        }
         if (type === "family-percent") {
           // `percent` must be a 0–1 fraction (0.15 == 15% off) — the model
           // sometimes emits a whole-number percentage (15) instead, which

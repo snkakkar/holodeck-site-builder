@@ -101,7 +101,11 @@
     contribution: function (offer, cart) {
       if (!offer || !cart || !cart.length) return 0;
       if (offer.type === 'tiered-unit') {
-        var rates = offer.discountRates || [0.5, 0.25];
+        // Rates must be 0-1 fractions; tolerate stale/malformed config data
+        // that stored a whole-number percentage (20 meaning 20%) instead.
+        var rates = (offer.discountRates || [0.5, 0.25]).map(function (r) {
+          return r > 1 ? r / 100 : r;
+        });
         var units = [];
         cart.forEach(function (item) {
           var price = parseFloat(item.price) || 0;

@@ -193,7 +193,7 @@
         long: { type: "string" },
         emoji: { type: "string" },
         type: { type: "string", enum: ["tiered-unit", "family-percent", "free-shipping"] },
-        discountRates: { type: "array", items: { type: "number" } },
+        discountRates: { type: "array", items: { type: "number" }, description: "Fractions between 0 and 1, e.g. 0.2 for 20% off — NOT whole-number percentages." },
         percent: { type: "number", description: "Fraction between 0 and 1, e.g. 0.15 for 15% off — NOT a whole-number percentage." },
         family: { type: "string" },
         eligibleFirstName: { type: "string" },
