@@ -399,29 +399,30 @@
           const found = parseJson(text);
           if (!found || !Array.isArray(found.catalog)) return fallback();
           status("Assembling storefront configuration…", 0.4);
-          let config = CG.buildStorefrontConfig(found, cx, {}, scraped && scraped.brandColor, null, scraped);
-          status("Generating product photos…", 0.45);
-          return F.generateProductPhotos(config.catalog, config.productImages, cx, {
-            batchSize: opts.batch || 4,
-            onProgress: function (d, t) { status("Product photos " + d + "/" + t + "…", 0.45 + (t ? 0.25 * d / t : 0)); },
-          }).then(function (images) {
-            config = CG.buildStorefrontConfig(found, cx, images, scraped && scraped.brandColor, null, scraped);
-            const productsByName = {};
-            config.catalog.forEach(function (p) { productsByName[p.name] = p; });
-            status("Generating styled-post photos…", 0.7);
-            return F.generateStyledPostPhotos(config.styledPosts, productsByName, cx, {
-              batchSize: opts.batch || 4,
-              onProgress: function (d, t) { status("Styled-post photos " + d + "/" + t + "…", 0.7 + (t ? 0.15 * d / t : 0)); },
-            }).then(function (styledImages) {
-              status("Generating hero photos…", 0.85);
-              return F.generateHeroImages(cx, {
-                onProgress: function (d, t) { status("Hero photos " + d + "/" + t + "…", 0.85 + (t ? 0.15 * d / t : 0)); },
-              }).then(function (heroImages) {
-                config = CG.buildStorefrontConfig(found, cx, images, scraped && scraped.brandColor, styledImages, scraped, heroImages);
-                status("Retail CAB configuration ready.", 1);
-                return { found: found, config: config, usedGemini: true };
-              });
-            });
+          // Build once (no photos yet) to get the catalog + styledPosts shape —
+          // neither depends on images, so all three photo passes below can read
+          // from this same config and run concurrently instead of serially.
+          const baseConfig = CG.buildStorefrontConfig(found, cx, {}, scraped && scraped.brandColor, null, scraped);
+          const productsByName = {};
+          baseConfig.catalog.forEach(function (p) { productsByName[p.name] = p; });
+          status("Generating product, styled-post, and hero photos…", 0.45);
+          return Promise.all([
+            F.generateProductPhotos(baseConfig.catalog, baseConfig.productImages, cx, {
+              batchSize: opts.batch || 8,
+              onProgress: function (d, t) { status("Product photos " + d + "/" + t + "…", 0.45 + (t ? 0.2 * d / t : 0)); },
+            }),
+            F.generateStyledPostPhotos(baseConfig.styledPosts, productsByName, cx, {
+              batchSize: opts.batch || 8,
+              onProgress: function (d, t) { status("Styled-post photos " + d + "/" + t + "…", 0.45 + (t ? 0.2 * d / t : 0)); },
+            }),
+            F.generateHeroImages(cx, {
+              onProgress: function (d, t) { status("Hero photos " + d + "/" + t + "…", 0.45 + (t ? 0.2 * d / t : 0)); },
+            }),
+          ]).then(function (results) {
+            const images = results[0], styledImages = results[1], heroImages = results[2];
+            const config = CG.buildStorefrontConfig(found, cx, images, scraped && scraped.brandColor, styledImages, scraped, heroImages);
+            status("Retail CAB configuration ready.", 1);
+            return { found: found, config: config, usedGemini: true };
           });
         });
       });
