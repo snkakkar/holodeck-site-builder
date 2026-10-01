@@ -465,6 +465,15 @@
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
 
+  // Shared brand-safety guardrail appended to every image prompt — without
+  // it Gemini has drawn a recognizable competitor's logo/product (e.g. a
+  // New Balance shoe for a Nike-brand build) since "no logos" alone doesn't
+  // rule out depicting another real brand's product unbranded-but-recognizable.
+  function brandSafetyLine(cx) {
+    const name = (cx && cx.customerName) || "this retailer";
+    return "This is exclusively for the brand " + name + " — never depict any other real brand's name, logo, or trademarked product.";
+  }
+
   // ── Product photos ──────────────────────────────────────────
   // One image prompt per SKU. Kept literal and studio-style so results
   // look like a real catalog, not clip art.
@@ -476,6 +485,7 @@
       colors ? "Primary colors: " + colors + "." : "",
       "Centered single product, clean seamless light-neutral studio background, soft even lighting, subtle shadow, no text, no watermark, no people, square framing, photorealistic.",
       cx && cx.customerName ? "Styled to suit a retailer like " + cx.customerName + "." : "",
+      brandSafetyLine(cx),
     ].filter(Boolean).join(" ");
   }
 
@@ -559,6 +569,7 @@
       post.caption || "",
       "Candid, editorial lifestyle shot (not a plain studio product photo), natural lighting, on-model or in-scene, no text, no watermark, photorealistic.",
       cx && cx.customerName ? "Styled to suit a retailer like " + cx.customerName + "." : "",
+      brandSafetyLine(cx),
     ].filter(Boolean).join(" ");
   }
 
@@ -641,6 +652,7 @@
         ? "Candid, personal, on-model lifestyle shot conveying belonging and reward."
         : "Editorial, wide-format lifestyle shot conveying the brand's style at its best.",
       "Wide 16:9 framing, natural lighting, no text, no watermark, no logos, photorealistic.",
+      brandSafetyLine(cx),
     ].filter(Boolean).join(" ");
   }
 
