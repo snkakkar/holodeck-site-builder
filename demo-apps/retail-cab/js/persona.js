@@ -104,7 +104,7 @@
     var fams = INTERESTS.families;
 
     var scored = allProducts.filter(function (p) {
-      return p.price && !inBox[p.name];
+      return p.price && p.image && !inBox[p.name];
     }).map(function (p) {
       var score = 0;
       var t = text(p).toLowerCase();

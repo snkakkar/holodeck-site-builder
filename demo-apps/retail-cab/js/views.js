@@ -869,13 +869,13 @@
     var used = {};
     families.forEach(function (fam) {
       var match = products.filter(function (p) {
-        return !used[p.name] && p.price && p.family === fam;
+        return !used[p.name] && p.price && p.image && p.family === fam;
       })[0];
       if (match) { looks.push(match); used[match.name] = true; }
     });
     // Top up to 9 with any remaining priced products
     for (var i = 0; i < products.length && looks.length < 9; i++) {
-      if (!used[products[i].name] && products[i].price) {
+      if (!used[products[i].name] && products[i].price && products[i].image) {
         looks.push(products[i]); used[products[i].name] = true;
       }
     }
@@ -1150,7 +1150,7 @@
       categoryPicks.forEach(function (pick) {
         var match = products.filter(function (p) {
           if (usedNames[p.name]) return false;
-          if (!p.price) return false;
+          if (!p.price || !p.image) return false;
           if (p.family !== pick.family) return false;
           return pick.category.test(p.category || '');
         })[0];
@@ -1162,7 +1162,7 @@
 
       if (featured.length < 8) {
         var extras = products.filter(function (p) {
-          return !usedNames[p.name] && p.price;
+          return !usedNames[p.name] && p.price && p.image;
         });
         for (var i = 0; i < extras.length && featured.length < 8; i++) {
           featured.push(extras[i]);
