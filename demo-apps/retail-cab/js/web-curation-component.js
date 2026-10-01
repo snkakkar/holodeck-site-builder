@@ -432,8 +432,8 @@
             'data-retry="0" ' +
             'onload="this.parentElement.classList.add(\'img-loaded\')" ' +
             'onerror="var r=parseInt(this.dataset.retry||0);if(r<2){this.dataset.retry=r+1;' +
-              'var img=this,s=img.src.split(\'&_r=\')[0];' +
-              'setTimeout(function(){img.src=s+\'&_r=\'+Date.now()},900*(r+1));return}' +
+              'var img=this,s=img.src;' +
+              'setTimeout(function(){img.src=s},900*(r+1));return}' +
               'this.style.display=\'none\';this.parentElement.classList.add(\'img-loaded\');' +
               'var fb=this.parentElement.querySelector(\'.img-fallback\');if(fb)fb.style.display=\'flex\'">' +
           '<div class="img-fallback" style="display:none">' +
