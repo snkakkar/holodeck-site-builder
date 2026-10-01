@@ -499,7 +499,8 @@
           });
         });
       });
-    }).catch(function () {
+    }).catch(function (err) {
+      if (global.console) console.warn("[retailCab] generation failed:", (err && err.message) || err);
       return fallback();
     });
   }
