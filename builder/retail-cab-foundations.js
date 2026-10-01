@@ -461,6 +461,10 @@
      .join("\n");
   }
 
+  function sleep(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
   // ── Product photos ──────────────────────────────────────────
   // One image prompt per SKU. Kept literal and studio-style so results
   // look like a real catalog, not clip art.
@@ -508,35 +512,41 @@
       })).then(function () { return runBatch(start + batchSize); });
     }
 
-    // One extra pass over whatever is still missing after the main run —
+    // Extra passes over whatever is still missing after the main run —
     // catches stragglers that exhausted gemini-client's retry budget during
     // the first attempt (more likely now that product/styled-post/hero
-    // photos all fire concurrently instead of serially).
-    function sweepStragglers() {
-      const missing = todo.filter(function (p) {
+    // photos all fire concurrently instead of serially). Up to 2 extra
+    // rounds, pausing briefly between them so a transient rate-limit window
+    // has a chance to clear; stops as soon as nothing is missing.
+    function missingNow() {
+      return todo.filter(function (p) {
         const have = images[p.id];
         return !(have && String(have).trim());
       });
+    }
+    function sweepRound(round) {
+      const missing = missingNow();
       if (!missing.length) return Promise.resolve();
       return Promise.all(missing.map(function (p) {
         return gemini.generateImage({ prompt: photoPrompt(p, cx) })
           .then(function (url) { if (url) images[p.id] = url; })
           .catch(function (err) {
-            if (window.console) console.warn("[photos] retry " + p.id + " failed:", (err && err.message) || err);
+            if (window.console) console.warn("[photos] retry " + round + " " + p.id + " failed:", (err && err.message) || err);
           });
       })).then(function () {
-        const stillMissing = missing.filter(function (p) {
-          const have = images[p.id];
-          return !(have && String(have).trim());
-        });
-        if (stillMissing.length && window.console) {
-          console.warn("[photos] " + stillMissing.length + " of " + total + " product photos missing after retry: " +
-            stillMissing.map(function (p) { return p.id; }).join(", "));
+        const stillMissing = missingNow();
+        if (!stillMissing.length || round >= 3) {
+          if (stillMissing.length && window.console) {
+            console.warn("[photos] " + stillMissing.length + " of " + total + " product photos missing after retry: " +
+              stillMissing.map(function (p) { return p.id; }).join(", "));
+          }
+          return;
         }
+        return sleep(3000).then(function () { return sweepRound(round + 1); });
       });
     }
 
-    return runBatch(0).then(sweepStragglers).then(function () { return images; });
+    return runBatch(0).then(function () { return sweepRound(1); }).then(function () { return images; });
   }
 
   // ── Styled-post photos ──────────────────────────────────────
@@ -588,25 +598,30 @@
       })).then(function () { return runBatch(start + batchSize); });
     }
 
-    // One extra pass over whatever is still missing after the main run —
-    // same straggler sweep as generateProductPhotos, for the same reason.
-    function sweepStragglers() {
+    // Extra passes over whatever is still missing after the main run —
+    // same multi-round straggler sweep as generateProductPhotos, for the
+    // same reason.
+    function sweepRound(round) {
       const missing = todo.filter(function (post) { return !images[post.id]; });
       if (!missing.length) return Promise.resolve();
       return Promise.all(missing.map(function (post) {
         return shootOne(post).catch(function (err) {
-          if (window.console) console.warn("[styled-photos] retry " + post.id + " failed:", (err && err.message) || err);
+          if (window.console) console.warn("[styled-photos] retry " + round + " " + post.id + " failed:", (err && err.message) || err);
         });
       })).then(function () {
-        const stillMissing = missing.filter(function (post) { return !images[post.id]; });
-        if (stillMissing.length && window.console) {
-          console.warn("[styled-photos] " + stillMissing.length + " of " + total + " styled-post photos missing after retry: " +
-            stillMissing.map(function (post) { return post.id; }).join(", "));
+        const stillMissing = todo.filter(function (post) { return !images[post.id]; });
+        if (!stillMissing.length || round >= 3) {
+          if (stillMissing.length && window.console) {
+            console.warn("[styled-photos] " + stillMissing.length + " of " + total + " styled-post photos missing after retry: " +
+              stillMissing.map(function (post) { return post.id; }).join(", "));
+          }
+          return;
         }
+        return sleep(3000).then(function () { return sweepRound(round + 1); });
       });
     }
 
-    return runBatch(0).then(sweepStragglers).then(function () { return images; });
+    return runBatch(0).then(function () { return sweepRound(1); }).then(function () { return images; });
   }
 
   // ── Hero photos ─────────────────────────────────────────────
