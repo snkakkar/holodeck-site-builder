@@ -523,12 +523,13 @@
       })).then(function () { return runBatch(start + batchSize); });
     }
 
-    // Extra passes over whatever is still missing after the main run —
+    // One extra pass over whatever is still missing after the main run —
     // catches stragglers that exhausted gemini-client's retry budget during
     // the first attempt (more likely now that product/styled-post/hero
-    // photos all fire concurrently instead of serially). Up to 2 extra
-    // rounds, pausing briefly between them so a transient rate-limit window
-    // has a chance to clear; stops as soon as nothing is missing.
+    // photos all fire concurrently instead of serially). Capped at a single
+    // retry round (not more): more rounds blow past this build's share of
+    // the shared Gemini rate budget and starve whichever app generates
+    // next in the same build.
     function missingNow() {
       return todo.filter(function (p) {
         const have = images[p.id];
@@ -546,7 +547,7 @@
           });
       })).then(function () {
         const stillMissing = missingNow();
-        if (!stillMissing.length || round >= 3) {
+        if (!stillMissing.length || round >= 1) {
           if (stillMissing.length && window.console) {
             console.warn("[photos] " + stillMissing.length + " of " + total + " product photos missing after retry: " +
               stillMissing.map(function (p) { return p.id; }).join(", "));
@@ -610,8 +611,8 @@
       })).then(function () { return runBatch(start + batchSize); });
     }
 
-    // Extra passes over whatever is still missing after the main run —
-    // same multi-round straggler sweep as generateProductPhotos, for the
+    // One extra pass over whatever is still missing after the main run —
+    // same single-round straggler sweep as generateProductPhotos, for the
     // same reason.
     function sweepRound(round) {
       const missing = todo.filter(function (post) { return !images[post.id]; });
@@ -622,7 +623,7 @@
         });
       })).then(function () {
         const stillMissing = todo.filter(function (post) { return !images[post.id]; });
-        if (!stillMissing.length || round >= 3) {
+        if (!stillMissing.length || round >= 1) {
           if (stillMissing.length && window.console) {
             console.warn("[styled-photos] " + stillMissing.length + " of " + total + " styled-post photos missing after retry: " +
               stillMissing.map(function (post) { return post.id; }).join(", "));
