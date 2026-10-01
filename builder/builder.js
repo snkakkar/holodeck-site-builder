@@ -1048,6 +1048,17 @@
       const appIds = selectedIds.filter(function (id) {
         const e = simpleExpById(id); return e && e.kind === "app";
       });
+      // Retail CAB always generates first (regardless of click order): its
+      // catalog + product photos are real/scraped, so Clienteling/Cimulate
+      // derive their shared 12-SKU catalog from a slice of CAB's actual
+      // products and reuse CAB's photos instead of shooting their own —
+      // see generateSimpleAppConfig's cabSeed wiring below.
+      const rcIdx = appIds.indexOf("retailCab");
+      if (rcIdx > 0) { appIds.splice(rcIdx, 1); appIds.unshift("retailCab"); }
+      // Clear any CAB catalog/images stashed by a PRIOR build (e.g. the user
+      // deselected Retail CAB and rebuilt) so Clienteling/Cimulate don't pick
+      // up a stale cabSeed below when CAB isn't actually part of this run.
+      if (rcIdx === -1) { s.retailCabCatalog = null; s.retailCabImages = null; }
 
       // Coarse progress: with the phases running concurrently there is no clean
       // linear fraction, so count task completions (each config + each photo
@@ -1254,16 +1265,31 @@
     // app's own answers so the generator sees both in one object.
     const simpleAnswers = Object.assign({}, simpleState().answers.general, simpleState().answers[appId]);
 
+    // If Retail CAB already generated earlier in this build, hand its real
+    // catalog + photos to Clienteling/Cimulate so they derive their shared
+    // 12-SKU catalog from it (and reuse its photos) instead of inventing and
+    // shooting their own — see app-foundations.js's cabSeed wiring.
+    const cabSeed = (appId !== "retailCab" && s.retailCabCatalog && s.retailCabCatalog.length)
+      ? { catalog: s.retailCabCatalog, images: s.retailCabImages || {} }
+      : null;
+
     return window.HOLO_APPFOUND.generate(appId, s, {
       onStatus: function (msg, f) { onStatus(msg, f || 0); },
       storySig: sigNow,
       rebuildCatalog: rebuildCatalog,
       simpleAnswers: simpleAnswers,
+      cabSeed: cabSeed,
     }).then(function (out) {
       slice.config = out.config;
       slice.extracted = true;
       slice._previewToken = stashPreviewConfig(appId, out.config);
       slice._usedGemini = out.usedGemini;
+      if (appId === "retailCab" && out.config) {
+        // Stash separately from CAB's own 40-SKU store so CAB's export is
+        // unaffected — this is only read by the next app's cabSeed above.
+        s.retailCabCatalog = out.config.catalog || [];
+        s.retailCabImages = out.config.productImages || {};
+      }
       return out.config;
     });
   }

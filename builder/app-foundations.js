@@ -59,8 +59,9 @@
   // `simple` (optional) carries the Simple-mode wizard answers for this app:
   //   { memberPromos, recProducts } — free-text hints the SE typed. Absent for
   //   the full builder, so those lines drop out and the prompt is unchanged.
-  function promptForClienteling(cx, simple) {
+  function promptForClienteling(cx, simple, seedCatalog) {
     simple = simple || {};
+    const hasSeed = Array.isArray(seedCatalog) && seedCatalog.length === 12;
     return [
       "You are generating realistic demo data for a RETAIL CLIENTELING app (a store-associate / sales-floor tool) for the customer \"" + cx.customerName + "\" in the " + cx.industry + " industry.",
       cx.website ? ("Their website: " + cx.website + ".") : "",
@@ -69,6 +70,7 @@
       cx.persona ? ("Primary persona: " + JSON.stringify({ name: cx.persona.name, role: cx.persona.role, quote: cx.persona.quote })) : "",
       simple.memberPromos ? ("MEMBER PROMOS to feature: " + String(simple.memberPromos).slice(0, 400) + ". Weave these into walkIns[].headline/detail, coach.<id>.nba, and copy.featurePourLabel so the associate can pitch them.") : "",
       simple.recProducts ? ("RECOMMENDED PRODUCTS to spotlight: " + String(simple.recProducts).slice(0, 400) + ". Make sku1 (the flagship/featured catalog item) and the coach.<id>.starters reflect these; keep them on-brand for " + cx.customerName + ".") : "",
+      hasSeed ? ("THIS CUSTOMER'S REAL PRODUCT CATALOG (already photographed for their storefront) — do NOT invent different products: " + JSON.stringify(seedCatalog) + ". Return these EXACT 12 items verbatim as your \"catalog\" array (same ids/names/cat/price), and make every reference (coach.<id>.starters, walkIns, event, featured item) point at THESE real products.") : "",
       "",
       "CRITICAL VOCABULARY RULE: Use " + cx.customerName + "'s REAL industry language everywhere. Do NOT use wine/bottle/tasting/sommelier/vintage/cellar terminology UNLESS " + cx.customerName + " actually sells wine. Every label, product, event, and unit noun must fit THIS customer's category (e.g. a golf retailer uses 'clubs'/'fitting'/'bay'; a beauty retailer uses 'products'/'consultation'; a bank uses 'accounts'/'appointment'). The app chrome (nav labels, KPI labels, search placeholder, concierge name, intro narrative, unit noun) is rendered VERBATIM from the fields you return.",
       "",
@@ -88,9 +90,13 @@
       '  "walkIns": [{ "id","name","tag","tier","headline","detail","cta" }],',
       '  "tasks": [{ "text","due","priority":"high|med|low" }],',
       '  "coach": { "<walkInId>": { "badge","title","starters":[string],"nba" } },  // starters = quick-prompt chips the associate can tap',
-      '  "catalog": [{ "id","name","cat","variety","region","price"(number),"score"(number),"scoreSource","badge","tastingNotes","story","foodPairings":[string] }]  // EXACTLY 12 realistic on-brand products. Use STABLE ids "sku1".."sku12" IN ORDER (sku1 is the flagship/featured item). "cat"=category across 2-3 categories; reuse variety/region/tastingNotes/foodPairings as generic attribute/origin/description/complements for non-wine categories.',
+      '  "catalog": [{ "id","name","cat","variety","region","price"(number),"score"(number),"scoreSource","badge","tastingNotes","story","foodPairings":[string] }]  // ' + (hasSeed
+        ? "Return the EXACT 12 products given above, verbatim (same ids/names/cat/price) — do not invent new ones."
+        : 'EXACTLY 12 realistic on-brand products. Use STABLE ids "sku1".."sku12" IN ORDER (sku1 is the flagship/featured item). "cat"=category across 2-3 categories; reuse variety/region/tastingNotes/foodPairings as generic attribute/origin/description/complements for non-wine categories.'),
       "}",
-      "SHARED CATALOG CONTRACT: this customer\'s other app (an e-commerce storefront) uses the SAME 12-SKU catalog with the SAME ids sku1..sku12 — so \"sku3\" is the SAME physical product in both apps. Make the catalog genuinely appropriate for " + cx.customerName + " (real-sounding SKUs in their category), EXACTLY 12 products with ids sku1..sku12, sku1 = the flagship. Keep copy concise and sales-floor realistic.",
+      hasSeed
+        ? ("This catalog is FIXED (given above) and already shared with this customer's other app (an e-commerce storefront) — \"sku3\" is the SAME physical product in both apps. Keep copy concise and sales-floor realistic.")
+        : ("SHARED CATALOG CONTRACT: this customer\'s other app (an e-commerce storefront) uses the SAME 12-SKU catalog with the SAME ids sku1..sku12 — so \"sku3\" is the SAME physical product in both apps. Make the catalog genuinely appropriate for " + cx.customerName + " (real-sounding SKUs in their category), EXACTLY 12 products with ids sku1..sku12, sku1 = the flagship. Keep copy concise and sales-floor realistic."),
     ].filter(Boolean).join("\n");
   }
 
@@ -101,10 +107,11 @@
   //   WHILE still honoring the strict 4×3=12 SKU-union and verbatim-key
   //   routing contracts. Absent for the full builder → the extra lines drop
   //   out unchanged.
-  function promptForCimulate(cx, simple) {
+  function promptForCimulate(cx, simple, seedCatalog) {
     simple = simple || {};
     const sq = (simple.searchTerms || []).filter(Boolean).slice(0, 4);
     const aq = (simple.chatChips || []).filter(Boolean).slice(0, 4);
+    const hasSeed = Array.isArray(seedCatalog) && seedCatalog.length === 12;
     return [
       "You are generating realistic demo data for an INTENT-AWARE PRODUCT SEARCH + concierge-agent shopping experience (an e-commerce storefront) for \"" + cx.customerName + "\" in the " + cx.industry + " industry.",
       cx.website ? ("Their website: " + cx.website + ".") : "",
@@ -114,6 +121,7 @@
       (cx.storyActs && cx.storyActs.length) ? ("Demo story beats (use these to ground the shopper's goals and the example search queries): " + JSON.stringify(cx.storyActs).slice(0, 1200)) : "",
       sq.length ? ("SEED SEARCH QUERIES: use these exact shopper queries as the label/q of the FIRST " + sq.length + " searchChips (in order), then invent the remaining chips to reach EXACTLY 4: " + JSON.stringify(sq) + ". Each seeded chip still needs its own 3 distinct resultIds so the 4×3=12 SKU-union contract holds.") : "",
       aq.length ? ("SEED AGENT QUESTIONS: the shopper wants to ask the concierge these — make each one a sommIntent whose FIRST key is a clean chip-friendly phrase, and surface them as the leading greetChips (each greetChip q copied VERBATIM from its sommIntent key): " + JSON.stringify(aq) + ".") : "",
+      hasSeed ? ("THIS CUSTOMER'S REAL PRODUCT CATALOG (already photographed for their storefront) — do NOT invent different products: " + JSON.stringify(seedCatalog) + ". Return these EXACT 12 items verbatim as your \"catalog\" array (same ids/names/cat/price). Build your 4 searchChips by grouping these 12 products by shared \"cat\" (or sensible shopping intent) into chips of 3 — every resultId must be one of these given ids, and every given id must appear in exactly one chip.") : "",
       "",
       "CRITICAL VOCABULARY RULE: Use " + cx.customerName + "'s REAL industry language everywhere. Do NOT use wine/bottle/sommelier/'Somm'/tasting terminology UNLESS " + cx.customerName + " actually sells wine. The storefront chrome (brand logo text, concierge name/subtitle, hero headline, search suggestion chips, category nav, promo tiles, footer blurb, section headings) is rendered VERBATIM from the fields you return — make every string fit THIS customer's category.",
       "",
@@ -130,13 +138,17 @@
       '  "sectionHeadings": { "featured": string, "curated": string, "trending": string, "specials": string, "topCat": string, "savings": string },  // homepage rail titles in the customer\'s voice',
       '  "copy": { "heroEyebrow": string, "heroSub": string, "heroShopCta": string, "heroAskCta": string, "featuredHeading": string, "featuredSub": string, "profileGreeting": string, "profileTierTag": string, "searchHintLabel": string, "curatedSub": string, "sommIntro": string, "utilityFulfill": string },  // customer-voiced UI copy. You MAY use these {token} placeholders and they will be substituted: {firstName} {tier} {concierge} {searchProduct} {unit} {store} {brand}. Do NOT invent other tokens.',
       '  "profile": { "name","tier","interests":[string] },',
-      '  "catalog": [{ "id","cat","name","type","region","price"(number),"rating"(number),"ratingSource","badge","notes","pairings":[string],"flavors":[string] }],  // EXACTLY 12 realistic on-brand products = the union of the 4 searchChips\' resultIds (4 chips × 3 = 12). Use STABLE ids "sku1".."sku12" IN ORDER; every searchChips resultId MUST be one of these ids. Across 2-3 categories. Reuse type/region/pairings/flavors as generic attribute/origin/complements/traits for non-wine categories.',
+      '  "catalog": [{ "id","cat","name","type","region","price"(number),"rating"(number),"ratingSource","badge","notes","pairings":[string],"flavors":[string] }],  // ' + (hasSeed
+        ? "Return the EXACT 12 products given above, verbatim (same ids/names/cat/price) — do not invent new ones."
+        : 'EXACTLY 12 realistic on-brand products = the union of the 4 searchChips\' resultIds (4 chips × 3 = 12). Use STABLE ids "sku1".."sku12" IN ORDER; every searchChips resultId MUST be one of these ids. Across 2-3 categories. Reuse type/region/pairings/flavors as generic attribute/origin/complements/traits for non-wine categories.'),
       '  "greetChips": [{ "label": string, "q": string, "say": string }],  // 4-5 opening quick-reply chips for the concierge. DETERMINISTIC (scripted demo, no free typing): "q" MUST be COPIED VERBATIM from the "keys" of exactly one sommIntent below — clicking the chip shows that intent\'s reply 1:1. "label"=button text w/ optional emoji; "say"=the natural sentence shown in the user\'s chat bubble. Include industry-appropriate shopping starters + one service chip (its q = a built-in service key: one of "help me with something","track my order","delivery","store hours","rewards","return").',
       '  "sommIntents": [{ "keys":[string], "text": string, "recIds":[string], "rail": { "title": string, "sub": string, "ids":[string] }, "chips":[{ "label": string, "q": string, "say": string }] }],  // 6 shopping intents. keys=SHORT trigger phrases that chips will reference by EXACT string (make the FIRST key a clean, chip-friendly phrase like "fix my slice","launch monitor","gift"); text=concierge reply (HTML ok); recIds=catalog ids to show as rec cards; rail (optional)=a curated rail of ids; chips (optional)=follow-up quick chips whose "q" is ALSO a verbatim key of one sommIntent (so every follow-up also routes 1:1). The concierge is generic — do NOT self-refer as a sommelier.',
       '  "serviceData": { "order": string, "orderPlaced": string, "eta": string, "hoursToday": string, "pickupEta": string, "associate": string, "points": string, "reward": string, "refundAmt": string },  // sample values for the built-in service flows (order status, delivery, hours, rewards, returns) in the customer\'s voice',
       '  "celebs": { "<lowercasename>": { "match": string, "productIds":[string] } }  // 1-2 celebrity/affinity tie-ins if relevant, else {}',
       "}",
-      "Products must be genuinely appropriate for " + cx.customerName + " (their real category). SHARED CATALOG CONTRACT: this customer's other app (an in-store clienteling tool) uses the SAME 12-SKU catalog with the SAME ids sku1..sku12 — so \"sku3\" is the SAME physical product in both apps. CRITICAL: use STABLE ids sku1..sku12; return EXACTLY 4 searchChips, each with EXACTLY 3 resultIds, and EXACTLY 12 catalog products whose ids (sku1..sku12) are precisely the union of those resultIds — every resultId maps to a catalog product and every catalog product is the result of some chip. The 12 resultIds MUST be DISTINCT: no SKU may appear in more than one chip (4 chips × 3 unique ids each = all 12 SKUs, each used exactly once). The 3 products under a chip must genuinely satisfy that chip's query. sommIntents should cover shopping (find/recommend by taste, occasion, budget, category) and reuse the SAME catalog ids in recIds/rail. The service flows (order status, delivery, returns, rewards) are built in and driven by serviceData — do NOT duplicate them as intents. DETERMINISTIC CONCIERGE CONTRACT: there is NO free-text search — every greetChip and every follow-up chip's \"q\" MUST be copied verbatim from some sommIntent's \"keys\" (or one of the built-in service keys listed above) so each click maps 1:1 to exactly one reply. Do NOT invent a chip q that isn't an intent key.",
+      "Products must be genuinely appropriate for " + cx.customerName + " (their real category). " + (hasSeed
+        ? "This catalog is FIXED (given above) and already shared with this customer's other app (an in-store clienteling tool) — \"sku3\" is the SAME physical product in both apps."
+        : "SHARED CATALOG CONTRACT: this customer's other app (an in-store clienteling tool) uses the SAME 12-SKU catalog with the SAME ids sku1..sku12 — so \"sku3\" is the SAME physical product in both apps.") + " CRITICAL: use STABLE ids sku1..sku12; return EXACTLY 4 searchChips, each with EXACTLY 3 resultIds, and EXACTLY 12 catalog products whose ids (sku1..sku12) are precisely the union of those resultIds — every resultId maps to a catalog product and every catalog product is the result of some chip. The 12 resultIds MUST be DISTINCT: no SKU may appear in more than one chip (4 chips × 3 unique ids each = all 12 SKUs, each used exactly once). The 3 products under a chip must genuinely satisfy that chip's query. sommIntents should cover shopping (find/recommend by taste, occasion, budget, category) and reuse the SAME catalog ids in recIds/rail. The service flows (order status, delivery, returns, rewards) are built in and driven by serviceData — do NOT duplicate them as intents. DETERMINISTIC CONCIERGE CONTRACT: there is NO free-text search — every greetChip and every follow-up chip's \"q\" MUST be copied verbatim from some sommIntent's \"keys\" (or one of the built-in service keys listed above) so each click maps 1:1 to exactly one reply. Do NOT invent a chip q that isn't an intent key.",
     ].filter(Boolean).join("\n");
   }
 
@@ -265,6 +277,49 @@
     return out;
   }
 
+  // Derive the Clienteling/Cimulate shared 12-SKU catalog from Retail CAB's
+  // real (already-photographed) catalog instead of inventing + photographing
+  // a brand-new one. Groups CAB's SKUs by category (up to 4 categories, 3
+  // each) so the result lines up with cimulate's "4 chips × 3 results"
+  // contract, backfills from any category if some are short, and remaps the
+  // chosen ids to sku1..sku12. Returns null if cabCatalog isn't usable.
+  function pickSharedCatalogFromCab(cabCatalog, cabImages, cx) {
+    const list = Array.isArray(cabCatalog) ? cabCatalog.filter(function (p) { return p && p.id; }) : [];
+    if (list.length < 1) return null;
+    cabImages = cabImages || {};
+    const byCat = {};
+    list.forEach(function (p) {
+      const c = String(p.category || p.family || "General");
+      (byCat[c] = byCat[c] || []).push(p);
+    });
+    const cats = Object.keys(byCat).sort(function (a, b) { return byCat[b].length - byCat[a].length; }).slice(0, 4);
+    const picked = [];
+    cats.forEach(function (c) { picked.push.apply(picked, byCat[c].slice(0, 3)); });
+    if (picked.length < 12) {
+      const pickedIds = {};
+      picked.forEach(function (p) { pickedIds[p.id] = true; });
+      for (let i = 0; i < list.length && picked.length < 12; i++) {
+        if (!pickedIds[list[i].id]) { picked.push(list[i]); pickedIds[list[i].id] = true; }
+      }
+    }
+    const chosen = picked.slice(0, 12);
+    if (!chosen.length) return null;
+    const images = {};
+    const catalog = chosen.map(function (p, i) {
+      const newId = "sku" + (i + 1);
+      const url = cabImages[p.id];
+      if (url) images[newId] = url;
+      const cat = String(p.category || p.family || "General");
+      return {
+        id: newId, name: p.name, price: Number(p.price) || 0,
+        cat: cat, category: cat,
+        variety: p.type || p.family || "", type: p.type || p.family || "",
+        description: p.description || "", badge: "",
+      };
+    });
+    return { catalog: catalog, images: images };
+  }
+
   // ── main: generate foundation + config for one app ───────────
   // opts.onStatus(msg, frac) — optional progress callback. `frac` is this
   // stage's own 0→1 completion (data extraction + config assembly); the
@@ -280,9 +335,17 @@
     // Simple-mode answers for this app (optional) steer the prompt; undefined
     // in the full builder so behavior is identical.
     const simpleAnswers = opts.simpleAnswers || {};
+    // When Retail CAB was generated in this same build (opts.cabSeed =
+    // { catalog, images } from its config), derive the shared catalog from
+    // CAB's real, already-photographed products instead of inventing a new
+    // one — this is what lets Clienteling/Cimulate reuse CAB's photos with
+    // zero additional Gemini image calls (see assemble() below).
+    const cabSeed = (opts.cabSeed && Array.isArray(opts.cabSeed.catalog) && opts.cabSeed.catalog.length)
+      ? pickSharedCatalogFromCab(opts.cabSeed.catalog, opts.cabSeed.images, cx)
+      : null;
     const prompt = appId === "clienteling"
-      ? promptForClienteling(cx, simpleAnswers)
-      : promptForCimulate(cx, simpleAnswers);
+      ? promptForClienteling(cx, simpleAnswers, cabSeed && cabSeed.catalog)
+      : promptForCimulate(cx, simpleAnswers, cabSeed && cabSeed.catalog);
 
     // Build the runtime config from an extracted/fallback foundation. Resolves
     // the shared 12-SKU catalog (reuse-or-rebuild, never a growing union), then
@@ -306,6 +369,15 @@
       if (haveShared && sigMatch && !opts.rebuildCatalog) {
         // REUSE: same story, catalog already built — keep it exactly as-is.
         shared = prevShared;
+      } else if (cabSeed) {
+        // REBUILD from Retail CAB's real catalog: the shared 12 ARE a slice
+        // of CAB's actual (already-photographed) products, so seed the
+        // shared image store from CAB's images too — generateProductPhotos'
+        // existing dedup then sees nothing pending and makes 0 image calls.
+        shared = cabSeed.catalog;
+        state.retailCatalog = shared;
+        state.retailCatalogSig = opts.storySig || "";
+        state.retailImages = cabSeed.images;
       } else {
         // REBUILD: fresh, complete set (replace, not union). Fall back to the
         // neutral seed so we always land a clean 12. Clear the shared images —
