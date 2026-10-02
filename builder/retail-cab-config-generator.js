@@ -452,6 +452,18 @@
         }
         return offer;
       });
+    // The storefront treats offers[0] as the birthday reward and only shows the
+    // signed-in hero when its eligibleFirstName equals the persona's firstName.
+    // Gemini emits those independently, so reconcile here: the birthday offer
+    // is the first gated offer (else the first offer), moved to the front and
+    // gated to the persona — otherwise a signed-in shopper sees the anonymous hero.
+    if (offers.length) {
+      let bdayIdx = offers.findIndex(function (o) { return o.eligibleFirstName; });
+      if (bdayIdx === -1) bdayIdx = 0;
+      const bday = offers.splice(bdayIdx, 1)[0];
+      bday.eligibleFirstName = firstName;
+      offers.unshift(bday);
+    }
     // Guarantee at least a free-shipping offer so checkout never lacks one.
     if (!offers.length) {
       offers.push({ id: "freeship", code: "SHIPFREE", label: "Free Shipping", short: "Free standard shipping",

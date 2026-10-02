@@ -1049,7 +1049,12 @@
     // BrandConfig.offer) over the brand-color gradient — NOT a baked raster —
     // so a generated brand's reward, not Cavender's, always shows.
     var promo = window.BirthdayPromo;
-    var showInsiderHero = personalized && promo && promo.isEligible();
+    // Sign-in is a single fixed persona, so a mismatched eligibleFirstName in
+    // older generated configs must not drop a signed-in shopper to the anonymous
+    // hero: fall back to "a real (non-free-shipping) reward exists".
+    var _offers = (window.BrandConfig && window.BrandConfig.offers) || [];
+    var hasReward = !!(_offers[0] && _offers[0].type !== 'free-shipping');
+    var showInsiderHero = personalized && promo && (promo.isEligible() || hasReward);
     var insiderName = escapeHtml(firstName || 'there');
     var insiderCode = escapeHtml(promo ? (promo.code || '') : '');
     var insiderShort = escapeHtml(promo ? (promo.offerShort || 'a birthday reward') : 'a birthday reward');
