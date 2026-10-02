@@ -360,7 +360,7 @@
   function proxyImg(url) {
     if (!url) return '';
     if (url.indexOf('northerntrailoutfitters.com') !== -1) {
-      return '/img-proxy?url=' + encodeURIComponent(url);
+      return '/api/scrape/img-proxy?url=' + encodeURIComponent(url);
     }
     return url;
   }

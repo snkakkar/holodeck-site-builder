@@ -493,7 +493,7 @@
     if (!url) return '';
     if (url.indexOf('kendrascott.com') !== -1 ||
         url.indexOf('assets.meshmesh.io') !== -1) {
-      return '/img-proxy?url=' + encodeURIComponent(url);
+      return '/api/scrape/img-proxy?url=' + encodeURIComponent(url);
     }
     return url;
   }
