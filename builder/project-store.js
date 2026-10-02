@@ -1221,12 +1221,27 @@
         // URLs get re-signed on load/export the same way product images do.
         // Without this, hero imagery was persisted verbatim and went
         // stale/expired across sessions once the signature TTL passed.
-        const copy = appSlice.config && appSlice.config.copy;
-        if (copy && typeof copy === "object") {
-          ["heroImage", "heroImageSignedIn", "lifestyleImage"].forEach(function (k) {
-            const out = fn(copy[k]);
-            if (typeof out === "string") copy[k] = out;
+        // The generator returns the same copy object as BOTH config.copy and
+        // config.brandConfig.copy, but after any JSON clone (save/load) they are
+        // independent. The exporter bakes from config.brandConfig, so walk that
+        // copy, its styledPosts, and config.products too — otherwise the export
+        // sees stale expired URLs, the bake fetch 403s, and it silently ships
+        // the full-size remote image.
+        const cfg = appSlice.config;
+        const walkKeys = function (obj, keys) {
+          if (!obj || typeof obj !== "object") return;
+          keys.forEach(function (k) {
+            const out = fn(obj[k]);
+            if (typeof out === "string") obj[k] = out;
           });
+        };
+        const heroKeys = ["heroImage", "heroImageSignedIn", "lifestyleImage"];
+        if (cfg) {
+          walkKeys(cfg.copy, heroKeys);
+          walkKeys(cfg.brandConfig && cfg.brandConfig.copy, heroKeys);
+          walkKeys(cfg.brandConfig, ["lifestyleImage"]);
+          ((cfg.brandConfig && cfg.brandConfig.styledPosts) || []).forEach(function (sp) { walkKeys(sp, ["image"]); });
+          (cfg.products || []).forEach(function (p) { walkKeys(p, ["image"]); });
         }
       });
     }

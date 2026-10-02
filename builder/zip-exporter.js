@@ -582,24 +582,37 @@
 
     const images = [];
     const baked = {}; // url → true once its bytes are fetched successfully
+    const failedBakes = [];
     const urls = Object.keys(urlToLocal);
     return authHeadersP.then(function (authHeaders) {
       return Promise.all(urls.map(function (url) {
-        return fetch(fetchUrlFor(url), { headers: authHeaders }).then(function (res) {
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          return res.arrayBuffer();
-        }).then(function (buf) {
+        // One retry: the proxy has a 10s upstream timeout and multi-MB Gemini
+        // photos occasionally 502 on the first try.
+        function fetchBytes(attempt) {
+          return fetch(fetchUrlFor(url), { headers: authHeaders }).then(function (res) {
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            return res.arrayBuffer();
+          }).catch(function (err) {
+            if (attempt < 1) return fetchBytes(attempt + 1);
+            throw err;
+          });
+        }
+        return fetchBytes(0).then(function (buf) {
           return shrinkTo[url] ? shrinkImage(buf, shrinkTo[url]) : buf;
         }).then(function (buf) {
           images.push({ dest: urlToLocal[url], content: new Uint8Array(buf) });
           baked[url] = true;
         }).catch(function (err) {
+          failedBakes.push(url);
           if (typeof console !== "undefined" && console.warn) {
             console.warn("[holo] retailCab: failed to bake image " + url + " — leaving the live URL in place", err && err.message);
           }
         });
       }));
     }).then(function () {
+      if (failedBakes.length && typeof console !== "undefined" && console.error) {
+        console.error("[holo] retailCab export: " + failedBakes.length + " image(s) could not be baked and will load slowly from their remote URLs:", failedBakes);
+      }
       // Rewrite only what actually baked; anything that failed keeps its
       // original (still-live-for-now) remote URL instead of a dead local path.
       const productsOut = (products || []).map(function (p) {

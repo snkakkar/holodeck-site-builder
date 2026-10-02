@@ -339,12 +339,15 @@
         'js/persona.js',
         'js/orders.js',
         'js/web-curation-component.js',
+        // Must precede views.js/router.js: router.js renders the home page the
+        // moment it loads, and renderHome reads window.BirthdayPromo for the
+        // signed-in hero copy/code.
+        'js/birthday-promo.js',
         'js/sitemap.js',
         'js/views.js',
         'js/router.js',
         'js/search-engine.js',
-        'js/search-overlay.js',
-        'js/birthday-promo.js'
+        'js/search-overlay.js'
       ];
       function loadDownstream() {
         (function loadNext(i) {
