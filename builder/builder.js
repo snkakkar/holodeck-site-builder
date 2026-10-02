@@ -923,7 +923,10 @@
       sm._status = "";
       commit();
       renderShell();
-      startSimpleGeneration();
+      // forceFresh: an explicit Rebuild must regenerate from scratch, not
+      // replay a cached "AI call succeeded but returned junk" result from
+      // the prior attempt — see startSimpleGeneration/runSimpleGeneration.
+      startSimpleGeneration(true);
     });
     body.appendChild(el("div", { class: "bx-simple-done-actions" }, [
       zipBtn,
@@ -945,7 +948,7 @@
   // ─── Orchestration ────────────────────────────────────────────
   // Kicks off runSimpleGeneration and moves to the "done" panel on
   // success. Live progress updates the panel-4 bar in place.
-  function startSimpleGeneration() {
+  function startSimpleGeneration(forceFresh) {
     const sim = simpleState();
     sim._error = "";
     sim._done = false; // a build is now in flight; clear any prior completion
@@ -960,7 +963,7 @@
         if (label && msg != null) label.textContent = msg;
       }
     }
-    runSimpleGeneration(sim.selected.slice(), onStatus).then(function () {
+    runSimpleGeneration(sim.selected.slice(), onStatus, forceFresh).then(function () {
       sim.panel = "done";
       sim._progress = 1;
       // Durable completion flag: lets the Build step-chip / navigate-back route
@@ -977,7 +980,10 @@
   }
 
   // The end-to-end simple build. Ordered reuse of the existing generators.
-  function runSimpleGeneration(selectedIds, onStatus) {
+  // forceFresh (an explicit Rebuild click): bypass the Gemini status/response
+  // caches so a prior failed/bad result can't be silently replayed — see
+  // generateSimpleAppConfig and app-foundations.js's generateRetailCab.
+  function runSimpleGeneration(selectedIds, onStatus, forceFresh) {
     const s = app.state;
     onStatus = onStatus || function () {};
     const GEMINI = window.HOLO_GEMINI;
@@ -1095,7 +1101,7 @@
           onStatus(fracNow(), "Configuring " + appId + "…");
           return generateSimpleAppConfig(appId, GEMINI, function (msg, f) {
             subTick(msg || ("Configuring " + appId + "…"), f);
-          });
+          }, forceFresh);
         }).then(function (cfg) {
           tick("Configured " + appId);
           photoChain = photoChain.then(function () {
@@ -1247,7 +1253,7 @@
   // via HOLO_APPFOUND.generate, and returns the generated config (also stored on
   // the slice). Must run in selection order so the FIRST app builds the catalog
   // and the rest reuse it. onStatus(msg, frac) spans 0→1 for this call.
-  function generateSimpleAppConfig(appId, GEMINI, onStatus) {
+  function generateSimpleAppConfig(appId, GEMINI, onStatus, forceFresh) {
     const s = app.state;
     onStatus = onStatus || function () {};
     if (!window.HOLO_APPFOUND || !window.HOLO_APPFOUND.generate) {
@@ -1279,6 +1285,7 @@
       rebuildCatalog: rebuildCatalog,
       simpleAnswers: simpleAnswers,
       cabSeed: cabSeed,
+      forceFresh: !!forceFresh,
     }).then(function (out) {
       slice.config = out.config;
       slice.extracted = true;
@@ -3810,7 +3817,9 @@
       } else if (def.id === "retailCab") {
         genRow.appendChild(btn("↻ Regenerate with AI", "bx-btn-primary", function () {
           if (window.confirm("Regenerate this app with AI? This re-runs the catalog and all product/styled-post/hero photos, spending Gemini text + image tokens.")) {
-            generateApp(def, slice, "ai");
+            // forceFresh: an explicit regenerate must not replay a cached
+            // bad/stale result from a prior failed attempt.
+            generateApp(def, slice, "ai", { forceFresh: true });
           }
         }));
       } else if (!slice.extracted) {
@@ -4119,7 +4128,7 @@
     // app-foundations.js generateRetailCab) runs the catalog call and all
     // three image passes (product/styled-post/hero) in one shot, mirroring
     // the standalone Retail CAB Demo Creator's single "Generate" button.
-    if (def.id === "retailCab") return generateRetailCabApp(def, slice);
+    if (def.id === "retailCab") return generateRetailCabApp(def, slice, !!opts.forceFresh);
     // forceText: rebuild the TEXT config (chips/copy/catalog) from Gemini even
     // when a cached config exists. Set by an explicit "Regenerate with AI" so a
     // regenerate actually refreshes the copy — not just re-photographs the old
@@ -4308,7 +4317,7 @@
     }
 
     // Preview tier, or AI tier with no cached config yet: run text first.
-    HOLO_APPFOUND.generate(def.id, app.state, { onStatus: foundStatus, storySig: sigNow, rebuildCatalog: rebuildCatalog })
+    HOLO_APPFOUND.generate(def.id, app.state, { onStatus: foundStatus, storySig: sigNow, rebuildCatalog: rebuildCatalog, forceFresh: !!opts.forceFresh })
       .then(function (out) {
         slice._usedGemini = out.usedGemini;
         if (mode === "preview") return { config: out.config, tier: "preview" };
@@ -4323,13 +4332,16 @@
   // image passes (product/styled-post/hero), matching app-foundations.js's
   // generateRetailCab. Always lands as the "ai" tier — there's no cheap
   // text-only preview to gate behind a separate confirm.
-  function generateRetailCabApp(def, slice) {
+  function generateRetailCabApp(def, slice, forceFresh) {
     if (slice._generating) return;
     if (!window.HOLO_APPFOUND) { slice._genStatus = "Generator unavailable."; renderMain(); return; }
     slice._generating = true;
     slice._genMode = "ai";
     slice._progress = 0;
     slice._genStatus = "Preparing generation…";
+    // Snapshot BEFORE clearing below, so a cancel mid-regenerate restores the
+    // prior AI result instead of the cleared slate (cancel must never lose a
+    // previously-generated preview — same contract as generateApp/cancelAppGen).
     slice._preRun = {
       config: slice.config,
       productImages: slice.productImages,
@@ -4339,6 +4351,17 @@
       _aiGenerated: slice._aiGenerated,
       _genStatus: "",
     };
+    // An explicit regenerate (forceFresh) must not leave a prior broken
+    // config/photo set sitting in the preview if this attempt also fails —
+    // clear it up front so a repeat failure is visibly "no preview" plus the
+    // error message, not a stale unchanged one with no feedback.
+    if (forceFresh) {
+      slice.config = null;
+      slice.productImages = null;
+      slice.extracted = false;
+      slice._aiGenerated = false;
+      slice._previewOnly = false;
+    }
     slice._cancelled = false;
     renderMain();
 
@@ -4361,6 +4384,7 @@
 
     HOLO_APPFOUND.generate("retailCab", app.state, {
       onStatus: function (text, frac) { setProgress(frac || 0, text); },
+      forceFresh: !!forceFresh,
     })
       .then(function (out) {
         if (slice._cancelled) return;
@@ -4416,7 +4440,9 @@
       if (slice.config) slice.config.productImages = null;
       app.state.retailImages = null;
     }
-    generateApp(def, slice, "ai", { forceText: already });
+    // An already-AI'd app's regenerate is explicit, so bypass the Gemini
+    // status/response caches too — same reasoning as forceText above.
+    generateApp(def, slice, "ai", { forceText: already, forceFresh: already });
   }
 
   // Cancel an in-flight generation (usually a premature AI run). Aborts any

@@ -404,13 +404,15 @@
     }
 
     status("Checking AI availability…", 0.1);
-    return gen.isConfigured().then(function (ok) {
+    // forceFresh (explicit Regenerate): bypass the status-probe TTL and the
+    // response cache so a prior failed/stale attempt is never silently replayed.
+    return gen.isConfigured(!!opts.forceFresh).then(function (ok) {
       if (!ok) {
         status("Gemini not configured — using a customer-flavored template.", 1);
         return Object.assign(assemble(fallbackFoundation(appId, cx)), { usedGemini: false });
       }
       status("Generating " + appId + " data for " + cx.customerName + "…", 0.25);
-      return gen.generate({ prompt: prompt, jsonMode: true, useCache: true, temperature: 0.4 })
+      return gen.generate({ prompt: prompt, jsonMode: true, useCache: !opts.forceFresh, temperature: 0.4 })
         .then(function (text) {
           const parsed = parseJson(text);
           if (!parsed) {
@@ -457,7 +459,10 @@
 
     const cx = F.ctxFrom(state, opts.simpleAnswers);
     status("Checking AI availability…", 0.05);
-    return gen.isConfigured().then(function (ok) {
+    // forceFresh (explicit Rebuild/Regenerate): bypass the status-probe TTL
+    // and the response cache so a prior failed/stale attempt is never
+    // silently replayed — see gemini-client.js's status()/generate().
+    return gen.isConfigured(!!opts.forceFresh).then(function (ok) {
       if (!ok) return fallback("Gemini not configured");
       status("Scraping " + (cx.website || "site") + "…", 0.1);
       const scrapePromise = (SCRAPE && cx.website) ? SCRAPE.scrapeSite(cx.website) : Promise.resolve(null);
@@ -475,7 +480,7 @@
           schema: F.storefrontSchema(),
           temperature: 0.4,
           maxOutputTokens: 65536,
-          useCache: true,
+          useCache: !opts.forceFresh,
         }).then(function (text) {
           const found = parseJson(text);
           if (!found || !Array.isArray(found.catalog)) return fallback("AI response wasn't usable");
