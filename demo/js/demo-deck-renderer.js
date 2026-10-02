@@ -2677,6 +2677,19 @@
     const children = renderFn(slide || {});
     children.forEach(function (c) { if (c) body.appendChild(c); });
     pslide.appendChild(body);
+    // Only idx 0 is visible on first paint ("active"); every other slide's
+    // <img> is still in the DOM (just hidden) and would otherwise compete
+    // for bandwidth with the one actually on screen. Prioritize slide 0,
+    // defer the rest until the user navigates to them.
+    const imgs = pslide.querySelectorAll("img");
+    imgs.forEach(function (img) {
+      if (idx === 0) {
+        img.loading = "eager";
+        img.setAttribute("fetchpriority", "high");
+      } else {
+        img.loading = "lazy";
+      }
+    });
     return pslide;
   }
 

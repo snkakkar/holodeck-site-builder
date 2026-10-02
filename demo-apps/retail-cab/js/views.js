@@ -594,7 +594,7 @@
       '</div>';
 
     var imageHtml = image
-      ? '<img class="quickview-img" src="' + escapeHtml(image) + '" alt="' + escapeHtml(name) + '">'
+      ? '<img class="quickview-img" src="' + escapeHtml(image) + '" alt="' + escapeHtml(name) + '" loading="lazy">'
       : '<div class="img-fallback" style="display:flex;width:100%;min-height:400px">' +
           '<span class="img-fallback-icon" style="font-size:64px">' + categoryIcon(category) + '</span>' +
           '<span class="img-fallback-letter" style="font-size:48px">' + escapeHtml(productInitial(name)) + '</span>' +
@@ -1394,7 +1394,7 @@
         var qty = item.quantity || 1;
         html += '<div class="checkout-sidebar-item">' +
           '<div class="checkout-sidebar-item-img">' +
-            (item.image ? '<img src="' + esc(item.image) + '" alt="">' : '') +
+            (item.image ? '<img src="' + esc(item.image) + '" alt="" loading="lazy">' : '') +
           '</div>' +
           '<div style="flex:1;min-width:0">' +
             '<div class="checkout-sidebar-item-name">' + esc(item.name) + '</div>' +
@@ -1743,7 +1743,7 @@
         var priceNum = parseFloat(item.price) || 0;
         var qty = item.quantity || 1;
         itemsHtml += '<div class="checkout-conf-item">' +
-          (item.image ? '<img src="' + esc(item.image) + '" alt="">' : '<span style="font-size:1.5rem">📦</span>') +
+          (item.image ? '<img src="' + esc(item.image) + '" alt="" loading="lazy">' : '<span style="font-size:1.5rem">📦</span>') +
           '<span class="checkout-conf-item-name">' + esc(item.name) + (qty > 1 ? ' ×' + qty : '') + '</span>' +
           '<span class="checkout-conf-item-price">$' + (priceNum * qty).toFixed(2) + '</span>' +
         '</div>';

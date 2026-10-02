@@ -234,6 +234,18 @@
 
         var heroImg = absUrl((window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImage) || b.heroImage || '');
         root.style.setProperty('--hero-image', heroImg ? "url('" + heroImg.replace(/'/g, "\\'") + "')" : 'none');
+        // The hero is a dynamic, per-customer CSS background-image, so a
+        // static <link rel=preload> can't be hardcoded into the HTML — but
+        // this script runs in <head> before the stylesheet triggers that
+        // background-image fetch, so injecting the preload link here still
+        // primes the browser's preload scanner ahead of CSSOM resolution.
+        if (heroImg) {
+          var heroPreload = document.createElement('link');
+          heroPreload.rel = 'preload';
+          heroPreload.as = 'image';
+          heroPreload.href = heroImg;
+          document.head.appendChild(heroPreload);
+        }
 
         // Signed-in "Insider" hero — same treatment, its own generated photo.
         var heroImgSignedIn = absUrl((window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImageSignedIn) || '');
