@@ -69,18 +69,33 @@
     return parts.length === 2 && parts[1] === ALLOWED_DOMAIN;
   }
 
+  // Same tier as server.js's FETCH_TIMEOUT_PROXY_MS — these are short,
+  // simple JSON calls, not the long-running Gemini class of request.
+  const AUTH_FETCH_TIMEOUT_MS = 10000;
+
   // ─── low-level REST call (cookie session; same-origin creds) ───
   // Better Auth sets an httpOnly session cookie. We rely on cookies for
   // the session and exchange it for a JWT bearer for the Data API.
+  //
+  // Without a timeout, a stalled upstream (Neon Auth never responding)
+  // left this promise pending forever — nothing downstream (getToken,
+  // authHeaders, every Gemini/scrape call gated on it) ever rejected, so
+  // the UI just hung with no error. An AbortController-based timeout
+  // ensures a stall always resolves into a thrown error within a bounded
+  // time, same pattern as server.js's fetchWithTimeout.
   function authFetch(path, body, opts) {
     opts = opts || {};
+    const controller = new AbortController();
+    const timer = setTimeout(function () { controller.abort(); }, opts.timeoutMs || AUTH_FETCH_TIMEOUT_MS);
     const init = {
       method: opts.method || (body ? "POST" : "GET"),
       credentials: "include",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
     };
     if (body) init.body = JSON.stringify(body);
     return fetch(AUTH_BASE + path, init).then(function (res) {
+      clearTimeout(timer);
       return res.text().then(function (text) {
         let json = null;
         try { json = text ? JSON.parse(text) : null; } catch (e) { /* non-JSON */ }
@@ -94,6 +109,14 @@
         }
         return json;
       });
+    }, function (err) {
+      clearTimeout(timer);
+      if (err && err.name === "AbortError") {
+        const timeoutErr = new Error("Auth request timed out");
+        timeoutErr.status = 0;
+        throw timeoutErr;
+      }
+      throw err;
     });
   }
 
