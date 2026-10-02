@@ -1578,14 +1578,10 @@ a { color: inherit; }
 
 .category-hero {
   padding: 48px 0 32px;
-  /* Faint Kendra Scott brand banner anchored right, under a strong light
-     wash so the dark category title/subtitle stay fully legible. */
+  /* Neutral brand-tinted wash — no third-party banner image, so nothing is
+     hotlinked and no other brand's imagery can appear. */
   background:
-    linear-gradient(90deg, var(--surface-muted) 45%, rgba(255,255,255,0.82) 100%),
-    url('https://trudyshallmark.com/cdn/shop/collections/Kendra-Scott-Banner.png?v=1785481065');
-  background-size: cover, cover;
-  background-position: center, right center;
-  background-repeat: no-repeat;
+    linear-gradient(90deg, var(--surface-muted) 45%, color-mix(in srgb, var(--primary) 8%, #fff) 100%);
   border-bottom: 1px solid var(--border);
   margin-bottom: 32px;
 }
