@@ -925,7 +925,11 @@ app.get("/api/asset/proxy", requireHolodeckAuth, async (req, res) => {
     // valid V4 URL (observed ~50% of requests for the same URL), so retry 403s
     // before giving up — otherwise exports silently leave remote URLs behind.
     let upstream = await fetchWithTimeout(parsed.toString(), { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
-    for (let i = 0; i < 7 && upstream.status === 403; i++) {
+    // Back off between tries: the 403s cluster on freshly-signed URLs and the
+    // same URL succeeds a few seconds later, so instant retries all fail together.
+    for (const waitMs of [500, 1000, 2000, 3000]) {
+      if (upstream.status !== 403) break;
+      await new Promise((r) => setTimeout(r, waitMs));
       upstream = await fetchWithTimeout(parsed.toString(), { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
     }
     if (!upstream.ok) return res.status(upstream.status).json({ error: `upstream ${upstream.status}` });

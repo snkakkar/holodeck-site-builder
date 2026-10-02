@@ -593,7 +593,7 @@
             if (!res.ok) throw new Error("HTTP " + res.status);
             return res.arrayBuffer();
           }).catch(function (err) {
-            if (attempt < 1) return fetchBytes(attempt + 1);
+            if (attempt < 2) return new Promise(function (r) { setTimeout(r, 2000); }).then(function () { return fetchBytes(attempt + 1); });
             throw err;
           });
         }
