@@ -500,10 +500,17 @@
     const urlToLocal = {};
     let n = 0;
     function isRemote(u) { return typeof u === "string" && /^https?:\/\//i.test(u); }
-    function localPathFor(url) {
+    // Big photos (heroes / lifestyle) get downscaled + re-encoded as JPEG at
+    // export; url → max width in px. Raw Gemini output is multi-MB.
+    const shrinkTo = {};
+    function localPathFor(url, maxW) {
+      if (maxW) {
+        shrinkTo[url] = maxW;
+        if (urlToLocal[url]) urlToLocal[url] = urlToLocal[url].replace(/\.png$/, ".jpg");
+      }
       if (urlToLocal[url]) return urlToLocal[url];
       n++;
-      const ext = /\.png(\?|$)/i.test(url) ? "png" : "jpg";
+      const ext = (!shrinkTo[url] && /\.png(\?|$)/i.test(url)) ? "png" : "jpg";
       urlToLocal[url] = "images/generated/img-" + n + "." + ext;
       return urlToLocal[url];
     }
@@ -519,8 +526,35 @@
     const styledImgs = (bc.styledPosts || []).filter(function (sp) { return isRemote(sp.image); });
     styledImgs.forEach(function (sp) { localPathFor(sp.image); });
     if (bc.copy) {
-      if (isRemote(bc.copy.heroImage)) localPathFor(bc.copy.heroImage);
-      if (isRemote(bc.copy.heroImageSignedIn)) localPathFor(bc.copy.heroImageSignedIn);
+      if (isRemote(bc.copy.heroImage)) localPathFor(bc.copy.heroImage, 1920);
+      if (isRemote(bc.copy.heroImageSignedIn)) localPathFor(bc.copy.heroImageSignedIn, 1920);
+      if (isRemote(bc.copy.lifestyleImage)) localPathFor(bc.copy.lifestyleImage, 1400);
+    }
+    if (isRemote(bc.lifestyleImage)) localPathFor(bc.lifestyleImage, 1400);
+
+    // Downscale to maxW and re-encode as JPEG (white-filled so transparent
+    // PNGs don't go black). Any failure returns the original bytes untouched.
+    function shrinkImage(buf, maxW) {
+      if (typeof createImageBitmap !== "function" || typeof document === "undefined") return Promise.resolve(buf);
+      return createImageBitmap(new Blob([buf])).then(function (bmp) {
+        const scale = Math.min(1, maxW / bmp.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(bmp.width * scale);
+        canvas.height = Math.round(bmp.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        return new Promise(function (resolve) {
+          canvas.toBlob(function (blob) {
+            if (!blob) return resolve(buf);
+            blob.arrayBuffer().then(function (out) {
+              // Keep the original if re-encoding somehow made it bigger.
+              resolve(out.byteLength < buf.byteLength ? out : buf);
+            }, function () { resolve(buf); });
+          }, "image/jpeg", 0.82);
+        });
+      }).catch(function () { return buf; });
     }
 
     // Signed GCS URLs are cross-origin from the builder's own origin and
@@ -535,6 +569,12 @@
       if (typeof window !== "undefined" && /^https:\/\/storage\.googleapis\.com\//i.test(url)) {
         return "/api/asset/proxy?url=" + encodeURIComponent(url);
       }
+      // Scraped CDN product photos: the browser can't fetch them cross-origin
+      // (CORS / hotlink 503), and the exported site has no /api/scrape/img-proxy,
+      // so bake them through the builder's proxy instead of leaving a dead route.
+      if (typeof window !== "undefined" && /northerntrailoutfitters\.com|assets\.meshmesh\.io/i.test(url)) {
+        return "/api/scrape/img-proxy?url=" + encodeURIComponent(url);
+      }
       return url;
     }
     const auth = (typeof window !== "undefined") ? window.HOLO_AUTH : null;
@@ -548,6 +588,8 @@
         return fetch(fetchUrlFor(url), { headers: authHeaders }).then(function (res) {
           if (!res.ok) throw new Error("HTTP " + res.status);
           return res.arrayBuffer();
+        }).then(function (buf) {
+          return shrinkTo[url] ? shrinkImage(buf, shrinkTo[url]) : buf;
         }).then(function (buf) {
           images.push({ dest: urlToLocal[url], content: new Uint8Array(buf) });
           baked[url] = true;
@@ -569,7 +611,9 @@
       if (bc.copy) {
         if (baked[bc.copy.heroImage]) bc.copy.heroImage = urlToLocal[bc.copy.heroImage];
         if (baked[bc.copy.heroImageSignedIn]) bc.copy.heroImageSignedIn = urlToLocal[bc.copy.heroImageSignedIn];
+        if (baked[bc.copy.lifestyleImage]) bc.copy.lifestyleImage = urlToLocal[bc.copy.lifestyleImage];
       }
+      if (baked[bc.lifestyleImage]) bc.lifestyleImage = urlToLocal[bc.lifestyleImage];
       return { brandConfig: bc, products: productsOut, images: images };
     });
   }

@@ -234,22 +234,36 @@
 
         var heroImg = absUrl((window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImage) || b.heroImage || '');
         root.style.setProperty('--hero-image', heroImg ? "url('" + heroImg.replace(/'/g, "\\'") + "')" : 'none');
+        // Signed-in "Insider" hero — same treatment, its own generated photo.
+        var heroImgSignedIn = absUrl((window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImageSignedIn) || '');
+        root.style.setProperty('--hero-image-signedin', heroImgSignedIn ? "url('" + heroImgSignedIn.replace(/'/g, "\\'") + "')" : 'none');
+
         // The hero is a dynamic, per-customer CSS background-image, so a
         // static <link rel=preload> can't be hardcoded into the HTML — but
         // this script runs in <head> before the stylesheet triggers that
         // background-image fetch, so injecting the preload link here still
         // primes the browser's preload scanner ahead of CSSOM resolution.
-        if (heroImg) {
+        // Preload only the hero this visitor will actually see (signed-in
+        // state is in sessionStorage), not both.
+        var signedIn = false;
+        try { var _id = JSON.parse(sessionStorage.getItem('nto_user_identity') || 'null'); signedIn = !!(_id && _id.email); } catch (e) {}
+        var heroPreloadUrl = (signedIn && heroImgSignedIn) ? heroImgSignedIn : heroImg;
+        if (heroPreloadUrl) {
           var heroPreload = document.createElement('link');
           heroPreload.rel = 'preload';
           heroPreload.as = 'image';
-          heroPreload.href = heroImg;
+          heroPreload.href = heroPreloadUrl;
           document.head.appendChild(heroPreload);
         }
-
-        // Signed-in "Insider" hero — same treatment, its own generated photo.
-        var heroImgSignedIn = absUrl((window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.heroImageSignedIn) || '');
-        root.style.setProperty('--hero-image-signedin', heroImgSignedIn ? "url('" + heroImgSignedIn.replace(/'/g, "\\'") + "')" : 'none');
+        // Sign-in swaps the hero without a reload, so warm the signed-in photo
+        // at low priority for anonymous visitors.
+        if (!signedIn && heroImgSignedIn) {
+          var heroPrefetch = document.createElement('link');
+          heroPrefetch.rel = 'prefetch';
+          heroPrefetch.as = 'image';
+          heroPrefetch.href = heroImgSignedIn;
+          document.head.appendChild(heroPrefetch);
+        }
 
         // Lifestyle "our story" panel — same treatment as the hero photo.
         var lifeImg = absUrl((window.BrandConfig && window.BrandConfig.copy && window.BrandConfig.copy.lifestyleImage) || b.lifestyleImage || '');
