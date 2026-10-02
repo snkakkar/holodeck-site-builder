@@ -1216,6 +1216,18 @@
         if (!appSlice || typeof appSlice !== "object") return;
         walkStringMap(appSlice.productImages);
         walkStringMap(appSlice.config && appSlice.config.productImages);
+        // Retail CAB hero/lifestyle photography lives under config.copy, not
+        // config.productImages — walk those too so their 7-day V4-signed GCS
+        // URLs get re-signed on load/export the same way product images do.
+        // Without this, hero imagery was persisted verbatim and went
+        // stale/expired across sessions once the signature TTL passed.
+        const copy = appSlice.config && appSlice.config.copy;
+        if (copy && typeof copy === "object") {
+          ["heroImage", "heroImageSignedIn", "lifestyleImage"].forEach(function (k) {
+            const out = fn(copy[k]);
+            if (typeof out === "string") copy[k] = out;
+          });
+        }
       });
     }
   }
