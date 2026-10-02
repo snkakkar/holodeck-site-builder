@@ -921,7 +921,13 @@ app.get("/api/asset/proxy", requireHolodeckAuth, async (req, res) => {
     return res.status(400).json({ error: "a valid storage.googleapis.com url is required" });
   }
   try {
-    const upstream = await fetchWithTimeout(parsed.toString(), { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
+    // GCS intermittently answers 403 SignatureDoesNotMatch for a perfectly
+    // valid V4 URL (observed ~50% of requests for the same URL), so retry 403s
+    // before giving up — otherwise exports silently leave remote URLs behind.
+    let upstream = await fetchWithTimeout(parsed.toString(), { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
+    for (let i = 0; i < 7 && upstream.status === 403; i++) {
+      upstream = await fetchWithTimeout(parsed.toString(), { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
+    }
     if (!upstream.ok) return res.status(upstream.status).json({ error: `upstream ${upstream.status}` });
     const type = upstream.headers.get("content-type") || "image/png";
     if (!/^image\//i.test(type)) return res.status(415).json({ error: "not an image" });
