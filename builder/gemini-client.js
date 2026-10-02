@@ -33,8 +33,15 @@
 
   // Cache the availability probe so repeated UI renders don't spam
   // the server. One probe per page load is plenty; null = not yet
-  // checked.
+  // checked. If the probe itself errored (network blip, cold start) rather
+  // than the server genuinely answering configured:false, only cache that
+  // result briefly — otherwise a single transient failure poisons
+  // isConfigured() for the rest of the page session with no way to recover
+  // short of a reload.
   let _statusPromise = null;
+  let _statusAt = 0;
+  let _statusWasError = false;
+  const STATUS_RETRY_TTL_MS = 10000; // matches FETCH_TIMEOUT_PROXY_MS's tier server-side
 
   // ─── Retry on rate limit ─────────────────────────────────────
   // The server's per-user rate limiter (server.js rateLimit()) returns
@@ -104,16 +111,25 @@
   // Resolves to { configured, model }. Never rejects — a failed
   // probe is treated as "not configured" so the UI degrades to the
   // copy-paste flow instead of erroring.
-  function status() {
-    if (_statusPromise) return _statusPromise;
+  function status(forceFresh) {
+    const canReuse = _statusPromise && (!_statusWasError || Date.now() - _statusAt < STATUS_RETRY_TTL_MS);
+    if (canReuse && !forceFresh) return _statusPromise;
     _statusPromise = fetch(STATUS_URL, { headers: { Accept: "application/json" } })
-      .then(function (res) { return res.ok ? res.json() : { configured: false, model: "" }; })
-      .catch(function () { return { configured: false, model: "" }; });
+      .then(function (res) {
+        if (!res.ok) { _statusWasError = true; _statusAt = Date.now(); return { configured: false, model: "" }; }
+        _statusWasError = false;
+        return res.json();
+      })
+      .catch(function () {
+        _statusWasError = true;
+        _statusAt = Date.now();
+        return { configured: false, model: "" };
+      });
     return _statusPromise;
   }
 
-  function isConfigured() {
-    return status().then(function (s) { return Boolean(s && s.configured); });
+  function isConfigured(forceFresh) {
+    return status(forceFresh).then(function (s) { return Boolean(s && s.configured); });
   }
 
   // ─── Response cache (opt-in, per-page-session) ──────────────

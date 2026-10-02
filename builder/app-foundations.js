@@ -445,20 +445,29 @@
     const SCRAPE = global.HOLO_SCRAPE;
     const gen = global.HOLO_GEMINI;
 
-    function fallback() {
-      status("Gemini unavailable — using stock storefront defaults.", 1);
+    // Each failure point passes its own reason so the user sees what
+    // actually broke instead of one generic "Gemini unavailable" message
+    // regardless of whether it was auth, scrape, bad AI output, or image gen.
+    function fallback(reason) {
+      status((reason || "Gemini unavailable") + " — using stock storefront defaults.", 1);
       return { found: null, config: null, usedGemini: false };
     }
 
-    if (!gen || !F || !CG) return Promise.resolve(fallback());
+    if (!gen || !F || !CG) return Promise.resolve(fallback("Gemini client not available"));
 
     const cx = F.ctxFrom(state, opts.simpleAnswers);
     status("Checking AI availability…", 0.05);
     return gen.isConfigured().then(function (ok) {
-      if (!ok) return fallback();
+      if (!ok) return fallback("Gemini not configured");
       status("Scraping " + (cx.website || "site") + "…", 0.1);
       const scrapePromise = (SCRAPE && cx.website) ? SCRAPE.scrapeSite(cx.website) : Promise.resolve(null);
-      return scrapePromise.then(function (scraped) {
+      // Scrape failure is non-fatal — continue without scraped data rather
+      // than aborting the whole generation over a site that just couldn't
+      // be reached.
+      return scrapePromise.catch(function (err) {
+        status("Site scrape failed (" + ((err && err.message) || "unknown error") + ") — continuing without it…", 0.15);
+        return null;
+      }).then(function (scraped) {
         status("Generating catalog & brand with Gemini…", 0.25);
         return gen.generate({
           prompt: F.promptForStorefront(cx, scraped),
@@ -469,7 +478,7 @@
           useCache: true,
         }).then(function (text) {
           const found = parseJson(text);
-          if (!found || !Array.isArray(found.catalog)) return fallback();
+          if (!found || !Array.isArray(found.catalog)) return fallback("AI response wasn't usable");
           status("Assembling storefront configuration…", 0.4);
           // Build once (no photos yet) to get the catalog + styledPosts shape —
           // neither depends on images, so all three photo passes below can read
@@ -496,12 +505,16 @@
             const config = CG.buildStorefrontConfig(found, cx, images, scraped && scraped.brandColor, styledImages, scraped, heroImages);
             status("Retail CAB configuration ready.", 1);
             return { found: found, config: config, usedGemini: true };
+          }).catch(function (err) {
+            if (global.console) console.warn("[retailCab] image generation failed:", (err && err.message) || err);
+            return fallback("Image generation failed (" + ((err && err.message) || "unknown error") + ")");
           });
         });
       });
     }).catch(function (err) {
-      if (global.console) console.warn("[retailCab] generation failed:", (err && err.message) || err);
-      return fallback();
+      const msg = (err && err.message) || String(err);
+      if (global.console) console.warn("[retailCab] generation failed:", msg);
+      return fallback("Generation failed (" + msg + ")");
     });
   }
 
