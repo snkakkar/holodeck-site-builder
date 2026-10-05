@@ -1,0 +1,7 @@
+# Files that exist in git but are never served or exported by the running app.
+# Keeps the Heroku slug (and boot time) smaller.
+demo/assets/Laptop Happy Browsing.gif
+demo-apps/retail-cab/images/styled/cand
+demo-apps/retail-cab/images/birthdaypromo.png
+demo/assets/Rachel_Phone.gif
+demo/assets/Rachel_Hero.gif

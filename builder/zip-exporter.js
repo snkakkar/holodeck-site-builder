@@ -111,37 +111,12 @@
     retailCab: {
       files: [
         { src: "../demo-apps/retail-cab/css/styles.css", dest: "css/styles.css", kind: "text" },
-        { src: "../demo-apps/retail-cab/images/birthdaypromo.png", dest: "images/birthdaypromo.png", kind: "binary" },
         { src: "../demo-apps/retail-cab/images/styled/bold-color-1.jpg", dest: "images/styled/bold-color-1.jpg", kind: "binary" },
         { src: "../demo-apps/retail-cab/images/styled/bold-color-2.jpg", dest: "images/styled/bold-color-2.jpg", kind: "binary" },
         { src: "../demo-apps/retail-cab/images/styled/bold-color-3.jpg", dest: "images/styled/bold-color-3.jpg", kind: "binary" },
         { src: "../demo-apps/retail-cab/images/styled/bridal-moments-1.jpg", dest: "images/styled/bridal-moments-1.jpg", kind: "binary" },
         { src: "../demo-apps/retail-cab/images/styled/bridal-moments-2.jpg", dest: "images/styled/bridal-moments-2.jpg", kind: "binary" },
         { src: "../demo-apps/retail-cab/images/styled/bridal-moments-3.jpg", dest: "images/styled/bridal-moments-3.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c01.jpg", dest: "images/styled/cand/c01.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c02.jpg", dest: "images/styled/cand/c02.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c03.jpg", dest: "images/styled/cand/c03.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c04.jpg", dest: "images/styled/cand/c04.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c05.jpg", dest: "images/styled/cand/c05.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c06.jpg", dest: "images/styled/cand/c06.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c07.jpg", dest: "images/styled/cand/c07.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c08.jpg", dest: "images/styled/cand/c08.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c09.jpg", dest: "images/styled/cand/c09.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c10.jpg", dest: "images/styled/cand/c10.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c11.jpg", dest: "images/styled/cand/c11.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c12.jpg", dest: "images/styled/cand/c12.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c13.jpg", dest: "images/styled/cand/c13.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c14.jpg", dest: "images/styled/cand/c14.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c15.jpg", dest: "images/styled/cand/c15.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c16.jpg", dest: "images/styled/cand/c16.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c17.jpg", dest: "images/styled/cand/c17.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c18.jpg", dest: "images/styled/cand/c18.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c19.jpg", dest: "images/styled/cand/c19.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c20.jpg", dest: "images/styled/cand/c20.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c21.jpg", dest: "images/styled/cand/c21.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c22.jpg", dest: "images/styled/cand/c22.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c23.jpg", dest: "images/styled/cand/c23.jpg", kind: "binary" },
-        { src: "../demo-apps/retail-cab/images/styled/cand/c24.jpg", dest: "images/styled/cand/c24.jpg", kind: "binary" },
         { src: "../demo-apps/retail-cab/images/styled/coastal-grandmother-1.jpg", dest: "images/styled/coastal-grandmother-1.jpg", kind: "binary" },
         { src: "../demo-apps/retail-cab/images/styled/coastal-grandmother-2.jpg", dest: "images/styled/coastal-grandmother-2.jpg", kind: "binary" },
         { src: "../demo-apps/retail-cab/images/styled/coastal-grandmother-3.jpg", dest: "images/styled/coastal-grandmother-3.jpg", kind: "binary" },
@@ -511,7 +486,8 @@
     let n = 0;
     function isRemote(u) { return typeof u === "string" && /^https?:\/\//i.test(u); }
     // Big photos (heroes / lifestyle) get downscaled + re-encoded as JPEG at
-    // export; url → max width in px. Raw Gemini output is multi-MB.
+    // export; url → max width in px. Raw Gemini output is multi-MB. Product and
+    // styled-look photos are shrunk to 800px too (they render well under that).
     const shrinkTo = {};
     function localPathFor(url, maxW) {
       if (maxW) {
@@ -531,10 +507,10 @@
     // written, a guaranteed 404 in the exported app. Only swap a field to
     // its local path once the bytes are confirmed in hand.
     const productImgs = (products || []).filter(function (p) { return isRemote(p.image); });
-    productImgs.forEach(function (p) { localPathFor(p.image); });
+    productImgs.forEach(function (p) { localPathFor(p.image, 800); });
     const bc = JSON.parse(JSON.stringify(brandConfig || {}));
     const styledImgs = (bc.styledPosts || []).filter(function (sp) { return isRemote(sp.image); });
-    styledImgs.forEach(function (sp) { localPathFor(sp.image); });
+    styledImgs.forEach(function (sp) { localPathFor(sp.image, 800); });
     if (bc.copy) {
       if (isRemote(bc.copy.heroImage)) localPathFor(bc.copy.heroImage, 1920);
       if (isRemote(bc.copy.heroImageSignedIn)) localPathFor(bc.copy.heroImageSignedIn, 1920);
