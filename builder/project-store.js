@@ -1183,6 +1183,11 @@
   const UPLOAD_API = "/api/asset/upload";
   const CLOUD_DATAURL_MIN = 32 * 1024; // leave small inline images (logos/icons) alone
   const _uploadInflight = Object.create(null); // data url → Promise<{token,url}|null>
+  // Circuit breaker: if an upload fails (e.g. GCS credentials rejected), stop
+  // trying for a while. Otherwise every autosave would wait on N failing uploads
+  // (each ~2s of server retries) before the row write, stalling saves.
+  const UPLOAD_COOLDOWN_MS = 5 * 60 * 1000;
+  let _uploadsPausedUntil = 0;
   function isUploadableDataUrl(v) {
     return typeof v === "string" && v.length > CLOUD_DATAURL_MIN &&
       /^data:image\/(png|jpeg|webp|gif);base64,/i.test(v);
@@ -1202,18 +1207,18 @@
     }).then(function (res) {
       return res.ok ? res.json() : null;
     }).then(function (data) {
-      if (!data || !data.path || !data.url) return null;
+      if (!data || !data.path || !data.url) { _uploadsPausedUntil = Date.now() + UPLOAD_COOLDOWN_MS; return null; }
       const token = "gcs:" + data.path;
       rememberSigned(data.url, token);
       return { token: token, url: data.url };
-    }).catch(function () { return null; });
+    }).catch(function () { _uploadsPausedUntil = Date.now() + UPLOAD_COOLDOWN_MS; return null; });
     _uploadInflight[dataUrl] = p;
     // Drop the (huge) key once settled so it isn't retained for the page life.
     p.then(function () { delete _uploadInflight[dataUrl]; });
     return p;
   }
   function uploadInlineImages(state) {
-    if (!state) return Promise.resolve();
+    if (!state || Date.now() < _uploadsPausedUntil) return Promise.resolve();
     const found = [];
     mapAssetValues(state, function (v) {
       if (isUploadableDataUrl(v) && found.indexOf(v) === -1) found.push(v);
@@ -1225,6 +1230,7 @@
     // memory bounded on projects that carry dozens of inline photos.
     return found.reduce(function (chain, dataUrl) {
       return chain.then(function () {
+        if (Date.now() < _uploadsPausedUntil) return undefined; // a prior upload just failed
         return uploadOneDataUrl(dataUrl).then(function (r) { if (r) done[dataUrl] = r; });
       });
     }, Promise.resolve()).then(function () {
