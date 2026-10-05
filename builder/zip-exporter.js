@@ -251,7 +251,7 @@
       const appIds = enabledAppIds(state);
       if (!appIds.length) return payload;
       return Promise.all(appIds.map(function (id) {
-        return fetchAppTemplate(id)
+        return fetchAppTemplate(id, state)
           .then(function (files) { return { id: id, files: files }; })
           .catch(function (err) {
             if (typeof console !== "undefined" && console.warn) {
@@ -354,10 +354,16 @@
 
   // Fetch one app's template files (verbatim) over http. Resolves to an
   // array of { dest, content } or rejects if a required file is missing.
-  function fetchAppTemplate(appId) {
+  function fetchAppTemplate(appId, state) {
     const tpl = APP_TEMPLATE_FILES[appId];
     if (!tpl || typeof fetch !== "function") return Promise.resolve(null);
-    const promises = tpl.files.map(function (tf) {
+    // A generated Retail CAB storefront never ships the stock Cavender's
+    // photos (buildRetailCabAppPayload drops them), so don't download them.
+    const slice = state && state.apps && state.apps[appId];
+    const skipStockImages = appId === "retailCab" && !!(slice && slice.config);
+    const promises = tpl.files.filter(function (tf) {
+      return !(skipStockImages && isStockRetailCabImage(tf.dest));
+    }).map(function (tf) {
       return fetch(tf.src, { cache: "no-store" }).then(function (res) {
         if (!res.ok) {
           if (tf.optional) return null;
@@ -451,6 +457,10 @@
   // any live Gemini-generated image URLs are fetched + baked into local
   // files under images/generated/ so the exported app doesn't depend on
   // GCS-signed URLs that expire ~7 days after generation.
+  function isStockRetailCabImage(dest) {
+    return dest.indexOf("images/styled/") === 0 || dest === "images/birthdaypromo.png";
+  }
+
   function buildRetailCabAppPayload(state, appId, root, templateFiles) {
     const slice = (state.apps && state.apps.retailCab) || {};
     const config = slice.config;
@@ -476,7 +486,7 @@
       templateFiles.forEach(function (tf) {
         if (tf.dest === "js/brand-config.js") files.push({ path: appRoot + tf.dest, content: configJs });
         else if (tf.dest === "js/products.json") files.push({ path: appRoot + tf.dest, content: productsJson });
-        else if (tf.dest.indexOf("images/styled/") === 0 || tf.dest === "images/birthdaypromo.png") {
+        else if (isStockRetailCabImage(tf.dest)) {
           // Stock Cavender's-branded template photos — the generated
           // brand-config.js/products.json above no longer reference them
           // (styledPosts/hero images now point at baked images/generated/*),
