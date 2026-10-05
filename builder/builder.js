@@ -144,33 +144,55 @@
   // come first and have no measurable progress, so the bar starts indeterminate
   // and becomes real once the exporter starts reporting.
   function exportZipWithProgress(getState, doneMsg) {
+    if (exportZipWithProgress._running) { toast("A ZIP export is already in progress."); return Promise.resolve(); }
+    exportZipWithProgress._running = true;
     let box = $("#bxZipProgress");
     if (!box) {
       box = el("div", { id: "bxZipProgress", class: "bx-zip-progress", hidden: "" }, [
-        el("div", { class: "bx-zip-progress-label" }),
+        el("div", { class: "bx-zip-progress-head" }, [
+          el("div", { class: "bx-zip-progress-label" }),
+          el("button", { class: "bx-zip-progress-cancel", type: "button", text: "Cancel" }),
+        ]),
         el("div", { class: "bx-zip-progress-track" }, [el("div", { class: "bx-zip-progress-fill" })]),
       ]);
       document.body.appendChild(box);
     }
     const label = box.querySelector(".bx-zip-progress-label");
     const fill = box.querySelector(".bx-zip-progress-fill");
+    const cancelBtn = box.querySelector(".bx-zip-progress-cancel");
+    const ctl = (typeof AbortController === "function") ? new AbortController() : null;
+    let cancelled = false;
+    cancelBtn.disabled = false;
+    cancelBtn.hidden = !ctl;
+    cancelBtn.onclick = function () {
+      cancelled = true;
+      cancelBtn.disabled = true;
+      label.textContent = "Cancelling…";
+      if (ctl) ctl.abort();
+    };
     function show(fraction, text) {
       box.hidden = false;
-      label.textContent = text;
+      if (!cancelled) label.textContent = text;
       if (fraction == null) { fill.classList.add("is-indeterminate"); fill.style.width = ""; }
       else { fill.classList.remove("is-indeterminate"); fill.style.width = Math.round(fraction * 100) + "%"; }
     }
+    function finish() { box.hidden = true; exportZipWithProgress._running = false; }
     show(null, "Building your demo ZIP…");
     const s = getState();
     return Promise.resolve(ensureJourneyImages(s))
       .catch(function () { return 0; })
-      .then(function () { return window.HOLO_ZIP.downloadCompleteDemoZip(s, { onProgress: show }); })
       .then(function () {
-        box.hidden = true;
+        // Cancelled while journey images were preparing: stop before the exporter starts.
+        if (cancelled) { const e = new Error("Export cancelled"); e.cancelled = true; throw e; }
+        return window.HOLO_ZIP.downloadCompleteDemoZip(s, { onProgress: show, signal: ctl && ctl.signal });
+      })
+      .then(function () {
+        finish();
         toast(doneMsg);
       }, function (e) {
-        box.hidden = true;
-        toast("Couldn't build the ZIP: " + (e && e.message || e));
+        finish();
+        if (cancelled || (e && (e.cancelled || e.name === "AbortError"))) toast("ZIP export cancelled.");
+        else toast("Couldn't build the ZIP: " + (e && e.message || e));
       });
   }
 

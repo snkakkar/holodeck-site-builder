@@ -177,13 +177,28 @@
   // progress bar. Milestones are real (template fetched, each photo baked,
   // zip encoded) so the bar never claims progress that didn't happen.
   let _onProgress = null;
+  // Optional opts.signal (AbortSignal) lets the builder cancel mid-export:
+  // in-flight fetches abort, and we re-check at each stage so a cancelled
+  // export never reaches the download step.
+  let _signal = null;
+  function isCancelled() { return !!(_signal && _signal.aborted); }
+  function assertNotCancelled() {
+    if (isCancelled()) {
+      const e = new Error("Export cancelled");
+      e.name = "AbortError";
+      e.cancelled = true;
+      throw e;
+    }
+  }
   function report(fraction, label) {
     try { if (_onProgress) _onProgress(fraction, label); } catch (e) { /* UI only */ }
   }
   function downloadCompleteDemoZip(state, opts) {
     _onProgress = (opts && typeof opts.onProgress === "function") ? opts.onProgress : null;
+    _signal = (opts && opts.signal) || null;
     report(0.03, "Preparing files…");
     return buildDemoZipPayload(state).then(function (payload) {
+      assertNotCancelled();
       report(0.9, "Packaging ZIP…");
       const blob = encodeZip(payload.files);
       report(1, "Starting download…");
@@ -195,8 +210,9 @@
       a.click();
       setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 250);
       _onProgress = null;
+      _signal = null;
       return payload;
-    }, function (err) { _onProgress = null; throw err; });
+    }, function (err) { _onProgress = null; _signal = null; throw err; });
   }
 
   // ─── Build the file list to put into the ZIP ─────────────────
@@ -232,6 +248,7 @@
           "http://localhost:8000/builder/index.html and export again."
         );
       }
+      assertNotCancelled();
       report(0.15, "Fetching app files…");
       const payload = buildPolishedPayload(state, slug, root, templateFiles);
       // Fetch + package each enabled+generated companion app, then fold
@@ -248,6 +265,7 @@
             return null;   // one bad app never aborts the whole export
           });
       })).then(function (fetched) {
+        assertNotCancelled();
         // buildAppPayload can be async (retailCab bakes remote images into
         // local files) — always treat its result as a promise.
         const packagedIds = [];
@@ -352,7 +370,7 @@
     const promises = tpl.files.filter(function (tf) {
       return !(skipStockImages && isStockRetailCabImage(tf.dest));
     }).map(function (tf) {
-      return fetch(tf.src, { cache: "no-store" }).then(function (res) {
+      return fetch(tf.src, { cache: "no-store", signal: _signal || undefined }).then(function (res) {
         if (!res.ok) {
           if (tf.optional) return null;
           throw new Error("HTTP " + res.status + " on " + tf.src);
@@ -595,10 +613,11 @@
         // One retry: the proxy has a 10s upstream timeout and multi-MB Gemini
         // photos occasionally 502 on the first try.
         function fetchBytes(attempt) {
-          return fetch(fetchUrlFor(url), { headers: authHeaders }).then(function (res) {
+          return fetch(fetchUrlFor(url), { headers: authHeaders, signal: _signal || undefined }).then(function (res) {
             if (!res.ok) throw new Error("HTTP " + res.status);
             return res.arrayBuffer();
           }).catch(function (err) {
+            if (isCancelled()) throw err;   // no retry after Cancel
             if (attempt < 2) return new Promise(function (r) { setTimeout(r, 2000); }).then(function () { return fetchBytes(attempt + 1); });
             throw err;
           });
@@ -610,6 +629,7 @@
           baked[url] = true;
           bumpPhotos();
         }).catch(function (err) {
+          if (isCancelled()) return;   // cancelled: not a real bake failure
           failedBakes.push(url);
           bumpPhotos();
           if (typeof console !== "undefined" && console.warn) {
@@ -618,6 +638,7 @@
         });
       }));
     }).then(function () {
+      assertNotCancelled();
       if (failedBakes.length && typeof console !== "undefined" && console.error) {
         console.error("[holo] retailCab export: " + failedBakes.length + " image(s) could not be baked and will load slowly from their remote URLs:", failedBakes);
       }
@@ -707,7 +728,7 @@
   function tryFetchPolishedTemplate() {
     if (typeof fetch !== "function") return Promise.resolve(null);
     const promises = DEMO_TEMPLATE_FILES.map(function (tf) {
-      return fetch(tf.src, { cache: "no-store" }).then(function (res) {
+      return fetch(tf.src, { cache: "no-store", signal: _signal || undefined }).then(function (res) {
         if (!res.ok) {
           if (tf.optional) return null;
           throw new Error("HTTP " + res.status + " on " + tf.src);
