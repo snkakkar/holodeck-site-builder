@@ -193,6 +193,19 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveActive, 250);
   }
+  // Explicit save (Save button / Cmd+Ctrl+S): write the whole project now, even
+  // if nothing changed, and tell the user where it landed. Cancels any pending
+  // debounced autosave since this write supersedes it.
+  function saveNow() {
+    if (app.view !== "builder" || !app.state) return Promise.resolve();
+    if (app.readOnly) { toast("This project is open in read-only mode."); return Promise.resolve(); }
+    clearTimeout(saveTimer);
+    setSaveIndicator(true);
+    return Promise.resolve(saveActive()).then(function () {
+      const failed = STORE.lastSyncFailed && STORE.lastSyncFailed();
+      toast(failed ? "Saved on this device only — couldn't sync to your account yet." : "Saved to cloud");
+    });
+  }
   // state: true = "Saving…"; false = optimistic local save done; the optional
   // `synced` arg (set once the async write resolves) distinguishes a confirmed
   // cloud save ("Saved to cloud") from a local-only fallback ("Saved locally").
@@ -851,6 +864,7 @@
 
     body.appendChild(simpleNav([
       btn("← Back", "bx-btn-secondary", function () { simpleGoTo("menu"); }),
+      btn("💾 Save", "bx-btn-secondary", saveNow),
       btn("Next →", "bx-btn-primary", function () {
         if (!(p.customerName || "").trim()) { toast("Enter a customer name"); return; }
         simpleGoTo("questions");
@@ -925,6 +939,7 @@
 
     body.appendChild(simpleNav([
       btn("← Back", "bx-btn-secondary", function () { simpleGoTo("basics"); }),
+      btn("💾 Save", "bx-btn-secondary", saveNow),
       btn("✨ Generate demo", "bx-btn-primary", function () {
         simpleState().panel = "generate";
         simpleState()._status = "";
@@ -10436,8 +10451,7 @@
       if (!isSaveKey) return;
       if (app.view !== "builder" || !app.state) return; // let the browser handle it elsewhere
       e.preventDefault();
-      if (app.readOnly) { toast("This project is open in read-only mode."); return; }
-      saveActive().then(function () { toast("Saved"); });
+      saveNow();
     }, true);
 
     // Auth gate: no Data API calls until we have a verified session.
