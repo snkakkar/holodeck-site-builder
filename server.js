@@ -311,6 +311,19 @@ function uploadImageToGcs(buffer, mime) {
     .then(function () { return name; });
 }
 
+// GCS uploads/signing occasionally fail transiently. A single failure used to
+// drop straight to an inline data: URL (megabytes of base64 saved into the
+// project row), so retry a couple of times with a short backoff first.
+async function uploadImageToGcsWithRetry(buffer, mime) {
+  let lastErr;
+  for (const waitMs of [0, 400, 1200]) {
+    if (waitMs) await new Promise((r) => setTimeout(r, waitMs));
+    try { return await uploadImageToGcs(buffer, mime); }
+    catch (err) { lastErr = err; }
+  }
+  throw lastErr;
+}
+
 // Mint a short-lived V4 signed READ URL for a private object path.
 // Only ai/ paths are signable (guards against signing arbitrary
 // objects from a client-supplied path). Resolves to the https URL.
@@ -679,7 +692,7 @@ app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, async (re
     // degrade to the data: URL rather than error out the generation.
     if (gcsConfigured()) {
       try {
-        const path = await uploadImageToGcs(Buffer.from(b64, "base64"), mime);
+        const path = await uploadImageToGcsWithRetry(Buffer.from(b64, "base64"), mime);
         const signed = await signGcsUrl(path);
         return finish({ type: "done", path, url: signed, model });
       } catch (upErr) {
@@ -723,6 +736,39 @@ app.post("/api/asset/sign", requireHolodeckAuth, async (req, res) => {
   }));
   return res.json({ urls });
 });
+
+// ── Asset upload (inline data: image → private GCS) ─────────────
+// The builder calls this at SAVE time for any large inline data: image that
+// ended up in project state (GCS was down during generation, or the user
+// uploaded a big file). Body is the raw image bytes with an image/* content
+// type (express.raw — the global JSON parser ignores non-JSON bodies).
+// Returns { path, url }: the client persists "gcs:" + path and displays url.
+// Auth-gated like /api/asset/sign; not run through rateLimit because a project
+// with many inline photos legitimately uploads dozens in a row.
+const ASSET_UPLOAD_MIMES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+app.post(
+  "/api/asset/upload",
+  requireHolodeckAuth,
+  express.raw({ type: ASSET_UPLOAD_MIMES, limit: "12mb" }),
+  async (req, res) => {
+    if (!gcsConfigured()) return res.status(503).json({ error: "GCS not configured" });
+    const mime = String(req.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    if (ASSET_UPLOAD_MIMES.indexOf(mime) === -1) {
+      return res.status(415).json({ error: "Unsupported image type" });
+    }
+    if (!Buffer.isBuffer(req.body) || !req.body.length) {
+      return res.status(400).json({ error: "Empty body" });
+    }
+    try {
+      const path = await uploadImageToGcsWithRetry(req.body, mime);
+      const url = await signGcsUrl(path);
+      return res.json({ path, url });
+    } catch (err) {
+      console.warn("[holodeck] asset upload failed:", (err && err.message) || err);
+      return res.status(502).json({ error: "Upload failed" });
+    }
+  }
+);
 
 // ── Google Slides export routes ────────────────────────────────
 // Availability probe — the builder hides/disables the button when

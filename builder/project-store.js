@@ -467,12 +467,17 @@
         });
     },
     saveProject: function (state) {
-      const row = stateToRow(state);
-      // Upsert: PostgREST merge-duplicates on the primary key.
-      return dataFetch("/projects?on_conflict=id", {
-        method: "POST",
-        headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
-        body: [row],
+      // Move large inline data: images to GCS first so the row stores small
+      // "gcs:" tokens instead of megabytes of base64. Never rejects: on any
+      // failure the images simply stay inline, as before.
+      return uploadInlineImages(state).then(function () {
+        const row = stateToRow(state);
+        // Upsert: PostgREST merge-duplicates on the primary key.
+        return dataFetch("/projects?on_conflict=id", {
+          method: "POST",
+          headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+          body: [row],
+        });
       }).then(function () { clearDirty(state.id); return state.id; });
     },
     deleteProject: function (id) {
@@ -1165,6 +1170,71 @@
   }
   function isGcsToken(v) { return typeof v === "string" && v.lastIndexOf("gcs:", 0) === 0; }
   function tokenPath(token) { return token.slice(4); } // strip "gcs:"
+
+  // ── Inline data: images → GCS at save time ──────────────────
+  // When GCS was unreachable during generation (or the user uploaded a big
+  // file), the image sits in state as a base64 data: URL. Persisting it puts
+  // megabytes in the project row (a 24MB project), which every open then drags
+  // through the server. Before each cloud save, upload any large data: image
+  // via /api/asset/upload and swap the LIVE slot to the returned signed URL
+  // (remembered as a "gcs:" token, so stateToRow persists just the token).
+  // Only the asset slots mapAssetValues walks are handled. Any failure leaves
+  // the image inline exactly as before — this can only shrink a save.
+  const UPLOAD_API = "/api/asset/upload";
+  const CLOUD_DATAURL_MIN = 32 * 1024; // leave small inline images (logos/icons) alone
+  const _uploadInflight = Object.create(null); // data url → Promise<{token,url}|null>
+  function isUploadableDataUrl(v) {
+    return typeof v === "string" && v.length > CLOUD_DATAURL_MIN &&
+      /^data:image\/(png|jpeg|webp|gif);base64,/i.test(v);
+  }
+  function uploadOneDataUrl(dataUrl) {
+    if (_uploadInflight[dataUrl]) return _uploadInflight[dataUrl];
+    const auth = AUTH();
+    const headersP = auth && auth.authHeaders ? auth.authHeaders() : Promise.resolve({});
+    const p = fetch(dataUrl).then(function (r) { return r.blob(); }).then(function (blob) {
+      return headersP.then(function (authHeaders) {
+        return fetch(UPLOAD_API, {
+          method: "POST",
+          headers: Object.assign({ "Content-Type": blob.type }, authHeaders),
+          body: blob,
+        });
+      });
+    }).then(function (res) {
+      return res.ok ? res.json() : null;
+    }).then(function (data) {
+      if (!data || !data.path || !data.url) return null;
+      const token = "gcs:" + data.path;
+      rememberSigned(data.url, token);
+      return { token: token, url: data.url };
+    }).catch(function () { return null; });
+    _uploadInflight[dataUrl] = p;
+    // Drop the (huge) key once settled so it isn't retained for the page life.
+    p.then(function () { delete _uploadInflight[dataUrl]; });
+    return p;
+  }
+  function uploadInlineImages(state) {
+    if (!state) return Promise.resolve();
+    const found = [];
+    mapAssetValues(state, function (v) {
+      if (isUploadableDataUrl(v) && found.indexOf(v) === -1) found.push(v);
+      return undefined;
+    });
+    if (!found.length) return Promise.resolve();
+    const done = Object.create(null); // data url → { url }
+    // Sequential: one image in flight at a time keeps browser and server
+    // memory bounded on projects that carry dozens of inline photos.
+    return found.reduce(function (chain, dataUrl) {
+      return chain.then(function () {
+        return uploadOneDataUrl(dataUrl).then(function (r) { if (r) done[dataUrl] = r; });
+      });
+    }, Promise.resolve()).then(function () {
+      // Swap only slots that STILL hold the same data url (the user may have
+      // changed one mid-upload); everything else is left alone.
+      mapAssetValues(state, function (v) {
+        return (typeof v === "string" && done[v]) ? done[v].url : undefined;
+      });
+    }).catch(function () { /* images stay inline */ });
+  }
 
   // Recover the "gcs:ai/.." token from a (possibly EXPIRED) GCS signed URL.
   // The GCS object never expires — only the V4 signature does — and the
