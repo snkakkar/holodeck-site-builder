@@ -384,8 +384,13 @@
     });
     const sim = state.simple;
     if (sim && typeof sim === "object" && sim.panel === "generate") {
-      // Finished builds route to "done"; an interrupted one back to the menu.
-      sim.panel = sim._done ? "done" : "menu";
+      // Finished builds route to "done" (same test the Build chip uses: the
+      // persisted deck, not just the _done flag, so older projects count);
+      // an interrupted one back to the menu.
+      const built = !!(sim._done || (state.slides || []).some(function (sl) {
+        return !sl.sectionId || sl.sectionId === "demo";
+      }));
+      sim.panel = built ? "done" : "menu";
       sim._progress = 0;
       sim._status = "";
       changed = true;
