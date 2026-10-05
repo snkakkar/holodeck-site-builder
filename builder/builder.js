@@ -139,6 +139,41 @@
     toast._timer = setTimeout(function () { t.hidden = true; }, 2400);
   }
 
+  // ZIP export with a small progress bar (bottom-centre) so a long export
+  // doesn't look like the page hung. Journey images (if any need generating)
+  // come first and have no measurable progress, so the bar starts indeterminate
+  // and becomes real once the exporter starts reporting.
+  function exportZipWithProgress(getState, doneMsg) {
+    let box = $("#bxZipProgress");
+    if (!box) {
+      box = el("div", { id: "bxZipProgress", class: "bx-zip-progress", hidden: "" }, [
+        el("div", { class: "bx-zip-progress-label" }),
+        el("div", { class: "bx-zip-progress-track" }, [el("div", { class: "bx-zip-progress-fill" })]),
+      ]);
+      document.body.appendChild(box);
+    }
+    const label = box.querySelector(".bx-zip-progress-label");
+    const fill = box.querySelector(".bx-zip-progress-fill");
+    function show(fraction, text) {
+      box.hidden = false;
+      label.textContent = text;
+      if (fraction == null) { fill.classList.add("is-indeterminate"); fill.style.width = ""; }
+      else { fill.classList.remove("is-indeterminate"); fill.style.width = Math.round(fraction * 100) + "%"; }
+    }
+    show(null, "Building your demo ZIP…");
+    const s = getState();
+    return Promise.resolve(ensureJourneyImages(s))
+      .catch(function () { return 0; })
+      .then(function () { return window.HOLO_ZIP.downloadCompleteDemoZip(s, { onProgress: show }); })
+      .then(function () {
+        box.hidden = true;
+        toast(doneMsg);
+      }, function (e) {
+        box.hidden = true;
+        toast("Couldn't build the ZIP: " + (e && e.message || e));
+      });
+  }
+
   // ─── Persistence ──────────────────────────────────────────────
   function saveActive() {
     if (app.view !== "builder" || !app.state) return Promise.resolve();
@@ -982,12 +1017,7 @@
       if (!window.HOLO_ZIP || !window.HOLO_ZIP.downloadCompleteDemoZip) {
         toast("ZIP export isn't available — reload the page and try again."); return;
       }
-      toast("Building demo ZIP…");
-      Promise.resolve(ensureJourneyImages(s))
-        .catch(function () { return 0; })
-        .then(function () { return window.HOLO_ZIP.downloadCompleteDemoZip(s); })
-        .then(function () { toast("Demo ZIP downloaded"); })
-        .catch(function (e) { toast("Couldn't build the ZIP: " + (e && e.message || e)); });
+      exportZipWithProgress(function () { return s; }, "Demo ZIP downloaded");
     });
     // Regeneration is explicit only — navigating back never silently re-runs.
     const rebuildBtn = btn("↻ Rebuild demo", "bx-btn-secondary", function () {
@@ -7240,15 +7270,7 @@
           if (!confirm("You can export now, but " + incomplete + " item" + (incomplete === 1 ? "" : "s") +
                        " still need attention. Export anyway?")) return;
         }
-        toast("Building polished demo ZIP…");
-        Promise.resolve(ensureJourneyImages(s))
-          .catch(function () { return 0; })
-          .then(function () { return window.HOLO_ZIP.downloadCompleteDemoZip(s); })
-          .then(function () {
-            toast("Polished demo ZIP downloaded");
-          }).catch(function (e) {
-            toast("Couldn't build the ZIP: " + (e && e.message || e));
-          });
+        exportZipWithProgress(function () { return s; }, "Polished demo ZIP downloaded");
       }),
     ]));
     wrap.appendChild(zipCard);
@@ -9144,13 +9166,7 @@
           + "(Only if a live CX component won't load, serve the demo/ folder with python3 -m http.server.)" }));
     wrap.appendChild(el("div", { class: "bx-modal-actions", style: "margin-top: 0; margin-bottom: 14px;" }, [
       btn("⬇ Download Complete Demo ZIP", "bx-btn-primary", function () {
-        toast("Building polished demo ZIP…");
-        Promise.resolve(ensureJourneyImages(app.state))
-          .catch(function () { return 0; })
-          .then(function () { return window.HOLO_ZIP.downloadCompleteDemoZip(app.state); })
-          .then(function () {
-            toast("Polished demo ZIP downloaded");
-          }).catch(function (e) { toast("Couldn't build the ZIP: " + (e && e.message || e)); });
+        exportZipWithProgress(function () { return app.state; }, "Polished demo ZIP downloaded");
       }),
       btn("Download Config JS", "bx-btn-secondary", function () {
         CONFIG.downloadFile("holodeck.config.js", cfgJs, "text/javascript"); toast("Downloaded");

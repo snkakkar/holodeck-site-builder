@@ -173,9 +173,20 @@
   // If fetch fails (file:// open of the builder, or /demo unavailable),
   // we fall back to the legacy generator-based ZIP so the SE always
   // gets *something*.
-  function downloadCompleteDemoZip(state) {
+  // Optional opts.onProgress(fraction 0..1, label) lets the builder show a
+  // progress bar. Milestones are real (template fetched, each photo baked,
+  // zip encoded) so the bar never claims progress that didn't happen.
+  let _onProgress = null;
+  function report(fraction, label) {
+    try { if (_onProgress) _onProgress(fraction, label); } catch (e) { /* UI only */ }
+  }
+  function downloadCompleteDemoZip(state, opts) {
+    _onProgress = (opts && typeof opts.onProgress === "function") ? opts.onProgress : null;
+    report(0.03, "Preparing files…");
     return buildDemoZipPayload(state).then(function (payload) {
+      report(0.9, "Packaging ZIP…");
       const blob = encodeZip(payload.files);
+      report(1, "Starting download…");
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -183,8 +194,9 @@
       document.body.appendChild(a);
       a.click();
       setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 250);
+      _onProgress = null;
       return payload;
-    });
+    }, function (err) { _onProgress = null; throw err; });
   }
 
   // ─── Build the file list to put into the ZIP ─────────────────
@@ -220,6 +232,7 @@
           "http://localhost:8000/builder/index.html and export again."
         );
       }
+      report(0.15, "Fetching app files…");
       const payload = buildPolishedPayload(state, slug, root, templateFiles);
       // Fetch + package each enabled+generated companion app, then fold
       // their files (and a root hub index) into the same payload.
@@ -570,6 +583,13 @@
     const baked = {}; // url → true once its bytes are fetched successfully
     const failedBakes = [];
     const urls = Object.keys(urlToLocal);
+    let doneCount = 0;
+    function bumpPhotos() {
+      doneCount++;
+      // Photos are the slow part: map them onto the 25%..85% stretch of the bar.
+      report(0.25 + 0.6 * (doneCount / Math.max(1, urls.length)),
+        "Downloading photos " + doneCount + " of " + urls.length + "…");
+    }
     return authHeadersP.then(function (authHeaders) {
       return Promise.all(urls.map(function (url) {
         // One retry: the proxy has a 10s upstream timeout and multi-MB Gemini
@@ -588,8 +608,10 @@
         }).then(function (buf) {
           images.push({ dest: urlToLocal[url], content: new Uint8Array(buf) });
           baked[url] = true;
+          bumpPhotos();
         }).catch(function (err) {
           failedBakes.push(url);
+          bumpPhotos();
           if (typeof console !== "undefined" && console.warn) {
             console.warn("[holo] retailCab: failed to bake image " + url + " — leaving the live URL in place", err && err.message);
           }
