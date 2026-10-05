@@ -299,16 +299,13 @@
     let slim;
     try { slim = JSON.parse(JSON.stringify(state)); }
     catch (e) { return state; } // non-serializable → fall back to raw
-    if (slim.assetLibrary && typeof slim.assetLibrary === "object") {
-      Object.keys(slim.assetLibrary).forEach(function (k) {
-        if (isHeavyDataUrl(slim.assetLibrary[k])) slim.assetLibrary[k] = "";
-      });
-    }
-    if (slim.brand) {
-      if (isHeavyDataUrl(slim.brand.logoPath)) slim.brand.logoPath = "";
-      if (isHeavyDataUrl(slim.brand.customerLogoPath)) slim.brand.customerLogoPath = "";
-    }
-    // Persona portraits live in assetLibrary["persona.portrait"] (handled above).
+    // Blank heavy data: URLs in EVERY asset slot — assetLibrary, brand logos,
+    // retailImages, per-app productImages, Retail CAB hero/lifestyle/styled
+    // posts/product images. mapAssetValues is the one walk over those slots
+    // (also used for tokenize/re-sign); previously only assetLibrary and the
+    // logos were slimmed, so a few inline AI photos blew the ~5MB quota.
+    // Persona portraits live in assetLibrary["persona.portrait"] (covered).
+    mapAssetValues(slim, function (v) { return isHeavyDataUrl(v) ? "" : undefined; });
     // Re-tokenize signed GCS urls so the offline cache holds the stable
     // token, not an expiring signed url (rehydrated via signAssets on load).
     tokenizeForPersist(slim);
