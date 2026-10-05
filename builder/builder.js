@@ -297,31 +297,54 @@
       });
       return s;
     }
+    // Where the loaded copy came from (set right after STORE.loadProject
+    // resolves). "cache-error" = server load failed and we got the local cache
+    // copy, which has heavy images stripped — it must never be saved back.
+    let openSource = "server";
+    // After the lock check, finish opening. Save only when it's needed: a
+    // cache-only project that never reached the server, or when stale
+    // "generating" flags were just cleared. A clean server copy is not
+    // re-written on open (that was an unconditional full-state POST).
+    function finishOpen(staleCleared) {
+      if (openSource === "cache-error") {
+        app.readOnly = true;
+        app.lockHolder = null;
+        toast("Couldn't reach the server, so this is a local copy opened read-only. " +
+          "Nothing will be saved over your real project. Reload to try again.");
+        return;
+      }
+      startPresence(projectId).then(function () {
+        if (openSource !== "server" || staleCleared) saveActive();
+      });
+    }
     function openStateOrRecover(state) {
       try {
         if (VALIDATOR && VALIDATOR.migrateState) VALIDATOR.migrateState(state);
+        const staleCleared = clearStaleBuildFlags(state);
         app.state = state;
         app.view = "builder";
         STORE.setActiveProjectId(projectId);
         prepopulatePresenterFromProfile(state);
         recompute();
         render();
-        startPresence(projectId).then(function () { saveActive(); });
+        finishOpen(staleCleared);
         return;
       } catch (err) {
         try { console.warn("[holo] open failed, applying emergency normalization:", err); } catch (_) {}
       }
       const recovered = emergencyNormalizeState(state);
+      const staleClearedR = clearStaleBuildFlags(recovered);
       app.state = recovered;
       app.view = "builder";
       STORE.setActiveProjectId(projectId);
       prepopulatePresenterFromProfile(recovered);
       recompute();
       render();
-      startPresence(projectId).then(function () { saveActive(); });
+      finishOpen(staleClearedR);
       toast("Recovered project from a legacy data shape issue.");
     }
     STORE.loadProject(projectId).then(function (state) {
+      openSource = (STORE.lastLoadSource && STORE.lastLoadSource()) || "server";
       if (!state) {
         STORE.reconcile();
         toast("That project couldn't be opened.");
@@ -338,6 +361,36 @@
         openStateOrRecover(state);
       });
     }).catch(navFailed("That project couldn't be opened."));
+  }
+  // A build that was in flight when the project was last saved leaves its
+  // "generating" flags persisted in state. On a fresh open nothing is running,
+  // so the flags would resurrect a progress bar for a build that is not there.
+  // Returns true if anything was cleared (caller then saves once).
+  function clearStaleBuildFlags(state) {
+    let changed = false;
+    if (!state) return false;
+    const apps = state.apps && typeof state.apps === "object" ? state.apps : {};
+    Object.keys(apps).forEach(function (k) {
+      const sl = apps[k];
+      if (sl && typeof sl === "object" && sl._generating) {
+        sl._generating = false;
+        sl._genMode = null;
+        sl._progress = 0;
+        sl._genStatus = "";
+        sl._abort = null;
+        sl._preRun = null;
+        changed = true;
+      }
+    });
+    const sim = state.simple;
+    if (sim && typeof sim === "object" && sim.panel === "generate") {
+      // Finished builds route to "done"; an interrupted one back to the menu.
+      sim.panel = sim._done ? "done" : "menu";
+      sim._progress = 0;
+      sim._status = "";
+      changed = true;
+    }
+    return changed;
   }
   function goAiPrompt() {
     const save = (app.view === "builder" && app.state) ? saveActive() : Promise.resolve();

@@ -672,9 +672,16 @@
     });
   }
 
+  // Where the most recent loadProject() result came from. "cache-error" means
+  // the server load FAILED and we fell back to the local cache — that copy has
+  // its heavy images stripped (slimForCache), so callers must not save it back
+  // over the server row. Read it synchronously right after the load resolves.
+  let _lastLoadSource = "server";
+  function lastLoadSource() { return _lastLoadSource; }
+
   function loadProject(id) {
     if (!id) return Promise.resolve(null);
-    if (!online()) return LocalBackend.loadProject(id);
+    if (!online()) { _lastLoadSource = "cache-offline"; return LocalBackend.loadProject(id); }
     return NeonBackend.loadProject(id).then(function (state) {
       // A just-created project is written to Neon optimistically: saveProject
       // resolves off the synchronous cache write before the POST commits (and,
@@ -683,11 +690,14 @@
       // back to the write-through cache here closes the create→open race so a
       // brand-new project always opens. (An error path also falls back below.)
       if (state) {
+        _lastLoadSource = "server";
         try { normalizeProjectStateShape(state); } catch (e) { /* never block open */ }
         return state;
       }
+      _lastLoadSource = "cache-empty";
       return LocalBackend.loadProject(id);
     }).catch(function () {
+      _lastLoadSource = "cache-error";
       return LocalBackend.loadProject(id);
     });
   }
@@ -724,6 +734,9 @@
   function renameProject(id, newName) {
     return loadProject(id).then(function (state) {
       if (!state) return false;
+      // Server load failed → this is the stripped cache copy; saving it would
+      // overwrite the real project. Refuse rather than clobber.
+      if (_lastLoadSource === "cache-error") return false;
       state.name = (newName || "").trim() || state.name;
       return saveProject(state).then(function () { return true; });
     });
@@ -1426,6 +1439,7 @@
     releaseLock: releaseLock,
     uid: uid,
     lastCacheWriteFailed: lastCacheWriteFailed,
+    lastLoadSource: lastLoadSource,
     lastSyncFailed: lastSyncFailed,
     lastSyncError: lastSyncError,
     // Shared by feedback-store so the authenticated PostgREST client lives
