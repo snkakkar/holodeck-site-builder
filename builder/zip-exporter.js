@@ -499,13 +499,7 @@
     if (typeof fetch !== "function") return Promise.resolve({ brandConfig: brandConfig, products: products, images: [] });
     const urlToLocal = {};
     let n = 0;
-    // Also matches inline data:image URLs: when the GCS upload fails during
-    // generation the server hands back the photo inline, and leaving those in
-    // products.json makes a multi-MB file browsers can't cache.
-    function isInline(u) { return typeof u === "string" && /^data:image\//i.test(u); }
-    function isRemote(u) { return (typeof u === "string" && /^https?:\/\//i.test(u)) || isInline(u); }
-    function logName(u) { return isInline(u) ? u.slice(0, 40) + "…(inline image)" : u; }
-    const INLINE_MAX_W = 1000; // inline product/styled photos are shrunk to this width
+    function isRemote(u) { return typeof u === "string" && /^https?:\/\//i.test(u); }
     // Big photos (heroes / lifestyle) get downscaled + re-encoded as JPEG at
     // export; url → max width in px. Raw Gemini output is multi-MB.
     const shrinkTo = {};
@@ -527,10 +521,10 @@
     // written, a guaranteed 404 in the exported app. Only swap a field to
     // its local path once the bytes are confirmed in hand.
     const productImgs = (products || []).filter(function (p) { return isRemote(p.image); });
-    productImgs.forEach(function (p) { localPathFor(p.image, isInline(p.image) ? INLINE_MAX_W : 0); });
+    productImgs.forEach(function (p) { localPathFor(p.image); });
     const bc = JSON.parse(JSON.stringify(brandConfig || {}));
     const styledImgs = (bc.styledPosts || []).filter(function (sp) { return isRemote(sp.image); });
-    styledImgs.forEach(function (sp) { localPathFor(sp.image, isInline(sp.image) ? INLINE_MAX_W : 0); });
+    styledImgs.forEach(function (sp) { localPathFor(sp.image); });
     if (bc.copy) {
       if (isRemote(bc.copy.heroImage)) localPathFor(bc.copy.heroImage, 1920);
       if (isRemote(bc.copy.heroImageSignedIn)) localPathFor(bc.copy.heroImageSignedIn, 1920);
@@ -609,9 +603,9 @@
           images.push({ dest: urlToLocal[url], content: new Uint8Array(buf) });
           baked[url] = true;
         }).catch(function (err) {
-          failedBakes.push(logName(url));
+          failedBakes.push(url);
           if (typeof console !== "undefined" && console.warn) {
-            console.warn("[holo] retailCab: failed to bake image " + logName(url) + " — leaving the live URL in place", err && err.message);
+            console.warn("[holo] retailCab: failed to bake image " + url + " — leaving the live URL in place", err && err.message);
           }
         });
       }));
