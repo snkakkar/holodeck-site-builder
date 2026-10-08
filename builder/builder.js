@@ -1359,7 +1359,42 @@
         sandbox: "allow-scripts allow-same-origin allow-forms allow-popups",
         style: "width:100%;height:520px;border:0;border-radius:10px;background:#fff",
       }));
-      body.appendChild(pFrame);
+      // Full screen: expand the wrapper (toolbar + frame), not the iframe, so
+      // the iframe never reloads and keeps its window.name config handoff.
+      // Falls back to a fixed full-window overlay where the Fullscreen API is
+      // unavailable (older Safari / iOS).
+      const pWrap = el("div", { class: "bx-preview-wrap bx-mt-12" });
+      const fsBtn = btn("⛶ Full screen", "bx-btn-secondary", function () {
+        const native = pWrap.requestFullscreen || pWrap.webkitRequestFullscreen;
+        const active = document.fullscreenElement || document.webkitFullscreenElement;
+        if (active === pWrap) {
+          (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        } else if (native) {
+          Promise.resolve(native.call(pWrap)).catch(function () { pWrap.classList.add("is-overlay"); syncFs(); });
+        } else {
+          pWrap.classList.toggle("is-overlay");
+        }
+        syncFs();
+      });
+      function syncFs() {
+        if (!pWrap.isConnected && !pWrap.classList.contains("is-overlay")) { // screen re-rendered: drop stale listeners
+          document.removeEventListener("fullscreenchange", syncFs);
+          document.removeEventListener("webkitfullscreenchange", syncFs);
+          return;
+        }
+        const on = pWrap.classList.contains("is-overlay")
+          || (document.fullscreenElement || document.webkitFullscreenElement) === pWrap;
+        fsBtn.textContent = on ? "✕ Exit full screen" : "⛶ Full screen";
+      }
+      document.addEventListener("fullscreenchange", syncFs);
+      document.addEventListener("webkitfullscreenchange", syncFs);
+      pFrame.classList.remove("bx-mt-12");
+      pWrap.appendChild(el("div", { class: "bx-preview-bar" }, [
+        el("span", { class: "bx-simple-hint", text: "Live preview — try it as a customer would." }),
+        fsBtn,
+      ]));
+      pWrap.appendChild(pFrame);
+      body.appendChild(pWrap);
     }
     const exportAppIds = (window.HOLO_ZIP && window.HOLO_ZIP.enabledAppIds)
       ? window.HOLO_ZIP.enabledAppIds(s) : [];

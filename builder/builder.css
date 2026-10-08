@@ -3413,6 +3413,21 @@ button { font-family: inherit; }
 }
 .bx-app-preview-frame iframe { display: block; }
 
+/* Simple done-screen preview: toolbar + frame, expandable to full screen */
+.bx-preview-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bx-preview-bar .bx-simple-hint { margin: 0; }
+.bx-preview-wrap:fullscreen, .bx-preview-wrap:-webkit-full-screen,
+.bx-preview-wrap.is-overlay {
+  display: flex; flex-direction: column; background: var(--bx-bg, #0d1b2e); padding: 8px; box-sizing: border-box;
+}
+.bx-preview-wrap.is-overlay { position: fixed; inset: 0; z-index: 10000; margin: 0; }
+.bx-preview-wrap:fullscreen .bx-preview-bar, .bx-preview-wrap:-webkit-full-screen .bx-preview-bar,
+.bx-preview-wrap.is-overlay .bx-preview-bar { padding: 0 4px 8px; }
+.bx-preview-wrap:fullscreen .bx-app-preview-frame, .bx-preview-wrap:-webkit-full-screen .bx-app-preview-frame,
+.bx-preview-wrap.is-overlay .bx-app-preview-frame { flex: 1; margin-top: 0; }
+.bx-preview-wrap:fullscreen iframe, .bx-preview-wrap:-webkit-full-screen iframe,
+.bx-preview-wrap.is-overlay iframe { height: 100% !important; }
+
 /* ─── Simple / Guided mode wizard ───────────────────────────── */
 .bx-simple-head { max-width: 760px; margin: 0 auto var(--bx-sp-6); text-align: center; }
 .bx-simple-eyebrow {
