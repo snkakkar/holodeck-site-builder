@@ -1440,6 +1440,39 @@
   // applies the result via the SAME applyExtractionToState pipeline. Resolves
   // (no-op) when Gemini isn't configured or the parse fails — the generators
   // then run on neutral defaults.
+  // Normalize the optional `scriptFacts` object from the story-parse JSON. Only
+  // explicit, non-placeholder values survive; everything is length-capped, so a
+  // script that states none of this yields an all-empty object and downstream
+  // generators behave exactly as before.
+  function sanitizeScriptFacts(raw) {
+    const o = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    const txt = function (v, max) {
+      const t = typeof v === "string" ? v.trim() : (typeof v === "number" ? String(v) : "");
+      return (!t || /^\[TODO/i.test(t)) ? "" : t.slice(0, max);
+    };
+    const list = function (v, max) { return Array.isArray(v) ? v.slice(0, max) : []; };
+    const num = function (v) { const n = Number(String(v == null ? "" : v).replace(/[^0-9.]/g, "")); return isFinite(n) && n > 0 ? n : 0; };
+    const KINDS = ["points-bonus", "percent-off", "free-shipping", "gift", "other"];
+    const loy = o.loyalty && typeof o.loyalty === "object" ? o.loyalty : {};
+    return {
+      namedProducts: list(o.namedProducts, 12).map(function (p) {
+        p = p || {};
+        return { name: txt(p.name, 80), category: txt(p.category, 40), approxPrice: num(p.approxPrice) };
+      }).filter(function (p) { return p.name; }),
+      offers: list(o.offers, 4).map(function (x) {
+        x = x || {};
+        const kind = txt(x.kind, 20).toLowerCase();
+        return { label: txt(x.label, 80), kind: KINDS.indexOf(kind) !== -1 ? kind : "other", value: txt(x.value, 40) };
+      }).filter(function (x) { return x.label; }),
+      loyalty: { threshold: num(loy.threshold), rewardLabel: txt(loy.rewardLabel, 60) },
+      pickupStore: txt(o.pickupStore, 60),
+      shopperQuestions: list(o.shopperQuestions, 6).map(function (x) {
+        x = x || {}; return { q: txt(x.q, 120), a: txt(x.a, 240) };
+      }).filter(function (x) { return x.q; }),
+      shopperSearches: list(o.shopperSearches, 6).map(function (x) { return txt(x, 60); }).filter(Boolean),
+    };
+  }
+
   function runSimpleStoryExtraction(GEMINI, AI_PROMPT) {
     const s = app.state;
     if (!_geminiReady || !GEMINI || !GEMINI.generate || !AI_PROMPT || !PARSER) return Promise.resolve();
@@ -1507,6 +1540,7 @@
         assumptions: arr(data.assumptions), openQuestions: arr(data.openQuestions),
         journeyPhases: arr(data.journeyPhases), wishlistEyebrow: str(data.wishlistEyebrow),
         wishlistHeadline: str(data.wishlistHeadline), wishlist: arr(data.wishlist), imageCues: obj(data.imageCues),
+        scriptFacts: sanitizeScriptFacts(data.scriptFacts),
       };
       s.project = s.project || {};
       const acts = arr(data.storyActs);
@@ -3198,6 +3232,7 @@
           wishlistHeadline:     str(data.wishlistHeadline),
           wishlist:             arr(data.wishlist).map(wishRow).filter(Boolean),
           imageCues:            obj(data.imageCues),
+          scriptFacts:          sanitizeScriptFacts(data.scriptFacts),
         };
 
         // Pre-populate acts/personas/customer/products from the
