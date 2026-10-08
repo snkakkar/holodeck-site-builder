@@ -466,11 +466,26 @@ CX components (AubreyDemo):
     "<<SCRIPT>>",
   ].join("\n");
 
+  // The research call only needs enough of the script to identify the customer
+  // and the story's themes — the full text still goes to the parse call. A long
+  // upload used to be cut to its first 4000 chars, so anything past the intro
+  // never informed research. Keep the head (where the customer and goals usually
+  // are) plus the tail, and mark the gap.
+  const RESEARCH_SCRIPT_MAX = 12000;
+  const RESEARCH_SCRIPT_TAIL = 3000;
+  function researchExcerpt(text) {
+    const t = String(text || "");
+    if (t.length <= RESEARCH_SCRIPT_MAX) return t;
+    return t.slice(0, RESEARCH_SCRIPT_MAX - RESEARCH_SCRIPT_TAIL)
+      + "\n[… middle of the script omitted …]\n"
+      + t.slice(t.length - RESEARCH_SCRIPT_TAIL);
+  }
+
   function getResearchPrompt(customerName, scriptText, website) {
     return RESEARCH_PROMPT
       .replace("<<CUSTOMER>>", String(customerName || "(unknown — infer from the script)"))
       .replace("<<WEBSITE>>", String(website || "(none provided)"))
-      .replace("<<SCRIPT>>", String(scriptText || "").slice(0, 4000));
+      .replace("<<SCRIPT>>", researchExcerpt(scriptText));
   }
 
   // ─── Brand-analysis prompt (Simple mode "Analyze website") ────
