@@ -1344,8 +1344,16 @@
     if (cabSlice && cabSlice.extracted && cabSlice._previewToken
         && sim.selected && sim.selected.indexOf("retailCab") !== -1) {
       const pFrame = el("div", { class: "bx-app-preview-frame bx-mt-12" });
+      // stashPreviewConfig silently drops a payload over the ~5 MB storage
+      // quota (photos still inline as data: URLs when GCS is unavailable), which
+      // left the iframe on the baked Cavender's build. Hand the config over via
+      // window.name too; retail-cab's brand-config.js reads it only if storage
+      // came up empty.
+      let handoff = "";
+      try { handoff = "holo-preview:" + JSON.stringify(cabSlice.config); } catch (_) { handoff = ""; }
       pFrame.appendChild(el("iframe", {
         src: previewUrlFor({ previewUrl: "/demo-apps/retail-cab/" }, cabSlice),
+        name: handoff,
         title: "Retail CAB storefront preview",
         loading: "lazy",
         sandbox: "allow-scripts allow-same-origin allow-forms allow-popups",

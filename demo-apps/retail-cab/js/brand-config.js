@@ -345,6 +345,14 @@
 
   var _holo = new URLSearchParams(window.location.search).get('holo');
   var _payload = _holo ? readPreviewPayload(_holo) : null;
+  // Fallback for a payload too big for localStorage/sessionStorage (e.g. photos
+  // still inline as data: URLs): the Simple builder hands it over via the
+  // iframe's window.name instead. Only read when ?holo is set and storage had
+  // nothing, so every other load is unchanged.
+  if (_holo && !_payload && typeof window.name === 'string' && window.name.indexOf('holo-preview:') === 0) {
+    try { _payload = JSON.parse(window.name.slice('holo-preview:'.length)); } catch (e) { _payload = null; }
+    window.name = '';
+  }
   if (_payload) {
     var _cfg = _payload.brandConfig ? _payload.brandConfig : _payload;
     if (_cfg && typeof _cfg === 'object') {
