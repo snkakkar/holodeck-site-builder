@@ -2156,6 +2156,20 @@ button { font-family: inherit; }
   box-shadow: var(--bx-shadow-2);
   transform: translateY(-1px);
 }
+.bx-newproj-chooser-card-primary {
+  border-color: var(--bx-navy);
+  position: relative;
+}
+.bx-newproj-chooser-badge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bx-navy);
+  color: #fff;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.bx-newproj-chooser-adv-label { margin: 22px 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
 .bx-newproj-chooser-emoji { font-size: 28px; line-height: 1; }
 .bx-newproj-chooser-title {
   font-family: var(--bx-font-serif);

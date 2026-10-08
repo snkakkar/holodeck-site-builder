@@ -8619,26 +8619,48 @@
       return card;
     }
 
+    // Primary paths first: Simple / Guided and the Retail CAB quick start.
+    const primary = chooserCard(
+      "⚡",
+      "Simple / Guided",
+      "Pick a few prebuilt experiences, enter the customer + website, and let AI auto-build a slim, runnable demo — no script, no 9 steps.",
+      function () { closeModal(); newSimpleProject(); }
+    );
+    primary.classList.add("bx-newproj-chooser-card-primary");
+    primary.insertBefore(el("span", { class: "bx-newproj-chooser-badge", text: "Recommended" }), primary.firstChild);
+    grid.appendChild(primary);
     grid.appendChild(chooserCard(
+      "🛍️",
+      "Retail CAB demo",
+      "Skip the menu — start straight on a Retail storefront + clienteling demo. Just add the customer and website.",
+      function () {
+        closeModal();
+        newSimpleProject(function (state) {
+          state.simple.selected = ["retailCab"];
+          simpleGoTo("basics");
+        });
+      }
+    ));
+
+    wrap.appendChild(grid);
+
+    // Script-based paths are still available, just not the headline.
+    wrap.appendChild(el("p", { class: "bx-newproj-chooser-lede bx-newproj-chooser-adv-label",
+      text: "Advanced — start from a script" }));
+    const advGrid = el("div", { class: "bx-newproj-chooser-grid" });
+    advGrid.appendChild(chooserCard(
       "📝",
       "Script & Story",
       "Start a new project and paste, upload, or generate a demo script with AI — the builder reads it into your foundations.",
       function () { closeModal(); newProject(); }
     ));
-    grid.appendChild(chooserCard(
+    advGrid.appendChild(chooserCard(
       "✨",
       "Aubrey script",
       "Use Aubrey? Pull a ready-made script to auto-fill customer, brand, persona, products, and story foundations in one go.",
       function () { closeModal(); newProject(function () { openAubreyScriptPicker(); }); }
     ));
-    grid.appendChild(chooserCard(
-      "⚡",
-      "Simple / Guided",
-      "Pick a few prebuilt experiences, enter the customer + website, and let AI auto-build a slim, runnable demo — no script, no 9 steps.",
-      function () { closeModal(); newSimpleProject(); }
-    ));
-
-    wrap.appendChild(grid);
+    wrap.appendChild(advGrid);
 
     const actions = el("div", { class: "bx-modal-actions" });
     actions.appendChild(btn("Cancel", "bx-btn-secondary", closeModal));

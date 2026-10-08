@@ -57,8 +57,10 @@
   function retryDelayMs(res, attempt) {
     const header = res && res.headers && res.headers.get && res.headers.get("Retry-After");
     const secs = Number(header);
-    if (Number.isFinite(secs) && secs > 0) return secs * 1000;
-    return Math.min(30000, 1000 * Math.pow(2, attempt));
+    // Jitter so concurrent clients that 429 together don't retry in lockstep.
+    if (Number.isFinite(secs) && secs > 0) return secs * 1000 + Math.random() * 1000;
+    const base = Math.min(30000, 1000 * Math.pow(2, attempt));
+    return base / 2 + Math.random() * (base / 2);
   }
   // ─── Client-side pacing ───────────────────────────────────────
   // Retry alone still lets a batch of concurrent calls (Retail CAB fires

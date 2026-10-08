@@ -354,7 +354,7 @@
       el("div", { class: "bx-firstrun-mark", text: "🪐" }),
       el("h2", { class: "bx-firstrun-title", text: "Build a customer-specific Salesforce Holodeck" }),
       el("p", { class: "bx-firstrun-sub",
-        html: "Paste a demo script — the builder extracts the story, picks the right slides, and packages a ready-to-run demo folder. <strong>No code, no JSON, no slide editor.</strong>" }),
+        html: "Enter a customer and their website — the builder analyzes the brand, picks the right experiences, and packages a ready-to-run demo folder. <strong>No code, no JSON, no slide editor.</strong> Have a script instead? You can start from that too." }),
       el("div", { class: "bx-row bx-firstrun-ctas" }, [
         primaryBtn("+ New Holodeck Project", function () { handlers.onNew && handlers.onNew(); }),
       ]),
@@ -364,8 +364,8 @@
     root.appendChild(el("div", { class: "bx-firstrun-needs" }, [
       el("div", { class: "bx-firstrun-needs-title", text: "What you'll need" }),
       el("ul", { class: "bx-firstrun-needs-list" }, [
-        el("li", { text: "A demo script or rough story outline (paste or upload)" }),
-        el("li", { text: "Customer name, industry, audience, and Salesforce products in scope" }),
+        el("li", { text: "The customer's name and website (we'll pull the brand from it)" }),
+        el("li", { text: "Optional: a demo script or story outline (paste or upload) for more detail" }),
         el("li", { text: "Optional: AubreyDemo links to embed live screens" }),
       ]),
     ]));

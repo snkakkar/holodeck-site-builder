@@ -42,6 +42,14 @@ app.use(
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-3.5-flash";
 const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-3-pro-image";
+// Clients may request a model, but only one the server already uses (or one
+// added via GEMINI_ALLOWED_MODELS) — otherwise signed-in users could pick any
+// model on the shared key. Anything else falls back to the default.
+const GEMINI_ALLOWED_MODELS = new Set([GEMINI_TEXT_MODEL, GEMINI_IMAGE_MODEL]
+  .concat((process.env.GEMINI_ALLOWED_MODELS || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean)));
+function allowedGeminiModel(requested, fallback) {
+  return (typeof requested === "string" && GEMINI_ALLOWED_MODELS.has(requested)) ? requested : fallback;
+}
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 // ── Outbound fetch timeouts ────────────────────────────────────
@@ -505,7 +513,7 @@ app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, async (req, res
   if (!prompt.trim()) {
     return res.status(400).json({ error: "prompt is required" });
   }
-  const model = typeof body.model === "string" && body.model ? body.model : GEMINI_TEXT_MODEL;
+  const model = allowedGeminiModel(body.model, GEMINI_TEXT_MODEL);
 
   // JSON output can be requested two ways:
   //  • jsonMode: true        → ask for application/json, let the
@@ -639,7 +647,7 @@ app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, async (re
   if (!prompt.trim()) {
     return res.status(400).json({ error: "prompt is required" });
   }
-  const model = typeof body.model === "string" && body.model ? body.model : GEMINI_IMAGE_MODEL;
+  const model = allowedGeminiModel(body.model, GEMINI_IMAGE_MODEL);
 
   // Gemini 3 image models (gemini-3-pro-image) require responseModalities to
   // emit an image; 2.5-flash-image emitted implicitly, and the field is a

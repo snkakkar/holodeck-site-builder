@@ -47,7 +47,9 @@
       customerName: (c.customerName || "").trim(),
       industry: (c.industry || "Retail").trim(),
       website: (c.website || "").trim(),
-      brandColor: (b.primaryColor || "").trim(), // optional override
+      // Optional override. The untouched default (#b22234) is not a user
+      // choice, so treat it as unset and let the scraped brand color win.
+      brandColor: ((b.primaryColor || "").trim().toLowerCase() === "#b22234") ? "" : (b.primaryColor || "").trim(),
       personaName: (persona.name || "").trim(),
       personaDetails: [persona.role, persona.quote].filter(Boolean).join(" — "),
       genderLean: simple.genderLean || "unisex",
