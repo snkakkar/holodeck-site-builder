@@ -461,6 +461,66 @@ function beginNdjson(res) {
   return { writeLine, finish };
 }
 
+// ── Gemini concurrency gates ───────────────────────────────────
+// The per-user rate limit protects against one caller, not against many:
+// 50 simultaneous builds would fire thousands of calls at the one shared
+// API key and 429 each other. A gate caps how many Gemini requests this
+// process has in flight; the rest wait in FIFO order. A waiting request has
+// already started its NDJSON response (so Heroku sees bytes), and is told its
+// place with a {type:"queued",position} line. Image calls get a tighter cap —
+// they are the slow, heavy ones. Tune with GEMINI_TEXT_CONCURRENCY /
+// GEMINI_IMAGE_CONCURRENCY. In-memory and per-dyno, like the rate limiter.
+function createGate(limit) {
+  let active = 0;
+  const waiting = [];
+  function releaser() {
+    let done = false;
+    return () => { if (done) return; done = true; active -= 1; pump(); };
+  }
+  function pump() {
+    while (active < limit && waiting.length) {
+      const w = waiting.shift();
+      active += 1;
+      w.resolve(releaser());
+    }
+  }
+  // Resolves to a release() function, or null if opts.signal aborted first.
+  function acquire(opts) {
+    const o = opts || {};
+    return new Promise((resolve) => {
+      if (active < limit && !waiting.length) { active += 1; return resolve(releaser()); }
+      const w = { resolve };
+      waiting.push(w);
+      if (o.onQueued) o.onQueued(waiting.length);
+      if (o.signal) {
+        o.signal.addEventListener("abort", () => {
+          const i = waiting.indexOf(w);
+          if (i !== -1) { waiting.splice(i, 1); resolve(null); }
+        }, { once: true });
+      }
+    });
+  }
+  return { acquire, stats: () => ({ limit, active, queued: waiting.length }) };
+}
+const GEMINI_TEXT_GATE = createGate(Math.max(1, Number(process.env.GEMINI_TEXT_CONCURRENCY || 16)));
+const GEMINI_IMAGE_GATE = createGate(Math.max(1, Number(process.env.GEMINI_IMAGE_CONCURRENCY || 6)));
+
+// Wait for a gate slot, telling the client when it has to queue. Returns the
+// release function, or null if the client hung up while waiting.
+async function acquireGeminiSlot(gate, res, writeLine) {
+  const ac = new AbortController();
+  const onClose = () => ac.abort();
+  res.on("close", onClose);
+  try {
+    return await gate.acquire({
+      signal: ac.signal,
+      onQueued: (position) => writeLine({ type: "queued", position }),
+    });
+  } finally {
+    res.off("close", onClose);
+  }
+}
+
 app.get("/", (_req, res) => {
   res.redirect(302, "/builder/");
 });
@@ -482,6 +542,7 @@ app.get("/api/gemini/status", (_req, res) => {
     model: GEMINI_TEXT_MODEL,
     imageModel: GEMINI_IMAGE_MODEL,
     imageHosting: gcsConfigured() ? "gcs" : "inline",
+    load: { text: GEMINI_TEXT_GATE.stats(), image: GEMINI_IMAGE_GATE.stats() },
   });
 });
 
@@ -560,7 +621,9 @@ app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, async (req, res
 
   // Begin the NDJSON response immediately so Heroku sees a first byte
   // long before its 30s limit (see beginNdjson).
-  const { finish } = beginNdjson(res);
+  const { writeLine, finish } = beginNdjson(res);
+  const release = await acquireGeminiSlot(GEMINI_TEXT_GATE, res, writeLine);
+  if (!release) return finish({ type: "error", error: "Request cancelled" });
 
   // Stream from Gemini via SSE (alt=sse). Each event's data is a partial
   // GenerateContentResponse; we concatenate the text parts as they land.
@@ -622,6 +685,8 @@ app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, async (req, res
     return finish({ type: "done", text, model });
   } catch (err) {
     return finish({ type: "error", error: `Could not reach Gemini: ${(err && err.message) || err}` });
+  } finally {
+    release();
   }
 });
 
@@ -657,7 +722,9 @@ app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, async (re
     generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
   };
 
-  const { finish } = beginNdjson(res);
+  const { writeLine, finish } = beginNdjson(res);
+  const release = await acquireGeminiSlot(GEMINI_IMAGE_GATE, res, writeLine);
+  if (!release) return finish({ type: "error", error: "Request cancelled" });
   const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`;
   try {
     const upstream = await fetchWithTimeout(url, {
@@ -710,6 +777,8 @@ app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, async (re
     return finish({ type: "done", dataUrl: `data:${mime};base64,${b64}`, model });
   } catch (err) {
     return finish({ type: "error", error: `Could not reach Gemini: ${(err && err.message) || err}` });
+  } finally {
+    release();
   }
 });
 
