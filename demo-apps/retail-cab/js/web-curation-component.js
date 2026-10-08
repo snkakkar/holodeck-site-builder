@@ -2685,15 +2685,15 @@
     var _pid = _p.identity || {};
     var _pprof = _p.profile || {};
     // Parse "Fort Worth, TX" → city / state; fall back to the demo default.
-    var _loc = (_pprof.location || 'Fort Worth, TX').split(',');
+    var _loc = (_pprof.location || (GEN_BRAND ? '' : 'Fort Worth, TX')).split(',');
     _agentShippingData = {
       name: _pid.name || cocoPersonaName(),
       // No street-address field exists in the persona schema (see
       // builder/storefront-foundations.js) — a generic placeholder, never a
       // real competitor's HQ address, regardless of which brand is loaded.
       address: '100 Main St',
-      city: (_loc[0] || 'Fort Worth').trim(),
-      state: (_loc[1] || 'TX').trim(),
+      city: (_loc[0] || (GEN_BRAND ? '' : 'Fort Worth')).trim(),
+      state: (_loc[1] || (GEN_BRAND ? '' : 'TX')).trim(),
       zip: '00000',
       email: _pid.email || cocoPersonaEmail()
     };
@@ -2833,8 +2833,8 @@
             ? '<p><strong>🏬 Pick up at:</strong> ' + escapeHtml(_agentPickupStore.name) + ' · ' +
                 escapeHtml(_agentPickupStore.ready) + '</p>'
             : '<p><strong>Ships to:</strong> ' + escapeHtml(_agentShippingData.name || cocoPersonaName()) + ', ' +
-                escapeHtml(_agentShippingData.city || 'Fort Worth') + ', ' +
-                escapeHtml(_agentShippingData.state || 'TX') + '</p>') +
+                escapeHtml(_agentShippingData.city || (GEN_BRAND ? '' : 'Fort Worth')) + ', ' +
+                escapeHtml(_agentShippingData.state || (GEN_BRAND ? '' : 'TX')) + '</p>') +
           '<p style="color:#10b981;font-weight:600;margin-top:8px">📧 Confirmation sent to ' + escapeHtml(_agentShippingData.email || cocoPersonaEmail()) + '</p>' +
         '</div>' +
       '</div>' +

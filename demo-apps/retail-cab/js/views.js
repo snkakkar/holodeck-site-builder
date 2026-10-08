@@ -528,7 +528,16 @@
       if (seeAll) {
         var familyRoutes = { boots: '/boots', hats: '/hats', jeans: '/jeans', apparel: '/apparel', accessories: '/accessories', belts: '/belts' };
         var firstFamily = matches[0] ? (matches[0].family || '').toLowerCase() : '';
-        seeAll.href = familyRoutes[firstFamily] || '/boots';
+        var _seeAllHref = familyRoutes[firstFamily] || '/boots';
+        // Generated builds route by navCategories slug (see router.js), so the
+        // Western '/boots' fallback would 404 there.
+        var _navs = (window.BrandConfig && window.BrandConfig.navCategories) || [];
+        if (GEN_BRAND && _navs.length) {
+          var _slug = function (l) { return '/' + String(l).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''); };
+          var _cat = matches[0] ? matches[0].category : '';
+          _seeAllHref = _slug(_navs.indexOf(_cat) !== -1 ? _cat : _navs[0]);
+        }
+        seeAll.href = _seeAllHref;
       }
 
       // "See It Styled" shoppable lifestyle feed for this aesthetic.
@@ -1350,11 +1359,11 @@
     // Pre-fill shipping from the demo persona (Rachel Morris, TX) so checkout
     // matches sign-in / profile. Fall back to sensible TX defaults.
     var _ckR = (window.Persona && window.Persona.RACHEL) || {};
-    var _ckLoc = ((window.Persona && window.Persona.PROFILE && window.Persona.PROFILE.location) || 'Austin, TX').split(',');
-    var _ckName = _ckR.name || 'Rachel Morris';
+    var _ckLoc = ((window.Persona && window.Persona.PROFILE && window.Persona.PROFILE.location) || (GEN_BRAND ? '' : 'Austin, TX')).split(',');
+    var _ckName = _ckR.name || (GEN_BRAND ? '' : 'Rachel Morris');
     var _ckEmail = _ckR.email || 'rmorris@example.com';
-    var _ckCity = (_ckLoc[0] || 'Austin').trim();
-    var _ckState = (_ckLoc[1] || 'TX').trim();
+    var _ckCity = (_ckLoc[0] || (GEN_BRAND ? '' : 'Austin')).trim();
+    var _ckState = (_ckLoc[1] || (GEN_BRAND ? '' : 'TX')).trim();
 
     // If cart is empty, redirect home
     if (cart.length === 0) {
@@ -1575,7 +1584,7 @@
                 '</div>' +
                 '<div class="checkout-form-group">' +
                   '<label>Phone</label>' +
-                  '<input type="text" id="ck-phone" value="(817) 555-0142" placeholder="Phone">' +
+                  '<input type="text" id="ck-phone" value="' + (GEN_BRAND ? '' : '(817) 555-0142') + '" placeholder="Phone">' +
                 '</div>' +
               '</div>' +
               '<button class="checkout-btn" id="ck-to-payment">Continue to Payment</button>' +
