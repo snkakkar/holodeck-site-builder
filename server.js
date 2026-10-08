@@ -1105,7 +1105,7 @@ app.get("/api/asset/proxy", requireHolodeckAuth, async (req, res) => {
     if (!upstream.ok) return res.status(upstream.status).json({ error: `upstream ${upstream.status}` });
     const type = upstream.headers.get("content-type") || "image/png";
     if (!/^image\//i.test(type)) return res.status(415).json({ error: "not an image" });
-    const buf = Buffer.from(await upstream.arrayBuffer());
+    const buf = await readCapped(upstream, PROXY_MAX_IMAGE_BYTES);
     res.set("Content-Type", type);
     res.set("Cache-Control", "private, max-age=3600");
     return res.send(buf);
@@ -1282,6 +1282,81 @@ function retailCabExtractMeta(html, baseUrl) {
   };
 }
 
+// ── Scrape/proxy hardening ─────────────────────────────────────
+// • Redirects are followed by hand so EVERY hop is re-checked against the
+//   SSRF guard (fetch's redirect:"follow" would let a public host 302 us to
+//   169.254.169.254 or an internal service). Hostname-based like the rest of
+//   the guard — it does not defend against DNS rebinding.
+// • Bodies are read with a byte cap so one huge page/image can't pin dyno memory.
+// • /api/scrape/site results are cached briefly: 50 users analyzing the same
+//   customer shouldn't mean 50 live fetches of their site.
+const SCRAPE_MAX_HTML_BYTES = 3 * 1024 * 1024;
+const PROXY_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const SCRAPE_MAX_REDIRECTS = 4;
+const SCRAPE_CACHE_TTL_MS = 10 * 60 * 1000;
+const SCRAPE_CACHE_MAX = 100;
+const _scrapeCache = new Map(); // normalized url → { at, payload }
+
+// Fetch with manual, guard-checked redirects. `allow(hostname)` returns
+// false to refuse a hop. Throws on a refused hop or too many redirects.
+async function fetchGuarded(url, opts, ms, allow) {
+  let current = url;
+  for (let hop = 0; hop <= SCRAPE_MAX_REDIRECTS; hop++) {
+    const u = new URL(current);
+    if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("bad redirect protocol");
+    if (!allow(u.hostname)) throw new Error("redirect to blocked host");
+    const upstream = await fetchWithTimeout(current, { ...(opts || {}), redirect: "manual" }, ms);
+    if (upstream.status >= 300 && upstream.status < 400 && upstream.headers.get("location")) {
+      try { await upstream.body.cancel(); } catch (_) { /* nothing to cancel */ }
+      current = new URL(upstream.headers.get("location"), current).toString();
+      continue;
+    }
+    return upstream;
+  }
+  throw new Error("too many redirects");
+}
+
+// Read a fetch Response body up to maxBytes; throws if it is larger.
+async function readCapped(upstream, maxBytes) {
+  const declared = Number(upstream.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw new Error("response too large");
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of upstream.body) {
+    total += chunk.length;
+    if (total > maxBytes) {
+      try { await upstream.body.cancel(); } catch (_) { /* already closing */ }
+      throw new Error("response too large");
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+// Per-client limiter for the UNauthenticated img-proxy. Heroku's router
+// appends the real client IP to X-Forwarded-For (last entry), and req.ip
+// would be the router for everyone. Generous: a storefront preview loads
+// dozens of images per page.
+const IMG_PROXY_RATE_MAX = Number(process.env.IMG_PROXY_RATE_MAX || 300);
+const _imgProxyBuckets = new Map();
+function imgProxyRateLimit(req, res, next) {
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const key = xff.length ? xff[xff.length - 1] : (req.ip || "anon");
+  const now = Date.now();
+  let b = _imgProxyBuckets.get(key);
+  if (!b || now >= b.resetAt) {
+    if (_imgProxyBuckets.size > 5000) _imgProxyBuckets.clear();
+    b = { count: 0, resetAt: now + 60000 };
+    _imgProxyBuckets.set(key, b);
+  }
+  b.count += 1;
+  if (b.count > IMG_PROXY_RATE_MAX) {
+    res.set("Retry-After", String(Math.ceil((b.resetAt - now) / 1000)));
+    return res.status(429).json({ error: "Too many image requests — slow down." });
+  }
+  return next();
+}
+
 // GET /api/scrape/img-proxy?url=… — same-origin fetch of a scraped CDN
 // image so the live preview can load it without CORS/hotlink issues. Left
 // UNauthenticated (unlike /api/asset/proxy above): this URL is embedded
@@ -1290,7 +1365,7 @@ function retailCabExtractMeta(html, baseUrl) {
 // SSRF guard below is the actual boundary, and it only proxies read-only,
 // publicly-hosted images that were already discovered by an authenticated
 // /api/scrape/site call (or sit on the static CDN allow-list).
-app.get("/api/scrape/img-proxy", async (req, res) => {
+app.get("/api/scrape/img-proxy", imgProxyRateLimit, async (req, res) => {
   const raw = typeof req.query.url === "string" ? req.query.url : "";
   let parsed;
   try { parsed = new URL(raw); } catch (_) { parsed = null; }
@@ -1300,11 +1375,12 @@ app.get("/api/scrape/img-proxy", async (req, res) => {
   if (retailCabBlockedHost(parsed.hostname)) return res.status(403).json({ error: "host blocked" });
   if (!retailCabHostAllowed(parsed.hostname)) return res.status(403).json({ error: "host not allowed" });
   try {
-    const upstream = await fetchWithTimeout(parsed.toString(), { redirect: "follow" }, FETCH_TIMEOUT_PROXY_MS);
+    const upstream = await fetchGuarded(parsed.toString(), {}, FETCH_TIMEOUT_PROXY_MS,
+      (h) => !retailCabBlockedHost(h) && retailCabHostAllowed(h));
     if (!upstream.ok) return res.status(502).json({ error: `upstream ${upstream.status}` });
     const type = upstream.headers.get("content-type") || "application/octet-stream";
     if (!/^image\//i.test(type)) return res.status(415).json({ error: "not an image" });
-    const buf = Buffer.from(await upstream.arrayBuffer());
+    const buf = await readCapped(upstream, PROXY_MAX_IMAGE_BYTES);
     res.set("Content-Type", type);
     res.set("Cache-Control", "public, max-age=86400");
     return res.send(buf);
@@ -1325,15 +1401,18 @@ app.post("/api/scrape/site", requireHolodeckAuth, rateLimit, async (req, res) =>
   catch (_) { return res.status(400).json({ error: "bad url" }); }
   if (retailCabBlockedHost(parsed.hostname)) return res.status(403).json({ error: "host blocked" });
 
+  const cacheKey = parsed.origin + parsed.pathname.replace(/\/+$/, "") + parsed.search;
+  const hit = _scrapeCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < SCRAPE_CACHE_TTL_MS) return res.json(hit.payload);
+
   try {
-    const upstream = await fetchWithTimeout(parsed.toString(), {
-      redirect: "follow",
+    const upstream = await fetchGuarded(parsed.toString(), {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; HolodeckBuilder/1.0)", Accept: "text/html" },
-    }, FETCH_TIMEOUT_SCRAPE_MS);
+    }, FETCH_TIMEOUT_SCRAPE_MS, (h) => !retailCabBlockedHost(h));
     if (!upstream.ok) throw new Error("HTTP " + upstream.status);
     const type = upstream.headers.get("content-type") || "";
     if (!/text\/html/i.test(type)) throw new Error("not an HTML page");
-    const html = await upstream.text();
+    const html = (await readCapped(upstream, SCRAPE_MAX_HTML_BYTES)).toString("utf8");
     const images = retailCabExtractImages(html, parsed.toString());
     const products = retailCabExtractProducts(html, parsed.toString());
     const brandColor = retailCabExtractBrandColor(html);
@@ -1345,7 +1424,7 @@ app.post("/api/scrape/site", requireHolodeckAuth, rateLimit, async (req, res) =>
 
     const proxied = images.map((u) => "/api/scrape/img-proxy?url=" + encodeURIComponent(u));
 
-    return res.json({
+    const payload = {
       ok: true,
       site: parsed.origin,
       brandColor: brandColor || null,
@@ -1354,7 +1433,11 @@ app.post("/api/scrape/site", requireHolodeckAuth, rateLimit, async (req, res) =>
       proxiedImages: proxied,
       products,
       meta: siteMeta,
-    });
+    };
+    // Cache successes only; a failure may be a blip worth retrying.
+    if (_scrapeCache.size >= SCRAPE_CACHE_MAX) _scrapeCache.delete(_scrapeCache.keys().next().value);
+    _scrapeCache.set(cacheKey, { at: Date.now(), payload });
+    return res.json(payload);
   } catch (err) {
     return res.json({
       ok: false,
