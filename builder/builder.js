@@ -834,14 +834,13 @@
     input.addEventListener("input", function () { p.website = input.value; commit(); });
     const go = btn("⚡ Build it for me", "bx-btn-primary", function () {
       const site = (input.value || "").trim();
-      if (!sim.selected.length) { toast("Pick at least one experience first."); return; }
       if (!site) { toast("Enter a website first."); input.focus(); return; }
       runSimpleAutoBuild(site);
     });
     return el("div", { class: "bx-simple-autopilot" }, [
       el("div", { class: "bx-simple-label", text: "Build it for me (experimental)" }),
       el("p", { class: "bx-simple-hint", text:
-        "Pick your experiences above, enter a website, and we analyze the brand, build everything you selected, and download the demo ZIP — skipping the Setup and Details screens." }),
+        "Pick your experiences above, enter a website, and we analyze the brand, build the experiences you selected (all of them if none are selected), and download the demo ZIP — skipping the Setup and Details screens." }),
       el("div", { class: "bx-simple-site-row" }, [input, go]),
     ]);
   }
@@ -854,6 +853,8 @@
     const sim = simpleState();
     const p = app.state.project = app.state.project || {};
     p.website = site;
+    // Nothing picked -> build every experience.
+    if (!sim.selected.length) sim.selected = simpleExperiences().map(function (e) { return e.id; });
     sim.panel = "generate";
     sim._error = "";
     sim._done = false;
