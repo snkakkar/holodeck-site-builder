@@ -1186,6 +1186,21 @@
     ]));
   }
 
+  // Explicit rebuild (Done-panel Rebuild, error Retry, fallback Retry).
+  // forceFresh: must regenerate from scratch, not replay a cached "AI call
+  // succeeded but returned junk" result from the prior attempt — see
+  // startSimpleGeneration/runSimpleGeneration.
+  function rebuildSimpleDemo() {
+    const sm = simpleState();
+    sm.panel = "generate";
+    sm._status = "";
+    sm._progress = 0;
+    sm._error = "";
+    commit();
+    renderShell();
+    startSimpleGeneration(true);
+  }
+
   // Build stages, derived from the progress fraction runSimpleGeneration
   // already reports (0.04 research, 0.25 apps start, 0.96 deck) — no extra
   // state to persist or reset.
@@ -1228,6 +1243,7 @@
         btn("← Back to details", "bx-btn-secondary", function () {
           simpleState()._error = ""; simpleGoTo(simpleHasQuestions(sim) ? "questions" : "basics");
         }),
+        btn("↻ Retry", "bx-btn-primary", rebuildSimpleDemo),
       ]));
     }
   }
@@ -1248,17 +1264,14 @@
       exportZipWithProgress(function () { return s; }, "Demo ZIP downloaded");
     });
     // Regeneration is explicit only — navigating back never silently re-runs.
-    const rebuildBtn = btn("↻ Rebuild demo", "bx-btn-secondary", function () {
-      const sm = simpleState();
-      sm.panel = "generate";
-      sm._status = "";
-      commit();
-      renderShell();
-      // forceFresh: an explicit Rebuild must regenerate from scratch, not
-      // replay a cached "AI call succeeded but returned junk" result from
-      // the prior attempt — see startSimpleGeneration/runSimpleGeneration.
-      startSimpleGeneration(true);
-    });
+    const rebuildBtn = btn("↻ Rebuild demo", "bx-btn-secondary", rebuildSimpleDemo);
+    // Retail CAB "succeeds" with stock defaults when Gemini fails; say so
+    // instead of presenting it as a finished AI build.
+    const cabSlice = ((s.apps || {}).retailCab) || null;
+    if (sim.selected && sim.selected.indexOf("retailCab") !== -1 && cabSlice && cabSlice._usedGemini === false) {
+      body.appendChild(el("div", { class: "bx-alert is-error", role: "alert", text:
+        "The Retail CAB storefront fell back to template defaults because AI generation didn't complete. Retry to build it with AI." }));
+    }
     body.appendChild(el("div", { class: "bx-simple-done-actions" }, [
       zipBtn,
       rebuildBtn,
