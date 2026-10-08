@@ -1235,6 +1235,9 @@
     }));
     paintSimpleStages(stageList, sim._progress || 0, false);
     body.appendChild(stageList);
+    if (!sim._error) {
+      body.appendChild(simpleNav([btn("Cancel", "bx-btn-secondary", cancelSimpleGeneration)]));
+    }
     body.appendChild(el("p", { class: "bx-simple-hint", text:
       "Researching the customer, generating app configs, product imagery, and the agent conversation. This can take up to 10 minutes." }));
     if (sim._error) {
@@ -1306,11 +1309,32 @@
   // ─── Orchestration ────────────────────────────────────────────
   // Kicks off runSimpleGeneration and moves to the "done" panel on
   // success. Live progress updates the panel-4 bar in place.
+  // Cancel: the in-flight Gemini calls have no abort signal, so a cancelled
+  // build stops at its next checkpoint (stopIfCancelled) and any call already
+  // sent finishes unseen. A new build waits for the old one to wind down
+  // (simpleRunSettled) so two runs never write app.state at once.
+  let simpleCtl = null;
+  let simpleRunSettled = Promise.resolve();
+  function cancelSimpleGeneration() {
+    if (!simpleCtl) return;
+    simpleCtl.abort();
+    simpleCtl = null;
+    const sm = simpleState();
+    sm._error = "";
+    sm._status = "";
+    sm._progress = 0;
+    toast("Build cancelled.");
+    simpleGoTo(simpleHasQuestions(sm) ? "questions" : "basics");
+  }
   function startSimpleGeneration(forceFresh) {
     const sim = simpleState();
     sim._error = "";
     sim._done = false; // a build is now in flight; clear any prior completion
+    if (simpleCtl) simpleCtl.abort(); // a newer build supersedes any in-flight one
+    const ctl = (typeof AbortController === "function") ? new AbortController() : null;
+    simpleCtl = ctl;
     function onStatus(frac, msg) {
+      if (ctl && simpleCtl !== ctl) return; // cancelled/superseded run — stay quiet
       sim._progress = frac;
       if (msg != null) sim._status = msg;
       const wrap = document.getElementById("bxSimpleProgress");
@@ -1323,7 +1347,14 @@
       const stages = document.getElementById("bxSimpleStages");
       if (stages) paintSimpleStages(stages, frac, false);
     }
-    runSimpleGeneration(sim.selected.slice(), onStatus, forceFresh).then(function () {
+    const run = simpleRunSettled.then(function () {
+      if (ctl && ctl.signal.aborted) { const e = new Error("Build cancelled"); e.cancelled = true; throw e; }
+      return runSimpleGeneration(sim.selected.slice(), onStatus, forceFresh, ctl && ctl.signal);
+    });
+    simpleRunSettled = run.catch(function () {});
+    run.then(function () {
+      if (ctl && simpleCtl !== ctl) return; // cancelled or superseded
+      simpleCtl = null;
       sim.panel = "done";
       sim._progress = 1;
       // Durable completion flag: lets the Build step-chip / navigate-back route
@@ -1333,6 +1364,8 @@
       commit();
       renderShell();
     }).catch(function (err) {
+      if ((err && err.cancelled) || (ctl && simpleCtl !== ctl)) return; // user cancelled
+      simpleCtl = null;
       sim._error = "Generation hit a problem: " + ((err && err.message) || err) + ". You can go back and try again.";
       commit();
       renderShell();
@@ -1343,9 +1376,12 @@
   // forceFresh (an explicit Rebuild click): bypass the Gemini status/response
   // caches so a prior failed/bad result can't be silently replayed — see
   // generateSimpleAppConfig and app-foundations.js's generateRetailCab.
-  function runSimpleGeneration(selectedIds, onStatus, forceFresh) {
+  function runSimpleGeneration(selectedIds, onStatus, forceFresh, signal) {
     const s = app.state;
     onStatus = onStatus || function () {};
+    function stopIfCancelled() {
+      if (signal && signal.aborted) { const e = new Error("Build cancelled"); e.cancelled = true; throw e; }
+    }
     const GEMINI = window.HOLO_GEMINI;
     const AI_PROMPT = window.HOLO_AI_PROMPT;
 
@@ -1381,6 +1417,7 @@
       .catch(function () { return; });
 
     return storyPromise.then(function () {
+      stopIfCancelled();
       onStatus(0.25, "Preparing experiences…");
 
       // 3 · Apply the person-name answer AFTER extraction so it wins over any
@@ -1458,6 +1495,7 @@
       let photoChain = Promise.resolve();
       appIds.forEach(function (appId) {
         cfgChain = cfgChain.then(function () {
+          stopIfCancelled();
           onStatus(fracNow(), "Configuring " + appId + "…");
           return generateSimpleAppConfig(appId, GEMINI, function (msg, f) {
             subTick(msg || ("Configuring " + appId + "…"), f);
@@ -1465,10 +1503,11 @@
         }).then(function (cfg) {
           tick("Configured " + appId);
           photoChain = photoChain.then(function () {
+            stopIfCancelled();
             onStatus(fracNow(), "Generating imagery…");
             return generateSimpleAppPhotos(appId, cfg, function (msg, f) {
               subTick(msg || "Generating imagery…", f);
-            })
+            }, signal)
               .then(function () { tick("Imaged " + appId); });
           });
         });
@@ -1476,8 +1515,10 @@
       // By the time cfgChain settles, every photoChain segment is appended, so
       // this awaits the full (serial) image pass too.
       const appWork = cfgChain.then(function () { return photoChain; });
+      photoChain.catch(function () {}); // a cancelled photo segment must not surface as unhandled
 
       return Promise.all([appWork, helpPromise]).then(function () {
+        stopIfCancelled();
         onStatus(0.96, "Assembling the deck…");
         // 5 · Managed CX components for the app iframes.
         syncBuiltAppCxComponents();
@@ -1700,7 +1741,7 @@
   // see app-1's populated s.retailImages and early-return (pending empty). Runs
   // 8-wide (batch:8) to shave a wave off the ~12-image cimulate run. Best-effort:
   // a failure keeps the text config. onStatus(msg, frac) spans 0→1.
-  function generateSimpleAppPhotos(appId, config, onStatus) {
+  function generateSimpleAppPhotos(appId, config, onStatus, signal) {
     const s = app.state;
     onStatus = onStatus || function () {};
     // retailCab's config phase (generateSimpleAppConfig → HOLO_APPFOUND.generate)
@@ -1723,6 +1764,7 @@
       customerName: proj.customerName || "",
       existingImages: sharedImgs,
       batch: 8,
+      signal: signal || undefined,
     }).then(function (images) {
       if (images && Object.keys(images).length) {
         config.productImages = Object.assign({}, config.productImages, images);
