@@ -1277,6 +1277,20 @@
       rebuildBtn,
       btn("Edit selections", "bx-btn-secondary", function () { simpleGoTo("menu"); }),
     ]));
+    // In-app preview of the generated storefront (same token + iframe
+    // attributes as the full builder's Step 8 app cards).
+    if (cabSlice && cabSlice.extracted && cabSlice._previewToken
+        && sim.selected && sim.selected.indexOf("retailCab") !== -1) {
+      const pFrame = el("div", { class: "bx-app-preview-frame bx-mt-12" });
+      pFrame.appendChild(el("iframe", {
+        src: previewUrlFor({ previewUrl: "/demo-apps/retail-cab/" }, cabSlice),
+        title: "Retail CAB storefront preview",
+        loading: "lazy",
+        sandbox: "allow-scripts allow-same-origin allow-forms allow-popups",
+        style: "width:100%;height:520px;border:0;border-radius:10px;background:#fff",
+      }));
+      body.appendChild(pFrame);
+    }
     const exportAppIds = (window.HOLO_ZIP && window.HOLO_ZIP.enabledAppIds)
       ? window.HOLO_ZIP.enabledAppIds(s) : [];
     body.appendChild(el("p", { class: "bx-simple-hint bx-mt-12", text:
