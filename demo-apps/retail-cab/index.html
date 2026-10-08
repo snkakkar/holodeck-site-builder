@@ -218,7 +218,7 @@
         // Text that sits ON an accent fill (active search chip, "Ask <Agent>"
         // button). The accent can equal --primary-dark when no explicit accent
         // is supplied, so a fixed --primary-dark label would vanish; pick
-        // black/white by WCAG relative luminance of the effective accent.
+        // dark or white, whichever has more contrast (crossover ~0.18 luminance).
         var accentFill = c.accent || c.primaryDk;
         var am = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(accentFill || '').trim());
         if (am) {
@@ -228,7 +228,7 @@
             return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
           };
           var lum = 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
-          root.style.setProperty('--on-accent', lum > 0.4 ? '#141414' : '#ffffff');
+          root.style.setProperty('--on-accent', lum > 0.18 ? '#141414' : '#ffffff');
         }
 
         // Hero photo: a generated build (has brand.colors) supplies its own hero
