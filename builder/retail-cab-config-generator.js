@@ -483,7 +483,8 @@
         stylePersona: String(fpp.stylePersona || ""),
         loyaltyTier: String(fpp.loyaltyTier || ""),
         birthday: String(fpp.birthday || ""),
-        location: String(fpp.location || ""),
+        // Last-resort default when neither the script nor Gemini supplied one.
+        location: String(fpp.location || "").trim() || "Chicago, IL",
         memberSince: String(fpp.memberSince || "2023"),
         favoriteCategories: Array.isArray(fpp.favoriteCategories) ? fpp.favoriteCategories.map(String) : [],
         // hex is rendered straight into an inline style="background:..." —
