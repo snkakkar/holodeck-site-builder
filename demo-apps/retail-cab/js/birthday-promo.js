@@ -19,10 +19,16 @@
     [(window.BrandConfig && window.BrandConfig.offer) || {}];
   var OFFER = OFFERS[0] || {};
   var CODE = OFFER.code || 'BDAY2026';
-  var OFFER_SHORT = OFFER.short || '50% off one item + 25% off another';
-  var OFFER_LONG = OFFER.long || 'Take 50% off one fashion jewelry item and 25% off one fine, ' +
-    'demi-fine, home, or sunglasses collection item.';
-  var ELIGIBLE_NAME = OFFER.eligibleFirstName || 'Rachel';
+  // Generated (non-Cavender's) builds never fall back to the baked jewelry
+  // copy / 'Rachel'; the Cavender's build keeps its existing fallbacks.
+  var _BC = window.BrandConfig || {};
+  var GEN_BRAND = !!_BC.chipFilterTable; // emitted only by the config generator (baked Cavender's has none)
+  var OFFER_SHORT = OFFER.short || (GEN_BRAND ? (OFFER.label || 'Birthday reward') : '50% off one item + 25% off another');
+  var OFFER_LONG = OFFER.long || (GEN_BRAND ? (OFFER.short || OFFER.label || 'Enjoy your birthday reward.') :
+    'Take 50% off one fashion jewelry item and 25% off one fine, ' +
+    'demi-fine, home, or sunglasses collection item.');
+  var ELIGIBLE_NAME = OFFER.eligibleFirstName ||
+    (GEN_BRAND ? ((((_BC.persona || {}).identity || {}).firstName) || 'Rachel') : 'Rachel');
   var LEGACY_APPLIED_KEY = 'nto_promo_applied'; // pre-multi-offer birthday key
   var SHOWN_KEY = 'nto_bday_toast_shown';
   var STORE = window.sessionStorage;

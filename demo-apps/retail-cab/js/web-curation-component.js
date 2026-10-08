@@ -682,7 +682,7 @@
     }
     header.innerHTML = '<span class="curation-badge' + (isHelp ? ' curation-badge-help' : (data.isPersonalized ? ' curation-badge-personalized badge-pulse' : '')) + '">' +
       '<span class="curation-badge-inner">' + badgeIcon + ' ' + escapeHtml(badgeLabel) + '</span></span>' +
-      (data.isPersonalized && !isHelp ? '<p class="curation-personalize-hint">Based on your closet</p>' : '');
+      (data.isPersonalized && !isHelp ? '<p class="curation-personalize-hint">Based on your ' + ((window.BrandConfig && window.BrandConfig.chipFilterTable) ? 'favorites' : 'closet') + '</p>' : '');
     wrapper.appendChild(header);
 
     // Text summary

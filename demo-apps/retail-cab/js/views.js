@@ -8,6 +8,11 @@
 
   var _brand = (window.BrandConfig && window.BrandConfig.brand) || {};
   var BRAND_NAME = _brand.name || "Cavender's";
+  // True for a generated (non-Cavender's) build. NOT cocoHasGeneratedBrand():
+  // the baked Cavender's config also defines trends, so that test is true for
+  // it too. chipFilterTable is emitted only by the config generator. Gates
+  // neutral fallback copy only; the baked Cavender's build keeps its wording.
+  var GEN_BRAND = !!(window.BrandConfig && window.BrandConfig.chipFilterTable);
   var AGENT_NAME = _brand.agentName || 'Coco';
   var SIGNATURE_FEATURE = _brand.signatureFeatureLabel || 'Shop the Look';
   // Social handle for the "See It Styled" rail (#Cavenders default). A
@@ -1038,11 +1043,11 @@
 
     var featuredHeading = personalized
       ? 'Recommended for You, ' + escapeHtml(firstName) +
-        ' <span class="personalized-badge">✨ Personalized · Based on your closet</span>'
+        ' <span class="personalized-badge">✨ Personalized · Based on your ' + (GEN_BRAND ? 'favorites' : 'closet') + '</span>'
       : escapeHtml(_copy.heroEyebrow || 'New Arrivals');
     var featuredSubtitle = personalized
       ? 'Picked to match your style.'
-      : escapeHtml(_copy.heroSub || 'Authentic western wear built to last — boots, hats, denim, and everything for the ranch, the rodeo, and the road.');
+      : escapeHtml(_copy.heroSub || (GEN_BRAND ? ('Discover what’s new at ' + BRAND_NAME + '.') : 'Authentic western wear built to last — boots, hats, denim, and everything for the ranch, the rodeo, and the road.'));
 
     // Signed-in Insiders see their birthday reward front-and-center in the hero.
     // Rendered as brand-driven TEXT (offer copy + code from BirthdayPromo /
@@ -1076,8 +1081,8 @@
       : '<section class="hero hero-ks">' +
         '  <div class="hero-overlay"></div>' +
         '  <div class="hero-content">' +
-        '    <h1 class="hero-title">' + escapeHtml(_copy.heroTitle || 'The West, Worn Well') + '</h1>' +
-        '    <p class="hero-subtitle">' + escapeHtml(_copy.heroSub || 'Discover the new arrivals — boots, hats, and denim built for the long haul.') + '</p>' +
+        '    <h1 class="hero-title">' + escapeHtml(_copy.heroTitle || (GEN_BRAND ? BRAND_NAME : 'The West, Worn Well')) + '</h1>' +
+        '    <p class="hero-subtitle">' + escapeHtml(_copy.heroSub || (GEN_BRAND ? 'Discover the new arrivals.' : 'Discover the new arrivals — boots, hats, and denim built for the long haul.')) + '</p>' +
         '    <div class="hero-actions">' +
         '      <a href="' + _catHref(0, '/boots') + '" class="btn btn-white">' + escapeHtml(_copy.heroCta || ('Shop ' + (_navCats[0] || 'Boots'))) + '</a>' +
         (_navCats[1] || !_navCats.length
@@ -1118,8 +1123,8 @@
       '  <div class="lifestyle-image-side lifestyle-image-ks"></div>' +
       '  <div class="lifestyle-copy-side">' +
       '    <div class="lifestyle-label">' + escapeHtml(_copy.ourStoryLabel || 'OUR STORY') + '</div>' +
-      '    <h2 class="lifestyle-heading">' + escapeHtml(_copy.ourStoryHeading || 'Family, Heritage & the West.') + '</h2>' +
-      '    <p>' + escapeHtml(_copy.ourStoryBody || ('Since 1965, ' + BRAND_NAME + ' has outfitted families in authentic western wear — boots, hats, and denim built to last and made to be lived in. Every piece is chosen to help you express what makes you, you.')) + '</p>' +
+      '    <h2 class="lifestyle-heading">' + escapeHtml(_copy.ourStoryHeading || (GEN_BRAND ? ('About ' + BRAND_NAME) : 'Family, Heritage & the West.')) + '</h2>' +
+      '    <p>' + escapeHtml(_copy.ourStoryBody || (GEN_BRAND ? ('Every ' + BRAND_NAME + ' product is chosen to help you express what makes you, you.') : ('Since 1965, ' + BRAND_NAME + ' has outfitted families in authentic western wear — boots, hats, and denim built to last and made to be lived in. Every piece is chosen to help you express what makes you, you.'))) + '</p>' +
       '    <a href="' + _catHref(0, '/boots') + '" class="btn btn-dark">' + escapeHtml(_copy.ourStoryCta || 'Shop the Collection') + '</a>' +
       '  </div>' +
       '</section>';
@@ -1938,7 +1943,7 @@
         '  <div class="container">' +
         '    <div class="profile-empty-icon">✨</div>' +
         '    <h1 class="profile-empty-title">Your Profile Awaits</h1>' +
-        '    <p class="profile-empty-text">Sign in to see your closet, style profile, and recommendations tailored just for you.</p>' +
+        '    <p class="profile-empty-text">Sign in to see your ' + (GEN_BRAND ? 'favorites' : 'closet') + ', style profile, and recommendations tailored just for you.</p>' +
         '    <button class="btn btn-dark" id="profile-signin-btn">Sign In</button>' +
         '  </div>' +
         '</section>';
@@ -1988,7 +1993,7 @@
              (P.location ? ' · ' + escapeHtml(P.location) : '') +
              (email ? ' · ' + escapeHtml(email) : '') + '</p>' +
       '      <div class="profile-stats">' +
-      '        <div class="profile-stat"><span class="profile-stat-num" id="profile-pieces">—</span><span class="profile-stat-label">Pieces Owned</span></div>' +
+      '        <div class="profile-stat"><span class="profile-stat-num" id="profile-pieces">—</span><span class="profile-stat-label">' + (GEN_BRAND ? 'Items Owned' : 'Pieces Owned') + '</span></div>' +
       '        <div class="profile-stat"><span class="profile-stat-num">' + wishlist.length + '</span><span class="profile-stat-label">Wishlist</span></div>' +
       '        <div class="profile-stat"><span class="profile-stat-num">' + escapeHtml(P.lifetimeValue || '—') + '</span><span class="profile-stat-label">Lifetime Value</span></div>' +
       (P.birthday ? '        <div class="profile-stat"><span class="profile-stat-num">' + escapeHtml(P.birthday) + '</span><span class="profile-stat-label">Birthday</span></div>' : '') +
@@ -2020,9 +2025,9 @@
       '      <div class="profile-traits-grid">' +
              trait('Style Persona', '<strong>' + escapeHtml(P.stylePersona || '') + '</strong>') +
              trait('Favorite Categories', '<div class="profile-chip-row">' + favCats + '</div>') +
-             trait('COLOR & STONE PREFERENCES', '<div class="profile-chip-row">' + colorChips + '</div>') +
+             trait(GEN_BRAND ? 'COLOR PREFERENCES' : 'COLOR & STONE PREFERENCES', '<div class="profile-chip-row">' + colorChips + '</div>') +
              trait('Birthday', escapeHtml(P.birthday || '')) +
-             trait('Metal Preference', escapeHtml(P.metalPreference || '')) +
+             ((GEN_BRAND && !P.metalPreference) ? '' : trait('Metal Preference', escapeHtml(P.metalPreference || ''))) +
              trait('Preferred Channel', escapeHtml(P.preferredChannel || '')) +
       '      </div>' +
       '    </div>' +
@@ -2033,7 +2038,7 @@
       '<section class="section">' +
       '  <div class="container">' +
       '    <h2 class="section-heading">My Closet</h2>' +
-      '    <p class="section-subtitle">The gear you\'ve collected and love.</p>' +
+      '    <p class="section-subtitle">' + (GEN_BRAND ? 'The products you\'ve collected and love.' : 'The gear you\'ve collected and love.') + '</p>' +
       '    <div class="product-grid" id="profile-box-grid">' +
       '      <div class="curation-loading" style="height:260px"></div>' +
       '      <div class="curation-loading" style="height:260px"></div>' +
@@ -2054,7 +2059,7 @@
       '<section class="section">' +
       '  <div class="container">' +
       '    <h2 class="section-heading">Recommended for You ' +
-             '<span class="personalized-badge">✨ Based on your closet</span></h2>' +
+             '<span class="personalized-badge">✨ Based on your ' + (GEN_BRAND ? 'favorites' : 'closet') + '</span></h2>' +
       '    <p class="section-subtitle">' + escapeHtml(_copyCfg.recsSubtitle || 'More pieces we think you\'ll love.') + '</p>' +
       '    <div class="product-grid" id="profile-recs-grid">' +
       '      <div class="curation-loading" style="height:260px"></div>' +
