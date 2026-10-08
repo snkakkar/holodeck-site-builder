@@ -1186,6 +1186,28 @@
     ]));
   }
 
+  // Build stages, derived from the progress fraction runSimpleGeneration
+  // already reports (0.04 research, 0.25 apps start, 0.96 deck) — no extra
+  // state to persist or reset.
+  const SIMPLE_STAGES = [
+    { label: "Research the customer", from: 0 },
+    { label: "Build the experiences", from: 0.25 },
+    { label: "Assemble the deck", from: 0.96 },
+  ];
+  function simpleStageIndex(frac) {
+    let idx = 0;
+    SIMPLE_STAGES.forEach(function (st, i) { if ((frac || 0) >= st.from) idx = i; });
+    return idx;
+  }
+  function paintSimpleStages(list, frac, finished) {
+    const cur = simpleStageIndex(frac);
+    Array.prototype.forEach.call(list.children, function (li, i) {
+      const done = finished || i < cur;
+      li.className = "bx-simple-stage" + (done ? " is-done" : i === cur ? " is-active" : "");
+      li.firstChild.textContent = done ? "✓" : i === cur ? "●" : "○";
+    });
+  }
+
   // Panel 4 — generation progress.
   function renderSimpleGenerate(body, sim) {
     body.appendChild(el("h2", { class: "bx-simple-h2", text: "Building your demo…" }));
@@ -1193,6 +1215,11 @@
     pb.set(sim._progress || 0, sim._status || "Starting…");
     pb.node.id = "bxSimpleProgress";
     body.appendChild(pb.node);
+    const stageList = el("ol", { class: "bx-simple-stages", id: "bxSimpleStages" }, SIMPLE_STAGES.map(function (st) {
+      return el("li", {}, [el("span", { class: "bx-simple-stage-dot", text: "○" }), el("span", { text: " " + st.label })]);
+    }));
+    paintSimpleStages(stageList, sim._progress || 0, false);
+    body.appendChild(stageList);
     body.appendChild(el("p", { class: "bx-simple-hint", text:
       "Researching the customer, generating app configs, product imagery, and the agent conversation. This can take up to 10 minutes." }));
     if (sim._error) {
@@ -1266,6 +1293,8 @@
         if (fill) fill.style.width = Math.round(Math.max(0, Math.min(1, frac || 0)) * 100) + "%";
         if (label && msg != null) label.textContent = msg;
       }
+      const stages = document.getElementById("bxSimpleStages");
+      if (stages) paintSimpleStages(stages, frac, false);
     }
     runSimpleGeneration(sim.selected.slice(), onStatus, forceFresh).then(function () {
       sim.panel = "done";
