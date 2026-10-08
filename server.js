@@ -263,6 +263,34 @@ function rateLimit(req, res, next) {
   return next();
 }
 
+// ── Per-user in-flight cap ─────────────────────────────────────
+// rateLimit() bounds requests per minute; this bounds how many Gemini
+// requests one user can have open (running or queued) at once, so a single
+// runaway client can't fill the global gate queue and starve everyone else.
+// Over the cap → 429 + Retry-After, which gemini-client.js already retries.
+const USER_INFLIGHT_MAX = Math.max(1, Number(process.env.GEMINI_USER_INFLIGHT_MAX || 6));
+const _userInflight = new Map(); // key → open request count
+
+function userInflightCap(req, res, next) {
+  const key = (req.holoUser && req.holoUser.sub) || req.ip || "anon";
+  const n = _userInflight.get(key) || 0;
+  if (n >= USER_INFLIGHT_MAX) {
+    res.set("Retry-After", "2");
+    return res.status(429).json({ error: "Too many Gemini requests in flight — retrying shortly." });
+  }
+  _userInflight.set(key, n + 1);
+  let released = false;
+  const done = () => {
+    if (released) return;
+    released = true;
+    const left = (_userInflight.get(key) || 1) - 1;
+    if (left > 0) _userInflight.set(key, left); else _userInflight.delete(key);
+  };
+  res.on("close", done);
+  res.on("finish", done);
+  return next();
+}
+
 // ── Google Cloud Storage (image bytes) ─────────────────────────
 // AI-generated images come back from Gemini as raw base64 bytes. If
 // we leave them inline as data: URLs inside the project state, the
@@ -461,6 +489,25 @@ function beginNdjson(res) {
   return { writeLine, finish };
 }
 
+// Upstream Gemini returns 429 (quota) / 503 (overloaded) under load. The
+// browser can't see these — they'd arrive inside an HTTP 200 NDJSON stream —
+// so retry here, with jitter, honoring Retry-After. Only before any body has
+// been read, so it is safe for both the SSE and the one-shot image call.
+const GEMINI_UPSTREAM_RETRIES = 3;
+async function geminiFetch(url, opts, ms) {
+  for (let attempt = 0; ; attempt++) {
+    const upstream = await fetchWithTimeout(url, opts, ms);
+    if ((upstream.status !== 429 && upstream.status !== 503) || attempt >= GEMINI_UPSTREAM_RETRIES) return upstream;
+    const secs = Number(upstream.headers.get("retry-after"));
+    const base = Math.min(8000, 1000 * Math.pow(2, attempt));
+    const wait = Number.isFinite(secs) && secs > 0
+      ? Math.min(10000, secs * 1000) + Math.random() * 500
+      : base / 2 + Math.random() * (base / 2);
+    try { await upstream.body.cancel(); } catch (_) { /* body already consumed */ }
+    await new Promise((r) => setTimeout(r, wait));
+  }
+}
+
 // ── Gemini concurrency gates ───────────────────────────────────
 // The per-user rate limit protects against one caller, not against many:
 // 50 simultaneous builds would fire thousands of calls at the one shared
@@ -565,7 +612,7 @@ app.get("/api/gemini/status", (_req, res) => {
 // The result is still buffered server-side before `done`, so JSON /
 // responseSchema validation downstream is unchanged; streaming only
 // keeps the HTTP connection alive past 30s.
-app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, async (req, res) => {
+app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, userInflightCap, async (req, res) => {
   if (!GEMINI_API_KEY) {
     return res.status(503).json({ error: "Gemini is not configured on the server (GEMINI_API_KEY unset)." });
   }
@@ -629,7 +676,7 @@ app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, async (req, res
   // GenerateContentResponse; we concatenate the text parts as they land.
   const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
   try {
-    const upstream = await fetchWithTimeout(url, {
+    const upstream = await geminiFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
       body: JSON.stringify(payload),
@@ -703,7 +750,7 @@ app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, async (req, res
 // /generate (see beginNdjson). We still buffer the upstream call (the
 // base64 image arrives in one piece); the heartbeat is what keeps the
 // connection alive. Terminal line is {type:"done",dataUrl,model}.
-app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, async (req, res) => {
+app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, userInflightCap, async (req, res) => {
   if (!GEMINI_API_KEY) {
     return res.status(503).json({ error: "Gemini is not configured on the server (GEMINI_API_KEY unset)." });
   }
@@ -727,7 +774,7 @@ app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, async (re
   if (!release) return finish({ type: "error", error: "Request cancelled" });
   const url = `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`;
   try {
-    const upstream = await fetchWithTimeout(url, {
+    const upstream = await geminiFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
       body: JSON.stringify(payload),
