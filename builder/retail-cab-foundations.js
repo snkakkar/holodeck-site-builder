@@ -422,8 +422,8 @@
     const so = Array.isArray(cx.scriptOffers) ? cx.scriptOffers : [];
     if (so.length) optionalBits.push('The demo script mentions these offers: ' + so.map(function (o) { return o.label + (o.value ? " (" + o.value + ")" : ""); }).join("; ") + '. Reflect them in the offers list (labels/short/long) where they fit the allowed offer types; do not invent others.');
     if (cx.scriptLoyalty) optionalBits.push('Loyalty program per the script: ' + [cx.scriptLoyalty.threshold ? cx.scriptLoyalty.threshold + " points threshold" : "", cx.scriptLoyalty.rewardLabel || ""].filter(Boolean).join(" → ") + '. Echo it in offer copy and persona.profile.loyaltyTier where natural.');
-    if (cx.pickupStore) optionalBits.push('The script\'s pickup store is "' + cx.pickupStore + '"; use it as persona.profile.location where natural.');
-    if (!cx.pickupStore) optionalBits.push('persona.profile.location MUST be a real "City, ST" (US state abbreviation) where THIS brand has a store or its headquarters — use the website/brand\'s real home market if you know it; if you do not, choose a plausible major US city. Never leave it blank.');
+    if (cx.pickupStore) optionalBits.push('The script\'s pickup store is "' + cx.pickupStore + '" (a STORE name, not a city). Do not use it as persona.profile.location; use the real city it is in.');
+    optionalBits.push('persona.profile.location MUST be a real "City, ST" (US state abbreviation, e.g. "Columbus, OH" — never a store or mall name) where THIS brand has a store or its headquarters — use the website/brand\'s real home market if you know it; if you do not, choose a plausible major US city. Never leave it blank.');
     if (cx.brandColor) optionalBits.push('The brand\'s primary color is approximately ' + cx.brandColor + ' (for context; colors are applied separately).');
 
     const scrapedNote = scraped.ok && scraped.imageCount
