@@ -792,6 +792,14 @@
       demoQueries: demoQueries,
       // stores: left to the foundation's baked default unless a generator adds them.
     };
+    // Script-stated loyalty program / pickup store. Added ONLY when the script
+    // stated them; the template falls back to its current constants otherwise.
+    if (cx.scriptLoyalty && Number(cx.scriptLoyalty.threshold) > 0) {
+      brandConfig.loyalty = { threshold: Number(cx.scriptLoyalty.threshold), rewardLabel: String(cx.scriptLoyalty.rewardLabel || "") };
+    } else if (cx.scriptLoyalty && cx.scriptLoyalty.rewardLabel) {
+      brandConfig.loyalty = { threshold: 0, rewardLabel: String(cx.scriptLoyalty.rewardLabel) };
+    }
+    if (cx.pickupStore) brandConfig.homeStore = String(cx.pickupStore);
 
     return {
       // New foundation artifacts:

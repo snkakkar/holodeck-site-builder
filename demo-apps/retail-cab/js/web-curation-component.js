@@ -1589,7 +1589,7 @@
     renderHelp({
       speaker: HELP_LABEL + ' · ' + l.tier,
       text: 'You have ' + l.pointsBalance.toLocaleString() + ' points — just ' + l.pointsToNextReward +
-        ' more to your next $25 reward (' + pct + '% of the way there). Here’s what you can redeem right now:',
+        ' more to your next ' + (((window.BrandConfig || {}).loyalty || {}).rewardLabel || '$25 reward') + ' (' + pct + '% of the way there). Here’s what you can redeem right now:',
       segments: l.rewards.map(function (r) {
         return { name: r.label + (r.cost > l.pointsBalance ? ' · ' + r.cost + ' pts' : ' · ready') };
       }),

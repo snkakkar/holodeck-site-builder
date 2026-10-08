@@ -36,6 +36,8 @@
     return id.firstName || 'there';
   }
   function homeStore() {
+    var scripted = _cfg().homeStore; // set only when the demo script names a pickup store
+    if (scripted && String(scripted).trim()) return String(scripted).trim();
     var loc = (_persona().profile || {}).location;
     return (loc && String(loc).trim()) || 'your local store';
   }
@@ -184,6 +186,16 @@
     nextRewardAt: 3000,
     rewards: buildRewards()
   };
+  // Script-stated threshold (BrandConfig.loyalty, only present when the script
+  // names one): keep the same ~82% progress ratio, scaled to that threshold.
+  var _scriptedLoyalty = _cfg().loyalty;
+  if (_scriptedLoyalty && Number(_scriptedLoyalty.threshold) > 0) {
+    LOYALTY.nextRewardAt = Number(_scriptedLoyalty.threshold);
+    LOYALTY.pointsBalance = Math.round(LOYALTY.nextRewardAt * 2450 / 3000);
+    LOYALTY.pointsToNextReward = LOYALTY.nextRewardAt - LOYALTY.pointsBalance;
+    // Scale reward costs the same way so "ready to redeem" stays consistent.
+    LOYALTY.rewards.forEach(function (r) { r.cost = Math.round(r.cost * LOYALTY.nextRewardAt / 3000); });
+  }
 
   // ── Identity gate ──────────────────────────────────────────────────────────
   // orders.js loads before web-curation-component.js, so read the persisted
