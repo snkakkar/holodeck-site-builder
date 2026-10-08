@@ -739,7 +739,24 @@
       const gotLogo = res[0];
       const data = res[1];
       const isHex = function (v) { return /^#[0-9a-fA-F]{6}$/.test(String(v || "").trim()); };
-      let gotColors = false, gotIndustry = false;
+      let gotColors = false, gotIndustry = false, gotName = false;
+      // Customer name: from the model when it recognizes the brand, else the
+      // website domain ("www.acme-shop.com" → "Acme Shop"). Never replaces a name
+      // the user typed; only fills an empty one or one we filled earlier.
+      let guessedName = String((data && data.customerName) || "").trim();
+      if (!guessedName) {
+        const host = String(site).trim().replace(/^[a-z]+:\/\//i, "").replace(/^www\./i, "").split(/[\/?#]/)[0];
+        const label = host.split(".")[0] || "";
+        guessedName = label.split(/[-_]+/).filter(Boolean)
+          .map(function (w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
+      }
+      const sim = app.state.simple || {};
+      if (guessedName && !edited.customerName && (!(p.customerName || "").trim() || p.customerName === sim._autoCustomer)) {
+        p.customerName = guessedName; sim._autoCustomer = guessedName; gotName = true;
+        if (!app.state.name || app.state.name === "Untitled project" || app.state.name === sim._autoName) {
+          app.state.name = guessedName; sim._autoName = guessedName;
+        }
+      }
       if (data) {
         if (!edited.colors) {
           if (isHex(data.primaryColor))   { b.primaryColor = String(data.primaryColor).trim(); gotColors = true; }
@@ -752,9 +769,13 @@
       commit();
 
       const set = [];
+      if (gotName) set.push("name");
       if (gotLogo) set.push("logo");
       if (gotColors) set.push("colors");
       if (gotIndustry) set.push("industry");
+      if (gotName && set.length === 1 && !String((data && data.customerName) || "").trim()) {
+        return "Name guessed from the web address — add logo, colors and industry in Brand details";
+      }
       if (set.length) return "Set " + set.join(" + ");
       if (!canBrand) {
         return gotLogo
@@ -853,8 +874,9 @@
       }
       commit();
     });
+    nameIn.addEventListener("input", function () { sim._edited.customerName = true; });
     body.appendChild(el("label", { class: "bx-simple-field" }, [
-      el("span", { class: "bx-simple-label", text: "Customer name" }), nameIn,
+      el("span", { class: "bx-simple-label", text: "Project name" }), projIn,
     ]));
 
     // ── Website + inline Analyze.
@@ -893,6 +915,10 @@
       accentColor: colorField("Accent", "accentColor"),
     };
     function syncFromState() {
+      nameIn.value = p.customerName || "";
+      projIn.value = app.state.name || "";
+      renderTopbar();
+      if (!(p.customerName || "").trim()) detailsEl.open = true;
       indIn.value = p.industry || "";
       showLogo();
       Object.keys(colorFields).forEach(function (k) {
@@ -952,13 +978,13 @@
     const colorRow = el("div", { class: "bx-grid-3" });
     Object.keys(colorFields).forEach(function (k) { colorRow.appendChild(colorFields[k]); });
 
-    // Project name sits outside Brand details — it is not a brand field.
-    body.appendChild(el("label", { class: "bx-simple-field" }, [
-      el("span", { class: "bx-simple-label", text: "Project name" }), projIn,
-    ]));
-
-    body.appendChild(el("details", { class: "bx-simple-brand-details" }, [
-      el("summary", { text: "Brand details — auto-filled, edit if needed" }),
+    // Customer name lives here: it is read from the website by Analyze and
+    // stays hand-editable. The details open on their own if it is missing.
+    const detailsEl = el("details", { class: "bx-simple-brand-details" }, [
+      el("summary", { text: "Brand details — auto-filled from the website, edit if needed" }),
+      el("label", { class: "bx-simple-field" }, [
+        el("span", { class: "bx-simple-label", text: "Customer name" }), nameIn,
+      ]),
       el("label", { class: "bx-simple-field" }, [
         el("span", { class: "bx-simple-label", text: "Industry" }), indIn,
       ]),
@@ -970,7 +996,9 @@
       el("div", { class: "bx-simple-field" }, [
         el("span", { class: "bx-simple-label", text: "Colors" }), colorRow,
       ]),
-    ]));
+    ]);
+    if (!(p.customerName || "").trim()) detailsEl.open = true;
+    body.appendChild(detailsEl);
 
     // ── Optional story context — grounds the AI verbatim. runSimpleStoryExtraction
     // only synthesizes a placeholder seed when state.scriptText is empty
@@ -1037,7 +1065,11 @@
     const hasQs = simpleHasQuestions(sim);
     nextBtn.textContent = hasQs ? "Next →" : "✨ Generate demo";
     function goNext() {
-      if (!(p.customerName || "").trim()) { toast("Enter a customer name"); return; }
+      if (!(p.customerName || "").trim()) {
+        detailsEl.open = true; nameIn.focus();
+        toast("Analyze the website, or enter a customer name in Brand details");
+        return;
+      }
       if (hasQs) simpleGoTo("questions"); else beginSimpleGeneration();
     }
 

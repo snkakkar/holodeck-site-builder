@@ -488,6 +488,7 @@ CX components (AubreyDemo):
     "these keys:",
     "",
     "{",
+    '  "customerName":   "<the company\'s common brand name, e.g. \\"Kendra Scott\\", not the legal entity or tagline>",',
     '  "industry":       "<the company\'s industry in 1–3 words, e.g. \\"Retail\\", \\"Financial Services\\">",',
     '  "description":    "<one short sentence: what the company does>",',
     '  "primaryColor":   "<#rrggbb — the brand\'s dominant color>",',
