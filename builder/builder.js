@@ -821,9 +821,66 @@
   }
 
   // Panel 1 — experience menu (multi-select cards).
+  // "Build it for me" — one website in, finished Retail CAB demo ZIP out.
+  // Experimental: only offered with ?autopilot=1 in the builder URL.
+  function autopilotEnabled() {
+    try { return new URLSearchParams(window.location.search).get("autopilot") === "1"; }
+    catch (_) { return false; }
+  }
+  function renderAutopilotBox() {
+    const sim = simpleState();
+    const p = app.state.project = app.state.project || {};
+    const input = el("input", { class: "bx-input", type: "text", placeholder: "Website (e.g. acme.com)", value: p.website || "" });
+    const go = btn("⚡ Build it for me", "bx-btn-primary", function () {
+      const site = (input.value || "").trim();
+      if (!site) { toast("Enter a website first."); input.focus(); return; }
+      runSimpleAutoBuild(site);
+    });
+    return el("div", { class: "bx-simple-autopilot" }, [
+      el("div", { class: "bx-simple-label", text: "Build it for me (experimental)" }),
+      el("p", { class: "bx-simple-hint", text:
+        "Enter a website. We analyze the brand, build the Retail CAB storefront, and download the demo ZIP — no other steps." }),
+      el("div", { class: "bx-simple-site-row" }, [input, go]),
+    ]);
+  }
+  // Analyze -> build (existing pipeline) -> ZIP. Reuses analyzeWebsite,
+  // startSimpleGeneration (stages / Cancel / Retry / preview) and the normal
+  // ZIP export. A failed Analyze is non-fatal: the build falls back to a name
+  // derived from the domain, like the manual flow would after a failed Analyze.
+  let simpleAutoExport = false;
+  function runSimpleAutoBuild(site) {
+    const sim = simpleState();
+    const p = app.state.project = app.state.project || {};
+    p.website = site;
+    sim.selected = ["retailCab"];
+    sim.panel = "generate";
+    sim._error = "";
+    sim._done = false;
+    sim._progress = 0.01;
+    sim._status = "Analyzing " + site + "…";
+    if (simpleCtl) simpleCtl.abort();
+    const ctl = (typeof AbortController === "function") ? new AbortController() : null;
+    simpleCtl = ctl; // lets Cancel work during the Analyze step too
+    commit();
+    renderShell();
+    analyzeWebsite(site, (p.customerName || "").trim())
+      .then(function () { sim._analyzedSite = site; }, function () {})
+      .then(function () {
+        if (ctl && ctl.signal.aborted) return; // cancelled while analyzing
+        if (!String(p.customerName || "").trim()) {
+          const host = String(site).replace(/^[a-z]+:\/\//i, "").replace(/^www\./i, "").split(/[\/?#]/)[0].split(".")[0];
+          p.customerName = host ? host.charAt(0).toUpperCase() + host.slice(1) : "Customer";
+        }
+        simpleAutoExport = true;
+        commit();
+        startSimpleGeneration(true);
+      });
+  }
+
   function renderSimpleMenu(body, sim) {
     body.appendChild(el("h2", { class: "bx-simple-h2", text: "1 · Choose experiences" }));
     body.appendChild(el("p", { class: "bx-simple-hint", text: "Select one or more. Each becomes a slide in the demo." }));
+    if (autopilotEnabled()) body.appendChild(renderAutopilotBox());
 
     const grid = el("div", { class: "bx-simple-cards" });
     simpleExperiences().forEach(function (exp) {
@@ -1323,6 +1380,7 @@
     sm._error = "";
     sm._status = "";
     sm._progress = 0;
+    simpleAutoExport = false;
     toast("Build cancelled.");
     simpleGoTo(simpleHasQuestions(sm) ? "questions" : "basics");
   }
@@ -1363,8 +1421,13 @@
       sim._done = true;
       commit();
       renderShell();
+      if (simpleAutoExport) { // "Build it for me": hand over the ZIP too
+        simpleAutoExport = false;
+        exportZipWithProgress(function () { return app.state; }, "Demo ZIP downloaded");
+      }
     }).catch(function (err) {
       if ((err && err.cancelled) || (ctl && simpleCtl !== ctl)) return; // user cancelled
+      simpleAutoExport = false;
       simpleCtl = null;
       sim._error = "Generation hit a problem: " + ((err && err.message) || err) + ". You can go back and try again.";
       commit();
