@@ -3747,7 +3747,7 @@ a { color: inherit; }
 }
 .search-cat-chip-active {
   background: var(--accent) !important;
-  color: var(--primary-dark) !important;
+  color: var(--on-accent, var(--primary-dark)) !important;
   border-color: var(--accent) !important;
   font-weight: 700;
 }
@@ -3801,7 +3801,7 @@ a { color: inherit; }
 .search-agent-cta-btn {
   padding: 10px 20px;
   background: var(--accent);
-  color: var(--primary-dark);
+  color: var(--on-accent, var(--primary-dark));
   border: none;
   border-radius: 10px;
   font-weight: 700;
@@ -3813,6 +3813,7 @@ a { color: inherit; }
 }
 .search-agent-cta-btn:hover {
   background: white;
+  color: var(--ink);
 }
 
 /* Empty state */
@@ -3850,7 +3851,7 @@ a { color: inherit; }
   margin-top: 20px;
   padding: 12px 24px;
   background: var(--accent);
-  color: var(--primary-dark);
+  color: var(--on-accent, var(--primary-dark));
   border: none;
   border-radius: 12px;
   font-weight: 700;
@@ -3860,6 +3861,7 @@ a { color: inherit; }
 }
 .search-agent-handoff:hover {
   background: white;
+  color: var(--ink);
 }
 
 /* ── Mobile Responsive ── */

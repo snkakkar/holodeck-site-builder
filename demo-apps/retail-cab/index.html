@@ -215,6 +215,21 @@
         // accent: prefer an explicit accent, else lean on the primary tint.
         if (c.accent) root.style.setProperty('--accent', c.accent);
         else if (c.primaryDk) root.style.setProperty('--accent', c.primaryDk);
+        // Text that sits ON an accent fill (active search chip, "Ask <Agent>"
+        // button). The accent can equal --primary-dark when no explicit accent
+        // is supplied, so a fixed --primary-dark label would vanish; pick
+        // black/white by WCAG relative luminance of the effective accent.
+        var accentFill = c.accent || c.primaryDk;
+        var am = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(accentFill || '').trim());
+        if (am) {
+          var hx = am[1].length === 3 ? am[1].replace(/./g, '$&$&') : am[1];
+          var lin = function (i) {
+            var v = parseInt(hx.substr(i, 2), 16) / 255;
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+          };
+          var lum = 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
+          root.style.setProperty('--on-accent', lum > 0.4 ? '#141414' : '#ffffff');
+        }
 
         // Hero photo: a generated build (has brand.colors) supplies its own hero
         // image via copy.heroImage; when absent, drop the baked Cavender's photo
