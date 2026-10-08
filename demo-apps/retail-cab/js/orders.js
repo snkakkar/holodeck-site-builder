@@ -26,6 +26,9 @@
   // eligibility); their product items are filled at seed time from the loaded
   // catalog so a signed-in shopper always sees THIS brand's products.
   function _cfg() { return window.BrandConfig || {}; }
+  // Generated-build flag (chipFilterTable is emitted only by the config
+  // generator; baked Cavender's has none). Gates neutral return wording.
+  var GEN_BRAND = !!_cfg().chipFilterTable;
   function _persona() { return _cfg().persona || {}; }
   function personaEmail() {
     var id = _persona().identity || {};
@@ -283,8 +286,8 @@
       return {
         ok: true,
         rma: 'RMA-' + id.replace('#', ''),
-        message: 'Your return is started. A prepaid FedEx label is on its way to ' +
-          personaEmail() + ' — print it, drop the box at any FedEx location, and your ' +
+        message: 'Your return is started. A prepaid ' + (GEN_BRAND ? 'return' : 'FedEx') + ' label is on its way to ' +
+          personaEmail() + ' — print it, drop the box at any ' + (GEN_BRAND ? 'carrier' : 'FedEx') + ' location, and your ' +
           'refund posts to your original payment within 3–5 business days.'
       };
     },
@@ -298,7 +301,7 @@
         ok: true,
         rma: 'EXC-' + id.replace('#', ''),
         message: 'Exchange started' + (newSize ? ' for size ' + newSize : '') +
-          '. We’ll ship the new pair as soon as we scan the return — a prepaid FedEx ' +
+          '. We’ll ship the new ' + (GEN_BRAND ? 'item' : 'pair') + ' as soon as we scan the return — a prepaid ' + (GEN_BRAND ? 'return' : 'FedEx') + ' ' +
           'label is on its way to ' + personaEmail() + '. No extra charge.'
       };
     },

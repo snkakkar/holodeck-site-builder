@@ -16,6 +16,9 @@
   var _brand = (window.BrandConfig && window.BrandConfig.brand) || {};
   var AGENT_NAME = _brand.agentName || 'Coco';
   var BRAND_NAME = _brand.name || "Cavender's";
+  // Generated-build flag (chipFilterTable is emitted only by the config
+  // generator; baked Cavender's has none). Gates neutral Help-agent wording.
+  var GEN_BRAND = !!(window.BrandConfig && window.BrandConfig.chipFilterTable);
   var AGENT_ROLE = _brand.agentRole || 'stylist';
   // Help Agent speaker label — brand-driven so it reskins with the generated
   // brand instead of showing "Cavender's Help".
@@ -1437,7 +1440,7 @@
     if (/^cancel (my )?order/.test(q) || q === 'cancel order') return helpCancel();
     if (/^change shipping/.test(q)) { window.Orders.modify(null, { shipping: 'changed' }); return helpModifyConfirm('shipping method'); }
     if (/^redeem/.test(q) || /^my rewards/.test(q)) { if (/^redeem/.test(q)) return helpRedeem(q); return helpLoyalty(); }
-    if (/^shop with my reward/.test(q)) { handBackToShopping('Show me boots I can use my reward on'); return; }
+    if (/^shop with my reward/.test(q)) { handBackToShopping(GEN_BRAND ? 'Show me what I can use my reward on' : 'Show me boots I can use my reward on'); return; }
     if (/^start a warranty claim/.test(q)) return helpWarrantyClaim();
     if (/^find a repair option/.test(q)) return helpRepair();
     if (/^care for something else/.test(q)) return helpCareMenu();
@@ -1501,7 +1504,7 @@
     var sized = orderHasSizing(order);
     renderHelp({
       text: 'Sorry the fit isn’t right! I found ' + helpOrderLine(order) + '. Since it’s within ' +
-        'the 60-day window, you can exchange it for ' + (sized ? 'another size/width' : 'a different option') +
+        'the ' + (GEN_BRAND ? 'return' : '60-day') + ' window, you can exchange it for ' + (sized ? 'another size/width' : 'a different option') +
         ' at no cost, or return it for a full refund. What would you like to do?',
       curation: helpProductCards(order.items.map(function (it) { return { name: it.name, image: it.image, family: it.family, description: '', category: '' }; })),
       options: [
@@ -1542,7 +1545,7 @@
     var order = helpTargetOrder(defaultHelpFamily());
     var fam = (order && order.items[0] && order.items[0].family) || defaultFamilyFallback();
     var suffix = orderHasSizing(order) ? ' in the right size' : ' like this one';
-    handBackToShopping('Show me ' + fam.toLowerCase() + ' like my last pair' + suffix);
+    handBackToShopping('Show me ' + fam.toLowerCase() + (GEN_BRAND ? ' like my last order' : ' like my last pair') + suffix);
   }
 
   // 2. Order status & pickup tracking (WISMO/BOPIS)
@@ -1635,15 +1638,18 @@
     renderHelp({
       text: '✅ Warranty claim opened for ' + (order ? order.id : 'your order') + '. Our team will email ' +
         cocoPersonaEmail() + ' within one business day with a prepaid shipping label and next steps. ' +
-        'You’ll keep wearing your other boots in the meantime.',
+        (GEN_BRAND ? '' : 'You’ll keep wearing your other boots in the meantime.'),
       options: [{ name: 'Back to shopping' }]
     });
   }
 
   function helpRepair() {
     renderHelp({
-      text: '✅ I’ve queued a mail-in cobbler repair. Print the label we’ll email you, drop the boots ' +
-        'at any FedEx location, and expect them back resoled in about 2–3 weeks.',
+      text: GEN_BRAND
+        ? '✅ I’ve queued a mail-in repair. Print the label we’ll email you, drop the item ' +
+          'at any carrier location, and expect it back in about 2–3 weeks.'
+        : '✅ I’ve queued a mail-in cobbler repair. Print the label we’ll email you, drop the boots ' +
+          'at any FedEx location, and expect them back resoled in about 2–3 weeks.',
       options: [{ name: 'Back to shopping' }]
     });
   }
