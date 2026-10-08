@@ -94,9 +94,13 @@
   // every exact-match vocabulary surface (chips, trends, interests) stays
   // valid. Never removes a required product; if the catalog would exceed 40,
   // drops non-required products from the tail (never the featured one).
-  function ensureRequiredProducts(products, required, featuredId) {
+  function ensureRequiredProducts(products, required, featuredId, images) {
+    images = images || {};
     const repairs = [];
-    const missing = required.filter(function (r) { return !matchesRequired_any(products, r); });
+    const missing = [];
+    required.forEach(function (r) {
+      if (!matchesRequired_any(products, r) && !matchesRequired_any(missing, r)) missing.push(r);
+    });
     if (!missing.length || !products.length) return { products: products, repairs: repairs };
     const prices = products.map(function (p) { return Number(p.price) || 0; }).filter(Boolean).sort(function (a, b) { return a - b; });
     const q = function (f) { return prices.length ? prices[Math.min(prices.length - 1, Math.floor(f * prices.length))] : 0; };
@@ -118,18 +122,29 @@
       const id = "sku" + maxN; usedIds[id] = true;
       const price = Number(r.approxPrice) > 0 ? Number(r.approxPrice) : (Number(donor.price) || 0);
       added.push({
-        id: id, sku: id, name: String(r.name), price: price.toFixed(2), image: "",
+        id: id, sku: id, name: String(r.name), price: price.toFixed(2), image: images[id] || "",
         family: donor.family, type: donor.type, category: donor.category,
         description: String(r.name) + (r.category ? " — " + r.category : "") + ".",
         gender: "unisex",
-        colors: donor.colors && donor.colors.length ? donor.colors.slice(0, 1) : ["white"],
+        colors: donor.colors && donor.colors.length ? donor.colors.slice(0, 1) : [],
         priceTier: !price || !prices.length ? "mid" : (price <= lo ? "budget" : (price > hi ? "premium" : "mid")),
       });
       repairs.push('Script-named product "' + r.name + '" was missing from the generated catalog — added (donor: "' + donor.name + '").');
     });
     let out = products.concat(added);
-    for (let i = out.length - 1; i >= 0 && out.length > 40; i--) {
-      if (out[i].id !== featuredId && !matchesRequired(out[i].name, required)) out.splice(i, 1);
+    // Trim from the LARGEST family (last non-required, non-featured member) so
+    // no family is wiped out by dropping from the end of the list.
+    while (out.length > 40) {
+      const counts = {};
+      out.forEach(function (p) { counts[p.family] = (counts[p.family] || 0) + 1; });
+      let victim = -1, bestCount = 1;
+      for (let i = out.length - 1; i >= 0; i--) {
+        const p = out[i];
+        if (p.id === featuredId || matchesRequired(p.name, required)) continue;
+        if (counts[p.family] > bestCount) { bestCount = counts[p.family]; victim = i; }
+      }
+      if (victim === -1) break;
+      out.splice(victim, 1);
     }
     return { products: out, repairs: repairs };
   }
@@ -409,7 +424,7 @@
 
     // Guarantee script-named products exist (no-op when the script names none).
     if (requiredProducts.length) {
-      const ensured = ensureRequiredProducts(products, requiredProducts, found.featuredId);
+      const ensured = ensureRequiredProducts(products, requiredProducts, found.featuredId, images);
       products = ensured.products;
       ensured.repairs.forEach(function (m) { catalogAutoRepairs.push(m); });
     }

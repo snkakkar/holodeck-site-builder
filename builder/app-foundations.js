@@ -305,10 +305,19 @@
         const n = " " + (String(p.name || "").toLowerCase().match(/[a-z0-9]+/g) || []).join(" ") + " ";
         return reqNorm.some(function (r) { return n.indexOf(" " + r + " ") !== -1; });
       };
-      const reqs = list.filter(isReq).slice(0, 12);
-      const rest = picked.filter(function (p) { return !isReq(p); });
-      picked.length = 0;
-      Array.prototype.push.apply(picked, reqs.concat(rest));
+      // Keep the existing picks (and their category grouping/order); swap each
+      // not-yet-picked required product in for a non-required pick from the tail.
+      const pickedIds = {};
+      picked.forEach(function (p) { pickedIds[p.id] = true; });
+      list.filter(isReq).slice(0, 12).forEach(function (r) {
+        if (pickedIds[r.id]) return;
+        let slot = -1;
+        for (let i = picked.length - 1; i >= 0; i--) { if (!isReq(picked[i])) { slot = i; break; } }
+        if (picked.length < 12) picked.push(r);
+        else if (slot !== -1) { delete pickedIds[picked[slot].id]; picked[slot] = r; }
+        else return;
+        pickedIds[r.id] = true;
+      });
     }
     if (picked.length < 12) {
       const pickedIds = {};
