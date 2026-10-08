@@ -2,7 +2,7 @@
 //  storefront-foundations.js — window.HOLO_RETAILCABFOUND
 //
 //  Turns the builder's wizard state into (1) the Gemini text prompt that
-//  produces the whole storefront (brand + persona + 12 tagged SKUs +
+//  produces the whole storefront (brand + persona + 40 tagged SKUs +
 //  chip→filter table) and (2) the product-photo generation pass.
 //
 //  Design invariants baked into the prompt (the sharpest edges):
@@ -43,7 +43,17 @@
     const b = state.brand || {};
     const searchTerms = Array.isArray(simple.searchTerms) ? simple.searchTerms.filter(Boolean).join(", ") : "";
     const agentChips = Array.isArray(simple.chatChips) ? simple.chatChips.filter(Boolean).join(", ") : "";
+    // Facts the script states plainly (sanitized at extraction). Every field is
+    // empty when the script names nothing, so the prompt stays unchanged.
+    const sf = (state.storyFoundations && state.storyFoundations.scriptFacts) || {};
+    const arr = function (v) { return Array.isArray(v) ? v : []; };
     return {
+      requiredProducts: arr(sf.namedProducts).filter(function (p) { return p && p.name; }),
+      scriptOffers: arr(sf.offers).filter(function (o) { return o && o.label; }),
+      scriptLoyalty: (sf.loyalty && (sf.loyalty.threshold || sf.loyalty.rewardLabel)) ? sf.loyalty : null,
+      pickupStore: (sf.pickupStore || "").trim(),
+      scriptQuestions: arr(sf.shopperQuestions).filter(function (x) { return x && x.q; }),
+      scriptSearches: arr(sf.shopperSearches).filter(Boolean),
       customerName: (c.customerName || "").trim(),
       industry: (c.industry || "Retail").trim(),
       website: (c.website || "").trim(),
@@ -403,6 +413,16 @@
     else optionalBits.push("Invent 4–6 shopping-agent chip labels, each mapped to ONE fixed filter over the catalog fields.");
     if (cx.personaName) optionalBits.push('The signed-in shopper persona is named "' + cx.personaName + '".');
     if (cx.personaDetails) optionalBits.push('Persona details to honor: "' + cx.personaDetails + '".');
+    // Script-stated shopper content: examples for the EXISTING slots only
+    // (careFaq, chatFunnel labels, trends, demoQueries) — no new structures.
+    const sq = Array.isArray(cx.scriptQuestions) ? cx.scriptQuestions : [];
+    if (sq.length) optionalBits.push('The demo script has the shopper asking: ' + sq.map(function (x) { return '"' + x.q + '"' + (x.a ? ' (script answer: "' + x.a + '")' : ""); }).join("; ") + '. Where a question fits, use it as a chatChips.careFaq entry (reuse the script answer when given) or to shape chatFunnel chip labels. Skip any that do not fit this catalog.');
+    const ss = Array.isArray(cx.scriptSearches) ? cx.scriptSearches : [];
+    if (ss.length) optionalBits.push('The demo script has the shopper searching for: ' + ss.map(function (x) { return '"' + x + '"'; }).join(", ") + '. Use these as demoQueries entries where they resolve to real catalog products.');
+    const so = Array.isArray(cx.scriptOffers) ? cx.scriptOffers : [];
+    if (so.length) optionalBits.push('The demo script mentions these offers: ' + so.map(function (o) { return o.label + (o.value ? " (" + o.value + ")" : ""); }).join("; ") + '. Reflect them in the offers list (labels/short/long) where they fit the allowed offer types; do not invent others.');
+    if (cx.scriptLoyalty) optionalBits.push('Loyalty program per the script: ' + [cx.scriptLoyalty.threshold ? cx.scriptLoyalty.threshold + " points threshold" : "", cx.scriptLoyalty.rewardLabel || ""].filter(Boolean).join(" → ") + '. Echo it in offer copy and persona.profile.loyaltyTier where natural.');
+    if (cx.pickupStore) optionalBits.push('The script\'s pickup store is "' + cx.pickupStore + '"; use it as persona.profile.location where natural.');
     if (cx.brandColor) optionalBits.push('The brand\'s primary color is approximately ' + cx.brandColor + ' (for context; colors are applied separately).');
 
     const scrapedNote = scraped.ok && scraped.imageCount
@@ -417,6 +437,19 @@
         ].join("\n")
       : "";
 
+    // Script-grounding: products the demo script names must exist in the catalog.
+    // Empty when the script names none, so the prompt is unchanged in that case.
+    const requiredProducts = Array.isArray(cx.requiredProducts) ? cx.requiredProducts : [];
+    const requiredNote = requiredProducts.length
+      ? [
+          "REQUIRED PRODUCTS: the demo script names these products. Include EACH as a catalog product, using the name EXACTLY as written, with a category/family that fits this brand and a realistic price (the approximate price is a hint when given). These count toward the 40 products.",
+          requiredProducts.map(function (p) {
+            return "  • " + p.name + (p.category ? " (category: " + p.category + ")" : "") + (p.approxPrice ? " (approx. price: " + p.approxPrice + ")" : "");
+          }).join("\n"),
+          "",
+        ].join("\n")
+      : "";
+
     return [
       "You are generating the complete content for an interactive retail storefront DEMO for the customer below.",
       "Return a SINGLE JSON object matching the provided schema. No prose, no markdown, no code fences.",
@@ -426,6 +459,7 @@
       scrapedNote,
       "",
       scrapeFirstNote,
+      requiredNote,
       "GENDER LEAN: " + cx.genderLean + " — " + leanNote,
       "",
       "REQUIREMENTS:",
