@@ -831,15 +831,17 @@
     const sim = simpleState();
     const p = app.state.project = app.state.project || {};
     const input = el("input", { class: "bx-input", type: "text", placeholder: "Website (e.g. acme.com)", value: p.website || "" });
+    input.addEventListener("input", function () { p.website = input.value; commit(); });
     const go = btn("⚡ Build it for me", "bx-btn-primary", function () {
       const site = (input.value || "").trim();
+      if (!sim.selected.length) { toast("Pick at least one experience first."); return; }
       if (!site) { toast("Enter a website first."); input.focus(); return; }
       runSimpleAutoBuild(site);
     });
     return el("div", { class: "bx-simple-autopilot" }, [
       el("div", { class: "bx-simple-label", text: "Build it for me (experimental)" }),
       el("p", { class: "bx-simple-hint", text:
-        "Enter a website. We analyze the brand, build the Retail CAB storefront, and download the demo ZIP — no other steps." }),
+        "Pick your experiences above, enter a website, and we analyze the brand, build everything you selected, and download the demo ZIP — skipping the Setup and Details screens." }),
       el("div", { class: "bx-simple-site-row" }, [input, go]),
     ]);
   }
@@ -852,7 +854,6 @@
     const sim = simpleState();
     const p = app.state.project = app.state.project || {};
     p.website = site;
-    sim.selected = ["retailCab"];
     sim.panel = "generate";
     sim._error = "";
     sim._done = false;
@@ -880,7 +881,6 @@
   function renderSimpleMenu(body, sim) {
     body.appendChild(el("h2", { class: "bx-simple-h2", text: "1 · Choose experiences" }));
     body.appendChild(el("p", { class: "bx-simple-hint", text: "Select one or more. Each becomes a slide in the demo." }));
-    if (autopilotEnabled()) body.appendChild(renderAutopilotBox());
 
     const grid = el("div", { class: "bx-simple-cards" });
     simpleExperiences().forEach(function (exp) {
@@ -902,6 +902,7 @@
       grid.appendChild(card);
     });
     body.appendChild(grid);
+    if (autopilotEnabled()) body.appendChild(renderAutopilotBox());
 
     const next = btn("Next →", "bx-btn-primary", function () {
       if (!sim.selected.length) { toast("Pick at least one experience"); return; }
