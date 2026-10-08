@@ -75,6 +75,68 @@
     return String(s || "").toLowerCase().match(/[a-z0-9]+/g) || [];
   }
 
+  // Script-named products (cx.requiredProducts, from the story's scriptFacts).
+  // A product "is" a required one when the normalized required name equals, or
+  // is contained in, the normalized product name. Used to (a) exempt them from
+  // the off-vertical filter and (b) inject any Gemini failed to emit.
+  function normName(s) { return wordsOf(s).join(" "); }
+  function matchesRequired(name, required) {
+    const n = normName(name);
+    if (!n) return false;
+    return required.some(function (r) {
+      const rn = normName(r.name);
+      return rn && (n === rn || (" " + n + " ").indexOf(" " + rn + " ") !== -1);
+    });
+  }
+
+  // Append any required product that is missing. Reuses an EXISTING catalog
+  // category/family/type/colors (via the best word-overlap donor product) so
+  // every exact-match vocabulary surface (chips, trends, interests) stays
+  // valid. Never removes a required product; if the catalog would exceed 40,
+  // drops non-required products from the tail (never the featured one).
+  function ensureRequiredProducts(products, required, featuredId) {
+    const repairs = [];
+    const missing = required.filter(function (r) { return !matchesRequired_any(products, r); });
+    if (!missing.length || !products.length) return { products: products, repairs: repairs };
+    const prices = products.map(function (p) { return Number(p.price) || 0; }).filter(Boolean).sort(function (a, b) { return a - b; });
+    const q = function (f) { return prices.length ? prices[Math.min(prices.length - 1, Math.floor(f * prices.length))] : 0; };
+    const lo = q(1 / 3), hi = q(2 / 3);
+    let maxN = 0;
+    products.forEach(function (p) { const m = /^sku(\d+)$/.exec(p.id); if (m) maxN = Math.max(maxN, Number(m[1])); });
+    const usedIds = {};
+    products.forEach(function (p) { usedIds[p.id] = true; });
+    const added = [];
+    missing.forEach(function (r) {
+      const rw = wordsOf(r.name).concat(wordsOf(r.category));
+      let donor = products[0], best = -1;
+      products.forEach(function (p) {
+        const pw = wordsOf(p.name + " " + p.category + " " + p.family + " " + p.type);
+        const score = rw.filter(function (w) { return pw.indexOf(w) !== -1; }).length;
+        if (score > best) { best = score; donor = p; }
+      });
+      do { maxN += 1; } while (usedIds["sku" + maxN]);
+      const id = "sku" + maxN; usedIds[id] = true;
+      const price = Number(r.approxPrice) > 0 ? Number(r.approxPrice) : (Number(donor.price) || 0);
+      added.push({
+        id: id, sku: id, name: String(r.name), price: price.toFixed(2), image: "",
+        family: donor.family, type: donor.type, category: donor.category,
+        description: String(r.name) + (r.category ? " — " + r.category : "") + ".",
+        gender: "unisex",
+        colors: donor.colors && donor.colors.length ? donor.colors.slice(0, 1) : ["white"],
+        priceTier: !price || !prices.length ? "mid" : (price <= lo ? "budget" : (price > hi ? "premium" : "mid")),
+      });
+      repairs.push('Script-named product "' + r.name + '" was missing from the generated catalog — added (donor: "' + donor.name + '").');
+    });
+    let out = products.concat(added);
+    for (let i = out.length - 1; i >= 0 && out.length > 40; i--) {
+      if (out[i].id !== featuredId && !matchesRequired(out[i].name, required)) out.splice(i, 1);
+    }
+    return { products: out, repairs: repairs };
+  }
+  function matchesRequired_any(products, r) {
+    return products.some(function (p) { return matchesRequired(p.name, [r]); });
+  }
+
   // Case-insensitive membership test against a real catalog field, returning
   // the REAL-cased value from the catalog (so downstream string comparisons
   // — e.g. inside search-engine.js — stay exact-match) or null if unprovable.
@@ -306,7 +368,9 @@
       wordsOf(c).forEach(function (w) { catalogVocab[w] = 1; });
     });
     const catalogAutoRepairs = [];
+    const requiredProducts = Array.isArray(cx.requiredProducts) ? cx.requiredProducts.filter(function (r) { return r && r.name; }) : [];
     products = products.filter(function (p) {
+      if (requiredProducts.length && matchesRequired(p.name, requiredProducts)) return true;
       const sourceCategory = sourceCategoryByName[p.name];
       if (sourceCategory) {
         const scWords = wordsOf(sourceCategory);
@@ -342,6 +406,13 @@
       }
       return true;
     });
+
+    // Guarantee script-named products exist (no-op when the script names none).
+    if (requiredProducts.length) {
+      const ensured = ensureRequiredProducts(products, requiredProducts, found.featuredId);
+      products = ensured.products;
+      ensured.repairs.forEach(function (m) { catalogAutoRepairs.push(m); });
+    }
 
     // Back-compat catalog view (numeric price) + productImages map for the
     // photo-gap loop / harness / exporter baking (keyed by final ids).

@@ -283,7 +283,7 @@
   // each) so the result lines up with cimulate's "4 chips × 3 results"
   // contract, backfills from any category if some are short, and remaps the
   // chosen ids to sku1..sku12. Returns null if cabCatalog isn't usable.
-  function pickSharedCatalogFromCab(cabCatalog, cabImages, cx) {
+  function pickSharedCatalogFromCab(cabCatalog, cabImages, cx, requiredNames) {
     const list = Array.isArray(cabCatalog) ? cabCatalog.filter(function (p) { return p && p.id; }) : [];
     if (list.length < 1) return null;
     cabImages = cabImages || {};
@@ -295,6 +295,21 @@
     const cats = Object.keys(byCat).sort(function (a, b) { return byCat[b].length - byCat[a].length; }).slice(0, 4);
     const picked = [];
     cats.forEach(function (c) { picked.push.apply(picked, byCat[c].slice(0, 3)); });
+    // Script-named products go in first (replacing the tail of the pick), so
+    // they reach the shared catalog. No-op when the script names none.
+    const reqNorm = (Array.isArray(requiredNames) ? requiredNames : []).map(function (n) {
+      return (String(n || "").toLowerCase().match(/[a-z0-9]+/g) || []).join(" ");
+    }).filter(Boolean);
+    if (reqNorm.length) {
+      const isReq = function (p) {
+        const n = " " + (String(p.name || "").toLowerCase().match(/[a-z0-9]+/g) || []).join(" ") + " ";
+        return reqNorm.some(function (r) { return n.indexOf(" " + r + " ") !== -1; });
+      };
+      const reqs = list.filter(isReq).slice(0, 12);
+      const rest = picked.filter(function (p) { return !isReq(p); });
+      picked.length = 0;
+      Array.prototype.push.apply(picked, reqs.concat(rest));
+    }
     if (picked.length < 12) {
       const pickedIds = {};
       picked.forEach(function (p) { pickedIds[p.id] = true; });
@@ -341,7 +356,8 @@
     // one — this is what lets Clienteling/Cimulate reuse CAB's photos with
     // zero additional Gemini image calls (see assemble() below).
     const cabSeed = (opts.cabSeed && Array.isArray(opts.cabSeed.catalog) && opts.cabSeed.catalog.length)
-      ? pickSharedCatalogFromCab(opts.cabSeed.catalog, opts.cabSeed.images, cx)
+      ? pickSharedCatalogFromCab(opts.cabSeed.catalog, opts.cabSeed.images, cx,
+          (((state.storyFoundations || {}).scriptFacts || {}).namedProducts || []).map(function (p) { return p && p.name; }))
       : null;
     const prompt = appId === "clienteling"
       ? promptForClienteling(cx, simpleAnswers, cabSeed && cabSeed.catalog)
