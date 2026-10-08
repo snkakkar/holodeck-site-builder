@@ -505,15 +505,23 @@ CX components (AubreyDemo):
     "   productCategories, return [] when unsure. A missing value is expected and safe;",
     "   a wrong one is not.",
     "3. Keep every string SHORT. No commentary, no extra keys.",
+    "4. When SITE TITLE / SITE DESCRIPTION are given, they were read from the live",
+    "   website — use them to identify the company and its industry.",
     "",
     "COMPANY: <<CUSTOMER>>",
     "WEBSITE: <<WEBSITE>>",
   ].join("\n");
 
-  function getBrandAnalysisPrompt(customerName, website) {
-    return BRAND_ANALYSIS_PROMPT
+  // siteInfo (optional): { title, description } read from the live site.
+  function getBrandAnalysisPrompt(customerName, website, siteInfo) {
+    let out = BRAND_ANALYSIS_PROMPT
       .replace("<<CUSTOMER>>", String(customerName || "(unknown)"))
       .replace("<<WEBSITE>>", String(website || "(none provided)"));
+    if (siteInfo && (siteInfo.title || siteInfo.description)) {
+      if (siteInfo.title) out += "\nSITE TITLE: " + String(siteInfo.title).slice(0, 160);
+      if (siteInfo.description) out += "\nSITE DESCRIPTION: " + String(siteInfo.description).slice(0, 400);
+    }
+    return out;
   }
 
   // ─── Persona-card copy prompt (Assets step "Generate all") ────

@@ -705,14 +705,14 @@
     return el("div", { class: "bx-simple-nav" }, children);
   }
 
-  // Best-effort brand inference for the Simple setup panel. Fans out two
-  // INDEPENDENT tasks, each isolated so a miss degrades one signal (never the
-  // build): (1) logo via the public-logo-API path (fetchRealLogo → /api/logo:
-  // Clearbit → DuckDuckGo → Google favicon) and (2) a Gemini brand-KNOWLEDGE
-  // inference (industry + hex colors) from the company name + URL. There is NO
-  // live-site DOM/CSS scraping. Valid results are applied to state.brand /
-  // state.project; anything missing keeps the current value/defaults. Resolves
-  // to a short per-signal summary string for the toast.
+  // Best-effort brand inference for the Simple setup panel. Each signal is
+  // isolated so a miss degrades one field, never the build: (1) a real scrape of
+  // the live site (/api/scrape/site: title, description, icons, theme color),
+  // (2) the logo via the public-logo-API path (fetchRealLogo → /api/logo), with
+  // the site's own icons as a fallback, and (3) a Gemini brand inference
+  // (name, industry, colors) grounded by the scraped title/description. Valid
+  // results are applied to state.brand / state.project; anything missing keeps
+  // the current value/defaults. Resolves to a short per-signal summary string.
   function analyzeWebsite(site, customerName) {
     const b = app.state.brand = app.state.brand || {};
     const p = app.state.project = app.state.project || {};
@@ -722,28 +722,57 @@
     // Fields the user hand-edited in Setup are never overwritten by a re-analyze.
     const edited = (app.state.simple && app.state.simple._edited) || {};
 
-    const logoTask = fetchRealLogo(site)
+    // Real scrape of the live site (title, description, icons, theme color).
+    // Best-effort: a blocked or JS-only site resolves to null and Analyze falls
+    // back to the model + logo services exactly as before.
+    const SCRAPE = window.HOLO_SCRAPE;
+    const scrapeTask = (SCRAPE && SCRAPE.scrapeSite ? SCRAPE.scrapeSite(site) : Promise.resolve(null))
+      .then(function (r) { return (r && r.ok) ? r : null; })
+      .catch(function () { return null; });
+
+    // Logo: the logo services first; the site's own icons as a fallback.
+    const logoTask = Promise.all([fetchRealLogo(site), scrapeTask])
+      .then(function (r) {
+        if (r[0]) return r[0];
+        const cands = (r[1] && r[1].meta && r[1].meta.logoCandidates) || [];
+        const auth = window.HOLO_AUTH;
+        const headersP = auth && auth.authHeaders ? auth.authHeaders() : Promise.resolve({});
+        return headersP.then(function (headers) {
+          return cands.reduce(function (chain, u) {
+            return chain.then(function (found) {
+              if (found || !AUBREY || !AUBREY.inlineImageAsDataUrl) return found;
+              return AUBREY.inlineImageAsDataUrl("/api/scrape/img-proxy?url=" + encodeURIComponent(u), headers)
+                .catch(function () { return ""; });
+            });
+          }, Promise.resolve(""));
+        });
+      })
       .then(function (dataUrl) { if (dataUrl && !edited.logo) { b.logoPath = dataUrl; return true; } return false; })
       .catch(function () { return false; });
 
+    // Brand call runs after the scrape so the real title/description ground it.
     const canBrand = !!(_geminiReady && GEMINI && GEMINI.generate && AIP && AIP.getBrandAnalysisPrompt);
-    const brandTask = !canBrand ? Promise.resolve(null) : GEMINI.generate({
-      prompt: AIP.getBrandAnalysisPrompt(customerName || p.customerName || "", site),
-      jsonMode: true, fast: true, temperature: 0.2, maxOutputTokens: 1024, useCache: true,
+    const brandTask = !canBrand ? Promise.resolve(null) : scrapeTask.then(function (scraped) {
+      return GEMINI.generate({
+        prompt: AIP.getBrandAnalysisPrompt(customerName || p.customerName || "", site, scraped && scraped.meta),
+        jsonMode: true, fast: true, temperature: 0.2, maxOutputTokens: 1024, useCache: true,
+      });
     }).then(function (text) {
       const data = safeParseJson(text);
       return (data && typeof data === "object") ? data : null;
     }).catch(function () { return null; });
 
-    return Promise.all([logoTask, brandTask]).then(function (res) {
+    return Promise.all([logoTask, brandTask, scrapeTask]).then(function (res) {
       const gotLogo = res[0];
       const data = res[1];
+      const scraped = res[2];
       const isHex = function (v) { return /^#[0-9a-fA-F]{6}$/.test(String(v || "").trim()); };
       let gotColors = false, gotIndustry = false, gotName = false;
       // Customer name: from the model when it recognizes the brand, else the
       // website domain ("www.acme-shop.com" → "Acme Shop"). Never replaces a name
       // the user typed; only fills an empty one or one we filled earlier.
-      let guessedName = String((data && data.customerName) || "").trim();
+      let guessedName = String((data && data.customerName) || "").trim()
+        || String((scraped && scraped.meta && scraped.meta.nameGuess) || "").trim();
       if (!guessedName) {
         const host = String(site).trim().replace(/^[a-z]+:\/\//i, "").replace(/^www\./i, "").split(/[\/?#]/)[0];
         const label = host.split(".")[0] || "";
@@ -766,6 +795,10 @@
         const ind = String(data.industry || "").trim();
         if (ind && !edited.industry) { p.industry = ind; gotIndustry = true; }
       }
+      // The site's own theme color fills primary when the model had none.
+      if (!edited.colors && !gotColors && scraped && isHex(scraped.brandColor)) {
+        b.primaryColor = String(scraped.brandColor).trim(); gotColors = true;
+      }
       commit();
 
       const set = [];
@@ -773,7 +806,8 @@
       if (gotLogo) set.push("logo");
       if (gotColors) set.push("colors");
       if (gotIndustry) set.push("industry");
-      if (gotName && set.length === 1 && !String((data && data.customerName) || "").trim()) {
+      if (gotName && set.length === 1 && !String((data && data.customerName) || "").trim()
+          && !(scraped && scraped.meta && scraped.meta.nameGuess)) {
         return "Name guessed from the web address — add logo, colors and industry in Brand details";
       }
       if (set.length) return "Set " + set.join(" + ");

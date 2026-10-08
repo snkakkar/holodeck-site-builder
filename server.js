@@ -1125,6 +1125,47 @@ function retailCabExtractBrandColor(html) {
   return bestN >= 3 ? best : null;
 }
 
+// Site identity for Analyze: name, description and logo candidates read from
+// the page <head>. Only the first ~200 KB is scanned. Logo candidates are
+// icon <link>s (apple-touch-icon first) — og:image is a banner, not a logo.
+function retailCabDecodeEntities(s) {
+  return String(s || "")
+    .replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#0?39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
+}
+function retailCabExtractMeta(html, baseUrl) {
+  const head = html.slice(0, 200000);
+  const meta = {};
+  (head.match(/<meta\b[^>]*>/gi) || []).forEach((t) => {
+    const k = t.match(/(?:property|name)=["']([^"']+)["']/i);
+    const c = t.match(/content=["']([^"']*)["']/i);
+    if (k && c && !(k[1].toLowerCase() in meta)) meta[k[1].toLowerCase()] = retailCabDecodeEntities(c[1]);
+  });
+  const titleM = head.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const title = retailCabDecodeEntities(titleM ? titleM[1] : "") || meta["og:title"] || "";
+  const siteName = meta["og:site_name"] || meta["application-name"] || "";
+  // "Kendra Scott | Fine Jewelry" → "Kendra Scott"
+  const firstSeg = title.split(/\s+[|–—:·-]\s+|\s*[|–—·]\s*/)[0].trim();
+  const nameGuess = (siteName || (firstSeg.length <= 40 ? firstSeg : "")).slice(0, 60);
+  const icons = [];
+  (head.match(/<link\b[^>]*>/gi) || []).forEach((t) => {
+    const rel = (t.match(/rel=["']([^"']+)["']/i) || [])[1] || "";
+    const href = (t.match(/href=["']([^"']+)["']/i) || [])[1];
+    if (!href || !/icon/i.test(rel)) return;
+    const abs = retailCabAbsolutize(baseUrl, href);
+    if (abs && /^https?:/.test(abs)) icons.push({ abs, apple: /apple-touch-icon/i.test(rel) });
+  });
+  icons.sort((a, b) => (b.apple ? 1 : 0) - (a.apple ? 1 : 0));
+  const logoCandidates = Array.from(new Set(icons.map((i) => i.abs))).slice(0, 3);
+  return {
+    siteName,
+    title: title.slice(0, 160),
+    nameGuess,
+    description: (meta["og:description"] || meta["description"] || "").slice(0, 400),
+    logoCandidates,
+  };
+}
+
 // GET /api/scrape/img-proxy?url=… — same-origin fetch of a scraped CDN
 // image so the live preview can load it without CORS/hotlink issues. Left
 // UNauthenticated (unlike /api/asset/proxy above): this URL is embedded
@@ -1180,9 +1221,10 @@ app.post("/api/scrape/site", requireHolodeckAuth, rateLimit, async (req, res) =>
     const images = retailCabExtractImages(html, parsed.toString());
     const products = retailCabExtractProducts(html, parsed.toString());
     const brandColor = retailCabExtractBrandColor(html);
+    const siteMeta = retailCabExtractMeta(html, parsed.toString());
 
     const hosts = new Set();
-    images.forEach((u) => { try { hosts.add(new URL(u).hostname); } catch (_) {} });
+    images.concat(siteMeta.logoCandidates).forEach((u) => { try { hosts.add(new URL(u).hostname); } catch (_) {} });
     hosts.forEach(retailCabRegisterHost);
 
     const proxied = images.map((u) => "/api/scrape/img-proxy?url=" + encodeURIComponent(u));
@@ -1195,11 +1237,13 @@ app.post("/api/scrape/site", requireHolodeckAuth, rateLimit, async (req, res) =>
       images,
       proxiedImages: proxied,
       products,
+      meta: siteMeta,
     });
   } catch (err) {
     return res.json({
       ok: false,
       site: parsed.origin,
+      meta: null,
       brandColor: null,
       imageCount: 0,
       images: [],
