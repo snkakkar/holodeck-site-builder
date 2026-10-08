@@ -952,11 +952,13 @@
     const colorRow = el("div", { class: "bx-grid-3" });
     Object.keys(colorFields).forEach(function (k) { colorRow.appendChild(colorFields[k]); });
 
+    // Project name sits outside Brand details — it is not a brand field.
+    body.appendChild(el("label", { class: "bx-simple-field" }, [
+      el("span", { class: "bx-simple-label", text: "Project name" }), projIn,
+    ]));
+
     body.appendChild(el("details", { class: "bx-simple-brand-details" }, [
       el("summary", { text: "Brand details — auto-filled, edit if needed" }),
-      el("label", { class: "bx-simple-field" }, [
-        el("span", { class: "bx-simple-label", text: "Project name" }), projIn,
-      ]),
       el("label", { class: "bx-simple-field" }, [
         el("span", { class: "bx-simple-label", text: "Industry" }), indIn,
       ]),
