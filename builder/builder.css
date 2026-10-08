@@ -3477,3 +3477,18 @@ button { font-family: inherit; }
 .bx-simple-logo-row { display: flex; align-items: center; gap: var(--bx-sp-3); flex-wrap: wrap; }
 .bx-simple-logo-preview { width: 56px; height: 56px; object-fit: contain; border: 1px solid var(--bx-line);
   border-radius: var(--bx-radius-s); background: #fff; padding: 4px; }
+
+/* Simple setup: inline Analyze, collapsed brand details, story upload */
+.bx-simple-site-row { display: flex; gap: var(--bx-sp-3); align-items: center; }
+.bx-simple-site-row .bx-input { flex: 1 1 auto; }
+.bx-simple-site-status { display: flex; align-items: center; gap: var(--bx-sp-3); margin-top: 8px; }
+.bx-simple-site-status .bx-simple-logo-preview { width: 40px; height: 40px; }
+.bx-simple-analyze-status { margin: 0; }
+.bx-simple-analyze-status.is-problem { color: var(--bx-warn); }
+.bx-simple-brand-details { border: 1px solid var(--bx-line); border-radius: var(--bx-radius-s);
+  padding: var(--bx-sp-3) var(--bx-sp-4); margin-bottom: var(--bx-sp-4); background: var(--bx-card); }
+.bx-simple-brand-details > summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--bx-ink); margin-bottom: 2px; }
+.bx-simple-brand-details[open] > summary { margin-bottom: var(--bx-sp-3); }
+.bx-simple-story-head { display: flex; align-items: center; justify-content: space-between; gap: var(--bx-sp-3); margin-bottom: 6px; }
+.bx-simple-story-head .bx-simple-label { margin-bottom: 0; }
+.bx-simple-story-count { margin: 4px 0 0; text-align: right; }

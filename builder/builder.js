@@ -719,8 +719,11 @@
     const GEMINI = window.HOLO_GEMINI;
     const AIP = window.HOLO_AI_PROMPT;
 
+    // Fields the user hand-edited in Setup are never overwritten by a re-analyze.
+    const edited = (app.state.simple && app.state.simple._edited) || {};
+
     const logoTask = fetchRealLogo(site)
-      .then(function (dataUrl) { if (dataUrl) { b.logoPath = dataUrl; return true; } return false; })
+      .then(function (dataUrl) { if (dataUrl && !edited.logo) { b.logoPath = dataUrl; return true; } return false; })
       .catch(function () { return false; });
 
     const canBrand = !!(_geminiReady && GEMINI && GEMINI.generate && AIP && AIP.getBrandAnalysisPrompt);
@@ -738,11 +741,13 @@
       const isHex = function (v) { return /^#[0-9a-fA-F]{6}$/.test(String(v || "").trim()); };
       let gotColors = false, gotIndustry = false;
       if (data) {
-        if (isHex(data.primaryColor))   { b.primaryColor = String(data.primaryColor).trim(); gotColors = true; }
-        if (isHex(data.secondaryColor)) { b.secondaryColor = String(data.secondaryColor).trim(); gotColors = true; }
-        if (isHex(data.accentColor))    { b.accentColor = String(data.accentColor).trim(); gotColors = true; }
+        if (!edited.colors) {
+          if (isHex(data.primaryColor))   { b.primaryColor = String(data.primaryColor).trim(); gotColors = true; }
+          if (isHex(data.secondaryColor)) { b.secondaryColor = String(data.secondaryColor).trim(); gotColors = true; }
+          if (isHex(data.accentColor))    { b.accentColor = String(data.accentColor).trim(); gotColors = true; }
+        }
         const ind = String(data.industry || "").trim();
-        if (ind) { p.industry = ind; gotIndustry = true; }
+        if (ind && !edited.industry) { p.industry = ind; gotIndustry = true; }
       }
       commit();
 
@@ -797,50 +802,64 @@
     ]));
   }
 
-  // Panel 2 — customer basics (name + website).
+  // Does the Details (questions) panel have anything to ask for this selection?
+  // When it doesn't, Setup goes straight to generation instead of an empty screen.
+  function simpleHasQuestions(sim) {
+    const generalQs = (window.HOLO_SIMPLE_EXP && window.HOLO_SIMPLE_EXP.generalQuestions) || [];
+    if (generalQs.some(function (q) {
+      return (q.appliesTo || []).some(function (id) { return sim.selected.indexOf(id) !== -1; });
+    })) return true;
+    return sim.selected.some(function (id) {
+      const exp = simpleExpById(id);
+      return !!(exp && (exp.questions || []).length);
+    });
+  }
+
+  function beginSimpleGeneration() {
+    simpleState().panel = "generate";
+    simpleState()._status = "";
+    commit();
+    renderShell();
+    startSimpleGeneration();
+  }
+
+  // Panel 2 — customer basics. Name, then website with an inline Analyze that
+  // fills in everything else (logo, colors, industry, project name). Those
+  // brand fields live in a collapsed "Brand details" section — editable, but
+  // nothing here has to be filled in by hand.
+  const STORY_MAX_CHARS = 100000;      // matches the textarea maxlength
+  const STORY_FILE_MAX_BYTES = 15 * 1024 * 1024;
+
   function renderSimpleBasics(body, sim) {
     const p = app.state.project = app.state.project || {};
+    sim._edited = sim._edited || {};
     body.appendChild(el("h2", { class: "bx-simple-h2", text: "2 · Customer basics" }));
-    body.appendChild(el("p", { class: "bx-simple-hint", text: "Used to brand the apps and ground the AI. The website helps the AI research the brand." }));
+    body.appendChild(el("p", { class: "bx-simple-hint", text: "Enter the customer and their website, then Analyze — we'll fill in the logo, brand colors and industry for you." }));
 
     const b = app.state.brand = app.state.brand || {
       mode: "salesforce", logoPath: "", customerLogoPath: "",
       primaryColor: "#b22234", secondaryColor: "#1a5fa0", accentColor: "#f5c06a",
     };
 
-    // Project name (state.name) — how this project shows in the dashboard/topbar.
+    // ── Customer name (project name follows it until the SE edits that).
     const projIn = el("input", { class: "bx-input", type: "text", placeholder: "Project name (e.g. Acme Q3 Demo)", value: app.state.name || "" });
-    projIn.addEventListener("input", function () { app.state.name = projIn.value; commit(); renderTopbar(); });
-    body.appendChild(el("label", { class: "bx-simple-field" }, [
-      el("span", { class: "bx-simple-label", text: "Project name" }), projIn,
-    ]));
+    projIn.addEventListener("input", function () { app.state.name = projIn.value; sim._autoName = null; commit(); renderTopbar(); });
 
     const nameIn = el("input", { class: "bx-input", type: "text", placeholder: "Customer name (e.g. Acme Retail)", value: p.customerName || "" });
-    nameIn.addEventListener("input", function () { p.customerName = nameIn.value; commit(); });
-    const siteIn = el("input", { class: "bx-input", type: "text", placeholder: "Website (e.g. acme.com)", value: p.website || "" });
-
+    nameIn.addEventListener("input", function () {
+      p.customerName = nameIn.value;
+      if (!app.state.name || app.state.name === "Untitled project" || app.state.name === sim._autoName) {
+        app.state.name = nameIn.value; sim._autoName = nameIn.value; projIn.value = nameIn.value; renderTopbar();
+      }
+      commit();
+    });
     body.appendChild(el("label", { class: "bx-simple-field" }, [
       el("span", { class: "bx-simple-label", text: "Customer name" }), nameIn,
     ]));
-    body.appendChild(el("label", { class: "bx-simple-field" }, [
-      el("span", { class: "bx-simple-label", text: "Website" }), siteIn,
-    ]));
 
-    // Industry — steers the unified-profile role + the app generators. Filled
-    // by "Analyze website" (below), but always hand-editable. Simple generation
-    // reads project.industry and only auto-fills it when empty, so an SE-entered
-    // or analyzed value survives.
-    const indIn = el("input", { class: "bx-input", type: "text", placeholder: "Industry (e.g. Retail, Financial Services)", value: p.industry || "" });
-    indIn.addEventListener("input", function () { p.industry = indIn.value; commit(); });
-    body.appendChild(el("label", { class: "bx-simple-field" }, [
-      el("span", { class: "bx-simple-label", text: "Industry" }), indIn,
-    ]));
-
-    // ── Branding: logo (auto-fetch from the site + upload override) + colors.
-    // The logo is stored as a data URL on state.brand.logoPath — it persists and
-    // exports for free (mapAssetValues leaves non-"gcs:" strings untouched) and
-    // is threaded into the cimulate/clienteling configs as brand.logoImage.
-    body.appendChild(el("div", { class: "bx-simple-label", text: "Branding" }));
+    // ── Website + inline Analyze.
+    const siteIn = el("input", { class: "bx-input", type: "text", placeholder: "Website (e.g. acme.com)", value: p.website || "" });
+    siteIn.addEventListener("input", function () { p.website = siteIn.value; commit(); });
 
     const logoImg = el("img", { class: "bx-simple-logo-preview", alt: "Logo preview" });
     function showLogo() {
@@ -849,83 +868,181 @@
     }
     showLogo();
 
+    const statusEl = el("span", { class: "bx-simple-qhint bx-simple-analyze-status", role: "status", "aria-live": "polite" });
+    function setStatus(msg, isProblem) {
+      statusEl.textContent = msg || "";
+      statusEl.classList.toggle("is-problem", !!isProblem);
+    }
+
+    const nextBtn = btn("Next →", "bx-btn-primary", function () { goNext(); });
+    let busy = false;
+    const analyzeBtn = btn(sim._analyzedSite ? "Re-analyze" : "Analyze", "bx-btn-secondary", function () { runAnalyze(); });
+
+    // Industry + colors are rebuilt in place after an analyze (no panel
+    // re-render, so focus and scroll are kept).
+    const indIn = el("input", { class: "bx-input", type: "text", placeholder: "Industry (e.g. Retail, Financial Services)", value: p.industry || "" });
+    indIn.addEventListener("input", function () { p.industry = indIn.value; sim._edited.industry = true; commit(); });
+
+    function colorField(label, key) {
+      return field({ label: label, type: "color", value: b[key],
+        onInput: function (v) { b[key] = v; sim._edited.colors = true; commit(); } });
+    }
+    const colorFields = {
+      primaryColor: colorField("Primary", "primaryColor"),
+      secondaryColor: colorField("Secondary", "secondaryColor"),
+      accentColor: colorField("Accent", "accentColor"),
+    };
+    function syncFromState() {
+      indIn.value = p.industry || "";
+      showLogo();
+      Object.keys(colorFields).forEach(function (k) {
+        colorFields[k].querySelectorAll("input").forEach(function (inp) { inp.value = b[k]; });
+      });
+    }
+
+    function runAnalyze() {
+      if (busy) return;
+      const site = (siteIn.value || "").trim();
+      if (!site) { setStatus("Enter a website first.", true); return; }
+      busy = true;
+      analyzeBtn.disabled = true; analyzeBtn.textContent = "Analyzing…";
+      nextBtn.disabled = true;
+      setStatus("Analyzing " + site + "…");
+      analyzeWebsite(site, (nameIn.value || "").trim())
+        .then(function (summary) {
+          sim._analyzedSite = site;
+          commit();
+          syncFromState();
+          setStatus(summary || "Analysis complete", !/^Set /.test(summary || ""));
+        })
+        .catch(function () { setStatus("Analysis failed — try again, or fill in the brand details below.", true); })
+        .then(function () {
+          busy = false;
+          analyzeBtn.disabled = false; analyzeBtn.textContent = sim._analyzedSite ? "Re-analyze" : "Analyze";
+          nextBtn.disabled = false;
+        });
+    }
+    // Analyze automatically when a new website is entered (change fires on blur
+    // or Enter); the button stays for re-runs and retries.
+    siteIn.addEventListener("change", function () {
+      const site = (siteIn.value || "").trim();
+      if (site && site !== sim._analyzedSite) runAnalyze();
+    });
+
+    body.appendChild(el("div", { class: "bx-simple-field" }, [
+      el("span", { class: "bx-simple-label", text: "Website" }),
+      el("div", { class: "bx-simple-site-row" }, [siteIn, analyzeBtn]),
+      el("div", { class: "bx-simple-site-status" }, [logoImg, statusEl]),
+    ]));
+
+    // ── Brand details (auto-filled, editable).
+    // The logo is stored as a data URL on state.brand.logoPath — it persists and
+    // exports for free (mapAssetValues leaves non-"gcs:" strings untouched) and
+    // is threaded into the cimulate/clienteling configs as brand.logoImage.
     const logoFile = el("input", { type: "file", accept: "image/*", class: "bx-file-input", "aria-label": "Upload logo file" });
     logoFile.addEventListener("change", function () {
       const f = logoFile.files && logoFile.files[0];
       if (!f) return;
       const reader = new FileReader();
-      reader.onload = function () { b.logoPath = String(reader.result || ""); showLogo(); commit(); toast("Logo uploaded"); };
+      reader.onload = function () { b.logoPath = String(reader.result || ""); sim._edited.logo = true; showLogo(); commit(); toast("Logo uploaded"); };
       reader.onerror = function () { toast("Could not read that file"); };
       reader.readAsDataURL(f);
     });
 
-    // "Analyze website" — one click infers logo + brand colors + industry from
-    // the company name + URL (no scraping; see analyzeWebsite). Each signal is
-    // best-effort with a fallback, so a miss never blocks the build. On success
-    // we re-render the panel (simpleGoTo("basics")) so the logo preview, color
-    // pickers and industry field reflect the new state.
-    const analyzeBtn = btn("Analyze website", "bx-btn-secondary", function () {
-      const site = (siteIn.value || "").trim();
-      if (!site) { toast("Enter a website first"); return; }
-      analyzeBtn.disabled = true; analyzeBtn.textContent = "Analyzing…";
-      analyzeWebsite(site, (nameIn.value || "").trim())
-        .then(function (summary) { toast(summary || "Analysis complete"); simpleGoTo("basics"); })
-        .catch(function () {
-          analyzeBtn.disabled = false; analyzeBtn.textContent = "Analyze website";
-          toast("Analysis failed — enter details manually");
-        });
-    });
-
-    body.appendChild(el("div", { class: "bx-simple-field" }, [
-      el("span", { class: "bx-simple-label", text: "Logo" }),
-      el("span", { class: "bx-simple-qhint", text: "Analyze the website to infer the logo, brand colors and industry — or upload a logo. Used in the cimulate & clienteling apps." }),
-      el("div", { class: "bx-simple-logo-row" }, [logoImg, analyzeBtn, logoFile]),
-    ]));
-
-    // Auto-fetch once when a website is present and no logo is set yet.
-    let _autoTried = !!b.logoPath;
-    function maybeAutoFetch() {
-      if (_autoTried || b.logoPath || !(siteIn.value || "").trim()) return;
-      _autoTried = true;
-      fetchRealLogo(siteIn.value).then(function (dataUrl) {
-        if (dataUrl && !b.logoPath) { b.logoPath = dataUrl; showLogo(); commit(); }
-      }).catch(function () {});
-    }
-    siteIn.addEventListener("input", function () { p.website = siteIn.value; commit(); });
-    siteIn.addEventListener("blur", maybeAutoFetch);
-    maybeAutoFetch();
-
     const colorRow = el("div", { class: "bx-grid-3" });
-    colorRow.appendChild(field({ label: "Primary", type: "color", value: b.primaryColor,
-      onInput: function (v) { b.primaryColor = v; commit(); } }));
-    colorRow.appendChild(field({ label: "Secondary", type: "color", value: b.secondaryColor,
-      onInput: function (v) { b.secondaryColor = v; commit(); } }));
-    colorRow.appendChild(field({ label: "Accent", type: "color", value: b.accentColor,
-      onInput: function (v) { b.accentColor = v; commit(); } }));
-    body.appendChild(el("div", { class: "bx-simple-field" }, [
-      el("span", { class: "bx-simple-label", text: "Colors" }), colorRow,
+    Object.keys(colorFields).forEach(function (k) { colorRow.appendChild(colorFields[k]); });
+
+    body.appendChild(el("details", { class: "bx-simple-brand-details" }, [
+      el("summary", { text: "Brand details — auto-filled, edit if needed" }),
+      el("label", { class: "bx-simple-field" }, [
+        el("span", { class: "bx-simple-label", text: "Project name" }), projIn,
+      ]),
+      el("label", { class: "bx-simple-field" }, [
+        el("span", { class: "bx-simple-label", text: "Industry" }), indIn,
+      ]),
+      el("div", { class: "bx-simple-field" }, [
+        el("span", { class: "bx-simple-label", text: "Logo" }),
+        el("span", { class: "bx-simple-qhint", text: "Fetched from the website — or upload your own. Used in the cimulate & clienteling apps." }),
+        logoFile,
+      ]),
+      el("div", { class: "bx-simple-field" }, [
+        el("span", { class: "bx-simple-label", text: "Colors" }), colorRow,
+      ]),
     ]));
 
-    // Optional story context — grounds the AI verbatim. runSimpleStoryExtraction
+    // ── Optional story context — grounds the AI verbatim. runSimpleStoryExtraction
     // only synthesizes a placeholder seed when state.scriptText is empty
     // (`s.scriptText = s.scriptText || …`), so a blurb here is used as-is for the
     // research + parse calls. Not required — leaving it blank keeps prior behavior.
-    const storyIn = el("textarea", { class: "bx-textarea", rows: "4",
-      placeholder: "Optional — a sentence or two about the customer, their goals, or the story you want to tell. Helps the AI; not required." });
+    // Upload (.txt/.md/.json/.pdf/.docx) is extracted locally and appended.
+    const storyIn = el("textarea", { class: "bx-textarea", rows: "4", maxlength: String(STORY_MAX_CHARS),
+      placeholder: "Optional — a sentence or two about the customer, their goals, or the story you want to tell. Or upload a document. Helps the AI; not required." });
     storyIn.value = app.state.scriptText || "";
-    storyIn.addEventListener("input", function () { app.state.scriptText = storyIn.value; commit(); });
-    body.appendChild(el("label", { class: "bx-simple-field" }, [
-      el("span", { class: "bx-simple-label", text: "Story context (optional)" }),
+    const counter = el("span", { class: "bx-simple-qhint bx-simple-story-count" });
+    function updateCount() {
+      counter.textContent = storyIn.value.length.toLocaleString() + " / " + STORY_MAX_CHARS.toLocaleString() + " characters";
+    }
+    updateCount();
+    storyIn.addEventListener("input", function () { app.state.scriptText = storyIn.value; updateCount(); commit(); });
+
+    const EXTRACT = window.HOLO_DOC_EXTRACT;
+    const uploadLabel = el("label", { class: "bx-btn bx-btn-secondary", text: "📎 Upload file" });
+    const uploadInput = el("input", { type: "file", style: "display: none;",
+      accept: (EXTRACT && EXTRACT.ACCEPT) || ".txt,.md,.json" });
+    uploadInput.addEventListener("change", function () {
+      const f = uploadInput.files && uploadInput.files[0];
+      if (!f) return;
+      if (f.size > STORY_FILE_MAX_BYTES) { uploadInput.value = ""; toast("That file is over 15 MB — try a smaller one"); return; }
+      uploadLabel.classList.add("is-loading"); uploadLabel.textContent = "Reading " + f.name + "…";
+      const reading = EXTRACT ? EXTRACT.extract(f) : new Promise(function (res, rej) {
+        const r = new FileReader();
+        r.onload = function () { res({ text: String(r.result || "") }); };
+        r.onerror = function () { rej(r.error); };
+        r.readAsText(f);
+      });
+      reading.then(function (result) {
+        const text = (result && result.text) || "";
+        if (!text.trim()) { toast("No text found in " + f.name + " — try pasting it instead"); return; }
+        const cur = storyIn.value;
+        let merged = cur.trim() ? cur.replace(/\s+$/, "") + "\n\n" + text : text;
+        const trimmed = merged.length > STORY_MAX_CHARS;
+        if (trimmed) merged = merged.slice(0, STORY_MAX_CHARS);
+        storyIn.value = merged;
+        app.state.scriptText = merged;
+        updateCount(); commit();
+        toast(trimmed ? "Added " + f.name + " — trimmed to the first " + STORY_MAX_CHARS.toLocaleString() + " characters" : "Added " + f.name);
+      }).catch(function (err) {
+        toast((err && err.__soft && err.message) || ("Couldn't read " + f.name + " — paste the text instead"));
+      }).then(function () {
+        uploadLabel.classList.remove("is-loading");
+        uploadLabel.textContent = "📎 Upload file";
+        uploadLabel.appendChild(uploadInput);
+        uploadInput.value = "";
+      });
+    });
+    uploadLabel.appendChild(uploadInput);
+
+    body.appendChild(el("div", { class: "bx-simple-field" }, [
+      el("div", { class: "bx-simple-story-head" }, [
+        el("span", { class: "bx-simple-label", text: "Story context (optional)" }),
+        uploadLabel,
+      ]),
       storyIn,
+      counter,
     ]));
+
+    // Details panel is skipped when this selection has no questions to ask.
+    const hasQs = simpleHasQuestions(sim);
+    nextBtn.textContent = hasQs ? "Next →" : "✨ Generate demo";
+    function goNext() {
+      if (!(p.customerName || "").trim()) { toast("Enter a customer name"); return; }
+      if (hasQs) simpleGoTo("questions"); else beginSimpleGeneration();
+    }
 
     body.appendChild(simpleNav([
       btn("← Back", "bx-btn-secondary", function () { simpleGoTo("menu"); }),
       btn("💾 Save", "bx-btn-secondary", saveNow),
-      btn("Next →", "bx-btn-primary", function () {
-        if (!(p.customerName || "").trim()) { toast("Enter a customer name"); return; }
-        simpleGoTo("questions");
-      }),
+      nextBtn,
     ]));
   }
 
@@ -997,13 +1114,7 @@
     body.appendChild(simpleNav([
       btn("← Back", "bx-btn-secondary", function () { simpleGoTo("basics"); }),
       btn("💾 Save", "bx-btn-secondary", saveNow),
-      btn("✨ Generate demo", "bx-btn-primary", function () {
-        simpleState().panel = "generate";
-        simpleState()._status = "";
-        commit();
-        renderShell();
-        startSimpleGeneration();
-      }),
+      btn("✨ Generate demo", "bx-btn-primary", beginSimpleGeneration),
     ]));
   }
 
@@ -1020,7 +1131,7 @@
       body.appendChild(el("div", { class: "bx-alert is-error", text: sim._error }));
       body.appendChild(simpleNav([
         btn("← Back to details", "bx-btn-secondary", function () {
-          simpleState()._error = ""; simpleGoTo("questions");
+          simpleState()._error = ""; simpleGoTo(simpleHasQuestions(sim) ? "questions" : "basics");
         }),
       ]));
     }
