@@ -50,7 +50,8 @@ const GEMINI_ALLOWED_MODELS = new Set([GEMINI_TEXT_MODEL, GEMINI_IMAGE_MODEL]
 function allowedGeminiModel(requested, fallback) {
   return (typeof requested === "string" && GEMINI_ALLOWED_MODELS.has(requested)) ? requested : fallback;
 }
-const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+// GEMINI_BASE_URL is for pointing a load test at a mock; unset in production.
+const GEMINI_BASE = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta";
 
 // ── Outbound fetch timeouts ────────────────────────────────────
 // Every upstream fetch (Gemini, Aubrey, logo, GCS asset proxy) used a
@@ -242,7 +243,7 @@ function requireAdmin(req, res, next) {
 // back to IP). In-memory + per-dyno — fine for a single-dyno demo;
 // it resets on restart and isn't shared across dynos. Not a security
 // boundary, a cost guard on top of requireHolodeckAuth.
-const RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 30); // requests
+const RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 150); // requests
 const RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 60000); // per window
 const _rateBuckets = new Map(); // key → { count, resetAt }
 
@@ -258,7 +259,8 @@ function rateLimit(req, res, next) {
   if (bucket.count > RATE_LIMIT_MAX) {
     const retry = Math.ceil((bucket.resetAt - now) / 1000);
     res.set("Retry-After", String(retry));
-    return res.status(429).json({ error: `Rate limit exceeded — retry in ${retry}s.` });
+    console.log(`[gemini] 429 RATE_LIMIT user=${key} retry=${retry}s`);
+    return res.status(429).json({ error: `Rate limit exceeded — retry in ${retry}s.`, code: "RATE_LIMIT" });
   }
   return next();
 }
@@ -268,7 +270,7 @@ function rateLimit(req, res, next) {
 // requests one user can have open (running or queued) at once, so a single
 // runaway client can't fill the global gate queue and starve everyone else.
 // Over the cap → 429 + Retry-After, which gemini-client.js already retries.
-const USER_INFLIGHT_MAX = Math.max(1, Number(process.env.GEMINI_USER_INFLIGHT_MAX || 6));
+const USER_INFLIGHT_MAX = Math.max(1, Number(process.env.GEMINI_USER_INFLIGHT_MAX || 24));
 const _userInflight = new Map(); // key → open request count
 
 function userInflightCap(req, res, next) {
@@ -276,7 +278,7 @@ function userInflightCap(req, res, next) {
   const n = _userInflight.get(key) || 0;
   if (n >= USER_INFLIGHT_MAX) {
     res.set("Retry-After", "2");
-    return res.status(429).json({ error: "Too many Gemini requests in flight — retrying shortly." });
+    return res.status(429).json({ error: "Too many Gemini requests in flight — retrying shortly.", code: "INFLIGHT_CAP" });
   }
   _userInflight.set(key, n + 1);
   let released = false;
@@ -493,15 +495,23 @@ function beginNdjson(res) {
 // browser can't see these — they'd arrive inside an HTTP 200 NDJSON stream —
 // so retry here, with jitter, honoring Retry-After. Only before any body has
 // been read, so it is safe for both the SSE and the one-shot image call.
-const GEMINI_UPSTREAM_RETRIES = 3;
-async function geminiFetch(url, opts, ms) {
+const GEMINI_UPSTREAM_RETRIES = 5;
+// `adapt` (optional) is told about every upstream 429/503 so the concurrency
+// gate can back off while the shared key is saturated.
+async function geminiFetch(url, opts, ms, adapt) {
   for (let attempt = 0; ; attempt++) {
     const upstream = await fetchWithTimeout(url, opts, ms);
-    if ((upstream.status !== 429 && upstream.status !== 503) || attempt >= GEMINI_UPSTREAM_RETRIES) return upstream;
+    const throttled = upstream.status === 429 || upstream.status === 503;
+    if (throttled && adapt) adapt.onThrottle();
+    if (!throttled || attempt >= GEMINI_UPSTREAM_RETRIES) {
+      if (throttled) console.log(`[gemini] UPSTREAM_QUOTA status=${upstream.status} after ${attempt + 1} attempts`);
+      else if (adapt && upstream.ok) adapt.onSuccess();
+      return upstream;
+    }
     const secs = Number(upstream.headers.get("retry-after"));
-    const base = Math.min(8000, 1000 * Math.pow(2, attempt));
+    const base = Math.min(16000, 1000 * Math.pow(2, attempt));
     const wait = Number.isFinite(secs) && secs > 0
-      ? Math.min(10000, secs * 1000) + Math.random() * 500
+      ? Math.min(20000, secs * 1000) + Math.random() * 500
       : base / 2 + Math.random() * (base / 2);
     try { await upstream.body.cancel(); } catch (_) { /* body already consumed */ }
     await new Promise((r) => setTimeout(r, wait));
@@ -547,10 +557,43 @@ function createGate(limit) {
       }
     });
   }
-  return { acquire, stats: () => ({ limit, active, queued: waiting.length }) };
+  // Raising the limit admits queued waiters immediately; lowering it lets
+  // in-flight calls finish and simply stops admitting new ones.
+  function setLimit(n) { limit = Math.max(1, n); pump(); }
+  return { acquire, setLimit, stats: () => ({ limit, active, queued: waiting.length }) };
 }
-const GEMINI_TEXT_GATE = createGate(Math.max(1, Number(process.env.GEMINI_TEXT_CONCURRENCY || 16)));
-const GEMINI_IMAGE_GATE = createGate(Math.max(1, Number(process.env.GEMINI_IMAGE_CONCURRENCY || 6)));
+
+// Adaptive concurrency: the gate starts at its configured max. When the shared
+// Gemini key starts returning 429/503, shrink the limit ~25% (floor 4) so the
+// queue drains slower instead of builds failing; grow back +1 per 5 clean
+// successes. Shrinks are rate-limited (one per 5s) so a burst of simultaneous
+// 429s counts once.
+function createAdaptive(gate, max, label) {
+  const floor = Math.min(4, max);
+  let cur = max, okStreak = 0, lastCut = 0;
+  return {
+    onThrottle() {
+      okStreak = 0;
+      const now = Date.now();
+      if (now - lastCut < 5000 || cur <= floor) return;
+      lastCut = now;
+      cur = Math.max(floor, Math.floor(cur * 0.75));
+      gate.setLimit(cur);
+      console.log(`[gemini] ${label} concurrency -> ${cur} (upstream throttling)`);
+    },
+    onSuccess() {
+      if (cur >= max) return;
+      if (++okStreak >= 5) { okStreak = 0; cur += 1; gate.setLimit(cur); }
+    },
+    stats: () => ({ current: cur, max }),
+  };
+}
+const GEMINI_TEXT_MAX = Math.max(1, Number(process.env.GEMINI_TEXT_CONCURRENCY || 24));
+const GEMINI_IMAGE_MAX = Math.max(1, Number(process.env.GEMINI_IMAGE_CONCURRENCY || 16));
+const GEMINI_TEXT_GATE = createGate(GEMINI_TEXT_MAX);
+const GEMINI_IMAGE_GATE = createGate(GEMINI_IMAGE_MAX);
+const GEMINI_TEXT_ADAPT = createAdaptive(GEMINI_TEXT_GATE, GEMINI_TEXT_MAX, "text");
+const GEMINI_IMAGE_ADAPT = createAdaptive(GEMINI_IMAGE_GATE, GEMINI_IMAGE_MAX, "image");
 
 // Wait for a gate slot, telling the client when it has to queue. Returns the
 // release function, or null if the client hung up while waiting.
@@ -589,7 +632,7 @@ app.get("/api/gemini/status", (_req, res) => {
     model: GEMINI_TEXT_MODEL,
     imageModel: GEMINI_IMAGE_MODEL,
     imageHosting: gcsConfigured() ? "gcs" : "inline",
-    load: { text: GEMINI_TEXT_GATE.stats(), image: GEMINI_IMAGE_GATE.stats() },
+    load: { text: GEMINI_TEXT_GATE.stats(), image: GEMINI_IMAGE_GATE.stats(), adaptive: { text: GEMINI_TEXT_ADAPT.stats(), image: GEMINI_IMAGE_ADAPT.stats() } },
   });
 });
 
@@ -612,7 +655,7 @@ app.get("/api/gemini/status", (_req, res) => {
 // The result is still buffered server-side before `done`, so JSON /
 // responseSchema validation downstream is unchanged; streaming only
 // keeps the HTTP connection alive past 30s.
-app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, userInflightCap, async (req, res) => {
+app.post("/api/gemini/generate", requireHolodeckAuth, userInflightCap, rateLimit, async (req, res) => {
   if (!GEMINI_API_KEY) {
     return res.status(503).json({ error: "Gemini is not configured on the server (GEMINI_API_KEY unset)." });
   }
@@ -680,13 +723,13 @@ app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, userInflightCap
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
       body: JSON.stringify(payload),
-    }, FETCH_TIMEOUT_GEMINI_MS);
+    }, FETCH_TIMEOUT_GEMINI_MS, GEMINI_TEXT_ADAPT);
 
     if (!upstream.ok) {
       const raw = await upstream.text();
       let parsed; try { parsed = JSON.parse(raw); } catch (_) { parsed = null; }
       const msg = (parsed && parsed.error && parsed.error.message) || `Gemini HTTP ${upstream.status}`;
-      return finish({ type: "error", error: msg });
+      return finish({ type: "error", error: msg, ...(upstream.status === 429 || upstream.status === 503 ? { code: "UPSTREAM_QUOTA" } : {}) });
     }
 
     // Parse the SSE byte stream line-by-line, accumulating "data:" JSON
@@ -750,7 +793,7 @@ app.post("/api/gemini/generate", requireHolodeckAuth, rateLimit, userInflightCap
 // /generate (see beginNdjson). We still buffer the upstream call (the
 // base64 image arrives in one piece); the heartbeat is what keeps the
 // connection alive. Terminal line is {type:"done",dataUrl,model}.
-app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, userInflightCap, async (req, res) => {
+app.post("/api/gemini/generate-image", requireHolodeckAuth, userInflightCap, rateLimit, async (req, res) => {
   if (!GEMINI_API_KEY) {
     return res.status(503).json({ error: "Gemini is not configured on the server (GEMINI_API_KEY unset)." });
   }
@@ -778,14 +821,14 @@ app.post("/api/gemini/generate-image", requireHolodeckAuth, rateLimit, userInfli
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
       body: JSON.stringify(payload),
-    }, FETCH_TIMEOUT_GEMINI_MS);
+    }, FETCH_TIMEOUT_GEMINI_MS, GEMINI_IMAGE_ADAPT);
     const raw = await upstream.text();
     let parsed;
     try { parsed = JSON.parse(raw); } catch (_) { parsed = null; }
 
     if (!upstream.ok) {
       const msg = (parsed && parsed.error && parsed.error.message) || `Gemini HTTP ${upstream.status}`;
-      return finish({ type: "error", error: msg });
+      return finish({ type: "error", error: msg, ...(upstream.status === 429 || upstream.status === 503 ? { code: "UPSTREAM_QUOTA" } : {}) });
     }
 
     // Find the first inlineData part in the first candidate.

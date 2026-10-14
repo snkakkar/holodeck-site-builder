@@ -70,7 +70,7 @@
   // stalls for up to a minute waiting on Retry-After. Pace requests to
   // stay under the budget proactively so 429s become rare and progress
   // advances roughly one image at a time instead of bursting then stalling.
-  const CLIENT_RATE_MAX = 25; // stay under the server's default 30/60s
+  const CLIENT_RATE_MAX = 120; // stay under the server's default 150/60s
   const CLIENT_RATE_WINDOW_MS = 60000;
   let _requestTimes = [];
   let _gate = Promise.resolve();
@@ -96,7 +96,7 @@
   // retries even though it's just as likely to be transient under the
   // concurrent-batch load the Retail CAB photo passes now run at.
   function fetchWithRetry(doFetch, maxRetries) {
-    const retries = typeof maxRetries === "number" ? maxRetries : 4;
+    const retries = typeof maxRetries === "number" ? maxRetries : 6;
     function attempt(n) {
       return throttleSlot().then(doFetch).then(function (res) {
         if (res.ok || (res.status !== 429 && res.status < 500) || n >= retries) return res;
