@@ -837,7 +837,7 @@
   function getOnboarding() {
     const d = {
       version: 1, tourDone: false, homeSeen: false,
-      builderTourSeen: false, aiPromptTourSeen: false,
+      builderTourSeen: false, aiPromptTourSeen: false, simpleTourSeen: false,
       stepTipsSeen: [], neverShowAgain: false,
     };
     return Object.assign(d, readJSON(KEY_ONBOARD, {}) || {});

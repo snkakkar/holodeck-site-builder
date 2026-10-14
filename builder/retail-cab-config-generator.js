@@ -806,6 +806,9 @@
       chatChips: chatChips,
       chatFunnel: chatFunnel,
       demoQueries: demoQueries,
+      // Storefront walkthrough (js/tour.js). The Simple done panel can flip
+      // `enabled` off before preview/export.
+      tour: { enabled: true },
       // stores: left to the foundation's baked default unless a generator adds them.
     };
     // Script-stated loyalty program / pickup store. Added ONLY when the script

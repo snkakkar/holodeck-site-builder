@@ -154,6 +154,7 @@
         { src: "../demo-apps/retail-cab/js/search-engine.js", dest: "js/search-engine.js", kind: "text" },
         { src: "../demo-apps/retail-cab/js/search-overlay.js", dest: "js/search-overlay.js", kind: "text" },
         { src: "../demo-apps/retail-cab/js/sitemap.js", dest: "js/sitemap.js", kind: "text" },
+        { src: "../demo-apps/retail-cab/js/tour.js", dest: "js/tour.js", kind: "text" },
         { src: "../demo-apps/retail-cab/js/views.js", dest: "js/views.js", kind: "text" },
         { src: "../demo-apps/retail-cab/js/web-curation-component.js", dest: "js/web-curation-component.js", kind: "text" },
       ],
@@ -164,7 +165,7 @@
   const APP_META = {
     clienteling: { name: "Clienteling",       blurb: "Store-associate concierge — unified guest view, live coaching, and event prep." },
     cimulate:    { name: "Cimulate Search",   blurb: "Intent-aware product search + shopper/service concierge agent." },
-    retailCab:   { name: "Retail CAB Storefront", blurb: "AI-generated retail storefront — catalog, styled looks, and an AI shopping stylist." },
+    retailCab:   { name: "Retail CAB Storefront", blurb: "AI-generated retail storefront — catalog, styled looks, and an AI shopping stylist. Covers Cimulate-style search, D360, Agentforce, personalization, and Commerce Cloud-style checkout." },
   };
 
   // ─── Public entry point ──────────────────────────────────────

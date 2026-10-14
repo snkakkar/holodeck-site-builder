@@ -585,6 +585,11 @@
       s.simple = { panel: "menu", selected: [], answers: {}, _status: "" };
     }
     if (!Array.isArray(s.simple.selected)) s.simple.selected = [];
+    // Cimulate was folded into Retail CAB: migrate saved selections and drop
+    // any id with no card so the count / Next gate can't be stuck on it.
+    s.simple.selected = s.simple.selected
+      .map(function (id) { return id === "cimulate" ? "retailCab" : id; })
+      .filter(function (id, i, a) { return a.indexOf(id) === i && simpleExpById(id); });
     if (!s.simple.answers || typeof s.simple.answers !== "object") s.simple.answers = {};
     if (!s.simple.panel) s.simple.panel = "menu";
     return s.simple;
@@ -612,7 +617,14 @@
     ]);
     container.appendChild(head);
 
+    head.appendChild(btn("Take the tour", "bx-btn-link", function () { startTour("simple"); }));
     container.appendChild(renderSimpleSteps(sim));
+
+    // First-run walkthrough of the Simple flow (anchors live on the menu panel).
+    const tourOb = STORE.getOnboarding();
+    if (sim.panel === "menu" && !tourOb.simpleTourSeen && !tourOb.neverShowAgain && !app.tour.active) {
+      setTimeout(function () { startTour("simple"); }, 0);
+    }
 
     const body = el("div", { class: "bx-simple-body" });
     container.appendChild(body);
@@ -1083,7 +1095,7 @@
       ]),
       el("div", { class: "bx-simple-field" }, [
         el("span", { class: "bx-simple-label", text: "Logo" }),
-        el("span", { class: "bx-simple-qhint", text: "Fetched from the website — or upload your own. Used in the cimulate & clienteling apps." }),
+        el("span", { class: "bx-simple-qhint", text: "Fetched from the website — or upload your own. Used in the Retail CAB & clienteling apps." }),
         logoFile,
       ]),
       el("div", { class: "bx-simple-field" }, [
@@ -1339,6 +1351,23 @@
       rebuildBtn,
       btn("Edit selections", "bx-btn-secondary", function () { simpleGoTo("menu"); }),
     ]));
+    // Storefront walkthrough toggle: BrandConfig.tour.enabled drives the
+    // "Take the tour" pill in both the preview and the exported ZIP.
+    const tourBc = cabSlice && cabSlice.config && cabSlice.config.brandConfig;
+    if (tourBc && sim.selected && sim.selected.indexOf("retailCab") !== -1) {
+      const tourBox = el("input", { type: "checkbox" });
+      tourBox.checked = !tourBc.tour || tourBc.tour.enabled !== false;
+      tourBox.addEventListener("change", function () {
+        tourBc.tour = { enabled: tourBox.checked };
+        stashPreviewConfig("retailCab", cabSlice.config);
+        saveActive();
+        toast(tourBox.checked ? "Walkthrough on — reload the preview to see it" : "Walkthrough off");
+      });
+      body.appendChild(el("label", { class: "bx-simple-qhint bx-mt-12", style: "display:flex;gap:8px;align-items:center;justify-content:center" }, [
+        tourBox,
+        el("span", { text: "Include a guided walkthrough in the storefront (preview and ZIP)" }),
+      ]));
+    }
     // In-app preview of the generated storefront (same token + iframe
     // attributes as the full builder's Step 8 app cards).
     if (cabSlice && cabSlice.extracted && cabSlice._previewToken
@@ -1943,7 +1972,7 @@
   // one is selected, independent of the order the user clicked them in.
   // Ids not in this list (future experiences) keep their original relative
   // order, appended after the pinned block.
-  const SIMPLE_SLIDE_ORDER = ["retailCab", "clienteling", "unifiedProfile", "helpAgent", "cimulate"];
+  const SIMPLE_SLIDE_ORDER = ["retailCab", "clienteling", "unifiedProfile", "helpAgent"];
   function orderSimpleSlideIds(selectedIds) {
     const pinned = [], rest = [];
     selectedIds.forEach(function (id) {
@@ -2344,7 +2373,8 @@
     // Resume the tour's builder segment after the home hand-off.
     if (app.tour.resumeOnBuilder) {
       app.tour.resumeOnBuilder = false;
-      setTimeout(function () { startTour("builder"); }, 0);
+      const resumeSeg = app.state && app.state.mode === "simple" ? "simple" : "builder";
+      setTimeout(function () { startTour(resumeSeg); }, 0);
     }
   }
 
@@ -9297,6 +9327,53 @@
       lastInSegment: true,
     },
   ];
+  // Simple / Guided walkthrough. Every anchor lives on the Experiences panel
+  // (the step chips stand in for the later panels), so the tour never depends
+  // on the user having navigated anywhere first.
+  function simpleChip(n) { return function () { return document.querySelectorAll(".bx-simple-steps .bx-simple-step")[n] || null; }; }
+  const SIMPLE_TOUR = [
+    {
+      id: "simple-intro",
+      getAnchor: function () { return document.querySelector(".bx-simple-head"); },
+      title: "Build a demo in a few clicks",
+      body: function () { return el("p", { text: "Simple / Guided turns a customer name and website into a branded, runnable demo plus a ZIP you can hand off. No script and no nine-step builder." }); },
+    },
+    {
+      id: "simple-cards",
+      getAnchor: function () { return document.querySelector(".bx-simple-cards"); },
+      title: "Pick your experiences",
+      body: function () { return el("p", { text: "Each card becomes a slide and, for the apps, a working demo. Retail CAB is the flagship — a full storefront that already covers Cimulate-style search, D360, Agentforce, personalization and Commerce Cloud." }); },
+    },
+    {
+      id: "simple-cab",
+      getAnchor: function () {
+        const cards = document.querySelectorAll(".bx-simple-cards .bx-simple-card");
+        for (let i = 0; i < cards.length; i++) if (/retail cab/i.test(cards[i].textContent || "")) return cards[i];
+        return null;
+      },
+      title: "Retail CAB storefront",
+      body: function () { return el("p", { text: "AI builds the catalog, product photos, styled looks, personas and a scripted shopping agent in the customer's brand, scraped from their site first so the products are real." }); },
+    },
+    {
+      id: "simple-setup",
+      getAnchor: simpleChip(1),
+      title: "Setup",
+      body: function () { return el("p", { text: "Add the customer name and website. Logo and brand colors are fetched for you, and you can override them." }); },
+    },
+    {
+      id: "simple-details",
+      getAnchor: simpleChip(2),
+      title: "Details (optional)",
+      body: function () { return el("p", { text: "Tune what a shopper searches for, what they ask the agent, the persona, and the catalog's gender lean." }); },
+    },
+    {
+      id: "simple-build",
+      getAnchor: simpleChip(3),
+      title: "Build, preview, download",
+      body: function () { return el("p", { text: "Building can take several minutes. When it finishes you get a live storefront preview with a \"Take the tour\" walkthrough inside it, and a runnable ZIP that includes the same walkthrough." }); },
+      lastInSegment: true,
+    },
+  ];
   // Standalone tour for the AI Prompt view (no handoff to another segment).
   const AI_PROMPT_TOUR = [
     {
@@ -9333,6 +9410,7 @@
   function tourSegmentList() {
     return app.tour.segment === "home" ? HOME_TOUR
          : app.tour.segment === "aiPrompt" ? AI_PROMPT_TOUR
+         : app.tour.segment === "simple" ? SIMPLE_TOUR
          : BUILDER_TOUR;
   }
   function tourTotal() { return tourSegmentList().length; }
@@ -9347,6 +9425,10 @@
     if (segment === "home") {
       const ob = STORE.getOnboarding();
       if (!ob.homeSeen) { ob.homeSeen = true; STORE.setOnboarding(ob); }
+    }
+    if (segment === "simple") {
+      const ob = STORE.getOnboarding();
+      if (!ob.simpleTourSeen) { ob.simpleTourSeen = true; STORE.setOnboarding(ob); }
     }
     bindTourListeners();
     renderTourStop();
@@ -9386,7 +9468,7 @@
     app.tour.index = 0;
     const ob = STORE.getOnboarding();
     // Skip OR completing the builder segment ends the whole tour for good.
-    if (skipped) { ob.tourDone = true; }
+    if (skipped && seg !== "simple") { ob.tourDone = true; }
     ob.homeSeen = true;
     // The AI Prompt tour is standalone: whenever it ends (finish or skip),
     // mark it seen so it doesn't auto-fire again. The replay link ignores this.
@@ -9481,7 +9563,7 @@
       back.addEventListener("click", tourBack);
       navWrap.appendChild(back);
     }
-    const isLastBuilder = app.tour.segment === "builder" && idx === total - 1;
+    const isLastBuilder = (app.tour.segment === "builder" || app.tour.segment === "simple") && idx === total - 1;
     const nextLabel = isLastBuilder ? "Finish" : (stop.lastInSegment ? "Got it" : "Next");
     const next = el("button", { type: "button", class: "bx-btn bx-btn-primary", text: nextLabel });
     next.addEventListener("click", tourNext);

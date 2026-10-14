@@ -12,7 +12,7 @@
 //  generators + prompt builders read those paths back.
 //
 //  kind:
-//    "app"   → an iframe demo-app (cimulate/clienteling). Generated via
+//    "app"   → an iframe demo-app (clienteling/retailCab). Generated via
 //              HOLO_APPFOUND.generate + generateProductPhotos, surfaced as
 //              a cx_app_<id> component and an appConsoleIframe slide.
 //    "slide" → an in-DOM slide layout (unifiedProfile/agentConversation).
@@ -40,7 +40,7 @@
         type: "list",
         max: 4,
         targetPath: "simple.answers.general.searchTerms",
-        appliesTo: ["cimulate", "retailCab"],
+        appliesTo: ["retailCab"],
       },
       {
         id: "chatChips",
@@ -49,7 +49,7 @@
         type: "list",
         max: 6,
         targetPath: "simple.answers.general.chatChips",
-        appliesTo: ["cimulate", "retailCab"],
+        appliesTo: ["retailCab"],
       },
       {
         id: "personName",
@@ -57,7 +57,7 @@
         hint: "Whose profile/persona is this? (optional)",
         type: "text",
         targetPath: "personas.0.name",
-        appliesTo: ["unifiedProfile", "cimulate", "clienteling", "retailCab"],
+        appliesTo: ["unifiedProfile", "clienteling", "retailCab"],
       },
       {
         id: "genderLean",
@@ -75,15 +75,6 @@
       },
     ],
     experiences: [
-      {
-        id: "cimulate",
-        label: "Cimulate/Shopper Agent",
-        blurb: "Intent-aware product search + a shopper concierge agent, branded to the customer.",
-        icon: "🔎",
-        kind: "app",
-        generatorId: "cimulate",
-        questions: [],
-      },
       {
         id: "clienteling",
         label: "Clienteling app",
@@ -111,7 +102,7 @@
       {
         id: "retailCab",
         label: "Retail CAB storefront",
-        blurb: "AI-generated retail storefront — full catalog, styled looks, and an AI shopping stylist, branded to the customer.",
+        blurb: "AI-generated retail storefront, branded to the customer — full catalog, styled looks, and an AI shopping stylist. Covers Cimulate-style intent search, D360 (Data 360) unified profile, Agentforce, personalization, and Commerce Cloud-style cart and checkout.",
         icon: "🛒",
         kind: "app",
         generatorId: "retailCab",
